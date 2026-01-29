@@ -15,6 +15,31 @@ Generate JITX Python component definitions from datasheets.
 4. **Generate component code** - Ports, landpattern, symbol
 5. **Verify build** - Run `python -m jitx build`
 
+## Finding Component Information
+
+**ONLY use reputable sources for datasheets and package drawings:**
+
+**Manufacturer websites (preferred):**
+- Texas Instruments: ti.com
+- Analog Devices: analog.com
+- Renesas: renesas.com
+- STMicroelectronics: st.com
+- NXP: nxp.com
+- Microchip: microchip.com
+- Infineon: infineon.com
+- onsemi: onsemi.com
+- Raspberry Pi: raspberrypi.com/documentation
+
+**Authorized distributors:**
+- Digi-Key: digikey.com
+- Mouser: mouser.com
+- Arrow: arrow.com
+- Newark/Farnell: newark.com, farnell.com
+
+**AVOID:** Random component sites, manual aggregators, or unverified PDFs. These often have incorrect/outdated pinouts, wrong dimensions, or missing pages.
+
+**When searching:** Use `"<MPN> datasheet" site:<manufacturer>.com` or check distributor product pages which link to official datasheets.
+
 ## Output Location
 
 ### Single Component
