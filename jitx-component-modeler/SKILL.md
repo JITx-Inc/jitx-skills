@@ -7,6 +7,27 @@ description: Generate JITX Python component code from datasheets. Use when user 
 
 Generate JITX Python component definitions from datasheets.
 
+## Environment Setup
+
+Before generating components, verify JITX environment:
+
+```bash
+# Must have Python 3.12+, venv active, jitx installed
+python --version
+which python | grep -q ".venv" || echo "WARNING: activate venv first"
+python -c "import jitx" || echo "ERROR: jitx not installed"
+```
+
+**Fix issues:**
+1. `source .venv/bin/activate`
+2. `pip install -e .`
+
+**Recommended:** Install pyright for type checking:
+```bash
+claude plugin install pyright-lsp@claude-plugins-official
+pip install pyright
+```
+
 ## Workflow Overview
 
 1. **Gather information** - Extract from datasheet or ask user
@@ -294,6 +315,13 @@ class TestDesign(SampleDesign):
 ```bash
 python -m jitx build module.TestDesign
 ```
+
+**Success:** `status: ok`
+**Failure:** Python traceback or `status: error`
+
+**Output files** (in `designs/<design_name>/`):
+- `cache/netlist.json` - Verify net connections
+- `design-info/stable.design` - Design snapshot
 
 ### Introspection
 ```python
