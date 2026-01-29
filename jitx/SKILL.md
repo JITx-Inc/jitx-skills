@@ -29,6 +29,31 @@ If environment issues exist, guide user to:
 1. Activate venv: `source .venv/bin/activate`
 2. Install dependencies: `pip install -e .`
 
+## IDE Setup (Recommended)
+
+Install the Pyright LSP plugin for Python type checking:
+
+```bash
+claude plugin install pyright-lsp@claude-plugins-official
+```
+
+The plugin provides:
+- Real-time type errors before running builds
+- Autocomplete for JITX APIs (jitx, jitxlib, jitxstd)
+- Import resolution and hover documentation
+
+**Requires:** `pyright` or `pyright-langserver` installed:
+```bash
+pip install pyright
+# or
+npm install -g pyright
+```
+
+**Verify:** Ask Claude to "check for type errors" or run manually:
+```bash
+pyright src/
+```
+
 ## Running JITX Designs
 
 ```bash
