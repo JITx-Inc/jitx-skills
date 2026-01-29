@@ -9,18 +9,30 @@ Generate JITX Python component definitions from datasheets.
 
 ## Environment Setup
 
-Before generating components, verify JITX environment:
+Before generating components, check and fix the JITX environment automatically:
 
 ```bash
-# Must have Python 3.12+, venv active, jitx installed
-python --version
-which python | grep -q ".venv" || echo "WARNING: activate venv first"
-python -c "import jitx" || echo "ERROR: jitx not installed"
+# Check for JITX project
+if [ ! -f pyproject.toml ] || ! grep -q "jitx" pyproject.toml; then
+  echo "ERROR: Not a JITX project (no pyproject.toml with jitx dependency)"
+  exit 1
+fi
+
+# Create venv if missing
+if [ ! -d .venv ]; then
+  echo "Creating virtual environment..."
+  python3 -m venv .venv
+fi
+
+# Activate venv and install deps
+source .venv/bin/activate
+pip install -e . --quiet
+
+# Verify
+python -c "import jitx; print(f'JITX ready: {jitx.__version__}')"
 ```
 
-**Fix issues:**
-1. `source .venv/bin/activate`
-2. `pip install -e .`
+Run this automatically when starting component work. Don't ask user to do manual setup.
 
 **Recommended:** Install pyright for type checking:
 ```bash

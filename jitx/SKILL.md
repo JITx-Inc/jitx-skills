@@ -7,27 +7,32 @@ description: Base skill for JITX hardware design workflow. Use when working with
 
 Base skill for JITX hardware design automation. JITX is a Python framework for programmatic PCB design.
 
-## Environment Verification
+## Environment Setup
 
-Before any JITX work, verify the environment:
+Before any JITX work, check and fix the environment automatically:
 
 ```bash
-# Check Python version (requires 3.12+)
-python --version
+# Check for JITX project
+if [ ! -f pyproject.toml ] || ! grep -q "jitx" pyproject.toml; then
+  echo "ERROR: Not a JITX project (no pyproject.toml with jitx dependency)"
+  exit 1
+fi
 
-# Check if in a JITX project (has pyproject.toml with jitx dependency)
-grep -q "jitx" pyproject.toml 2>/dev/null && echo "JITX project detected"
+# Create venv if missing
+if [ ! -d .venv ]; then
+  echo "Creating virtual environment..."
+  python3 -m venv .venv
+fi
 
-# Check virtual environment
-which python | grep -q ".venv" && echo "venv active" || echo "WARNING: activate venv first"
+# Activate venv and install deps
+source .venv/bin/activate
+pip install -e . --quiet
 
-# Verify JITX is installed
-python -c "import jitx; print(f'JITX version: {jitx.__version__}')" 2>/dev/null || echo "JITX not installed"
+# Verify
+python -c "import jitx; print(f'JITX ready: {jitx.__version__}')"
 ```
 
-If environment issues exist, guide user to:
-1. Activate venv: `source .venv/bin/activate`
-2. Install dependencies: `pip install -e .`
+Run this automatically when starting JITX work. Don't ask user to do manual setup.
 
 ## IDE Setup (Recommended)
 
