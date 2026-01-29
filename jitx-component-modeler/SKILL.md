@@ -103,17 +103,41 @@ When generating a JITX component from a datasheet or specification, follow this 
 
 **NEVER read a full datasheet PDF directly.** Even 50-page PDFs consume excessive context.
 
-**Always extract pages first:**
+**Always extract relevant pages first:**
 
-```bash
-# Step 1: Find relevant pages (fast text search, doesn't load into context)
-python scripts/extract_pages.py datasheet.pdf --find "pinout" "pin description" "dimension" "package" "ball map" "mechanical"
+```python
+# Run this inline to find and extract pages (requires: pip install pymupdf)
+import fitz  # PyMuPDF
 
-# Step 2: Extract only those pages
-python scripts/extract_pages.py datasheet.pdf --pages 12 45 142 -o datasheet_extract.pdf
+def find_and_extract(input_pdf, keywords, output_pdf):
+    """Find pages with keywords and extract to smaller PDF."""
+    doc = fitz.open(input_pdf)
+    pages_to_extract = set()
 
-# Step 3: NOW read the small extracted PDF
+    # Find pages containing keywords
+    for page_num, page in enumerate(doc):
+        text = page.get_text().lower()
+        if any(kw.lower() in text for kw in keywords):
+            pages_to_extract.add(page_num)
+
+    # Extract to new PDF
+    new_doc = fitz.open()
+    for idx in sorted(pages_to_extract):
+        new_doc.insert_pdf(doc, from_page=idx, to_page=idx)
+    new_doc.save(output_pdf)
+    print(f"Extracted {len(pages_to_extract)} pages: {sorted(p+1 for p in pages_to_extract)}")
+    doc.close()
+    new_doc.close()
+
+# Usage:
+find_and_extract(
+    "datasheet.pdf",
+    ["pinout", "pin description", "dimension", "package", "ball map", "mechanical"],
+    "datasheet_extract.pdf"
+)
 ```
+
+Then read only the extracted PDF.
 
 **Key pages to find:**
 - Pin assignment / ball map (usually pages 10-20)
@@ -121,7 +145,7 @@ python scripts/extract_pages.py datasheet.pdf --pages 12 45 142 -o datasheet_ext
 - Package mechanical drawing (usually near end)
 - Ordering information
 
-**If extract_pages.py unavailable**, ask user to provide:
+**If pymupdf not available**, ask user to provide:
 - Pin count and package type
 - Screenshot of pinout/ball map
 - Package dimensions (body size, pitch, ball/lead size)
