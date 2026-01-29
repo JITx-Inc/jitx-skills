@@ -109,21 +109,34 @@ Ask user if they want different:
 - Category organization (flat vs categorized)
 - File naming convention
 
-## Large Datasheet Handling
+## Datasheet Handling (CRITICAL)
 
-For datasheets >2MB or >100 pages, extract relevant pages first:
+**NEVER read a full datasheet PDF directly.** Even 50-page PDFs consume excessive context.
+
+**Always extract pages first:**
 
 ```bash
-# Find relevant pages
-python scripts/extract_pages.py datasheet.pdf --find "pinout" "dimension" "package" "ball"
+# Step 1: Find relevant pages (fast text search, doesn't load into context)
+python scripts/extract_pages.py datasheet.pdf --find "pinout" "pin description" "dimension" "package" "ball map" "mechanical"
 
-# Extract to smaller PDF
-python scripts/extract_pages.py datasheet.pdf --pages 42 43 1020 -o datasheet_package.pdf
+# Step 2: Extract only those pages
+python scripts/extract_pages.py datasheet.pdf --pages 12 45 142 -o datasheet_extract.pdf
+
+# Step 3: NOW read the small extracted PDF
 ```
 
-Key pages: pinout diagram, pin description table, package mechanical drawing, ordering info.
+**Key pages to find:**
+- Pin assignment / ball map (usually pages 10-20)
+- Pin description table
+- Package mechanical drawing (usually near end)
+- Ordering information
 
-If extraction unavailable, ask user for: pin count, package type, pin names, package dimensions.
+**If extract_pages.py unavailable**, ask user to provide:
+- Pin count and package type
+- Screenshot of pinout/ball map
+- Package dimensions (body size, pitch, ball/lead size)
+
+**Do NOT** just read the PDF and hope for the best - this will exhaust context.
 
 ## Package Selection
 
