@@ -101,6 +101,3 @@ Generate JITX component code from datasheets. Use for:
 | Task | Command/Pattern |
 |------|-----------------|
 | Build design | `python -m jitx build module.Design` |
-| Check netlist | Read `designs/<name>/cache/netlist.json` |
-| Verify ports | `from jitx.inspect import extract; extract(comp, Port)` |
-| Verify pads | `extract(comp.landpattern, Pad)` |

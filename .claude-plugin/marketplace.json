@@ -1,0 +1,23 @@
+{
+  "name": "jitx-skills",
+  "owner": {
+    "name": "Duncan Haldane",
+    "email": "duncan@jitx.com"
+  },
+  "metadata": {
+    "description": "JITX hardware design automation skills for PCB design, component modeling, and circuit creation",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "jitx-skills",
+      "description": "JITX workflow skills: base environment setup, component modeling from datasheets (BGA, QFN, SOIC, etc.), with support for multi-unit symbols, thermal pads, and non-uniform packages",
+      "source": "./",
+      "strict": false,
+      "skills": [
+        "./jitx",
+        "./jitx-component-modeler"
+      ]
+    }
+  ]
+}
