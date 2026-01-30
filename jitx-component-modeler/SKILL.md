@@ -42,28 +42,19 @@ pip install pyright
 
 ## Finding Component Information
 
-**ONLY use reputable sources for datasheets and package drawings:**
+**AVOID REDUNDANT WEB SEARCHES**
 
-**Manufacturer websites (preferred):**
-- Texas Instruments: ti.com
-- Analog Devices: analog.com
-- Renesas: renesas.com
-- STMicroelectronics: st.com
-- NXP: nxp.com
-- Microchip: microchip.com
-- Infineon: infineon.com
-- onsemi: onsemi.com
-- Raspberry Pi: raspberrypi.com/documentation
+Once you have the datasheet PDF, extract pinout, package dimensions, and pin descriptions from it using Step 0. Do NOT search for info that's already in the datasheet.
 
-**Authorized distributors:**
-- Digi-Key: digikey.com
-- Mouser: mouser.com
-- Arrow: arrow.com
-- Newark/Farnell: newark.com, farnell.com
+**When additional searches ARE appropriate:**
+- Datasheet lacks package mechanical drawings (common for simple parts)
+- Complex packages (200+ pins) where cross-referencing helps catch errors
+- Need separate package drawing document (e.g., TI's MPDS files)
 
-**AVOID:** Random component sites, manual aggregators, or unverified PDFs. These often have incorrect/outdated pinouts, wrong dimensions, or missing pages.
-
-**When searching:** Use `"<MPN> datasheet" site:<manufacturer>.com` or check distributor product pages which link to official datasheets.
+**When searching:**
+- Use manufacturer sites: ti.com, analog.com, st.com, nxp.com, microchip.com, infineon.com, onsemi.com
+- Search pattern: `"<MPN> datasheet" site:<manufacturer>.com`
+- Avoid distributor sites, random aggregators, or unverified PDFs
 
 ## Output Location
 
