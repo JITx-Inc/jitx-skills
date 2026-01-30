@@ -333,8 +333,8 @@ class LM1117_WSON(jitx.Component):
     GND2 = Port()   # Pin 2 (also GND)
     VOUT = Port()   # Pin 3
     VOUT2 = Port()  # Pin 4 (also VOUT)
-    NC1 = Port()    # Pin 5 (no connect)
-    NC2 = Port()    # Pin 6 (no connect)
+    NC1 = Port().no_connect()  # Pin 5
+    NC2 = Port().no_connect()  # Pin 6
     VIN = Port()    # Pin 7
     VIN2 = Port()   # Pin 8 (also VIN)
 
@@ -647,7 +647,7 @@ Device: type[WirelessSoC] = WirelessSoC
 3. **Pad naming**: BGA pads accessed via `lp.A[1]` or `lp.B[12]` (dict-style).
 
 4. **NC vs Depopulated**:
-   - **NC**: Physical ball exists but not connected. Create port, include in symbol.
+   - **NC**: Physical ball exists but not connected. Use `Port().no_connect()`, include in symbol.
    - **Depopulated**: No physical ball. Mark inactive in grid planner, no port needed.
 
 5. **Package dimensions**: Body size is overall package. Ball array centered within.
