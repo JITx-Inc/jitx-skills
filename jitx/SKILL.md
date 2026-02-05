@@ -1,6 +1,6 @@
 ---
 name: jitx
-description: Base skill for JITX hardware design workflow. Use when working with JITX Python projects for PCB design, circuit creation, or component modeling. Provides environment setup verification, build commands, project structure guidance, and navigation to specialized subskills (component-modeler, etc.). Triggers on any JITX-related task or when user mentions JITX, circuits, PCB design, or hardware.
+description: Base skill for JITX hardware design workflow. Use when working with JITX Python projects for PCB design, circuit creation, or component modeling. Provides environment setup verification, build commands, project structure guidance, documentation lookup, and navigation to specialized subskills (component-modeler, etc.). Triggers on any JITX-related task or when user mentions JITX, circuits, PCB design, or hardware. Also triggers when user asks about JITX APIs, landpattern generators, protocols, or needs to look up JITX documentation. IMPORTANT - When user provides a datasheet or asks to create/model a component, ALWAYS invoke the jitx-component-modeler subskill.
 ---
 
 # JITX Workflow Skill
@@ -110,21 +110,59 @@ project/
 ## Subskills
 
 ### Component Modeler (`jitx-component-modeler`)
-Generate JITX component code from datasheets. Use for:
-- Creating new component definitions from datasheets
+
+**ALWAYS invoke this subskill** when user:
+- Provides a datasheet PDF (file path or URL)
+- Asks to "create a component", "model a part", or "add a component"
+- Mentions specific part numbers (e.g., "NE555", "RP2040", "LM1117")
+
+**How to invoke:** Use the Skill tool with `skill: "jitx-skills:jitx-component-modeler"`
+
+Supports:
 - BGA, QFN, SOIC, SON, SOT packages
-- Multi-unit symbols
+- Multi-unit symbols and thermal pads
 - Complex pin mappings
+- Batch component creation
+
+**Do NOT attempt component generation without invoking this subskill** - it contains critical patterns, dimension mappings, and code templates.
 
 ### Coming Soon
 - Circuit templates
 - Design patterns
 - Signal integrity constraints
 
-## Documentation
+## Documentation Lookup
 
-- Docs: https://docs-testing.jitx.com/en/latest/
-- Key areas: JITX Manual, Reference, Standard Library
+JITX docs: `https://docs.jitx.com/en/latest/`
+
+**When to fetch docs:**
+- Unfamiliar API class or method → fetch API reference page
+- Protocol wiring (USB, Ethernet, I2C) → fetch protocol docs
+- Landpattern generator parameters → fetch generator docs
+- UI commands or shortcuts → fetch UI command page
+- Design patterns (pin assignment, SI constraints) → fetch essentials page
+
+**How to look up:**
+1. Read `references/docs-index.md` to find the right page URL
+2. Use WebFetch to retrieve the page content
+3. Apply the information to the task
+
+**Common lookups:**
+
+| Topic | Doc Path |
+|-------|----------|
+| Pin assignment | `essentials/design/pin_assignment.html` |
+| Design hierarchy | `essentials/design/design-hierarchy.html` |
+| Autorouter | `essentials/physical_design/autorouter.html` |
+| SI constraints | `essentials/SI/constraints.html` |
+| Component class | `api/jitx.component.html` |
+| Circuit class | `api/jitx.circuit.html` |
+| QFN landpattern | `jitxlib-standard/jitxlib.landpatterns.generators.qfn.html` |
+| BGA landpattern | `jitxlib-standard/jitxlib.landpatterns.generators.bga.html` |
+| USB protocol | `jitxlib-standard/jitxlib.protocols.usb.html` |
+| Box symbol | `jitxlib-standard/jitxlib.symbols.box.html` |
+
+For complete index with all pages, see `references/docs-index.md`.
 
 ## Quick Reference
 
