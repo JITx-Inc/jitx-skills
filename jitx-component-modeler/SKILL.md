@@ -1,6 +1,6 @@
 ---
 name: jitx-component-modeler
-description: Generate JITX Python component code from datasheets. Use when user provides a datasheet PDF and asks to create a JITX component, model a part, or add a component to a JITX project. Supports BGA, QFN, SOIC, SON, SOT packages with multi-unit symbols, thermal pads, and complex pin mappings. Handles single components or batch component creation with proper folder organization.
+description: Create JITX Python component code for electronic parts. ALWAYS use this skill when user asks to create a component, model a part, generate a component, add a component, or make a JITX component - even without a datasheet. Triggers on part numbers (NE555, LM1117, RP2040, etc.) and package types (SOIC, QFN, BGA, SON, SOT). Supports multi-unit symbols, thermal pads, and complex pin mappings.
 ---
 
 # JITX Component Generation Skill

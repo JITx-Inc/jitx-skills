@@ -1,6 +1,6 @@
 ---
 name: jitx
-description: Base skill for JITX hardware design workflow. Use when working with JITX Python projects for PCB design, circuit creation, or component modeling. Provides environment setup verification, build commands, project structure guidance, documentation lookup, and navigation to specialized subskills (component-modeler, etc.). Triggers on any JITX-related task or when user mentions JITX, circuits, PCB design, or hardware. Also triggers when user asks about JITX APIs, landpattern generators, protocols, or needs to look up JITX documentation. IMPORTANT - When user provides a datasheet or asks to create/model a component, ALWAYS invoke the jitx-component-modeler subskill.
+description: Base skill for JITX hardware design workflow. Use for JITX Python projects, PCB design, circuit creation, and build commands. CRITICAL - If user asks to create/model/generate a component or mentions a part number (NE555, LM1117, RP2040, etc.), immediately invoke jitx-component-modeler subskill.
 ---
 
 # JITX Workflow Skill
