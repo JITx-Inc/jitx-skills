@@ -40,7 +40,19 @@ claude plugin install pyright-lsp@claude-plugins-official
 pip install pyright
 ```
 
-## Finding Component Information
+## Datasheet Handling
+
+**ALWAYS save datasheets locally before reading.**
+
+When user provides a URL or asks to download a datasheet:
+1. Download the PDF using WebFetch
+2. Save to `datasheets/<mpn>.pdf` in the project (create folder if needed)
+3. Then use the extraction process in Step 0
+
+This ensures:
+- Datasheet is available for future reference
+- Consistent file paths for extraction scripts
+- No repeated downloads
 
 **AVOID REDUNDANT WEB SEARCHES**
 
@@ -58,15 +70,9 @@ Once you have the datasheet PDF, extract pinout, package dimensions, and pin des
 
 ## Output Location
 
-### Single Component
-Place in project root or current directory:
-```
-project/
-└── <manufacturer>_<mpn>.py
-```
+**ALWAYS place components in a `components/` folder**, even for single components.
 
-### Multiple Components (Default Structure)
-Use py-components structure when creating multiple components or user requests organized layout:
+### Standard Structure
 ```
 project/
 └── src/<namespace>/
@@ -77,6 +83,14 @@ project/
         │   └── <manufacturer>_<mpn>.py
         └── <category>/
             └── ...
+```
+
+If `src/<namespace>/` doesn't exist, use:
+```
+project/
+└── components/
+    ├── __init__.py
+    └── <manufacturer>_<mpn>.py
 ```
 
 **Category examples:** mcus, connectors, power_linear_regulators, opamp, flash, crystals, leds, logic, timers, buttons, transceivers, diodes_tvs, isolators, power_switchmode
@@ -144,6 +158,21 @@ Then read only the extracted PDF.
 **Do NOT** just read the PDF and hope for the best - this will exhaust context.
 
 ### Step 1: Extract Key Information
+
+**IMPORTANT: Multiple Packages/Variants**
+
+If the datasheet covers multiple package options or component variants, **use AskUserQuestion** to ask the user which one to model:
+
+```
+Example: "The datasheet shows 3 package options for this part:
+- SOIC-8 (NE555DR)
+- PDIP-8 (NE555P)
+- VSSOP-8 (NE555DGKR)
+
+Which package would you like me to model?"
+```
+
+Do NOT assume or pick one arbitrarily. Ask first.
 
 From the datasheet (or extracted pages), extract:
 1. **Component identification**: Manufacturer, MPN, description
