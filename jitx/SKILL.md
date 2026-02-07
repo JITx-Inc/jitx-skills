@@ -5,6 +5,10 @@ description: Base skill for JITX hardware design workflow. Use when working with
 
 # JITX Workflow Skill
 
+**Tier:** Production (Verified by default)
+
+Follow repo rules: `LLM_RULES.md` (venv required, type-check clean, formatted).
+
 Base skill for JITX hardware design automation. JITX is a Python framework for programmatic PCB design.
 
 ## Environment Setup
@@ -57,6 +61,15 @@ npm install -g pyright
 **Verify:** Ask Claude to "check for type errors" or run manually:
 ```bash
 pyright src/
+```
+
+## Formatting (Required)
+
+Use ruff (or equivalent) to keep generated code consistently formatted.
+
+```bash
+pip install ruff
+ruff format .
 ```
 
 ## Running JITX Designs

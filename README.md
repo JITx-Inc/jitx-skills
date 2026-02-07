@@ -56,6 +56,7 @@ jitx-skills/
 
 ## Requirements
 
+- Follow `LLM_RULES.md` for tiered (Draft vs Production) LLM workflows.
 - A JITX Python project (with `pyproject.toml` containing jitx dependency)
 - Python 3.10+
 - For datasheet processing: `pip install pymupdf`

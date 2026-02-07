@@ -5,6 +5,10 @@ description: Generate JITX Python component code from datasheets. Use when user 
 
 # JITX Component Generation Skill
 
+**Tier:** Production (Verified components)
+
+Follow repo rules: `LLM_RULES.md` (venv required, type-check clean, formatted).
+
 Generate JITX Python component code from datasheets and specifications.
 
 ## Environment Setup
@@ -38,6 +42,15 @@ Run this automatically when starting component work. Don't ask user to do manual
 ```bash
 claude plugin install pyright-lsp@claude-plugins-official
 pip install pyright
+```
+
+## Formatting (Required)
+
+Use ruff (or equivalent) to keep generated code consistently formatted.
+
+```bash
+pip install ruff
+ruff format .
 ```
 
 ## Datasheet Handling
