@@ -11,12 +11,13 @@
   "plugins": [
     {
       "name": "jitx-skills",
-      "description": "JITX workflow skills for PCB design. Use jitx-component-modeler when user wants to: create a component, model a part, generate component code, add a component definition. Supports SOIC, QFN, BGA, SON, SOT packages with thermal pads and multi-unit symbols.",
+      "description": "JITX workflow skills for PCB design. Use jitx-component-modeler for component creation from datasheets. Use jitx-circuit-builder for wiring circuits, passives, providers, and application circuits.",
       "source": "./",
       "strict": false,
       "skills": [
         "./jitx",
-        "./jitx-component-modeler"
+        "./jitx-component-modeler",
+        "./jitx-circuit-builder"
       ]
     }
   ]

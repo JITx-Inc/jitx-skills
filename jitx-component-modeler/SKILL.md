@@ -897,6 +897,97 @@ After generating code, provide:
 - [List any discrepancies or assumptions made]
 ```
 
+## Step 6: Capture Application Circuit (Optional)
+
+After generating component code, check the datasheet for "Typical Application", "Reference Design", or "Application Circuit" sections. These provide valuable circuit templates.
+
+**When to offer:**
+- Datasheet includes a schematic with the component
+- User is creating a power IC, amplifier, or other circuit-centric component
+- Application circuit shows passive values and connections
+
+**Process:**
+
+1. **Ask user** if they want to capture the application circuit:
+   ```
+   "The datasheet includes a Typical Application circuit (Figure X).
+   Would you like me to also generate the application circuit code?"
+   ```
+
+2. **If yes**, invoke the `jitx-circuit-builder` skill to generate circuit code
+
+3. **Pass context** to circuit-builder:
+   - Component class name and import path
+   - Datasheet figure reference
+   - Component values from schematic (cap values, resistor values, inductor specs)
+   - Pin connections shown in the schematic
+
+**Example application circuit output:**
+
+```python
+"""
+Texas Instruments TPS62933DRLR Application Circuit
+From datasheet Figure 23 - Typical Application
+
+3.8-V to 30-V input, 3.3V 3A output buck converter.
+"""
+
+from jitx import Circuit, Net
+from jitx.common import Power
+from jitxlib.parts import Capacitor, CapacitorQuery, Resistor, Inductor, ResistorQuery
+from jitxlib.voltage_divider import VoltageDividerConstraints, voltage_divider_from_constraints
+
+from .texas_instruments_TPS62933DRLR import TPS62933DRLR
+
+
+class TPS62933DRLRCircuit(Circuit):
+    """Buck converter application circuit per datasheet Figure 23."""
+
+    vin = Power()   # Input power (3.8V-30V)
+    vout = Power()  # Output power (3.3V)
+
+    def __init__(self, output_voltage=3.3):
+        self.GND = Net(name="GND")
+        self.VOUT = Net(name="VOUT")
+        self.VIN = Net(name="VIN")
+
+        # Main IC
+        self.buck = TPS62933DRLR()
+
+        # Power connections
+        self.VIN += self.vin.Vp + self.buck.VIN
+        self.GND += self.buck.GND + self.vin.Vn + self.vout.Vn
+
+        # Input capacitors (C1, C2 - 10µF each per schematic)
+        with CapacitorQuery.refine(type="ceramic", case="0805"):
+            for _ in range(2):
+                Capacitor(capacitance=10e-6, rated_voltage=50.0).insert(
+                    self.buck.VIN, self.GND, short_trace=True
+                )
+
+        # Feedback voltage divider
+        vdiv_cons = VoltageDividerConstraints(
+            v_in=output_voltage, v_out=0.8, current=0.8/10e3,
+            base_query=ResistorQuery(case=["0402"])
+        )
+        self.fb_div = voltage_divider_from_constraints(vdiv_cons)
+        self.VOUT += self.fb_div.hi + self.vout.Vp
+        self.GND += self.fb_div.lo
+        self.nets = [self.fb_div.out + self.buck.FB]
+
+        # Output inductor and capacitors
+        self.L = Inductor(inductance=4.7e-6, current_rating=3.9)
+        # ... complete circuit per datasheet
+```
+
+**File location:** Save application circuits alongside the component:
+```
+components/
+├── power_switchmode/
+│   ├── texas_instruments_TPS62933DRLR.py      # Component
+│   └── texas_instruments_TPS62933DRLR_circuit.py  # Application circuit
+```
+
 ## Output Format
 
 When generating a component, provide:
@@ -905,3 +996,4 @@ When generating a component, provide:
 2. Verification report (using format above)
 3. Any assumptions or decisions made
 4. Known limitations or items requiring manual review
+5. **Offer to capture application circuit** if datasheet includes one

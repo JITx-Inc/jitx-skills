@@ -28,6 +28,9 @@ fi
 source .venv/bin/activate
 pip install -e . --quiet
 
+# Install ruff for code formatting
+pip install ruff --quiet
+
 # Verify
 python -c "import jitx; print(f'JITX ready: {jitx.__version__}')"
 ```
@@ -102,10 +105,7 @@ project/
 
 **Design**: Python class inheriting from design base (e.g., `SampleDesign`). Top-level entry point.
 
-**Net operators**:
-- `+` : Unordered connection (add to net set)
-- `>>` : Topology operator for ordered routing
-- `self +=` : Add connections to circuit
+For net wiring, passives, and circuit patterns, invoke the `jitx-circuit-builder` subskill.
 
 ## Subskills
 
@@ -126,10 +126,29 @@ Supports:
 
 **Do NOT attempt component generation without invoking this subskill** - it contains critical patterns, dimension mappings, and code templates.
 
+### Circuit Builder (`jitx-circuit-builder`)
+
+**Invoke this subskill** when user asks to:
+- "Wire up" or "connect" components
+- Build application circuits from datasheets
+- Work with passives (resistors, capacitors, inductors)
+- Set up power connections or decoupling
+- Add copper pours or geometry
+- Use provider/require patterns
+
+**How to invoke:** Use the Skill tool with `skill: "jitx-skills:jitx-circuit-builder"`
+
+Covers:
+- Circuit class structure and wiring
+- Passives from jitxlib with query refinement
+- Provider pattern (@provide, @provide.one_of, @provide.subset_of)
+- Require pattern for capabilities
+- Pours and copper geometry
+- Component placement
+
 ### Coming Soon
-- Circuit templates
-- Design patterns
-- Signal integrity constraints
+- Substrate configuration (stackups, vias, routing structures)
+- Signal integrity constraints (topologies, differential pairs)
 
 ## Documentation Lookup
 
@@ -164,8 +183,17 @@ JITX docs: `https://docs.jitx.com/en/latest/`
 
 For complete index with all pages, see `references/docs-index.md`.
 
+## Formatting
+
+Run `ruff format` on generated code to keep it consistent:
+
+```bash
+ruff format path/to/file.py
+```
+
 ## Quick Reference
 
 | Task | Command/Pattern |
 |------|-----------------|
 | Build design | `python -m jitx build module.Design` |
+| Format code | `ruff format path/to/file.py` |
