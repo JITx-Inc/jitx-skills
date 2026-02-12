@@ -146,10 +146,6 @@ Covers:
 - Pours and copper geometry
 - Component placement
 
-### Coming Soon
-- Substrate configuration (stackups, vias, routing structures)
-- Signal integrity constraints (topologies, differential pairs)
-
 ## Documentation Lookup
 
 JITX docs: `https://docs.jitx.com/en/latest/`

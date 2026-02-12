@@ -40,16 +40,38 @@ Generate JITX Python component code from datasheets. Supports:
 - "Model the RP2040 for my project"
 - "Add an LDO component from the TI datasheet"
 
+### jitx-circuit-builder
+
+Build JITX circuits with wiring, passives, providers, and geometry. Covers:
+
+- **Circuit class:** Net wiring, passive insertion, component instantiation
+- **Provider/require:** Pin assignment patterns for flexible designs
+- **Geometry:** Pours, copper shapes, placement
+- **Solvers:** Voltage divider, query refinement
+
+**Example triggers:**
+- "Wire up a buck converter circuit"
+- "Connect the MCU to sensors over I2C"
+- "Add decoupling caps to all power pins"
+
 ## Project Structure
 
 ```
 jitx-skills/
 ├── jitx/                      # Base JITX workflow skill
-│   └── SKILL.md
+│   ├── SKILL.md
+│   └── references/
+│       └── docs-index.md      # JITX documentation URL index
 ├── jitx-component-modeler/    # Component generation skill
 │   ├── SKILL.md
+│   ├── references/
+│   │   └── package-examples.md  # Package-specific code examples
 │   └── scripts/
 │       └── extract_pages.py   # PDF extraction utility
+├── jitx-circuit-builder/      # Circuit building skill
+│   ├── SKILL.md
+│   └── references/
+│       └── advanced-patterns.md  # Provider, pour, placement patterns
 └── .claude-plugin/
     └── marketplace.json
 ```
