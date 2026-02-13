@@ -48,9 +48,16 @@ Everything goes in **one Python file** per substrate:
 
 ## Materials
 
-Set properties as **class attributes**, instantiate with thickness:
+Set properties as **class attributes**, instantiate with thickness.
+
+Soldermask is a `Dielectric` — define it like any other dielectric material:
 
 ```python
+class SoldermaskLayer(Dielectric):
+    """Soldermask — typically Er ≈ 3.8"""
+    dielectric_coefficient = 3.8
+    loss_tangent = 0.02
+
 class FR4_Prepreg(Dielectric):
     dielectric_coefficient = 4.4   # relative permittivity (Er)
     loss_tangent = 0.0168          # Df
@@ -80,15 +87,19 @@ class My4LayerStackup(Symmetric):
 
 ### Explicit Stackup (non-symmetric boards)
 
-Top-to-bottom order. Named attributes or list:
+Top-to-bottom order. Named attributes or list. **Give copper layers informative names** describing their function (signal, ground, power) — these appear in the JITX UI and help users navigate the design:
 
 ```python
 class My8LayerStackup(Stackup):
     top_mask = SoldermaskLayer(thickness=0.02)
     L8 = ThinCopper(name="L8-Patch")
     sub7 = Prepreg326(thickness=0.068)
-    L7 = ThinCopper(name="L7-GND")
+    L7 = ThinCopper(name="L7-GND3")
+    sub6 = Prepreg322(thickness=0.104)
+    L6 = ThinCopper(name="L6-Signal")
     # ... all layers top to bottom ...
+    L2 = ThinCopper(name="L2-GND1")
+    sub1 = Prepreg325(thickness=0.068)
     L1 = ThickCopper(name="L1-Signal")
     bottom_mask = SoldermaskLayer(thickness=0.02)
 ```
@@ -177,21 +188,27 @@ class BuriedVia_L3_L12(Via):
 
 ### Backdrilled Via
 
+Backdrill depth is set via `stop_layer` — set it to the target signal layer, then use `BackdrillSet` to remove the stub. The backdrill side is opposite to the signal entry:
+
 ```python
-class BackdrilledVia(Via):
+bd = Backdrill(
+    diameter=0.5, startpad_diameter=0.7,
+    solder_mask_opening=0.8, copper_clearance=0.6,
+)
+
+class BackdrilledVia_L3(Via):
+    """Signal enters from top, connects at L3 — backdrill from bottom removes stub"""
     type = ViaType.MechanicalDrill
     start_layer = Side.Top
-    stop_layer = Side.Bottom
+    stop_layer = 3             # target signal layer controls backdrill depth
     diameter = 0.6
     hole_diameter = 0.3
-    # Single Backdrill — assumed from bottom
-    backdrill = Backdrill(
-        diameter=0.5, startpad_diameter=0.7,
-        solder_mask_opening=0.8, copper_clearance=0.6,
-    )
+    filled = True
+    via_in_pad = True
+    backdrill = BackdrillSet(bottom=bd)  # backdrill from opposite side
 ```
 
-**Dual backdrill (both sides):**
+**Dual backdrill (both sides) — incredibly uncommon, almost never needed:**
 
 ```python
     backdrill = BackdrillSet(
