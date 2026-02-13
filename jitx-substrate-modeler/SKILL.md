@@ -371,7 +371,7 @@ DRS_82 = DifferentialRoutingStructure(
 
 ## Fabrication Constraints
 
-All values in mm. See [references/substrate-api-reference.md](references/substrate-api-reference.md) for the complete attribute list.
+All values in mm.
 
 ```python
 class MyFabRules(FabricationConstraints):
@@ -452,10 +452,6 @@ class SubstrateB(Substrate, MyVias):
 6. **Add routing structures** — `RoutingStructure` and `DifferentialRoutingStructure` for each impedance target
 7. **Add design rules** — Tags and `design_constraint()` for clearances if needed
 8. **Verify** — `pyright` type check, then `python -m jitx build` with a test design
-
-## API Reference
-
-For complete class definitions, all parameters, method signatures, and additional examples, see [references/substrate-api-reference.md](references/substrate-api-reference.md).
 
 ## Formatting
 
