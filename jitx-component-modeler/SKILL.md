@@ -16,7 +16,7 @@ Environment setup is handled by the base `jitx` skill. Ensure it has been invoke
 **ALWAYS save datasheets locally before reading.**
 
 When user provides a URL or asks to download a datasheet:
-1. Download the PDF using WebFetch
+1. Download the PDF using curl or wget via Bash
 2. Save to `datasheets/<mpn>.pdf` in the project (create folder if needed)
 3. Then use the extraction process in Step 0
 
@@ -108,7 +108,7 @@ Then read only the extracted PDF.
 
 **IMPORTANT: Multiple Packages/Variants**
 
-If the datasheet covers multiple package options or component variants, **use AskUserQuestion** to ask the user which one to model:
+If the datasheet covers multiple package options or component variants, ask the user which one to model:
 
 ```
 Example: "The datasheet shows 3 package options for this part:
@@ -228,7 +228,7 @@ Device: type[{ComponentClassName}] = {ComponentClassName}
 
 ## Package-Specific Examples
 
-For complete examples of each package type (SOIC, SON, QFN, BGA), including thermal pads,
+For complete examples of each package type (SOIC, SOT, SON, QFN, QFP, BGA), including thermal pads,
 port arrays, inactive positions, and non-uniform BGA grids, see
 [references/package-examples.md](references/package-examples.md).
 
@@ -249,7 +249,7 @@ port arrays, inactive positions, and non-uniform BGA grids, see
 
 ### Class-Level vs Instance-Level
 
-Ports, landpattern, and symbol defined at **class level** (no `self`):
+Ports, landpattern, and symbol defined at **class level** (no `self`). The exception to this is if a parameter is needed at the class initialization time then the definition can be done in the initialization function:
 
 ```python
 class MyIC(jitx.Component):
@@ -290,13 +290,15 @@ from jitxlib.landpatterns.pads import SMDPadConfig, WindowSubdivide
 ### Reference Designator Prefixes
 
 - `U` - Integrated circuits
-- `Q` - Transistors (MOSFETs, BJTs)
-- `D` - Diodes
+- `Q` - Transistors (typically BJTs)
+- `D` - Diodes (LEDs)
 - `R` - Resistors
 - `C` - Capacitors
 - `L` - Inductors
 - `J` - Connectors
-- `Y` - Crystals/oscillators
+- `Y` or `X`- Crystals/oscillators
+- `FB` - Ferrite beads
+- `T` - Transformers
 
 ## Multi-Unit Symbols
 
@@ -325,11 +327,12 @@ def __init__(self):
 
 **Every physical pin/ball MUST have a Port().** Never use "representative samples" — a 142-ball
 BGA needs exactly 142 Port() declarations. Enumerate every pin from the datasheet pin table or
-ball map row by row. NC (no-connect) pins with physical pads also need ports.
+ball map row by row. NC (no-connect) pins with physical pads also need ports. 
 
 **One Port per physical pin** — if a ball has a primary name and alternate functions
 (SPI_CLK, UART_TX, etc.), create ONE port using the datasheet's primary pin name. Do not create
 separate ports for each alternate function of the same physical ball.
+Also for Ports that have incrementing numbers in the name, use an indexed Port name instead (GND1, GND2, GND3 -> GND[1 through 3])
 
 **Use real functional names from the datasheet**, not generic placeholders:
 
@@ -362,10 +365,31 @@ LeadProfile(
 # SON — use .lead_profile() method chain, NOT .lead()
 SON(num_leads=8).lead_profile(LeadProfile(span=..., pitch=..., type=SONLead(...)))
 
+# QFP — uses LeadProfile with QFPLead (BigGullWingLeads)
+QFP(num_leads=48).lead_profile(LeadProfile(span=..., pitch=0.5, type=QFPLead(...)))
+# For asymmetric pin counts: QFP(num_rows=(left, bottom, right, top))
+# For asymmetric lead spans: .lead_profile(x_profile, y_profile)
+
 # BGA — constructor takes these 4 args
 BGA(num_rows=12, num_cols=12, pitch=0.45, ball_diameter=0.25)
 # then chain: .grid_planner(...).pad_config(SMDPadConfig()).package_body(...)
 ```
+
+### `.narrow()` vs `.package_body()` for SOIC
+
+SOIC provides a convenience method `.narrow(length)` that sets the package body to the standard SOIC narrow width (3.9mm) with a given length:
+
+```python
+# .narrow() — shorthand for narrow-body SOIC (3.9mm width)
+SOIC(num_leads=8).lead_profile(SOIC_DEFAULT_LEAD_PROFILE).narrow(Toleranced.min_max(4.81, 5.0))
+
+# Equivalent explicit form using .package_body()
+SOIC(num_leads=8).lead_profile(SOIC_DEFAULT_LEAD_PROFILE).package_body(
+    RectanglePackage(width=Toleranced.exact(3.9), length=Toleranced.min_max(4.81, 5.0))
+)
+```
+
+Use `.narrow()` for standard narrow-body SOICs. Use `.package_body()` for wide-body SOICs or when you need to specify all three dimensions (width, length, height).
 
 ## PadMapping Requirements
 
@@ -378,7 +402,7 @@ BGA(num_rows=12, num_cols=12, pitch=0.45, ball_diameter=0.25)
 
 ## Verification Process
 
-### Test Harness
+### Step 4: Test Harness
 
 ```python
 import jitx
@@ -396,6 +420,7 @@ class TestDesign(SampleDesign):
 
 ### Build Command
 
+Always use the available virtual environment. If one is not present, stop and ask.
 ```bash
 python -m jitx build <module>.TestDesign
 ```
@@ -441,7 +466,7 @@ After generating code, provide:
 - [List any discrepancies or assumptions made]
 ```
 
-## Step 6: Capture Application Circuit (Optional)
+## Step 5: Capture Application Circuit (Optional)
 
 After generating component code, check the datasheet for "Typical Application", "Reference Design", or "Application Circuit" sections. These provide valuable circuit templates.
 
@@ -477,6 +502,7 @@ From datasheet Figure 23 - Typical Application
 """
 
 from jitx import Circuit, Net
+from jitx.toleranced import Toleranced
 from jitx.common import Power
 from jitxlib.parts import Capacitor, CapacitorQuery, Resistor, Inductor, ResistorQuery
 from jitxlib.voltage_divider import VoltageDividerConstraints, voltage_divider_from_constraints

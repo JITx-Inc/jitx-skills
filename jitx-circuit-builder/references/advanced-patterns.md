@@ -20,7 +20,7 @@
 from jitxlib.parts import ResistorQuery, CapacitorQuery, SortDir, SortKey
 
 class MyDesign(SampleDesign):
-    resistor_defaults = ResistorQuery(case="0402", tolerance=0.01)
+    resistor_defaults = ResistorQuery(case=["0402"], tolerance=0.01)
     capacitor_defaults = CapacitorQuery(
         case=["0402", "0603", "0805", "1206"],
         sort=SortKey('area', SortDir.INCREASING)
@@ -77,6 +77,7 @@ self.nets.append(self.fb_div.out + self.buck.FB)
 ## Net Symbols
 
 ```python
+from jitx import Net
 from jitxlib.symbols.net_symbols import GroundSymbol, PowerSymbol
 
 self.gnd = Net(name="GND")
@@ -199,9 +200,9 @@ self.nets = [
 from jitx.layerindex import Side
 
 # Fixed placement
-self.led = LED().at(10.0, 5.0)
-self.led = LED().at(10.0, 5.0, rotate=90)
-self.led = LED().at(10.0, 5.0, on=Side.Bottom)
+self.led1 = LED().at(10.0, 5.0)
+self.led2 = LED().at(10.0, 5.0, rotate=90)
+self.led3 = LED().at(10.0, 5.0, on=Side.Bottom)
 
 # Floating (layout engine decides) — Circuit.at() only
 self.subckt = MySubCircuit().at(floating=True)

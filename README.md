@@ -124,10 +124,10 @@ The `extract_pages.py` script helps extract relevant pages from large datasheets
 
 ```bash
 # Find pages with package info
-python extract_pages.py datasheet.pdf --find "pinout" "dimension" "package"
+python scripts/extract_pages.py datasheet.pdf --find "pinout" "dimension" "package"
 
 # Extract specific pages
-python extract_pages.py datasheet.pdf --pages 10 11 12 -o extract.pdf
+python scripts/extract_pages.py datasheet.pdf --pages 10 11 12 -o extract.pdf
 ```
 
 ## Supported Package Generators

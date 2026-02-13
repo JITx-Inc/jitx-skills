@@ -170,6 +170,7 @@ Covers:
 ## Documentation Lookup
 
 JITX docs: `https://docs.jitx.com/en/latest/`
+or LLM-friendly access at `https://docs.jitx.com/llms.txt`
 
 **When to fetch docs:**
 - Unfamiliar API class or method → fetch API reference page

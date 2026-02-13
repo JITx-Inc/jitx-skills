@@ -3,9 +3,11 @@
 ## Table of Contents
 
 - [Example 1: Simple SOIC-8 (NE555 Timer)](#example-1-simple-soic-8-ne555-timer)
-- [Example 2: SON-8 with Thermal Pad (LM1117)](#example-2-son-8-with-thermal-pad-lm1117)
-- [Example 3: QFN-56 with Port Arrays (RP2040)](#example-3-qfn-56-with-port-arrays-rp2040)
-- [Example 4: BGA with Named Pins and NC Positions](#example-4-bga-with-named-pins-and-nc-positions)
+- [Example 2: SOT23-5 (LMV321 Op-Amp)](#example-2-sot23-5-lmv321-op-amp)
+- [Example 3: SON-8 with Thermal Pad (LM1117)](#example-3-son-8-with-thermal-pad-lm1117)
+- [Example 4: QFN-56 with Port Arrays (RP2040)](#example-4-qfn-56-with-port-arrays-rp2040)
+- [Example 5: QFP-48 (STM32F103C8)](#example-5-qfp-48-stm32f103c8)
+- [Example 6: BGA with Named Pins and NC Positions](#example-6-bga-with-named-pins-and-nc-positions)
 - [BGA-Specific Notes](#bga-specific-notes)
 - [Non-Uniform BGAs (CRITICAL)](#non-uniform-bgas-critical)
 
@@ -20,6 +22,7 @@ Component definition for the NE555 timer in SOIC-8 package.
 
 import jitx
 from jitx.net import Port
+from jitx.toleranced import Toleranced
 from jitxlib.landpatterns.generators.soic import SOIC, SOIC_DEFAULT_LEAD_PROFILE
 from jitxlib.symbols.box import BoxSymbol, PinGroup, Row
 
@@ -44,7 +47,7 @@ class NE555(jitx.Component):
     landpattern = (
         SOIC(num_leads=8)
         .lead_profile(SOIC_DEFAULT_LEAD_PROFILE)
-        .narrow(jitx.Toleranced.min_max(4.81, 5.0))  # Package length
+        .narrow(Toleranced.min_max(4.81, 5.0))  # Package length
     )
 
     # Symbol with functional grouping
@@ -59,7 +62,82 @@ class NE555(jitx.Component):
 Device: type[NE555] = NE555
 ```
 
-## Example 2: SON-8 with Thermal Pad (LM1117)
+## Example 2: SOT23-5 (LMV321 Op-Amp)
+
+```python
+"""
+Texas Instruments LMV321 Single Op-Amp
+
+Component definition for the LMV321 in SOT-23-5 package.
+
+Pad layout:
+    1 5
+    2
+    3 4
+"""
+
+import jitx
+from jitx.net import Port
+from jitx.toleranced import Toleranced
+from jitxlib.landpatterns.generators.sot import SOT23_5, SOTLeadProfile, SOTLead
+from jitxlib.landpatterns.ipc import DensityLevel
+from jitxlib.landpatterns.package import RectanglePackage
+from jitxlib.symbols.box import BoxSymbol, PinGroup, Row, Column
+
+
+class LMV321(jitx.Component):
+    mpn = "LMV321IDBVR"
+    manufacturer = "Texas Instruments"
+    reference_designator_prefix = "U"
+    datasheet = "https://www.ti.com/lit/ds/symlink/lmv321.pdf"
+
+    # Pins in package order (1-5)
+    INp = Port()    # Pin 1 — Non-inverting input
+    GND = Port()    # Pin 2 — Ground
+    INn = Port()    # Pin 3 — Inverting input
+    OUT = Port()    # Pin 4 — Output
+    VCC = Port()    # Pin 5 — Supply
+
+    # SOT-23-5 landpattern
+    landpattern = (
+        SOT23_5()
+        .lead_profile(
+            SOTLeadProfile(
+                span=Toleranced.min_max(2.6, 3.0),
+            )
+        )
+        .package_body(
+            RectanglePackage(
+                width=Toleranced.min_max(1.45, 1.75),
+                length=Toleranced.min_max(2.75, 3.05),
+                height=Toleranced.min_max(0.9, 1.45),
+            )
+        )
+        .density_level(DensityLevel.B)
+    )
+
+    # Op-amp symbol: inputs left, output right, power in columns
+    symbol = BoxSymbol(
+        rows=Row(
+            left=PinGroup(INp, INn),
+            right=PinGroup(OUT),
+        ),
+        columns=Column(
+            up=PinGroup(VCC),
+            down=PinGroup(GND),
+        ),
+    )
+
+
+Device: type[LMV321] = LMV321
+```
+
+**SOT notes:**
+- `SOTLeadProfile` defaults: `pitch=0.95`, `type=SOTLead()` (small gull-wing). Only `span` is typically required.
+- To customize lead dimensions: `SOTLeadProfile(span=..., type=SOTLead(length=..., width=...))`.
+- `SOT23_3` and `SOT23_6` follow the same pattern with different pad counts.
+
+## Example 3: SON-8 with Thermal Pad (LM1117)
 
 ```python
 """
@@ -87,14 +165,10 @@ class LM1117_WSON(jitx.Component):
 
     # Pins (SON-8 with exposed pad)
     TAB = Port()    # Exposed thermal pad (also GND)
-    GND = Port()    # Pin 1
-    GND2 = Port()   # Pin 2 (also GND)
-    VOUT = Port()   # Pin 3
-    VOUT2 = Port()  # Pin 4 (also VOUT)
-    NC1 = Port().no_connect()  # Pin 5
-    NC2 = Port().no_connect()  # Pin 6
-    VIN = Port()    # Pin 7
-    VIN2 = Port()   # Pin 8 (also VIN)
+    GND = [Port() for _ in range(2)]   # Pin 1 & 2
+    VOUT = [Port() for _ in range(2)]  # Pin 3 & 4
+    NC = [Port().no_connect() for _ in range(2)] # Pin 5 & 6
+    VIN = [Port() for _ in range(2)]   # Pin 7 & Pin 8 (also VIN)
 
     landpattern = (
         SON(num_leads=8)
@@ -121,11 +195,11 @@ class LM1117_WSON(jitx.Component):
     # All ports must be in symbol, including NC pins
     symbol = BoxSymbol(
         rows=Row(
-            left=PinGroup(VIN, VIN2, NC1, NC2),  # NC pins included
-            right=PinGroup(VOUT, VOUT2),
+            left=PinGroup(VIN[0], VIN[1], NC[0], NC[1]),  # NC pins included
+            right=PinGroup(VOUT[0], VOUT[1]),
         ),
         columns=Column(
-            down=PinGroup(GND, GND2, TAB),
+            down=PinGroup(GND[0], GND[1], TAB),
         ),
     )
 
@@ -133,14 +207,14 @@ class LM1117_WSON(jitx.Component):
         lp = self.landpattern
         # Explicit mapping for thermal pad
         self.mappings = [PadMapping({
-            self.GND: [lp.p[1]],
-            self.GND2: [lp.p[2]],
-            self.VOUT: [lp.p[3]],
-            self.VOUT2: [lp.p[4]],
-            self.NC1: [lp.p[5]],
-            self.NC2: [lp.p[6]],
-            self.VIN: [lp.p[7]],
-            self.VIN2: [lp.p[8]],
+            self.GND[0]: [lp.p[1]],
+            self.GND[1]: [lp.p[2]],
+            self.VOUT[0]: [lp.p[3]],
+            self.VOUT[1]: [lp.p[4]],
+            self.NC[0]: [lp.p[5]],
+            self.NC[1]: [lp.p[6]],
+            self.VIN[0]: [lp.p[7]],
+            self.VIN[1]: [lp.p[8]],
             self.TAB: [lp.thermal_pads[0]],
         })]
 
@@ -148,7 +222,7 @@ class LM1117_WSON(jitx.Component):
 Device: type[LM1117_WSON] = LM1117_WSON
 ```
 
-## Example 3: QFN-56 with Port Arrays (RP2040)
+## Example 4: QFN-56 with Port Arrays (RP2040)
 
 ```python
 """
@@ -253,7 +327,145 @@ class RP2040(jitx.Component):
 Device: type[RP2040] = RP2040
 ```
 
-## Example 4: BGA with Named Pins and NC Positions
+## Example 5: QFP-48 (STM32F103C8)
+
+```python
+"""
+STMicroelectronics STM32F103C8 ARM Cortex-M3 Microcontroller
+
+Component definition for the STM32F103C8 in LQFP-48 package.
+Demonstrates 4-sided gull-wing QFP with many pins.
+"""
+
+import jitx
+from jitx import PadMapping
+from jitx.net import Port
+from jitx.toleranced import Toleranced
+from jitx.shapes.composites import rectangle
+from jitxlib.landpatterns.generators.qfp import QFP, QFPLead
+from jitxlib.landpatterns.leads import LeadProfile
+from jitxlib.landpatterns.ipc import DensityLevel
+from jitxlib.landpatterns.package import RectanglePackage
+from jitxlib.symbols.box import BoxSymbol, PinGroup, Row, Column
+
+
+class STM32F103C8(jitx.Component):
+    """STM32F103C8 in LQFP-48 package.
+
+    48 pins, 12 per side, 0.5mm pitch.
+    Pin 1 is top-left, numbering counter-clockwise.
+    """
+
+    mpn = "STM32F103C8T6"
+    manufacturer = "STMicroelectronics"
+    reference_designator_prefix = "U"
+    datasheet = "https://www.st.com/resource/en/datasheet/stm32f103c8.pdf"
+
+    # Power
+    VBAT = Port()
+    VDD = [Port() for _ in range(3)]
+    VDDA = Port()
+    VSS = [Port() for _ in range(3)]
+    VSSA = Port()
+
+    # Reset and boot
+    NRST = Port()
+    BOOT0 = Port()
+
+    # Oscillator
+    OSC_IN = Port()
+    OSC_OUT = Port()
+
+    # Port A
+    PA = [Port() for _ in range(16)]
+
+    # Port B
+    PB = [Port() for _ in range(16)]
+
+    # Port C
+    PC13 = Port()
+    PC14 = Port()
+    PC15 = Port()
+
+    # Port D
+    PD0 = Port()
+    PD1 = Port()
+
+    # LQFP-48: 7x7mm body, 0.5mm pitch, gull-wing leads
+    landpattern = (
+        QFP(num_leads=48)
+        .lead_profile(
+            LeadProfile(
+                span=Toleranced.min_max(8.8, 9.2),
+                pitch=0.5,
+                type=QFPLead(
+                    length=Toleranced.min_max(0.45, 0.75),
+                    width=Toleranced.min_max(0.17, 0.27),
+                ),
+            )
+        )
+        .package_body(
+            RectanglePackage(
+                width=Toleranced.min_max(6.9, 7.1),
+                length=Toleranced.min_max(6.9, 7.1),
+                height=Toleranced.min_max(1.35, 1.45),
+            )
+        )
+        .density_level(DensityLevel.B)
+    )
+
+    symbol = BoxSymbol(
+        rows=Row(
+            left=PinGroup(
+                *PA[:8], NRST, BOOT0,
+                OSC_IN, OSC_OUT,
+            ),
+            right=PinGroup(
+                *PA[8:], *PB[:8],
+            ),
+        ),
+        columns=Column(
+            up=PinGroup(VBAT, *VDD, VDDA),
+            down=PinGroup(*VSS, VSSA,
+                          PC13, PC14, PC15, PD0, PD1,
+                          *PB[8:]),
+        ),
+    )
+
+    def __init__(self):
+        lp = self.landpattern
+        # LQFP-48 pin 1 = VBAT (top-left), counter-clockwise
+        self.mappings = [PadMapping({
+            self.VBAT: [lp.p[1]],
+            self.PC13: [lp.p[2]],
+            self.PC14: [lp.p[3]],
+            self.PC15: [lp.p[4]],
+            self.PD0: [lp.p[5]],
+            self.PD1: [lp.p[6]],
+            self.NRST: [lp.p[7]],
+            self.VSSA: [lp.p[8]],
+            self.VDDA: [lp.p[9]],
+            self.PA[0]: [lp.p[10]],
+            self.PA[1]: [lp.p[11]],
+            self.PA[2]: [lp.p[12]],
+            # ... continue for all 48 pins
+            self.VSS[0]: [lp.p[23]],
+            self.VDD[0]: [lp.p[24]],
+            # ... remaining pins
+        })]
+
+
+Device: type[STM32F103C8] = STM32F103C8
+```
+
+**QFP notes:**
+- `QFP(num_leads=N)` — total pin count must be divisible by 4 for uniform sides.
+- For asymmetric pin counts: `QFP(num_rows=(left, bottom, right, top))`.
+- `QFPLead` defaults to `BigGullWingLeads` protrusion type.
+- Pin numbering: counter-clockwise starting at pin 1 (top-left).
+- For asymmetric lead profiles (different span on X vs Y sides), pass two `LeadProfile` objects: `.lead_profile(x_profile, y_profile)`.
+
+## Example 6: BGA with Named Pins and NC Positions
 
 ```python
 """
@@ -321,14 +533,7 @@ class WirelessSoC(jitx.Component):
     V14RF = Port()
 
     # OQSPI Flash Interface
-    OQSPIF_D0 = Port()
-    OQSPIF_D1 = Port()
-    OQSPIF_D2 = Port()
-    OQSPIF_D3 = Port()
-    OQSPIF_D4 = Port()
-    OQSPIF_D5 = Port()
-    OQSPIF_D6 = Port()
-    OQSPIF_D7 = Port()
+    OQSPIF_D = [Port() for _ in range(8)]
     OQSPIF_CLK = Port()
     OQSPIF_CS = Port()
 
@@ -343,6 +548,9 @@ class WirelessSoC(jitx.Component):
     # GPIO
     P0_05 = Port()
     P0_06 = Port()
+
+    # not all physical pins have a Port() example in this code snippet
+    # ...
 
     def __init__(self):
         # NC positions (0-indexed row, col)
@@ -380,9 +588,7 @@ class WirelessSoC(jitx.Component):
                     right=PinGroup(self.V14RF),
                 ),
                 Row(
-                    left=PinGroup(self.OQSPIF_D0, self.OQSPIF_D1, self.OQSPIF_D2,
-                                  self.OQSPIF_D3, self.OQSPIF_D4, self.OQSPIF_D5,
-                                  self.OQSPIF_D6, self.OQSPIF_D7),
+                    left=PinGroup([self.OQSPIF_D[i] for i in range(8)]),
                     right=PinGroup(self.OQSPIF_CLK, self.OQSPIF_CS),
                 ),
             ],

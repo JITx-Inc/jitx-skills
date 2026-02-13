@@ -24,6 +24,8 @@ from jitx.units import ohm
 from jitx.constraints import ViaFencePattern
 from jitx.feature import KeepOut, Soldermask
 from jitxlib.physics import phase_velocity
+from jitx.container import inline
+
 ```
 
 **These DO NOT EXIST — never import:**
@@ -52,16 +54,71 @@ Set properties as **class attributes**, instantiate with thickness:
 
 ```python
 class FR4_Prepreg(Dielectric):
-    dielectric_coefficient = 4.4   # relative permittivity (Er)
-    loss_tangent = 0.0168          # Df
+    dielectric_coefficient = 4.4   # Dk (dielectric constant / relative permittivity)
+    loss_tangent = 0.0168          # Df (dissipation factor)
 
 class FR4_Core(Dielectric):
-    dielectric_coefficient = 4.6
-    loss_tangent = 0.0168
+    dielectric_coefficient = 4.6   # Dk
+    loss_tangent = 0.0168          # Df
 
 class Copper1oz(Conductor):
     thickness = 0.035  # mm (can also be set at instantiation)
+
+class CopperHalfOz(Conductor):
+    thickness = 0.0175  # mm (can also be set at instantiation)
+
+class SoldermaskLayer(Dielectric):
+    thickness = 0.020
 ```
+
+**Terminology:** `dielectric_coefficient` is the JITX attribute name for Dk (dielectric constant, also called relative permittivity or Er). `loss_tangent` is the JITX attribute name for Df (dissipation factor). Datasheets typically specify Dk and Df at a given frequency (e.g., 1 GHz or 10 GHz).
+
+### Common Dielectric Materials
+
+Reference table of common PCB dielectric materials. Values are typical at 10 GHz unless noted. Always confirm with the manufacturer's datasheet for your specific construction.
+
+| Material | Manufacturer | Family | Dk | Df | Notes |
+|----------|-------------|--------|----|----|-------|
+| **Standard FR-4** |
+| FR408HR | Isola | High-Tg epoxy | 3.68 | 0.0092 | Workhorse high-Tg FR-4; widely available |
+| I-Speed | Isola | Low-loss epoxy | 3.64 | 0.0060 | Step down in loss vs standard FR-4 |
+| N4000-13 EP | AGC/Nelco | High-speed epoxy | 3.60 | 0.0090 | High-speed digital backplanes |
+| N7000-2HT | AGC/Nelco | High-speed laminate | 3.50 | 0.0090 | Dk/Df available at 2.5 and 10 GHz |
+| **Low-Loss** |
+| I-Tera MT40 | Isola | Very low-loss epoxy | 3.45 | 0.0031 | High-speed digital/RF |
+| Megtron 6 | Panasonic | Low-loss multilayer | 3.34 | 0.0037 | Common in high-speed digital (at 13 GHz) |
+| RO4350B | Rogers | Hydrocarbon/ceramic | 3.48 | 0.0037 | Popular RF laminate; FR-4 processable |
+| RO4003C | Rogers | Hydrocarbon/ceramic | 3.38 | 0.0027 | Standard RF laminate |
+| 25N | Arlon | Ceramic-filled woven glass | 3.38 | 0.0025 | Low loss with standard FR-4 processes |
+| **Ultra-Low-Loss** |
+| Astra MT77 | Isola | Ultra-low-loss | 3.00 | 0.0017 | RF/microwave and very-high-speed |
+| Tachyon 100G | Isola | Ultra-low-loss | ~3.05 | ~0.0017 | Values vary by construction |
+| Megtron 7 | Panasonic | Ultra-low-loss | varies | varies | Capture exact row for glass style/resin |
+| **PTFE / RF** |
+| RT/duroid 5880 | Rogers | Glass microfiber PTFE | 2.20 | 0.0009 | Ultra-low loss; microwave/RF |
+| RT/duroid 5870 | Rogers | Glass microfiber PTFE | 2.33 | 0.0012 | Low Dk/loss; antennas/stripline |
+| RO3003 | Rogers | Ceramic-filled PTFE | 3.00 | 0.0010 | Low loss PTFE; common RF choice |
+| RO3035 | Rogers | Ceramic-filled PTFE | 3.50 | 0.0015 | PTFE with Dk ~3.5 |
+| TLY-5A | Taconic/AGC | Low-loss PTFE | 2.17–2.40 | ~0.0009 | Selectable Dk range |
+| TLX-0 | Taconic/AGC | Fiberglass PTFE | 2.45 | 0.0012 | Lowest Dk in TLX series |
+| **High-Dk (miniaturization)** |
+| RO3006 | Rogers | Ceramic-filled PTFE | 6.15 | 0.0020 | Higher Dk for size reduction |
+| RO3010 | Rogers | Ceramic-filled PTFE | 10.20 | 0.0022 | High Dk for compact RF |
+| CER-10 | Taconic/AGC | Organic-ceramic | 10.0 | 0.0035 | High Dk; check tolerances per lot |
+
+### Copper Foil Types
+
+Copper surface roughness affects insertion loss at high frequencies. Choose foil type based on your frequency range.
+
+| Copper Type | Surface Roughness (Rz) | Use Case |
+|-------------|------------------------|----------|
+| Standard (STD) | 5–10 μm | Inner layers, low frequency |
+| Reverse Treated Foil (RTF) | 3–5 μm | Inner layers, better adhesion |
+| Low Profile (LoPro) | 2–3 μm | RF signal layers |
+| Very Low Profile (VLP) | 1–2 μm | High-frequency RF (>10 GHz) |
+| Hyper VLP (HVLP) | <1 μm | mmWave applications |
+
+**Rule of thumb:** For signals above 5 GHz, use LoPro or smoother. Above 10 GHz, use VLP. For mmWave (>24 GHz), use HVLP.
 
 ## Stackup
 
@@ -96,8 +153,6 @@ class My8LayerStackup(Stackup):
 ### Inline Stackup (in Substrate class)
 
 ```python
-from jitx.container import inline
-
 class MySubstrate(Substrate):
     @inline
     class stackup(Symmetric):
@@ -241,7 +296,7 @@ RS_50 = RoutingStructure(
         0: RoutingStructure.Layer(
             trace_width=0.12,       # mm
             clearance=0.2,          # mm
-            velocity=phase_velocity((4.4 + 1) / 2),  # mm/s — microstrip Er
+            velocity=phase_velocity((4.4 + 1) / 2),  # mm/s — microstrip effective Dk
             insertion_loss=0.018,   # dB/mm
         )
     }),
@@ -253,9 +308,9 @@ RS_50 = RoutingStructure(
 ```python
 from jitxlib.physics import phase_velocity
 
-vel_microstrip = phase_velocity((Er + 1) / 2)   # microstrip effective Er
-vel_stripline = phase_velocity(Er)               # stripline uses full Er
-vel_mixed = phase_velocity((Er_pp + Er_core) / 2)  # mixed dielectric
+vel_microstrip = phase_velocity((Dk + 1) / 2)   # microstrip effective Dk
+vel_stripline = phase_velocity(Dk)               # stripline uses full Dk
+vel_mixed = phase_velocity((Dk_pp + Dk_core) / 2)  # mixed dielectric
 ```
 
 ### symmetric_routing_layers()
@@ -330,8 +385,8 @@ DRS_100 = DifferentialRoutingStructure(
         )
     }),
     uncoupled_region=RoutingStructure(
-        name="100 Ohm Differential, Uncoupled",
-        impedance=100 * ohm,
+        name="50 Ohm SingleEnded, Uncoupled",
+        impedance=50 * ohm,
         layers=symmetric_routing_layers({
             0: RoutingStructure.Layer(
                 trace_width=0.09, clearance=0.2,
@@ -342,11 +397,47 @@ DRS_100 = DifferentialRoutingStructure(
 )
 ```
 
+**Differential with NeckDown (for BGA escape or constrained areas):**
+
+```python
+DRS_100_ND = DifferentialRoutingStructure(
+    name="100 Ohm Differential w/ NeckDown",
+    impedance=100 * ohm,
+    layers=symmetric_routing_layers({
+        0: DifferentialRoutingStructure.Layer(
+            trace_width=0.09,
+            pair_spacing=0.137,
+            clearance=0.2,
+            velocity=vel,
+            insertion_loss=0.018,
+            neck_down=DifferentialRoutingStructure.NeckDown(
+                trace_width=0.075,
+                pair_spacing=0.1,
+                clearance=0.15,
+            ),
+        )
+    }),
+    uncoupled_region=RoutingStructure(
+        name="100 Ohm Differential w/ NeckDown, Uncoupled",
+        impedance=50 * ohm,  # half of differential impedance
+        layers=symmetric_routing_layers({
+            0: RoutingStructure.Layer(
+                trace_width=0.09, clearance=0.2,
+                velocity=vel, insertion_loss=0.018,
+                neck_down=RoutingStructure.NeckDown(
+                    trace_width=0.075, clearance=0.15,
+                ),
+            )
+        }),
+    ),
+)
+```
+
 **Multi-layer differential (different trace widths per layer):**
 
 ```python
 DRS_82 = DifferentialRoutingStructure(
-    impedance=82,
+    impedance=82 * ohm,
     layers=symmetric_routing_layers({
         0: DifferentialRoutingStructure.Layer(
             trace_width=0.154, pair_spacing=0.2,
@@ -358,7 +449,7 @@ DRS_82 = DifferentialRoutingStructure(
         ),
     }),
     uncoupled_region=RoutingStructure(
-        impedance=41,
+        impedance=41 * ohm,
         layers=symmetric_routing_layers({
             0: RoutingStructure.Layer(trace_width=0.154, clearance=0.15,
                                       velocity=VEL, insertion_loss=0.018),
@@ -403,17 +494,17 @@ Custom attributes are allowed for fab-house-specific rules (not engine-enforced)
 For net-to-net clearances and via stitching rules:
 
 ```python
-from jitx.constraints import Tag, design_constraint, UnaryDesignConstraint
+from jitx.constraints import Tag, design_constraint
 
 class RFSignalTag(Tag): pass
 class GNDTag(Tag): pass
 
-# Trace width for tagged nets
-UnaryDesignConstraint(RFSignalTag(), priority=1).trace_width(0.102)
+# Trace width for tagged nets (unary constraint — single tag)
+self.rule1 = design_constraint(RFSignalTag(), priority=1).trace_width(0.102)
 
-# Net-to-net clearance
-design_constraint(RFSignalTag(), RFSignalTag()).clearance(1.05)
-design_constraint(RFSignalTag(), GNDTag()).clearance(0.15)
+# Net-to-net clearance (binary constraint — two tags)
+self.rule2 = design_constraint(RFSignalTag(), RFSignalTag()).clearance(1.05)
+self.rule3 = design_constraint(RFSignalTag(), GNDTag()).clearance(0.15)
 ```
 
 ## Via Mixin Pattern
@@ -444,8 +535,8 @@ class SubstrateB(Substrate, MyVias):
 
 ## Workflow
 
-1. **Gather specs** — stackup cross-section, dielectric properties (Er, Df), copper weights, fab house rules, impedance targets
-2. **Define materials** — `Dielectric` and `Conductor` subclasses with Er/Df/roughness
+1. **Gather specs** — stackup cross-section, dielectric properties (Dk, Df), copper weights, fab house rules, impedance targets
+2. **Define materials** — `Dielectric` and `Conductor` subclasses with Dk/Df/roughness
 3. **Build stackup** — `Symmetric` for symmetric boards, `Stackup` for asymmetric
 4. **Set fab constraints** — `FabricationConstraints` with all manufacturing rules
 5. **Define vias** — all via types needed (through, micro, stacked, blind, buried, backdrilled)
