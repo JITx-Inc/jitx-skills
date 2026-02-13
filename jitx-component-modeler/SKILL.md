@@ -200,7 +200,8 @@ class {ComponentClassName}(jitx.Component):
         # Optional: .thermal_pad(...)
     )
 
-    # Symbol definition
+    # Symbol definition — use BARE attribute names (GND, VCC), NEVER self.GND
+    # (self does not exist at class scope)
     symbol = BoxSymbol(
         rows=Row(
             left=PinGroup(...),
@@ -245,6 +246,25 @@ port arrays, inactive positions, and non-uniform BGA grids, see
 | D2 / E2 | Thermal pad size | `.thermal_pad(rectangle(D2, E2))` |
 
 ## Common Patterns
+
+### Class-Level vs Instance-Level
+
+Ports, landpattern, and symbol defined at **class level** (no `self`):
+
+```python
+class MyIC(jitx.Component):
+    GND = Port()          # class-level: no self
+    VCC = Port()
+
+    symbol = BoxSymbol(
+        rows=Row(
+            left=PinGroup(GND),    # bare name, NEVER self.GND
+            right=PinGroup(VCC),   # bare name, NEVER self.VCC
+        ),
+    )
+```
+
+Only use `self` inside `__init__` (for PadMapping, multi-unit symbols).
 
 ### Toleranced Values
 
@@ -303,6 +323,14 @@ def __init__(self):
 
 ## Pin Naming Best Practices
 
+**Every physical pin/ball MUST have a Port().** Never use "representative samples" — a 142-ball
+BGA needs exactly 142 Port() declarations. Enumerate every pin from the datasheet pin table or
+ball map row by row. NC (no-connect) pins with physical pads also need ports.
+
+**One Port per physical pin** — if a ball has a primary name and alternate functions
+(SPI_CLK, UART_TX, etc.), create ONE port using the datasheet's primary pin name. Do not create
+separate ports for each alternate function of the same physical ball.
+
 **Use real functional names from the datasheet**, not generic placeholders:
 
 ```python
@@ -314,6 +342,29 @@ V18F = Port()        # 1.8V flash supply
 # BAD - generic
 P0 = Port()          # What does P0 do?
 VDD1 = Port()        # Which power domain?
+```
+
+## Landpattern Constructor Signatures
+
+Do NOT invent constructor parameters — use only these documented signatures:
+
+```python
+# SOT — SOTLeadProfile takes ONLY span, nothing else
+SOTLeadProfile(span=Toleranced.min_max(2.3, 2.5))
+
+# LeadProfile — used for SOIC, SON, QFN
+LeadProfile(
+    span=Toleranced.min_max(5.8, 6.2),   # terminal-to-terminal
+    pitch=1.27,                            # center-to-center lead spacing
+    type=SONLead(length=..., width=...),   # or SMDLead, QFNLead
+)
+
+# SON — use .lead_profile() method chain, NOT .lead()
+SON(num_leads=8).lead_profile(LeadProfile(span=..., pitch=..., type=SONLead(...)))
+
+# BGA — constructor takes these 4 args
+BGA(num_rows=12, num_cols=12, pitch=0.45, ball_diameter=0.25)
+# then chain: .grid_planner(...).pad_config(SMDPadConfig()).package_body(...)
 ```
 
 ## PadMapping Requirements
@@ -453,17 +504,21 @@ class TPS62933DRLRCircuit(Circuit):
 
         # Input capacitors (C1, C2 - 10µF each per schematic)
         with CapacitorQuery.refine(type="ceramic", case="0805"):
-            for _ in range(2):
-                Capacitor(capacitance=10e-6, rated_voltage=50.0).insert(
-                    self.buck.VIN, self.GND, short_trace=True
-                )
+            self.c_in1 = Capacitor(capacitance=10e-6, rated_voltage=50.0)
+            self.c_in1.insert(self.buck.VIN, self.GND, short_trace=True)
+
+            self.c_in2 = Capacitor(capacitance=10e-6, rated_voltage=50.0)
+            self.c_in2.insert(self.buck.VIN, self.GND, short_trace=True)
 
         # Feedback voltage divider
         vdiv_cons = VoltageDividerConstraints(
-            v_in=output_voltage, v_out=0.8, current=0.8/10e3,
-            base_query=ResistorQuery(case=["0402"])
+            v_in=Toleranced.exact(output_voltage),
+            v_out=Toleranced.percent(0.8, 3.0),  # MUST have tolerance window
+            current=0.8 / 10e3,
+            prec_series=[1.00, 0.10],             # REQUIRED
+            base_query=ResistorQuery(case=["0402"]),
         )
-        self.fb_div = voltage_divider_from_constraints(vdiv_cons)
+        self.fb_div = voltage_divider_from_constraints(vdiv_cons, name="feedback")
         self.VOUT += self.fb_div.hi + self.vout.Vp
         self.GND += self.fb_div.lo
         self.nets = [self.fb_div.out + self.buck.FB]

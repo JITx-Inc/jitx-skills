@@ -17,7 +17,8 @@
       "skills": [
         "./jitx",
         "./jitx-component-modeler",
-        "./jitx-circuit-builder"
+        "./jitx-circuit-builder",
+        "./jitx-substrate-modeler"
       ]
     }
   ]

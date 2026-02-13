@@ -54,6 +54,22 @@ Build JITX circuits with wiring, passives, providers, and geometry. Covers:
 - "Connect the MCU to sensors over I2C"
 - "Add decoupling caps to all power pins"
 
+### jitx-substrate-modeler
+
+Model JITX substrates — stackups, materials, vias, routing structures, and fabrication constraints. Covers:
+
+- **Stackups:** Symmetric and explicit layer definitions, material properties
+- **Vias:** All types — through-hole, laser micro, stacked, blind, buried, backdrilled
+- **Routing structures:** Single-ended and differential with NeckDown, via fencing, geometry, reference planes
+- **Fabrication constraints:** Manufacturing rules for any fab house
+- **Design rules:** Tag-based clearance and trace width constraints
+
+**Example triggers:**
+- "Create a 4-layer JLCPCB substrate"
+- "Define a 14-layer RF stackup with via fencing"
+- "Set up 100-ohm differential routing structure"
+- "Add laser microvias to the substrate"
+
 ## Project Structure
 
 ```
@@ -72,6 +88,10 @@ jitx-skills/
 │   ├── SKILL.md
 │   └── references/
 │       └── advanced-patterns.md  # Provider, pour, placement patterns
+├── jitx-substrate-modeler/    # Substrate modeling skill
+│   ├── SKILL.md
+│   └── references/
+│       └── substrate-api-reference.md  # Complete API reference
 └── .claude-plugin/
     └── marketplace.json
 ```

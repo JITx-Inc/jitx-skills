@@ -1,6 +1,6 @@
 ---
 name: jitx
-description: Base skill for JITX hardware design workflow. Use for JITX Python projects, PCB design, circuit creation, and build commands. CRITICAL - If user asks to create/model/generate a component or mentions a part number (NE555, LM1117, RP2040, etc.), immediately invoke jitx-component-modeler subskill.
+description: Base skill for JITX hardware design workflow. Use for JITX Python projects, PCB design, circuit creation, and build commands. CRITICAL - If user asks to create/model/generate a component or mentions a part number (NE555, LM1117, RP2040, etc.), immediately invoke jitx-component-modeler subskill. If user asks to create a substrate, stackup, via definitions, or routing structures, invoke jitx-substrate-modeler subskill.
 ---
 
 # JITX Workflow Skill
@@ -145,6 +145,27 @@ Covers:
 - Require pattern for capabilities
 - Pours and copper geometry
 - Component placement
+
+### Substrate Modeler (`jitx-substrate-modeler`)
+
+**Invoke this subskill** when user asks to:
+- Create a substrate or define a stackup
+- Add via definitions (laser, mechanical, backdrilled, blind, buried)
+- Set up routing structures or impedance control
+- Define differential pair routing
+- Set fabrication rules or constraints
+- Model a PCB layer structure
+
+**How to invoke:** Use the Skill tool with `skill: "jitx-skills:jitx-substrate-modeler"`
+
+Covers:
+- Stackup and Symmetric layer definitions
+- Material properties (Dielectric, Conductor)
+- All via types (through-hole, laser micro, stacked, blind, buried, backdrilled)
+- RoutingStructure with NeckDown, via fencing, geometry, reference planes
+- DifferentialRoutingStructure with pair spacing and uncoupled regions
+- FabricationConstraints for manufacturing rules
+- Design constraint rules with Tags
 
 ## Documentation Lookup
 

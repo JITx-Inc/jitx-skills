@@ -36,20 +36,23 @@ class MyDesign(SampleDesign):
 from jitxlib.parts import Capacitor, CapacitorQuery
 
 with CapacitorQuery.refine(type="ceramic", case="0805"):
-    for _ in range(2):
-        Capacitor(capacitance=10e-6, rated_voltage=50.0).insert(
-            self.buck.VIN, self.buck.GND, short_trace=True
-        )
-    Capacitor(capacitance=100e-9).insert(
-        self.buck.VIN, self.buck.GND, short_trace=True
-    )
+    self.c_bulk_0 = Capacitor(capacitance=10e-6, rated_voltage=50.0)
+    self.c_bulk_0.insert(self.buck.VIN, self.buck.GND, short_trace=True)
+
+    self.c_bulk_1 = Capacitor(capacitance=10e-6, rated_voltage=50.0)
+    self.c_bulk_1.insert(self.buck.VIN, self.buck.GND, short_trace=True)
+
+    self.c_hf = Capacitor(capacitance=100e-9)
+    self.c_hf.insert(self.buck.VIN, self.buck.GND, short_trace=True)
 ```
 
 ## Voltage Divider Solver
 
-Picks standard E-series resistor values. Two critical requirements:
-- **`v_out` must have a tolerance window** — `Toleranced.percent(0.8, 3.0)` gives ±3%. Using `Toleranced.exact(0.8)` or bare `0.8` gives zero tolerance and no standard resistors will match.
-- **`prec_series` is required** — tells the solver which resistor precision grades to search.
+**NEVER manually pick resistor values for voltage dividers** — use this solver instead. It finds real, purchasable E-series resistor pairs automatically.
+
+Two critical requirements:
+- **`v_out` MUST use `Toleranced.percent()`** — e.g., `Toleranced.percent(0.8, 3.0)` gives ±3%. Using `Toleranced.exact(0.8)` or bare `0.8` gives zero tolerance and the solver WILL fail with `NoPrecisionSatisfiesConstraintsError`.
+- **`prec_series` is required** — e.g., `[1.00, 0.10]`. Tells the solver which resistor precision grades to search.
 
 ```python
 from jitxlib.voltage_divider import VoltageDividerConstraints, voltage_divider_from_constraints
@@ -240,15 +243,16 @@ class BuckConverterCircuit(Circuit):
         self.VIN += self.vin.Vp + self.buck.VIN
         self.GND += self.buck.GND + self.vin.Vn + self.vout.Vn
 
-        # Input caps
+        # Input caps — ALWAYS assign to self
         with CapacitorQuery.refine(type="ceramic", case="0805"):
-            for _ in range(2):
-                Capacitor(capacitance=10e-6, rated_voltage=50.0).insert(
-                    self.buck.VIN, self.buck.GND, short_trace=True
-                )
-            Capacitor(capacitance=100e-9).insert(
-                self.buck.VIN, self.buck.GND, short_trace=True
-            )
+            self.c_in1 = Capacitor(capacitance=10e-6, rated_voltage=50.0)
+            self.c_in1.insert(self.buck.VIN, self.buck.GND, short_trace=True)
+
+            self.c_in2 = Capacitor(capacitance=10e-6, rated_voltage=50.0)
+            self.c_in2.insert(self.buck.VIN, self.buck.GND, short_trace=True)
+
+            self.c_in_hf = Capacitor(capacitance=100e-9)
+            self.c_in_hf.insert(self.buck.VIN, self.buck.GND, short_trace=True)
 
         # Feedback voltage divider
         vdiv_cons = VoltageDividerConstraints(
@@ -270,10 +274,11 @@ class BuckConverterCircuit(Circuit):
 
         # Output caps
         with CapacitorQuery.refine(type="ceramic", case="1206"):
-            for _ in range(2):
-                Capacitor(capacitance=22e-6, rated_voltage=10.0).insert(
-                    self.vout.Vp, self.vout.Vn, short_trace=True
-                )
+            self.c_out1 = Capacitor(capacitance=22e-6, rated_voltage=10.0)
+            self.c_out1.insert(self.vout.Vp, self.vout.Vn, short_trace=True)
+
+            self.c_out2 = Capacitor(capacitance=22e-6, rated_voltage=10.0)
+            self.c_out2.insert(self.vout.Vp, self.vout.Vn, short_trace=True)
 
         # Design constraint for switch node clearance
         SwTag().assign(self.SW_NODE)
