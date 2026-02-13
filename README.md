@@ -90,8 +90,6 @@ jitx-skills/
 │       └── advanced-patterns.md  # Provider, pour, placement patterns
 ├── jitx-substrate-modeler/    # Substrate modeling skill
 │   ├── SKILL.md
-│   └── references/
-│       └── substrate-api-reference.md  # Complete API reference
 └── .claude-plugin/
     └── marketplace.json
 ```

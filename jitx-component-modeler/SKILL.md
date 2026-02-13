@@ -168,7 +168,7 @@ from jitx.toleranced import Toleranced
 from jitxlib.symbols.box import BoxSymbol, PinGroup, Row, Column
 # Import appropriate landpattern generator:
 # from jitxlib.landpatterns.generators.soic import SOIC, SOIC_DEFAULT_LEAD_PROFILE
-# from jitxlib.landpatterns.generators.sot import SOT23_3, SOT23_5, SOT23_6, SOTLeadProfile
+# from jitxlib.landpatterns.generators.sot import SOT23_3, SOT23_5, SOT23_6, SOTLead, SOTLeadProfile
 # from jitxlib.landpatterns.generators.qfn import QFN, QFNLead
 # from jitxlib.landpatterns.generators.son import SON, SONLead
 # from jitxlib.landpatterns.generators.bga import BGA
