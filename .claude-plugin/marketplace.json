@@ -1,17 +1,17 @@
 {
   "name": "jitx-skills",
   "owner": {
-    "name": "Duncan Haldane",
-    "email": "duncan@jitx.com"
+    "name": "JITX Support",
+    "email": "info@jitx.com"
   },
   "metadata": {
-    "description": "JITX hardware design automation skills for PCB design, component modeling, and circuit creation",
-    "version": "1.0.1"
+    "description": "JITX hardware design automation skills for PCB design, component modeling, substrate modeling, and circuit creation",
+    "version": "1.0.2"
   },
   "plugins": [
     {
       "name": "jitx-skills",
-      "description": "JITX workflow skills for PCB design. Use jitx-component-modeler for component creation from datasheets. Use jitx-circuit-builder for wiring circuits, passives, providers, and application circuits.",
+      "description": "JITX workflow skills for PCB design. Use jitx-component-modeler for component creation from datasheets. Use jitx-circuit-builder for wiring circuits, passives, providers, and application circuits. Use jitx-substrate-modeler for capturing information about the fabrication substrate.",
       "source": "./",
       "strict": false,
       "skills": [
