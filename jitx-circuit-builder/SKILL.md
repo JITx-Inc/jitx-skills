@@ -72,7 +72,7 @@ class MyCircuit(Circuit):
         self.VCC = Net(name="VCC")
 
         # 4. += stores the connection (net on LEFT, ports on right)
-        #    bare `a + b` without += silently drops the connection
+        #    bare `a + b` without storing on self silently drops the connection
         self.VCC += self.power.Vp
         self.GND += self.power.Vn
 
@@ -89,13 +89,21 @@ Device = MyCircuit
 
 ## Key Rules
 
-1. **EVERY component must be stored as `self.<name>`** — `self.c1 = Capacitor(...)` then `self.c1.insert(...)`. Anonymous `Capacitor().insert()` passes pyright but **fails at build time** with `"Reference to structural object lost during instantiation"`.
+1. **EVERY component must be stored as `self.<name>`** — `self.c1 = Capacitor(...)` then `self.c1.insert(...)`. Anonymous `Capacitor().insert()` passes pyright but **fails at build time** with `"Reference to structural object lost during instantiation"`. Component instantiation should not be done at the class level.
 2. **`insert()` belongs to the component** — `self.r1.insert(portA, portB)`. No `self.insert()` or `self.add()` on Circuit.
-3. **Always `class X(Circuit):`** — never `Device`, `JITXDevice`, or any other base class. There is no `Device` class in jitx.
+3. **Always `class X(Circuit):`** — never `Device`, `JITXDevice`, or any other base class. There is no `Device` class in JITX but `Device` can be used as an alias.
 4. **All wiring in `__init__`** — no `circuit()`, `execute()`, or `build()` methods.
 5. **`jitx.Component`** — `import jitx` then `class MyIC(jitx.Component):`.
 6. **Never alias component ports** — `self.x = self.r1.p2` creates multiple parents and fails. To expose a connection point, wire to a class-level Port: `self.r1.insert(gpio, self.output_port)`.
 
+## Net Definitions
+
+Nets can be named in the design when the net is defined. It is good practice to name the net so that the schematic and layout construction are easy to follow. For power and ground nets, it is also useful to provide a symbol definition (i.e. PowerSymbol() or GroundSymbol()).
+
+```python
+self.my_net = Net(self.a, name = "my_net")
+self.VCC = Net(self.power.Vp, name = "VCC", symbol = PowerSymbol())
+```
 ## Net Wiring
 
 Every `a + b` expression creates a Net — it **must** be stored or the connection is lost.
@@ -112,7 +120,7 @@ self.i2c_nets = [
     i2c.scl + self.sensor.SCL,
 ]
 
-# >> topology operator for ordered routing
+# >> topology operator for ordered routing (intermediate nodes are RoutingStructure instances)
 self.topology = self.driver.out >> self.trace >> self.receiver.inp
 ```
 
@@ -134,6 +142,11 @@ self.c_bulk.insert(self.ic.VCC, self.ic.GND)
 
 self.inductor = Inductor(inductance=4.7e-6, current_rating=3.0)
 ```
+
+For all passive values, especially those that are calculated, use the eseries Python package to ensure that the value is legal. If not otherwise specified use the E96 range of values.
+
+For decoupling capacitors, use the short_trace argument to a part query or use the ShortTrace(p1, p2) function to connect the ports of two components, see https://docs.jitx.com/en/latest/api/jitx.net.html#jitx.net.ShortTrace.
+
 
 ## Advanced Patterns
 
@@ -183,7 +196,7 @@ def provide_gpio(self, g: GPIO):
 
 ### `net.symbol` — Net Symbols
 
-Assign to the `.symbol` attribute, never use `insert()` or `+=`:
+Another option to provide a symbol on a net (if not done at Net() creation definition) is to assign to the `.symbol` attribute, never use `insert()` or `+=`:
 
 ```python
 self.GND = Net(name="GND")
@@ -200,7 +213,7 @@ Fix all import and type errors before proceeding. Ignore errors about `.prebuilt
 
 ### Step 2: Build Test
 
-Create a test harness to verify the circuit builds with the JITX backend:
+Create a test harness to verify the circuit builds with the JITX backend (utilizing the required virtual environment):
 
 ```python
 # design.py
@@ -211,9 +224,9 @@ from jitxlib.parts import ResistorQuery, CapacitorQuery, InductorQuery
 from .circuit import Device
 
 class TestDesign(SampleDesign):
-    _resistor_defaults = ResistorQuery(case=["0402", "0603", "0805"])
-    _capacitor_defaults = CapacitorQuery(case=["0402", "0603", "0805", "1206"])
-    _inductor_defaults = InductorQuery(mounting="smd")
+    resistor_defaults = ResistorQuery(case=["0402", "0603", "0805"])
+    capacitor_defaults = CapacitorQuery(case=["0402", "0603", "0805", "1206"])
+    inductor_defaults = InductorQuery(mounting="smd")
 
     @inline
     class circuit(Device):

@@ -37,23 +37,16 @@ python -c "import jitx; print(f'JITX ready: {jitx.__version__}')"
 
 Run this automatically when starting JITX work. Don't ask user to do manual setup.
 
-## IDE Setup (Recommended)
+## Python Linting Setup (Recommended)
 
-Install the Pyright LSP plugin for Python type checking:
+You can use Pyright for Python type checking:
 
-```bash
-claude plugin install pyright-lsp@claude-plugins-official
-```
-
-The plugin provides:
-- Real-time type errors before running builds
-- Autocomplete for JITX APIs (jitx, jitxlib, jitxstd)
-- Import resolution and hover documentation
-
-**Requires:** `pyright` or `pyright-langserver` installed:
+Install:
 ```bash
 pip install pyright
-# or
+```
+or
+```bash
 npm install -g pyright
 ```
 
@@ -170,6 +163,7 @@ Covers:
 ## Documentation Lookup
 
 JITX docs: `https://docs.jitx.com/en/latest/`
+or LLM-friendly access at `https://docs.jitx.com/llms.txt`
 
 **When to fetch docs:**
 - Unfamiliar API class or method → fetch API reference page
