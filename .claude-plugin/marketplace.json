@@ -5,20 +5,21 @@
     "email": "support@jitx.com"
   },
   "metadata": {
-    "description": "JITX hardware design automation skills for PCB design, component modeling, substrate modeling, and circuit creation",
-    "version": "1.0.2"
+    "description": "JITX hardware design automation skills for PCB design, component modeling, substrate modeling, circuit creation, and signal integrity constraints",
+    "version": "1.1.0"
   },
   "plugins": [
     {
       "name": "jitx-skills",
-      "description": "JITX workflow skills for PCB design. Use jitx-component-modeler for component creation from datasheets. Use jitx-circuit-builder for wiring circuits, passives, providers, and application circuits. Use jitx-substrate-modeler for capturing information about the fabrication substrate.",
+      "description": "JITX workflow skills for PCB design. Use jitx-component-modeler for component creation from datasheets. Use jitx-circuit-builder for wiring circuits, passives, providers, and application circuits. Use jitx-substrate-modeler for capturing information about the fabrication substrate. Use jitx-interconnect-constraints for signal integrity constraints, topology, differential pairs, and protocol-level constraint patterns.",
       "source": "./",
       "strict": false,
       "skills": [
         "./jitx",
         "./jitx-component-modeler",
         "./jitx-circuit-builder",
-        "./jitx-substrate-modeler"
+        "./jitx-substrate-modeler",
+        "./jitx-interconnect-constraints"
       ]
     }
   ]
