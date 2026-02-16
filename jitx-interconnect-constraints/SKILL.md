@@ -271,7 +271,23 @@ class BlockingCapacitor(jitx.Component):
     pin_model = BridgingPinModel(p1, p2, delay=6e-12, loss=0.5)
 ```
 
-### Using BridgingPinModel in a circuit
+### Using BridgingPinModel in a subcircuit
+
+Define a subcircuit with ports that a topology chains through:
+
+```python
+class ACCoupler(Circuit):
+    """Single-ended AC coupling subcircuit."""
+    A = Port()
+    B = Port()
+
+    def __init__(self):
+        self.cap = BlockingCapacitor()  # has BridgingPinModel
+        self += self.A >> self.cap.p1
+        self += self.cap.p2 >> self.B
+```
+
+Differential pair version:
 
 ```python
 class DiffPairCoupler(Circuit):
@@ -290,21 +306,38 @@ class DiffPairCoupler(Circuit):
         self.topo_n2 = self.cap_n.p2 >> self.B.n
 ```
 
-### Topology with bridging components
+### Chaining topology through a subcircuit
 
-When a topology passes through a bridging component, the constraint engine uses the BridgingPinModel to account for the component's delay and loss:
+The outer circuit connects to the subcircuit's ports with `>>`. The topology chains through the subcircuit's internal `>>` connections automatically:
 
 ```python
-# If the component or circuit does not have an embedded BridgingPinModel then one
-# can be defined at the level of the instantiated component or circuit.
-# Note that any topology where the signal transits *through* a component or subcircuit
-# will need a BridgingPinModel in order to calculate the timing in order to satisfy
-# the timing or loss constraints.
-#
+class MyDesign(Circuit):
+    def __init__(self):
+        self.driver = MyDriver()
+        self.recv = MyReceiver()
+        self.coupler = ACCoupler()
+
+        # Topology chains: driver -> coupler.A -> [internal] -> coupler.B -> recv
+        self += self.driver.out >> self.coupler.A
+        self += self.coupler.B >> self.recv.inp
+
+        # Constrain the full end-to-end path
+        topo = Topology(self.driver.out, self.recv.inp)
+        with ReferencePlanes(self.GND):
+            self.cst = Constrain(topo).insertion_loss(3.0)
+```
+
+### Topology with bridging components (no subcircuit)
+
+When a topology passes through a component that does **not** have an embedded BridgingPinModel, define one at the circuit level:
+
+```python
 # Signal path: driver → cap → receiver
 self += self.driver.out >> self.cap.p1
-self.bridge = BridgingPinModel(self.cap.p1, self.cap.p2, delay=6e-12, loss=0.5)
 self += self.cap.p2 >> self.receiver.inp
+
+# Add BridgingPinModel so constraint engine tracks delay/loss through the cap
+self.bridge = BridgingPinModel(self.cap.p1, self.cap.p2, delay=6e-12, loss=0.5)
 
 # Constraint sees the full path including cap delay/loss
 topo = Topology(self.driver.out, self.receiver.inp)
@@ -449,34 +482,82 @@ Common built-in protocols:
 
 For protocol-specific timing parameters (skew, loss, impedance per standard version), see [references/protocol-standards.md](references/protocol-standards.md).
 
-## RF Interconnect Cross-Reference
+## Via Structures in Topologies
 
-For RF signal routing with via structures, ground cages, and anti-pads, see the `jitx-substrate-modeler` skill which covers `RoutingStructure`, `DifferentialRoutingStructure`, via fencing with `ViaFencePattern`, and reference planes.
-
-Here is how to constrain an RF via topology (pattern from jitx-qorvo):
+Via structures let the constraint engine track signal transitions between layers. They are `Circuit` subclasses with `sig_in`, `sig_out`, and `COMMON` ports.
 
 ```python
 from jitxlib.via_structures import SingleViaStructure, PolarViaGroundCage, SimpleAntiPad
-from jitx.si import Constrain, ReferencePlanes, Topology
+```
 
-# Create RF via with ground cage (defined in substrate-modeler)
+**These DO NOT EXIST — never import:**
+`jitx.via_structures`, `jitx.si.ViaStructure`, `jitxlib.vias`
+
+### Simple via (bare signal transition)
+
+```python
+from jitxlib.via_structures import SingleViaStructure
+
+# Bare via — no ground cage or antipads
+self.via = SingleViaStructure(
+    MySubstrate.MicroVia,
+    ground_cages=[],
+    antipads=[],
+    insertion_points=[],
+)
+self.GND += self.via.COMMON
+
+# Chain topology through via
+self += self.driver.out >> self.via.sig_in
+self += self.via.sig_out >> self.receiver.inp
+
+# Constrain full path (via is transparent to the constraint)
+topo = Topology(self.driver.out, self.receiver.inp)
+rs50 = current.substrate.routing_structure(50.0)
+with ReferencePlanes(self.GND):
+    self.cst = Constrain(topo).structure(rs50).insertion_loss(3.0)
+```
+
+### RF via with ground cage
+
+For controlled-impedance via transitions, add a `PolarViaGroundCage` and optional `SimpleAntiPad`:
+
+```python
+from jitxlib.via_structures import SingleViaStructure, PolarViaGroundCage, SimpleAntiPad
+
 self.rf_via = SingleViaStructure(
     MySubstrate.MicroviaL1L2,
-    ground_cages=[PolarViaGroundCage(MySubstrate.BlindViaL1L4, count=12, radius=0.6)],
+    ground_cages=[
+        PolarViaGroundCage(
+            MySubstrate.BlindViaL1L4,  # Via type for cage
+            count=12,                   # Number of ground vias
+            radius=0.6,                 # Distance from signal via (mm)
+        )
+    ],
     antipads=[SimpleAntiPad(shape, layers)],
+    insertion_points=[],
 )
+self.GND += self.rf_via.COMMON
 
-# Build topology through the via structure
+# Same topology pattern as bare via
 self += self.driver.out >> self.rf_via.sig_in
 self += self.rf_via.sig_out >> self.receiver.inp
-self += self.GND + self.rf_via.COMMON
 
-# Constrain the full path
 topo = Topology(self.driver.out, self.receiver.inp)
 rs50 = current.substrate.routing_structure(50.0)
 with ReferencePlanes(self.GND):
     self.cst = Constrain(topo).insertion_loss(1.0).structure(rs50)
 ```
+
+### Key points
+
+- **`sig_in` / `sig_out`** — Signal enters and exits the via structure. Chain these with `>>` into your topology.
+- **`COMMON`** — Ground connection for the cage vias. Always connect to your GND net with `+=`.
+- **`insertion_points=[]`** — Required parameter. Pass empty list unless using custom insertion point geometry.
+- **Positioning** — Via structures support `.at(x, y, rotate=angle)` for placement.
+- **`DifferentialViaStructure`** — Same pattern but with `DiffPair` ports (`sig_in.p`, `sig_in.n`, etc.) and a `pitch` parameter for P/N spacing.
+
+For `RoutingStructure`, `DifferentialRoutingStructure`, and substrate via definitions, see the `jitx-substrate-modeler` skill.
 
 ## Common Mistakes
 
