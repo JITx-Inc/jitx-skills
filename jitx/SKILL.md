@@ -160,6 +160,29 @@ Covers:
 - FabricationConstraints for manufacturing rules
 - Design constraint rules with Tags
 
+### Interconnect Constraints (`jitx-interconnect-constraints`)
+
+**Invoke this subskill** when user asks to:
+- Apply signal integrity constraints to signals
+- Use the `>>` topology operator for ordered routing
+- Constrain differential pairs (skew, loss, impedance)
+- Match timing between bus signals (length matching)
+- Define pin models (BridgingPinModel, TerminatingPinModel)
+- Set up protocol-specific constraints (PCIe, USB, DisplayPort, RGMII, Ethernet, DDR)
+- Use ReferencePlanes for routing structure constraints
+- Build custom SignalConstraint subclasses
+
+**How to invoke:** Use the Skill tool with `skill: "jitx-skills:jitx-interconnect-constraints"`
+
+Covers:
+- TopologyNet (`>>` operator) vs Net (`+` operator)
+- Constrain, ConstrainDiffPair, ConstrainReferenceDifference
+- DiffPairConstraint for reusable diff pair constraints
+- SignalConstraint[T] protocol constraint pattern
+- PinModel, BridgingPinModel, TerminatingPinModel
+- ReferencePlanes context manager
+- Built-in protocol constraints from jitxlib
+
 ## Documentation Lookup
 
 JITX docs: `https://docs.jitx.com/en/latest/`
@@ -185,6 +208,8 @@ or LLM-friendly access at `https://docs.jitx.com/llms.txt`
 | Design hierarchy | `essentials/design/design-hierarchy.html` |
 | Autorouter | `essentials/physical_design/autorouter.html` |
 | SI constraints | `essentials/SI/constraints.html` |
+| SI topology | `essentials/SI/topology.html` |
+| SI API reference | `api/jitx.si.html` |
 | Component class | `api/jitx.component.html` |
 | Circuit class | `api/jitx.circuit.html` |
 | QFN landpattern | `jitxlib-standard/jitxlib.landpatterns.generators.qfn.html` |

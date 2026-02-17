@@ -70,6 +70,23 @@ Model JITX substrates — stackups, materials, vias, routing structures, and fab
 - "Set up 100-ohm differential routing structure"
 - "Add laser microvias to the substrate"
 
+### jitx-interconnect-constraints
+
+Apply signal integrity constraints to JITX designs. Covers:
+
+- **Topology:** `>>` operator for SI-aware signal routing vs `+` for nets
+- **Constraints:** Insertion loss, timing, routing structure assignment
+- **Differential pairs:** `ConstrainDiffPair`, `DiffPairConstraint` reusable helper
+- **Bus matching:** `ConstrainReferenceDifference` for clock-to-data skew
+- **Pin models:** `TerminatingPinModel`, `BridgingPinModel` for SI analysis
+- **Protocols:** PCIe, SATA, SFP, Ethernet, RGMII, DDR4, LPDDR4/5, GDDR7
+
+**Example triggers:**
+- "Constrain this differential pair with 5ps skew"
+- "Add insertion loss limits to the data bus"
+- "Match data signals to the clock within 20ps"
+- "Set up PCIe Gen4 constraints"
+
 ## Project Structure
 
 ```
@@ -89,7 +106,11 @@ jitx-skills/
 │   └── references/
 │       └── advanced-patterns.md  # Provider, pour, placement patterns
 ├── jitx-substrate-modeler/    # Substrate modeling skill
+│   └── SKILL.md
+├── jitx-interconnect-constraints/  # SI constraints skill
 │   ├── SKILL.md
+│   └── references/
+│       └── protocol-standards.md  # Protocol timing parameters
 └── .claude-plugin/
     └── marketplace.json
 ```
