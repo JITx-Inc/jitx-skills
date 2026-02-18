@@ -1,6 +1,6 @@
 ---
 name: jitx-circuit-builder
-description: Build JITX circuits with wiring, passives, providers, and geometry. Use when user asks to "wire up", "connect", "build a circuit", create an "application circuit", work with passives (resistors, capacitors), set up power connections, add pours, or place components. Covers the Circuit class, net operators, passive queries, provider/require patterns, and copper geometry.
+description: Build JITX circuits with wiring, passives, and geometry. Use when user asks to "wire up", "connect", "build a circuit", create an "application circuit", work with passives (resistors, capacitors), set up power connections, add pours, or place components. Covers the Circuit class, net operators, passive queries, voltage dividers, and copper geometry. For provide/require pin assignment patterns, use jitx-pin-assignment instead.
 ---
 
 # JITX Circuit Builder
@@ -150,7 +150,7 @@ For decoupling capacitors, use the short_trace argument to a part query or use t
 
 ## Advanced Patterns
 
-For query refinement, voltage divider, providers, pours, copper geometry,
+For query refinement, voltage divider, pours, copper geometry,
 placement, and a complete application circuit example, see
 [references/advanced-patterns.md](references/advanced-patterns.md).
 
@@ -178,21 +178,9 @@ VoltageDividerConstraints(
 )
 ```
 
-### `@provide` — Critical Return Type
+### Provider / Require Patterns
 
-`@provide` methods must return `Iterable[Mapping[Port, Port]]`, NOT the bundle itself:
-
-```python
-# WRONG — returns a Port, not a mapping:
-@provide(GPIO)
-def provide_gpio(self, g: GPIO):
-    return self.mcu.GPIO0
-
-# CORRECT — returns list of {bundle_port: component_port} dicts:
-@provide(GPIO)
-def provide_gpio(self, g: GPIO):
-    return [{g.gpio: self.mcu.GPIO0}, {g.gpio: self.mcu.GPIO1}]
-```
+For all `@provide` / `@provide.one_of` / `@provide.subset_of` / `Provide()` / `require()` patterns, see the **jitx-pin-assignment** skill. Invoke with `skill: "jitx-skills:jitx-pin-assignment"`.
 
 ### `net.symbol` — Net Symbols
 

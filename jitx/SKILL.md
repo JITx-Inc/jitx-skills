@@ -127,17 +127,17 @@ Supports:
 - Work with passives (resistors, capacitors, inductors)
 - Set up power connections or decoupling
 - Add copper pours or geometry
-- Use provider/require patterns
 
 **How to invoke:** Use the Skill tool with `skill: "jitx-skills:jitx-circuit-builder"`
 
 Covers:
 - Circuit class structure and wiring
 - Passives from jitxlib with query refinement
-- Provider pattern (@provide, @provide.one_of, @provide.subset_of)
-- Require pattern for capabilities
+- Voltage divider solver
 - Pours and copper geometry
 - Component placement
+
+For provide/require pin assignment patterns, use `jitx-pin-assignment` instead.
 
 ### Substrate Modeler (`jitx-substrate-modeler`)
 
@@ -182,6 +182,29 @@ Covers:
 - PinModel, BridgingPinModel, TerminatingPinModel
 - ReferencePlanes context manager
 - Built-in protocol constraints from jitxlib
+
+### Pin Assignment (`jitx-pin-assignment`)
+
+**Invoke this subskill** when user asks to:
+- Model flexible pin assignment (provide/require beyond basics)
+- Implement peripheral muxing on shared pins
+- Allow DiffPair P/N polarity swapping
+- Configure PCIe lane swapping or width variants
+- Enable DDR byte lane or bit swapping
+- Use `@provide.subset_of` or programmatic `Provide`
+- Build hierarchical provider composition
+- Apply topology (`>>`) and SI constraints on pin-assigned ports
+- Combine pin assignment with `ConstrainDiffPair` or `ConstrainReferenceDifference` for high-speed protocols
+
+**How to invoke:** Use the Skill tool with `skill: "jitx-skills:jitx-pin-assignment"`
+
+Covers:
+- `@provide`, `@provide.one_of`, `@provide.subset_of` decorators
+- Programmatic `Provide().one_of()`, `Provide().all_of()`, `Provide().subset_of()`
+- Hierarchical provider composition with `self.require()` inside `@provide`
+- Protocol-specific pin flexibility rules (DiffPair P/N, PCIe lanes, DDR4 byte/bit)
+- Topology and constraint composition on pin-assigned ports
+- `DiffPairConstraint` and `ConstrainReferenceDifference` with `require()`
 
 ## Documentation Lookup
 
