@@ -460,7 +460,7 @@ class DDR4Constraint(SignalConstraint["DDR4"]):
         ...
 ```
 
-See [example_python_protocols](https://github.com/JITx-Inc/example_python_protocols) for complete protocol implementations including PCIe, SATA, SFP, DDR4, LPDDR4, LPDDR5, and GDDR7.
+See [python_protocols_ext](https://github.com/JITx-Inc/python_protocols_ext) for complete protocol implementations including PCIe, SATA, SFP, DDR4, LPDDR4, LPDDR5, and GDDR7.
 
 ## Working with Built-in Protocols
 
