@@ -330,6 +330,16 @@ vel_stripline = phase_velocity(Dk)               # stripline uses full Dk
 vel_mixed = phase_velocity((Dk_pp + Dk_core) / 2)  # mixed dielectric
 ```
 
+**`velocity` must be in mm/s, NOT m/s.** `phase_velocity()` returns mm/s. Passing a raw m/s value will be 1000x too small, producing wrong timing constraints.
+
+```python
+# WRONG — velocity in m/s (1000x too small, timing constraints will be wrong)
+velocity = 1.5e8  # m/s — DO NOT USE
+
+# CORRECT — always use phase_velocity() which returns mm/s
+velocity = phase_velocity(4.2)  # returns ~1.46e11 mm/s
+```
+
 ### symmetric_routing_layers()
 
 Define top half only — mirrors to bottom using `-layer - 1` index:
