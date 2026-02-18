@@ -5,8 +5,7 @@
 - [Query Refinement](#query-refinement)
 - [Voltage Divider Solver](#voltage-divider-solver)
 - [Net Symbols](#net-symbols)
-- [Provider Pattern](#provider-pattern)
-- [Require Pattern](#require-pattern)
+- [Provider / Require Pattern](#provider--require-pattern) (→ jitx-pin-assignment skill)
 - [Pours](#pours)
 - [Copper Geometry](#copper-geometry)
 - [Placement](#placement)
@@ -87,81 +86,9 @@ self.vcc = Net(name="VCC")
 self.vcc.symbol = PowerSymbol()
 ```
 
-## Provider Pattern
+## Provider / Require Pattern
 
-Providers map circuit ports to component pins. Discover bundle pins from source
-before writing provider mappings (see "Finding bundle pins" in SKILL.md).
-
-### `@provide` (all_of) — multiple instances
-
-All mappings available; pin assignment chooses which to use.
-
-```python
-from jitx.net import provide
-
-class MyChip(Circuit):
-    @provide(GPIO)
-    def provide_gpio(self, bundle: GPIO):
-        for pin in [self.ic.PA0, self.ic.PA1, self.ic.PA2]:
-            yield {bundle.gpio: pin}
-```
-
-### `@provide.one_of` — single selection
-
-Only ONE option selected from the list.
-
-```python
-@provide.one_of(GPIO)
-def provide_clock(self, bundle: GPIO):
-    return [
-        {bundle.gpio: self.ic.CLK_A},
-        {bundle.gpio: self.ic.CLK_B}
-    ]
-```
-
-### `@provide.subset_of(Bundle, n)` — N from M
-
-Select exactly `n` instances from available options. First arg is the bundle type.
-
-```python
-@provide.subset_of(UART, 2)  # Pick 2 from 3
-def provide_uart(self, bundle: UART):
-    return [
-        {bundle.tx: self.ic.TX1, bundle.rx: self.ic.RX1},
-        {bundle.tx: self.ic.TX2, bundle.rx: self.ic.RX2},
-        {bundle.tx: self.ic.TX3, bundle.rx: self.ic.RX3}
-    ]
-```
-
-### Programmatic Provide
-
-For dynamic port counts:
-
-```python
-from jitx.net import Provide
-
-class MyCircuit(Circuit):
-    def __init__(self, num_ports: int):
-        self.ports = [Port() for _ in range(num_ports)]
-        self.gpios = Provide(GPIO).all_of(
-            lambda b, p=self.ports: [{b.gpio: port} for port in p]
-        )
-```
-
-## Require Pattern
-
-Request capabilities from components/circuits:
-
-```python
-gpio = self.mcu.require(GPIO)
-uart = self.mcu.require(UART)
-
-# Use in nets — do NOT assign required ports to self
-self.nets.append(gpio.gpio + self.sensor.data)
-
-# Multiple requires for multiple instances
-uarts = [self.mcu.require(UART) for _ in range(2)]
-```
+For all provide/require patterns (`@provide`, `@provide.one_of`, `@provide.subset_of`, programmatic `Provide`, `require()`, hierarchical composition, and protocol-specific pin flexibility), see the **jitx-pin-assignment** skill. Invoke it with `skill: "jitx-skills:jitx-pin-assignment"`.
 
 ## Pours
 

@@ -5,13 +5,13 @@
     "email": "support@jitx.com"
   },
   "metadata": {
-    "description": "JITX hardware design automation skills for PCB design, component modeling, substrate modeling, circuit creation, and signal integrity constraints",
-    "version": "1.1.0"
+    "description": "JITX hardware design automation skills for PCB design, component modeling, substrate modeling, circuit creation, signal integrity constraints, and pin assignment flexibility",
+    "version": "1.2.0"
   },
   "plugins": [
     {
       "name": "jitx-skills",
-      "description": "JITX workflow skills for PCB design. Use jitx-component-modeler for component creation from datasheets. Use jitx-circuit-builder for wiring circuits, passives, providers, and application circuits. Use jitx-substrate-modeler for capturing information about the fabrication substrate. Use jitx-interconnect-constraints for signal integrity constraints, topology, differential pairs, and protocol-level constraint patterns.",
+      "description": "JITX workflow skills for PCB design. Use jitx-component-modeler for component creation from datasheets. Use jitx-circuit-builder for wiring circuits, passives, and application circuits. Use jitx-substrate-modeler for capturing information about the fabrication substrate. Use jitx-interconnect-constraints for signal integrity constraints, topology, differential pairs, and protocol-level constraint patterns. Use jitx-pin-assignment for pin assignment patterns including provide/require, pin muxing, DiffPair P/N swapping, PCIe lane ordering, DDR byte/bit swapping, and topology+constraint composition on pin-assigned ports.",
       "source": "./",
       "strict": false,
       "skills": [
@@ -19,7 +19,8 @@
         "./jitx-component-modeler",
         "./jitx-circuit-builder",
         "./jitx-substrate-modeler",
-        "./jitx-interconnect-constraints"
+        "./jitx-interconnect-constraints",
+        "./jitx-pin-assignment"
       ]
     }
   ]
