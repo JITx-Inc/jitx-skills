@@ -1,6 +1,6 @@
 ---
 name: jitx-interconnect-constraints
-description: Apply signal integrity constraints to JITX designs. Use when user asks about topology (>> operator), timing constraints, skew matching, insertion loss limits, differential pairs, DiffPair bundles, protocol constraints (PCIe, USB, DisplayPort, RGMII, Ethernet, DDR), pin models (BridgingPinModel, TerminatingPinModel), reference planes, length matching, impedance-controlled routing, or SignalConstraint definitions. Covers TopologyNet, Constrain, ConstrainDiffPair, ConstrainReferenceDifference, DiffPairConstraint, ReferencePlanes, and protocol-specific constraint patterns.
+description: This skill should be used when the user asks about "topology" (>> operator), "timing constraints", "skew matching", "insertion loss limits", "differential pairs", DiffPair bundles, protocol constraints (PCIe, USB, DisplayPort, RGMII, Ethernet, DDR), pin models (BridgingPinModel, TerminatingPinModel), "reference planes", "length matching", "impedance-controlled routing", or SignalConstraint definitions. Covers TopologyNet, Constrain, ConstrainDiffPair, ConstrainReferenceDifference, DiffPairConstraint, ReferencePlanes, and protocol-specific constraint patterns.
 ---
 
 # JITX Interconnect Constraints

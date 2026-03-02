@@ -1,6 +1,6 @@
 ---
 name: jitx
-description: Base skill for JITX hardware design workflow. Use for JITX Python projects, PCB design, circuit creation, and build commands. CRITICAL - If user asks to create/model/generate a component or mentions a part number (NE555, LM1117, RP2040, etc.), immediately invoke jitx-component-modeler subskill. If user asks to create a substrate, stackup, via definitions, or routing structures, invoke jitx-substrate-modeler subskill.
+description: This skill should be used when the user asks to "build my JITX design", "set up JITX environment", "create a circuit", or works with JITX Python projects for PCB design, circuit creation, and build commands. CRITICAL - If user asks to create/model/generate a component or mentions a part number (NE555, LM1117, RP2040, etc.), immediately invoke jitx-component-modeler subskill. If user asks to create a substrate, stackup, via definitions, or routing structures, invoke jitx-substrate-modeler subskill.
 ---
 
 # JITX Workflow Skill
@@ -39,7 +39,7 @@ Run this automatically when starting JITX work. Don't ask user to do manual setu
 
 ## Python Linting Setup (Recommended)
 
-You can use Pyright for Python type checking:
+Pyright is available for Python type checking:
 
 Install:
 ```bash

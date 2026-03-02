@@ -1,6 +1,6 @@
 ---
 name: jitx-circuit-builder
-description: Build JITX circuits with wiring, passives, and geometry. Use when user asks to "wire up", "connect", "build a circuit", create an "application circuit", work with passives (resistors, capacitors), set up power connections, add pours, or place components. Covers the Circuit class, net operators, passive queries, voltage dividers, and copper geometry. For provide/require pin assignment patterns, use jitx-pin-assignment instead.
+description: This skill should be used when the user asks to "wire up", "connect", "build a circuit", create an "application circuit", work with passives (resistors, capacitors), set up power connections, "add pours", or "place components". Covers the Circuit class, net operators, passive queries, voltage dividers, and copper geometry. For provide/require pin assignment patterns, use jitx-pin-assignment instead.
 ---
 
 # JITX Circuit Builder
@@ -233,7 +233,7 @@ python -m skill_eval.build_test path/to/circuit.py
 ### Step 3: Fix Build Errors
 
 If the build fails:
-1. Read the traceback — the error message and the line number in your code tell you what went wrong
+1. Read the traceback — the error message and the line number in the code indicate what went wrong
 2. Look up the class or method that failed in source:
    ```bash
    grep -n "def method_name\|class ClassName" .venv/lib/python*/site-packages/jitx*/**/*.py
