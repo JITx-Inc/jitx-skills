@@ -1,6 +1,6 @@
 ---
 name: jitx-component-modeler
-description: Create JITX Python component code for electronic parts. ALWAYS use this skill when user asks to create a component, model a part, generate a component, add a component, or make a JITX component - even without a datasheet. Triggers on part numbers (NE555, LM1117, RP2040, etc.) and package types (SOIC, QFN, BGA, SON, SOT). Supports multi-unit symbols, thermal pads, and complex pin mappings.
+description: This skill should be used when the user asks to "create a component", "model a part", "generate a component", "add a component", or "make a JITX component" - even without a datasheet. Also triggers on part numbers (NE555, LM1117, RP2040, etc.) and package types (SOIC, QFN, BGA, SON, SOT). Supports multi-unit symbols, thermal pads, and complex pin mappings.
 ---
 
 # JITX Component Generation Skill
@@ -27,7 +27,7 @@ This ensures:
 
 **AVOID REDUNDANT WEB SEARCHES**
 
-Once you have the datasheet PDF, extract pinout, package dimensions, and pin descriptions from it using Step 0. Do NOT search for info that's already in the datasheet.
+Once the datasheet PDF is available, extract pinout, package dimensions, and pin descriptions from it using Step 0. Do NOT search for info that's already in the datasheet.
 
 **When additional searches ARE appropriate:**
 - Datasheet lacks package mechanical drawings (common for simple parts)
@@ -389,7 +389,7 @@ SOIC(num_leads=8).lead_profile(SOIC_DEFAULT_LEAD_PROFILE).package_body(
 )
 ```
 
-Use `.narrow()` for standard narrow-body SOICs. Use `.package_body()` for wide-body SOICs or when you need to specify all three dimensions (width, length, height).
+Use `.narrow()` for standard narrow-body SOICs. Use `.package_body()` for wide-body SOICs or when specifying all three dimensions (width, length, height).
 
 ## PadMapping Requirements
 

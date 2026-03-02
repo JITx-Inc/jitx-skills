@@ -1,6 +1,6 @@
 ---
 name: jitx-substrate-modeler
-description: Model JITX substrates including stackups, materials, vias, routing structures, and fabrication constraints. Use when user asks to create a substrate, define a stackup, add via definitions, set up routing structures, configure impedance control, define differential pairs, set fabrication rules, or model a PCB layer structure. Covers Stackup, Symmetric, Conductor, Dielectric, Via (laser, mechanical, backdrilled, blind, buried, stacked), RoutingStructure, DifferentialRoutingStructure, NeckDown, via fencing, geometry, reference planes, and FabricationConstraints.
+description: This skill should be used when the user asks to "create a substrate", "define a stackup", "add via definitions", "set up routing structures", "configure impedance control", "define differential pairs", "set fabrication rules", or "model a PCB layer structure". Covers Stackup, Symmetric, Conductor, Dielectric, Via (laser, mechanical, backdrilled, blind, buried, stacked), RoutingStructure, DifferentialRoutingStructure, NeckDown, via fencing, geometry, reference planes, and FabricationConstraints.
 ---
 
 # JITX Substrate Modeler

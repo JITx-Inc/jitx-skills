@@ -1,6 +1,6 @@
 ---
 name: jitx-pin-assignment
-description: Model flexible pin assignment in JITX designs. Use when user asks about provide/require patterns, @provide.one_of or @provide.subset_of decorators, programmatic Provide, pin muxing (MCU peripherals on shared pins), DiffPair P/N polarity swapping, PCIe lane swapping or width variants, DDR4 byte/bit swapping, LPDDR5 channel swapping, hierarchical provider composition, topology (>>) on pin-assigned ports, ConstrainDiffPair or ConstrainReferenceDifference with provide/require, or flexible pin mapping for FPGAs and MCUs. Covers provide, Provide, require, all_of, one_of, subset_of, and protocol-specific pin flexibility with SI constraints.
+description: This skill should be used when the user asks about "provide/require patterns", "@provide.one_of" or "@provide.subset_of" decorators, "programmatic Provide", "pin muxing" (MCU peripherals on shared pins), "DiffPair P/N polarity swapping", "PCIe lane swapping" or width variants, "DDR4 byte/bit swapping", "LPDDR5 channel swapping", "hierarchical provider composition", topology (>>) on pin-assigned ports, ConstrainDiffPair or ConstrainReferenceDifference with provide/require, or "flexible pin mapping" for FPGAs and MCUs. Covers provide, Provide, require, all_of, one_of, subset_of, and protocol-specific pin flexibility with SI constraints.
 ---
 
 # JITX Pin Assignment
@@ -50,7 +50,7 @@ from jitx import Circuit, Net
 
 ## When to Use Pin Assignment
 
-Use pin assignment when a component's physical pins can validly serve more than one logical role, and you want the layout engine to choose the optimal mapping.
+Use pin assignment when a component's physical pins can validly serve more than one logical role, and the layout engine should choose the optimal mapping.
 
 **Use pin assignment for:**
 - MCU GPIO — any of N pins can drive an LED, sensor, etc.
@@ -62,7 +62,7 @@ Use pin assignment when a component's physical pins can validly serve more than 
 **Use fixed wiring instead when:**
 - The mapping is 1:1 with no flexibility (e.g., DDR address pins, CK polarity)
 - The component datasheet specifies a single valid pin function
-- You want a deterministic connection regardless of layout
+- A deterministic connection is needed regardless of layout
 
 ## Bundles: The Language of Provide/Require
 
