@@ -563,7 +563,7 @@ class SubstrateB(Substrate, MyVias):
 
 ## API Reference
 
-For complete class definitions, all parameters, method signatures, and additional examples, see [https://docs.jitx.com].
+For complete class definitions, all parameters, method signatures, and additional examples, see [JITX Documentation](https://docs.jitx.com).
 
 ## Formatting
 
