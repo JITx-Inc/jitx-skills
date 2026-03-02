@@ -1,12 +1,12 @@
 {
-  "name": "jitx-skills",
+  "name": "jitx",
   "owner": {
     "name": "JITX Support",
     "email": "support@jitx.com"
   },
   "metadata": {
     "description": "JITX hardware design automation skills for PCB design, component modeling, substrate modeling, circuit creation, signal integrity constraints, and pin assignment flexibility",
-    "version": "1.2.0"
+    "version": "1.3.0"
   },
   "plugins": [
     {
