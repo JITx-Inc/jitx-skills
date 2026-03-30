@@ -47,7 +47,7 @@ pending → in-progress → review → accepted
 
 1. **Analyze requirements**: parse the user's request, spec documents, or reference designs into structured form.
 
-2. **Identify all components**: list every IC, connector, and regulator needed. For each, note the part number, package, and where the datasheet is.
+2. **Identify all components**: list every IC, connector, and regulator needed. For each, note the part number, package, and where the datasheet is. Optionally use parts sourcing tools (see `references/parts-sourcing.md`) to search for in-stock candidates and reference board circuits.
 
 3. **Map interfaces**: document which components connect to which, via what protocol, and whether SI constraints are needed.
 

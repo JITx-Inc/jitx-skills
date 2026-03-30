@@ -160,6 +160,14 @@ For domain checklists: read `references/domain-checklists.md`
 
 Do NOT proceed past a gate if any task has unresolved failures. Fix upstream before moving downstream.
 
+### Optional: Parts Sourcing and Footprint Conversion
+
+When the `pcbparts` MCP server is available, use it during Phase 0 to search for in-stock parts, find reference board circuits, and look up design rules. For non-standard packages (connectors, RF modules), download KiCad footprints and convert to JITX. Standard packages (QFN, SOIC, BGA, SOT) should always use the built-in JITX landpattern generators, and all symbols should use `BoxSymbol`.
+
+This is optional and swappable — the project builder works without it.
+
+For details: read `references/parts-sourcing.md`
+
 ### Shared State Documents
 
 The orchestrator creates and maintains these in the project root:
