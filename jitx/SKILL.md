@@ -1,6 +1,6 @@
 ---
 name: jitx
-description: This skill should be used when the user asks to "build my JITX design", "set up JITX environment", "create a circuit", or works with JITX Python projects for PCB design, circuit creation, and build commands. CRITICAL - If user asks to create/model/generate a component or mentions a part number (NE555, LM1117, RP2040, etc.), immediately invoke jitx-component-modeler subskill. If user asks to create a substrate, stackup, via definitions, or routing structures, invoke jitx-substrate-modeler subskill.
+description: Base skill for JITX hardware design workflow. Use for JITX Python projects, PCB design, circuit creation, and build commands. Use when the user asks to "build my JITX design", "set up JITX environment", "create a circuit", "build a complete board", "design a PCB from requirements", or "create a full JITX project". For multi-component designs (3+ components, substrate, circuits), invoke the Project Builder workflow for orchestrated parallel agent execution with quality gates. CRITICAL - If user asks to create/model/generate a component or mentions a part number (NE555, LM1117, RP2040, etc.), immediately invoke jitx-component-modeler subskill. If user asks to create a substrate, stackup, via definitions, or routing structures, invoke jitx-substrate-modeler subskill.
 ---
 
 # JITX Workflow Skill
@@ -99,6 +99,73 @@ project/
 **Design**: Python class inheriting from design base (e.g., `SampleDesign`). Top-level entry point.
 
 For net wiring, passives, and circuit patterns, invoke the `jitx-circuit-builder` subskill.
+
+## Project Builder Workflow
+
+For building complete JITX designs from requirements — multiple components, substrate, circuits, and constraints assembled into a working board. Use this when the design involves 3+ components with a substrate and interconnected circuits.
+
+### Phases
+
+| Phase | What | Parallelism |
+|-------|------|-------------|
+| 0 | Requirements analysis, decompose into tasks, create PLAN.md | Orchestrator only |
+| 1 | Model substrate + all components | Fully parallel sub-agents |
+| 2 | SI constraints, pin assignment, circuit wiring | Clustered parallel |
+| 3 | Top-level assembly (instantiate, connect, constrain) | Single agent |
+| 4 | Build, verify DRC + SI, iterate on failures | Single agent |
+
+For full phase details and gate criteria: read `references/project-builder-flow.md`
+For how to decompose requirements into tasks: read `references/decomposition-guide.md`
+For PLAN.md format: read `references/plan-template.md`
+
+### Parallel Build Safety
+
+JITX uses a single WebSocket backend — concurrent builds collide. When running parallel sub-agents, use the build lock wrapper:
+
+```bash
+python runner/build_lock.py <module.path.DesignClass>
+```
+
+Copy `scripts/build_lock.py` from this skill into the project's `runner/` directory. Sub-agents call this instead of `jitx build` directly. The lock serializes builds via `fcntl.flock`; parallel agents wait their turn.
+
+### Two-Tier Quality System
+
+Sub-agent work goes through TWO quality checks before being accepted:
+
+**1. Sub-Agent Self-Validation ("Think Twice")**
+
+After initial implementation, sub-agents MUST stop and run the domain-specific checklist against the datasheet before returning. This forced second pass typically catches 3-5 missed details (floating enable pins, missing thermal pads, wrong output types, forgotten decoupling). Sub-agents return a self-evaluation report documenting what they checked and fixed.
+
+**2. Orchestrator Acceptance Review**
+
+The orchestrator does NOT blindly trust self-evaluation. For each returned task:
+- Read the generated code for obvious issues
+- Spot-check high-risk checklist items independently
+- Verify interface compatibility with downstream tasks
+- Issue verdict: **accept** / **rework** (send back with specific issues) / **reject** (replan)
+
+Phase gates only open when ALL tasks in the phase are `accepted` by the orchestrator.
+
+For the full protocol: read `references/task-execution.md`
+For domain checklists: read `references/domain-checklists.md`
+
+### Exit Gates
+
+| Gate | Key Criteria |
+|------|-------------|
+| 0 → 1 | PLAN.md created with all tasks, user approved plan |
+| 1 → 2 | All components + substrate build individually, acceptance reviews passed |
+| 2 → 3 | All circuits build, constraint classes valid, provide/require interfaces consistent |
+| 3 → 4 | Top-level assembles, all nets connected, power tree complete |
+
+Do NOT proceed past a gate if any task has unresolved failures. Fix upstream before moving downstream.
+
+### Shared State Documents
+
+The orchestrator creates and maintains these in the project root:
+
+- **PLAN.md** — Task registry with status, dependencies, and acceptance verdicts. Single source of truth. Enables session resumption.
+- **ARCHITECTURE.md** — Power tree, interface map, module hierarchy. Gives sub-agents the big picture.
 
 ## Subskills
 
