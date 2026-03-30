@@ -8,7 +8,37 @@ Inside Claude Code, run these slash commands:
 
 ```
 /plugin marketplace add JITx-Inc/jitx-skills
-/plugin install jitx-skills@JITx-Inc/jitx-skills
+/plugin install jitx-skills@jitx
+```
+
+## Updating
+
+### Manual Update
+
+To pull the latest version of the plugin:
+
+```
+/plugin marketplace update jitx
+claude plugin update jitx-skills@jitx
+```
+
+The first command refreshes the marketplace listing from the GitHub repository. The second command updates the installed plugin to the latest version. Restart Claude Code after updating to load the new version.
+
+### Automatic Updates
+
+By default, auto-update is **disabled** for third-party marketplaces. To enable it:
+
+1. Run `/plugin` to open the interactive plugin manager
+2. Select the **Marketplaces** tab
+3. Choose `jitx`
+4. Select **Enable auto-update**
+
+When enabled, Claude Code checks for updates at startup and notifies you to restart if updates were applied.
+
+### Uninstalling
+
+```
+claude plugin uninstall jitx-skills@jitx
 ```
 
 ## Skills

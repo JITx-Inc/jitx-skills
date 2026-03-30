@@ -1,6 +1,6 @@
 # Protocol SI Standards Reference
 
-Parameter tables sourced from [python_protocols_ext](https://github.com/JITx-Inc/python_protocols_ext) and industry specifications. All timing values in seconds, impedance in ohms.
+Parameter tables sourced from [jitx_protocols_ext](https://github.com/JITx-Inc/jitx-protocols-ext) and industry specifications. All timing values in seconds, impedance in ohms.
 
 ## Serial Protocols
 
@@ -14,7 +14,7 @@ Parameter tables sourced from [python_protocols_ext](https://github.com/JITx-Inc
 | V5-V7 | 0.85ps | 16.0 | 85 +/-5% | 32-128 GT/s |
 
 ```python
-from python_protocols_ext.protocols.pcie import PCIe, PCIeConstraint, PCIeVersion, PCIeWidth
+from jitx_protocols_ext.protocols.pcie import PCIe, PCIeConstraint, PCIeVersion, PCIeWidth
 
 std = PCIeVersion.V5.standard()  # Returns PCIeStandard(skew, loss, impedance)
 cst = PCIeConstraint(std, width=PCIeWidth.x4)
@@ -32,7 +32,7 @@ Lane widths: x1, x2, x4, x8, x16, x32. Supports `on_board=True` for chip-to-chip
 | SATA 3.4 | 1ps | 15.0 | 90 +/-15% | 6.0 Gb/s |
 
 ```python
-from python_protocols_ext.protocols.sata import SATA
+from jitx_protocols_ext.protocols.sata import SATA
 
 std = SATA.Generation.SATA3p0.standard()
 cst = SATA.Constraint(std)
@@ -53,7 +53,7 @@ cst = SATA.Constraint(std)
 | QSFP-DD (400G) | 8 | 1ps | 10ps | 18.0 | 100 +/-10% |
 
 ```python
-from python_protocols_ext.protocols.sfp import SFP_Lane, SFPConstraint, SFPLink
+from jitx_protocols_ext.protocols.sfp import SFP_Lane, SFPConstraint, SFPLink
 
 std = SFPLink.QSFP28_100G.standard()
 cst = SFPConstraint(std)
@@ -133,7 +133,7 @@ RGMII is single-ended (not differential). Uses `RoutingStructure` (not `Differen
 **Topology:** Fly-by (daisy-chain controller → mem0 → mem1)
 
 ```python
-from python_protocols_ext.protocols.memory.ddr4 import DDR4, DDR4Constraint, DDR4Width, DDR4Rank
+from jitx_protocols_ext.protocols.memory.ddr4 import DDR4, DDR4Constraint, DDR4Width, DDR4Rank
 ```
 
 ### LPDDR4
@@ -149,7 +149,7 @@ from python_protocols_ext.protocols.memory.ddr4 import DDR4, DDR4Constraint, DDR
 **Impedances:** 85 +/-5% (diff), 40 +/-10% (SE)
 
 ```python
-from python_protocols_ext.protocols.memory.lpddr4 import LPDDR4, LPDDR4Constraint, LPDDR4Width
+from jitx_protocols_ext.protocols.memory.lpddr4 import LPDDR4, LPDDR4Constraint, LPDDR4Width
 ```
 
 ### LPDDR5
@@ -168,7 +168,7 @@ from python_protocols_ext.protocols.memory.lpddr4 import LPDDR4, LPDDR4Constrain
 Separate write clock (WCK) and read data strobe (RDQS) per byte lane.
 
 ```python
-from python_protocols_ext.protocols.memory.lpddr5 import LPDDR5, LPDDR5Constraint, LPDDR5Width
+from jitx_protocols_ext.protocols.memory.lpddr5 import LPDDR5, LPDDR5Constraint, LPDDR5Width
 ```
 
 ### GDDR7
@@ -188,7 +188,7 @@ from python_protocols_ext.protocols.memory.lpddr5 import LPDDR5, LPDDR5Constrain
 4 data channels, PAM3 signaling on DQ.
 
 ```python
-from python_protocols_ext.protocols.memory.gddr7 import GDDR7, GDDR7Constraint
+from jitx_protocols_ext.protocols.memory.gddr7 import GDDR7, GDDR7Constraint
 ```
 
 ## Constraint Primitive Usage Summary
