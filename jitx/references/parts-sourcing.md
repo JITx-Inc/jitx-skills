@@ -20,14 +20,6 @@ Returns: MPN, manufacturer, package, stock, price, specs, LCSC code.
 
 Use `jlc_search_help` to browse categories and discover filterable attributes.
 
-### Pinout Data: `jlc_get_pinout`
-
-Pin names and numbers from EasyEDA symbol data.
-
-```
-jlc_get_pinout(lcsc="C8734")  # STM32F103C8T6 pins
-```
-
 ### KiCad Footprint Download: `cse_get_kicad`
 
 Download KiCad footprint for a part. Slow (~45s) — only use for non-standard packages where JITX landpattern generators don't apply.
