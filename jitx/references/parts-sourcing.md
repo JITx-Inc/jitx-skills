@@ -1,24 +1,28 @@
 # Parts Sourcing and Footprint Conversion
 
-Optional integration for verifying sourcing of chosen parts and obtaining footprint/pinout data. The MCP tools are dumb data lookups — they do NOT make engineering decisions. Claude selects parts based on electrical requirements and tradeoffs first, then optionally checks sourcing availability.
+Optional integration for verifying sourcing of chosen parts and obtaining footprint data. The MCP tools are dumb data lookups — they do NOT make engineering decisions. Claude selects parts based on electrical requirements and tradeoffs first, then optionally checks sourcing availability.
+
+## Caution
+
+The pcbparts MCP server also exposes reference board search, design rules, and sensor recommendation tools. **Do NOT use these.** The reference board data is contaminated with hobby-grade Adafruit/SparkFun designs that are not appropriate for professional hardware. Design rules and circuit topology come from Claude's own engineering knowledge and the domain checklists — not from an external database. Only use the two tools listed below.
 
 ## Available Tools (via pcbparts MCP)
 
 Available when the `pcbparts` MCP server is configured. If not present, skip and use datasheets directly.
 
-### Part Search: `jlc_search`
+### Sourcing Check: `jlc_search`
 
-Primary tool. Fast parametric search of JLCPCB in-stock inventory.
+Verify that a specific part is in stock. Search by **exact MPN only** — do not use semantic/natural language queries like "3.3V LDO" or "USB-C connector". Claude already knows what part it wants; this tool just checks if JLCPCB has it.
 
 ```
-jlc_search(query="STM32F103 LQFP-48", limit=5)
-jlc_search(query="3.3V LDO SOT-23 500mA", sort_by="stock")
-jlc_search(query="USB-C 16pin connector SMD")
+jlc_search(query="STM32F103C8T6")
+jlc_search(query="ME6211C33M5G-N")
+jlc_search(query="AO3400A")
 ```
 
-Returns: MPN, manufacturer, package, stock, price, specs, LCSC code.
+Returns: MPN, manufacturer, package, stock, price, LCSC code.
 
-Use `jlc_search_help` to browse categories and discover filterable attributes.
+Do NOT use: `jlc_search(query="3.3V LDO SOT-23 500mA")` — this is a semantic search that returns whatever the database ranks highest, not what the design needs.
 
 ### KiCad Footprint Download: `cse_get_kicad`
 
