@@ -162,7 +162,7 @@ Do NOT proceed past a gate if any task has unresolved failures. Fix upstream bef
 
 ### Optional: Parts Sourcing and Footprint Conversion
 
-When the `pcbparts` MCP server is available, use it during Phase 0 to search for in-stock parts (`jlc_search`), get pinout data (`jlc_get_pinout`), and download KiCad footprints for non-standard packages (`cse_get_kicad`). Standard packages (QFN, SOIC, BGA, SOT) always use built-in JITX landpattern generators. All symbols use `BoxSymbol`.
+Claude selects parts based on engineering requirements and tradeoffs first. When the `pcbparts` MCP server is available, optionally verify sourcing (`jlc_search`), get pinout data (`jlc_get_pinout`), or download KiCad footprints for non-standard packages (`cse_get_kicad`). The MCP is a dumb data lookup — it does not drive architecture decisions. Standard packages always use built-in JITX landpattern generators. All symbols use `BoxSymbol`.
 
 Optional and swappable — the project builder works without it.
 

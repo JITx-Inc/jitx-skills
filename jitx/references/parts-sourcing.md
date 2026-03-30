@@ -1,6 +1,6 @@
 # Parts Sourcing and Footprint Conversion
 
-Optional integration for choosing in-stock parts and obtaining footprint/pinout data. This is NOT required — designs can use any parts with manual datasheet-driven modeling. When available, these tools accelerate Phase 0 part selection and reduce manual footprint work for non-standard packages.
+Optional integration for verifying sourcing of chosen parts and obtaining footprint/pinout data. The MCP tools are dumb data lookups — they do NOT make engineering decisions. Claude selects parts based on electrical requirements and tradeoffs first, then optionally checks sourcing availability.
 
 ## Available Tools (via pcbparts MCP)
 
@@ -40,13 +40,13 @@ Returns: raw `.kicad_sym` and `.kicad_mod` file contents.
 
 ## Phase 0: Part Selection
 
-During Phase 0, optionally use `jlc_search` to choose parts:
+Claude drives part selection based on engineering judgment. The MCP is a lookup tool, not a decision maker.
 
-1. **Search for candidates** with parametric filters matching functional requirements
-2. **Prefer**: high stock, basic/preferred library type, known manufacturers
-3. **Record chosen parts** in PLAN.md task descriptions with MPN, LCSC code, package, and key specs
+1. **Claude proposes ideal parts** based on the design requirements: voltage/current ratings, package thermal limits, peripheral set, interface support, proven reliability, datasheet quality. Weigh tradeoffs (dropout vs efficiency, pin count vs board area, feature set vs complexity).
+2. **Optionally verify sourcing**: use `jlc_search` to check if the proposed parts are in stock and at reasonable cost. If a preferred part is unavailable or prohibitively expensive, Claude proposes an alternative with equivalent specs — do not let the search results dictate the architecture.
+3. **Record chosen parts** in PLAN.md task descriptions with MPN, package, key specs, and rationale for the selection.
 
-Optional and swappable — the project builder flow works identically without it.
+The search tool is a filter, not an oracle. Never pick a part just because it has high stock or low price — pick the right part for the design, then check if it's sourceable.
 
 ## KiCad-to-JITX Footprint Conversion
 

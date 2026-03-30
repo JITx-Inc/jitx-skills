@@ -47,7 +47,7 @@ pending → in-progress → review → accepted
 
 1. **Analyze requirements**: parse the user's request, spec documents, or reference designs into structured form.
 
-2. **Identify all components**: list every IC, connector, and regulator needed. For each, note the part number, package, and where the datasheet is. Optionally use `jlc_search` (see `references/parts-sourcing.md`) to find in-stock candidates.
+2. **Identify all components**: propose ideal parts based on electrical requirements and engineering tradeoffs (voltage/current, thermal, peripheral set, package, reliability). Note the part number, package, and datasheet for each. Optionally verify sourcing availability via `jlc_search` (see `references/parts-sourcing.md`) — but the search does not drive the selection.
 
 3. **Map interfaces**: document which components connect to which, via what protocol, and whether SI constraints are needed.
 
