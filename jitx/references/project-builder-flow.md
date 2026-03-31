@@ -139,7 +139,9 @@ Run independent clusters in parallel. Within a cluster, respect dependencies.
 
 ### Process
 
-The orchestrator (or a single sub-agent) assembles the top-level design:
+The orchestrator (or a single sub-agent) assembles the top-level design.
+
+**CRITICAL**: Net symbols (`GroundSymbol`, `PowerSymbol`) and SI constraints (`Constrain`, `ConstrainDiffPair`, `ReferencePlanes`) MUST be applied at the top-level design — not inside subcircuits. Subcircuits create topologies with `>>` but constraints are applied here where the full signal path is visible.
 
 1. Create the top-level Circuit class.
 2. Instantiate all subcircuits from Phase 2.
@@ -153,7 +155,15 @@ The orchestrator (or a single sub-agent) assembles the top-level design:
    self += i2s.sd + self.amp.i2s.sd
    ```
    NEVER hardcode GPIO numbers. If a downstream circuit has individual ports instead of a bundle, wire the required bundle's sub-ports to them. Use `>>` topology for SI-constrained signals.
-6. Apply board-level SI constraints within `ReferencePlanes(GND)` context.
+6. Apply ALL SI constraints at this level within `ReferencePlanes(GND)` context. Example:
+   ```python
+   with ReferencePlanes(self.GND):
+       usb_topo = Topology(self.mcu.usb.data.p, self.usb_conn.DP)
+       self.cst_usb = ConstrainDiffPair(usb_topo) \
+           .structure(substrate.DRS_90) \
+           .timing_difference(0.1e-12)
+   ```
+   Every protocol with impedance or timing requirements needs constraints here.
 7. Define board shape, mounting holes, and any keepout zones.
 8. Build and verify `status: ok`.
 
@@ -163,8 +173,10 @@ The orchestrator (or a single sub-agent) assembles the top-level design:
 - [ ] All nets connected (no floating ports on instantiated circuits)
 - [ ] Power tree complete (every load rail connected to a regulator output)
 - [ ] All require() calls have matching provides
-- [ ] SI constraints applied and visible in the design
-- [ ] Board geometry defined
+- [ ] `GroundSymbol` on GND net, `PowerSymbol` on every power rail
+- [ ] SI constraints applied **at this level** (not inside subcircuits) for every protocol with impedance/timing requirements
+- [ ] `ReferencePlanes(GND)` context wraps all constraint applications
+- [ ] Board geometry defined (shape, mounting holes, pours)
 
 ---
 

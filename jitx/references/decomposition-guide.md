@@ -77,10 +77,11 @@ Within each cluster, tasks may need to be sequential (e.g., constraints before c
 
 ### Phase 3: Top-Level Assembly (single agent, sequential)
 - Instantiate all subcircuits
-- Connect power and ground nets
+- Connect power and ground nets with `GroundSymbol` / `PowerSymbol` (these go HERE, not in subcircuits)
 - Wire interfaces via require() from provides
-- Apply board-level SI constraints
-- Define board geometry
+- Apply ALL SI constraints here within `ReferencePlanes(GND)` (constraints go HERE, not in subcircuits — subcircuits only create `>>` topologies)
+- Add ground pours on ground plane layers
+- Define board geometry (shape, mounting holes)
 
 ### Phase 4: Build + Verify + Iterate (single agent, sequential)
 - Full build

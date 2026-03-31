@@ -152,6 +152,8 @@ Run the base Component checklist above FIRST, then verify these:
       - AC coupling caps for DC-blocking (check value for frequency range)
 - [ ] Impedance targets documented for constrained signals
 - [ ] Routing structure assigned matches impedance target
+- [ ] Topologies created with `>>` inside the circuit for constrained signal paths
+- [ ] **SI constraints (Constrain, ConstrainDiffPair, ReferencePlanes) are NOT applied here** — they go at the top-level design where the full path is visible. The circuit only creates the topology segments.
 
 ### Level Translation
 - [ ] Voltage domains of connected ICs compared — level shifter needed if they differ
@@ -230,4 +232,9 @@ After the domain-specific checklist, verify these universal items:
 - [ ] All topologies stored on `self` — bare `a >> b` without assignment is silently dropped
 - [ ] No aliasing of component ports: `self.x = self.r1.p2` causes multiple-parent errors
 - [ ] Port definitions at class level (not inside `__init__`) except for PadMapping
-- [ ] `GroundSymbol` on GND nets, `PowerSymbol` on power nets for clean schematics
+
+### Top-Level Only (do NOT put these in subcircuits)
+- [ ] `GroundSymbol` on GND net — applied at top-level design only
+- [ ] `PowerSymbol` on every power rail — applied at top-level design only
+- [ ] SI constraints (`Constrain`, `ConstrainDiffPair`, `ConstrainReferenceDifference`) — applied at top-level within `ReferencePlanes(GND)` context, not inside subcircuits
+- [ ] Ground pours on ground plane layers — applied at top-level design only
