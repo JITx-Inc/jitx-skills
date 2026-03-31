@@ -140,6 +140,11 @@ Run the base Component checklist above FIRST, then verify these:
 
 ## Interface Circuit
 
+### Port Design
+- [ ] Circuit exposes **bundle-typed ports** (I2S, I2C, SPI, USB2, GPIO, DiffPair, Power) — not individual signal ports
+- [ ] If wrapping a component with individual pins, bundle wiring happens inside the circuit
+- [ ] Bundle port types match what the MCU/FPGA wrapper provides via require()
+
 ### Signal Integrity
 - [ ] Termination scheme matches the protocol standard:
       - Series termination at source for point-to-point

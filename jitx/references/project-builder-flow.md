@@ -127,6 +127,7 @@ Run independent clusters in parallel. Within a cluster, respect dependencies.
 - [ ] All circuits build individually with `status: ok`
 - [ ] Constraint classes instantiate without error
 - [ ] Provide/require interfaces are consistent across wrapper and consuming circuits
+- [ ] **Interface circuits expose bundle-typed ports** (I2S, I2C, SPI, USB2, GPIO, Power) — not individual signal ports. If a circuit wraps individual-pin components, the bundle wiring happens inside the circuit.
 - [ ] Port names and bundle types match between providers and consumers
 - [ ] Power circuit outputs match the voltage/current needs documented in ARCHITECTURE.md
 
@@ -144,7 +145,14 @@ The orchestrator (or a single sub-agent) assembles the top-level design:
 2. Instantiate all subcircuits from Phase 2.
 3. Create global ground net with `GroundSymbol`, connect all ground ports, add pours on ground layers.
 4. Create power nets with `PowerSymbol`, connect regulator outputs to load inputs.
-5. Wire signal interfaces using `require()` from provides → topology `>>` to circuit ports.
+5. Wire signal interfaces using `require()` from provides. Example:
+   ```python
+   i2s = self.mcu_wrapper.require(I2S)   # solver picks pins
+   self += i2s.sck + self.amp.i2s.sck    # wire bundle sub-ports
+   self += i2s.ws + self.amp.i2s.ws
+   self += i2s.sd + self.amp.i2s.sd
+   ```
+   NEVER hardcode GPIO numbers. If a downstream circuit has individual ports instead of a bundle, wire the required bundle's sub-ports to them. Use `>>` topology for SI-constrained signals.
 6. Apply board-level SI constraints within `ReferencePlanes(GND)` context.
 7. Define board shape, mounting holes, and any keepout zones.
 8. Build and verify `status: ok`.

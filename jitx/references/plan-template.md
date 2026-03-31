@@ -86,7 +86,7 @@ Copy this into the project root and fill in task details. The orchestrator maint
 - **Type:** circuit
 - **Skill:** jitx-circuit-builder
 - **Dependencies:** [comp-01, comp-02, cst-01]
-- **Description:** [what it connects, passives needed, topology vs net, constraints to apply]
+- **Description:** [what it connects, passives needed, topology vs net, constraints to apply]. IMPORTANT: expose bundle-typed ports (I2S, I2C, SPI, USB2, GPIO, Power) for upstream require() — not individual signal ports.
 - **Inputs:** [component models from dependencies, constraint definitions, datasheet app circuit]
 - **Checklist:** [Power Circuit / Interface Circuit] + General Gotcha Scrub
 - **Verification:** `python runner/build_lock.py <ns>.circuits.<name>.TestDesign`

@@ -108,6 +108,30 @@ Each task in PLAN.md needs these fields:
 
 Be specific in descriptions. "Model the power regulator" is too vague. "Model TPS62933DRLR: 3.8-36V input, adjustable output buck, SOT-583 package, 6 pins + thermal pad" gives the sub-agent what they need.
 
+## CRITICAL: Bundle-First Interface Design
+
+Circuits MUST expose bundle-typed ports (I2S, I2C, SPI, USB2, GPIO, DiffPair, Power) — not individual signal ports. This is what makes require() and the pin assignment solver work at top level.
+
+**Wrong** (individual ports — defeats pin assignment):
+```
+Task description: "Expose I2S ports: SCLK, LRCLK, SDIN"
+Result: circuit has self.SCLK = Port(), self.LRCLK = Port(), self.SDIN = Port()
+Top-level: hardcodes self.net1 += esp32.GPIO4 + amp.SCLK  # BAD
+```
+
+**Right** (bundle port — enables require()):
+```
+Task description: "Expose I2S bundle port for upstream require()"
+Result: circuit has self.i2s = I2S()  # bundle from jitxlib
+Top-level: i2s = self.esp32.require(I2S)
+           self += i2s.sck + self.amp.i2s.sck  # solver picks pins
+```
+
+When writing PLAN.md task descriptions for circuit tasks:
+- Describe interfaces as bundles: "Expose I2S bundle port", not "Expose SCLK, LRCLK, SDIN"
+- If the downstream circuit wraps a component with individual pins, the circuit must still expose a bundle port and wire the bundle sub-ports to the component pins internally
+- The top-level assembly uses `require()` from the MCU/FPGA wrapper and wires to circuit bundle ports — never hardcode GPIO numbers
+
 ## Common Design Patterns
 
 ### Simple MCU Board (e.g., STM32 + sensors + USB)

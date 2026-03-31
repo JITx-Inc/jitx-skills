@@ -144,15 +144,16 @@ Do not re-run the entire checklist. Focus on the items most commonly missed for 
 | Task Type | High-Risk Items to Verify |
 |-----------|--------------------------|
 | Component | Power/ground pin count matches datasheet, thermal pad present, pin naming |
+| Component (footprint) | Pad positions plausible for package size, row spacing correct, pad dimensions match datasheet mechanical drawing — not fabricated from memory |
 | MCU/FPGA | All power domains present, programming interface complete, reset pin present |
-| Power circuit | Enable pin handling, PGOOD output type + pull-up, feedback divider uses solver |
-| Interface circuit | Decoupling on every IC power pin, pull-ups on open-drain signals, termination |
+| Power circuit | Enable pin handling, PGOOD output type + pull-up, **feedback divider uses solver not manual values** |
+| Interface circuit | **Exposes bundle-typed ports** (I2S, I2C, SPI, USB2, GPIO), decoupling on every IC power pin, pull-ups on open-drain signals |
 | Substrate | All via types defined, ground plane continuity, impedance achievable |
 
 #### 4. Check Interface Compatibility
 
 Verify that the task output is compatible with downstream tasks:
-- Do the port names match what the circuit or top-level assembly expects?
+- **Do interface circuits expose bundle-typed ports?** If they expose individual signal ports (SCLK, LRCLK, SDIN), send back for rework — this breaks require() at top level.
 - Are provide/require bundles consistent with the pin-assignment plan?
 - Do power ports match the voltage/current the power tree will supply?
 - Are constraint interfaces (routing structures, topology ports) compatible?
