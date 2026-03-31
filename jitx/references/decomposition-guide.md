@@ -17,12 +17,13 @@ Parse the requirements and categorize everything needed:
 | Peripherals | Sensors, drivers, transceivers, ADC/DAC | One task per IC |
 | Passives | Resistors, caps, inductors | No task needed — these come from jitxlib at circuit build time |
 
-### Substrate (always one task)
+### Substrate (one task — or use SampleDesign for simple boards)
+- If the design has **no SI constraints** (no differential pairs, no impedance control): `SampleDesign` from jitx.sample is sufficient — skip the substrate task
+- If the design has **any SI constraints** (USB, Ethernet, DDR, PCIe, etc.): a custom substrate is required with routing structures that match the protocol impedance targets. The constraint definitions in Phase 2 reference these routing structures — without them, constraints can't be applied.
 - Layer count and material class (FR-4, low-loss, RF)
+- Routing structures (single-ended and differential) for each impedance class
 - Via types needed (through-hole, microvia, blind, buried, backdrilled)
-- Impedance targets per signal class
-- Routing structures (single-ended and differential)
-- Fabrication constraints
+- Fabrication constraints (JLCPCB rules documented in substrate skill reference)
 
 ### Interfaces (each becomes a circuit task in Phase 2)
 - Memory interfaces (DDR5, LPDDR, SRAM bus)
