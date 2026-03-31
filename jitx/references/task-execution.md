@@ -21,19 +21,35 @@ Read your task definition from PLAN.md. Note:
 - **Checklist**: which domain checklist(s) apply
 - **Verification**: build command for testing
 
-#### Step 2: Invoke Sub-Skill and Implement
+#### Step 2: Invoke Sub-Skill, Read the Datasheet, and Implement
 
-Load the appropriate JITX sub-skill and follow its instructions:
+**You MUST invoke the sub-skill and read the actual datasheet.** Do NOT design circuits from memory. The datasheet's application circuit is the ground truth.
 
-| Task Type | Skill |
-|-----------|-------|
-| Component | `jitx-skills:jitx-component-modeler` |
-| Circuit | `jitx-skills:jitx-circuit-builder` |
-| Assembly | `jitx-skills:jitx-circuit-builder` (top-level is also a Circuit) |
-| Substrate | `jitx-skills:jitx-substrate-modeler` |
-| SI constraints | `jitx-skills:jitx-interconnect-constraints` |
-| Pin assignment | `jitx-skills:jitx-pin-assignment` |
-| Verify | No skill — orchestrator runs `jitx build` and reviews output |
+| Task Type | Skill | Datasheet Requirement |
+|-----------|-------|-----------------------|
+| Component | `jitx-skills:jitx-component-modeler` | Download and extract pinout + mechanical drawing |
+| Circuit | `jitx-skills:jitx-circuit-builder` + `jitx-component-modeler` | **Read the application circuit from every IC's datasheet.** Follow it. |
+| Assembly | `jitx-skills:jitx-circuit-builder` | Review all subcircuit ports and ARCHITECTURE.md |
+| Substrate | `jitx-skills:jitx-substrate-modeler` | Reference design spec for impedance targets |
+| SI constraints | `jitx-skills:jitx-interconnect-constraints` | Protocol spec for timing/impedance |
+| Pin assignment | `jitx-skills:jitx-pin-assignment` | Datasheet for mux options |
+| Verify | No skill — orchestrator runs build | N/A |
+
+**For circuit tasks specifically:**
+
+1. Download the datasheet for every IC in the circuit to `datasheets/<mpn>.pdf`
+2. Read the "Typical Application Circuit" or "Application Information" section
+3. The datasheet application circuit shows required external components (transistors, resistors, capacitors, inductors) — implement ALL of them
+4. If the datasheet shows a PMOS switch, include a PMOS switch. If it shows a bootstrap cap, include it. Do not simplify or omit components.
+5. Invoke the component modeler skill for any IC that needs a component model
+6. Invoke the circuit builder skill for the wiring patterns
+
+**Common mistakes from not reading the datasheet:**
+- Missing external transistors (e.g., PMOS for power switching on PD controllers)
+- Wrong pull-up voltage domain (e.g., pulling I2C to VBUS instead of 3.3V)
+- Connecting data lines that the IC drives internally (e.g., D+/D- on a PD controller that uses them for BC1.2)
+- Omitting bootstrap capacitors on buck converters
+- Hard-tying dual-function pins instead of using resistors
 
 #### Step 2b: Save All Source Data Locally
 
@@ -155,8 +171,9 @@ Do not re-run the entire checklist. Focus on the items most commonly missed for 
 | Component | Power/ground pin count matches datasheet, thermal pad present, pin naming |
 | Component (footprint) | Pad positions plausible for package size, row spacing correct, pad dimensions match datasheet mechanical drawing — not fabricated from memory |
 | MCU/FPGA | All power domains present, programming interface complete, reset pin present |
-| Power circuit | Enable pin handling, PGOOD output type + pull-up, **feedback divider uses solver not manual values** |
-| Interface circuit | **Exposes bundle-typed ports** (I2S, I2C, SPI, USB2, GPIO), decoupling on every IC power pin, pull-ups on open-drain signals |
+| Power circuit | Enable pin handling, PGOOD output type + pull-up, **feedback divider uses solver not manual values**, bootstrap cap present |
+| Interface circuit | **Exposes bundle-typed ports**, decoupling on every IC power pin, **no I2C pull-ups** (those go at top level) |
+| **Any circuit** | **Did the sub-agent read the datasheet?** Compare the circuit against the datasheet's application circuit. Count external components — are any missing (transistors, caps, resistors)? Check all pull-up voltage domains — nothing should pull to a high-voltage rail like VBUS. |
 | Substrate | All via types defined, ground plane continuity, impedance achievable |
 
 #### 4. Check Interface Compatibility

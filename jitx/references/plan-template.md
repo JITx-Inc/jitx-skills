@@ -86,9 +86,14 @@ Copy this into the project root and fill in task details. The orchestrator maint
 - **Type:** circuit
 - **Skill:** jitx-circuit-builder
 - **Dependencies:** [comp-01, comp-02, cst-01]
-- **Description:** [what it connects, passives needed, topology vs net, constraints to apply]. IMPORTANT: expose bundle-typed ports (I2S, I2C, SPI, USB2, GPIO, Power) for upstream require() — not individual signal ports.
-- **Inputs:** [component models from dependencies, constraint definitions, datasheet app circuit]
-- **Checklist:** [Power Circuit / Interface Circuit] + General Gotcha Scrub
+- **Description:** [what it connects, passives needed, topology vs net, constraints to apply]. IMPORTANT: expose bundle-typed ports (I2S, I2C, SPI, USB2, GPIO, Power) for upstream require() — not individual signal ports. Do NOT put I2C pull-ups or shared-bus termination here — those go at top level.
+- **Inputs:** [datasheet PDF for every IC in this circuit — download first, read the application circuit]
+- **Checklist:** [Power Circuit / Interface Circuit] + Datasheet Compliance + General Gotcha Scrub
+- **Engineering questions** (orchestrator writes these per-circuit):
+  - [What voltage domains exist? Where do pull-ups go?]
+  - [Are there external transistors in the datasheet app circuit?]
+  - [Which pins are dual-function? How are they configured?]
+  - [What happens during power sequencing / startup?]
 - **Verification:** `python runner/build_lock.py <ns>.circuits.<name>.TestDesign`
 - **Status:** pending
 

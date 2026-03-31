@@ -109,6 +109,36 @@ Each task in PLAN.md needs these fields:
 
 Be specific in descriptions. "Model the power regulator" is too vague. "Model TPS62933DRLR: 3.8-36V input, adjustable output buck, SOT-583 package, 6 pins + thermal pad" gives the sub-agent what they need.
 
+### Engineering Questions (circuit tasks only)
+
+For every circuit task, the orchestrator MUST write 3-5 specific engineering questions that force the sub-agent to think about the actual design. These are NOT generic checklist items — they are specific to this circuit's IC and application.
+
+**Example for a USB PD sink circuit (HUSB238):**
+```
+- What voltage is VBUS after PD negotiation? (20V) — all pull-ups must go to 3.3V, NEVER to VBUS
+- Does the HUSB238 need D+/D- connected? (Only for BC1.2 — if not needed, leave disconnected)
+- Does the datasheet show an external PMOS on the GATE output? (Yes — include it)
+- What I2C voltage domain does the HUSB238 use? (VIN-level — needs level shifter to 3.3V ESP32)
+```
+
+**Example for a buck converter circuit (TPS54202):**
+```
+- What is the input voltage range? (5-20V from PD) — does the converter handle this full range?
+- Does the datasheet show a bootstrap capacitor on BOOT? (Yes — 100nF)
+- Is a UVLO divider on EN needed for this input range? (Yes — prevents running at low VIN)
+- Feedback reference voltage? (0.596V) — use voltage_divider_from_constraints, never manual values
+```
+
+**Example for an amplifier circuit (TAS5805M):**
+```
+- Is ADR_FAULT a dual-function pin? (Yes — address at boot, fault after) — use resistor, not hard tie
+- Does the datasheet show external LDO or is DVDD the internal regulator output? (Internal output — decouple only)
+- What external components are on PVDD? (Bulk caps + ferrite bead per datasheet)
+- Does the FAULT output need a pull-up? (Yes — open-drain, 10k to 3.3V)
+```
+
+These questions go in the PLAN.md task definition. The sub-agent must answer each one (with datasheet evidence) before the circuit is accepted.
+
 ## CRITICAL: Bundle-First Interface Design
 
 Circuits MUST expose bundle-typed ports (I2S, I2C, SPI, USB2, GPIO, DiffPair, Power) — not individual signal ports. This is what makes require() and the pin assignment solver work at top level.

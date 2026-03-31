@@ -155,7 +155,12 @@ The orchestrator (or a single sub-agent) assembles the top-level design.
    self += i2s.sd + self.amp.i2s.sd
    ```
    NEVER hardcode GPIO numbers. If a downstream circuit has individual ports instead of a bundle, wire the required bundle's sub-ports to them. Use `>>` topology for SI-constrained signals.
-6. Apply ALL SI constraints at this level within `ReferencePlanes(GND)` context. Example:
+6. Add shared-bus components at this level (NOT inside subcircuits):
+   - **I2C pull-ups** — one set per bus, to the correct voltage rail (usually 3.3V)
+   - **SPI pull-ups** on CS lines
+   - **CAN termination** resistors
+   - Any termination that spans multiple subcircuits
+7. Apply ALL SI constraints at this level within `ReferencePlanes(GND)` context. Example:
    ```python
    with ReferencePlanes(self.GND):
        usb_topo = Topology(self.mcu.usb.data.p, self.usb_conn.DP)
@@ -164,8 +169,8 @@ The orchestrator (or a single sub-agent) assembles the top-level design.
            .timing_difference(0.1e-12)
    ```
    Every protocol with impedance or timing requirements needs constraints here.
-7. Define board shape, mounting holes, and any keepout zones.
-8. Build and verify `status: ok`.
+8. Define board shape, mounting holes, and any keepout zones.
+9. Build and verify `status: ok`.
 
 ### Exit Gate: Phase 3 → Phase 4
 

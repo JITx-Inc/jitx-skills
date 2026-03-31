@@ -238,3 +238,14 @@ After the domain-specific checklist, verify these universal items:
 - [ ] `PowerSymbol` on every power rail — applied at top-level design only
 - [ ] SI constraints (`Constrain`, `ConstrainDiffPair`, `ConstrainReferenceDifference`) — applied at top-level within `ReferencePlanes(GND)` context, not inside subcircuits
 - [ ] Ground pours on ground plane layers — applied at top-level design only
+- [ ] **I2C pull-ups** — applied at top-level, not inside individual circuits (shared bus)
+- [ ] **Shared bus termination** (I2C, SPI, CAN) — pull-ups/termination at top-level only, never duplicated in subcircuits
+
+### Datasheet Compliance (CRITICAL for circuit tasks)
+- [ ] **Downloaded and read the datasheet** for every IC in this circuit
+- [ ] **Application circuit matches datasheet** — every external component shown in the datasheet's typical application circuit is present in the JITX code
+- [ ] No missing transistors (PMOS switches, level shifters, discharge FETs)
+- [ ] No missing passives (bootstrap caps, snubber circuits, compensation networks)
+- [ ] **Voltage domains checked** — every pull-up and pull-down goes to the correct rail (NOT VBUS if VBUS is high-voltage)
+- [ ] Dual-function pins use resistors, not hard ties to VCC/GND
+- [ ] Pins that should not be connected (NC per datasheet) are actually left unconnected
