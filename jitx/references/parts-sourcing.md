@@ -90,11 +90,12 @@ Copy both scripts into the project's `scripts/` directory so sub-agents can run 
 For connectors, RF modules, unusual mechanical packages:
 
 1. Find the LCSC part number (from JLCPCB search or Claude's knowledge)
-2. Run `lcsc_lookup.py <LCSC_ID> --footprint -o fp.kicad_mod`
-3. Run `kicad_to_jitx.py fp.kicad_mod --class-name MyPart`
+2. Run `lcsc_lookup.py <LCSC_ID> --footprint -o kicad_footprints/<mpn>.kicad_mod`
+3. Run `kicad_to_jitx.py kicad_footprints/<mpn>.kicad_mod --class-name MyPart`
 4. Review output and build-test
+5. If the generated footprint is missing mechanical features (alignment posts, mounting holes) that are in the datasheet but not in EasyEDA's model, add them using `circle()` for round holes and `capsule()` for oval holes — never `rectangle()` for drill cutouts
 
-**NEVER hand-craft pad positions for non-standard packages.** The scripts produce geometrically correct footprints from EasyEDA's verified models. Hand-crafting introduces dimensional errors (the test run got USB-C row spacing wrong by 3x).
+**NEVER hand-craft pad positions for non-standard packages.** Use the script output as the base. If you must add pads the script didn't generate, verify shapes against the datasheet mechanical drawing: round holes use `circle(radius)`, oval holes use `capsule(width, height)`.
 
 Always use `BoxSymbol`. Never convert KiCad schematic symbol graphics.
 
