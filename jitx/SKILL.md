@@ -18,24 +18,21 @@ if [ ! -f pyproject.toml ] || ! grep -q "jitx" pyproject.toml; then
   exit 1
 fi
 
-# Create venv if missing
+# Create venv if missing, install deps
 if [ ! -d .venv ]; then
-  echo "Creating virtual environment..."
   python3 -m venv .venv
+  source .venv/bin/activate
+  pip install -e . --quiet 2>&1 | tail -1
+  pip install ruff --quiet 2>&1 | tail -1
+else
+  source .venv/bin/activate
 fi
 
-# Activate venv and install deps
-source .venv/bin/activate
-pip install -e . --quiet
-
-# Install ruff for code formatting
-pip install ruff --quiet
-
-# Verify
-python -c "import jitx; print(f'JITX ready: {jitx.__version__}')"
+# Verify (don't check __version__ — not present in all JITX versions)
+python -c "import jitx; print('JITX ready')"
 ```
 
-Run this automatically when starting JITX work. Don't ask user to do manual setup.
+Only install deps on first run (venv creation). Skip `pip install` on subsequent runs — it's slow and noisy. Don't ask user to do manual setup.
 
 ## Python Linting Setup (Recommended)
 
