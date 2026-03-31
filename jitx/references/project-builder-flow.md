@@ -185,91 +185,33 @@ The orchestrator (or a single sub-agent) assembles the top-level design.
 
 ---
 
-## Phase 3b: Design-Level Analysis and Loopback
+## Phase 3b: Design Review and Loopback
 
-**Who**: orchestrator (CRITICAL — this is where electrical errors are caught)
+**Who**: orchestrator
 
-The top-level assembly compiling does NOT mean the design is correct. The orchestrator must now review the full assembled design as a system and loop back to fix problems. This is not optional — **do not proceed to Phase 4 with known electrical errors**.
+Each subcircuit was designed in isolation. Now review the assembled design as a system and verify that circuits actually work together. **Do not proceed to Phase 4 with known electrical errors.**
 
-### Analysis Steps
+### Review
 
-Walk through the assembled design and check each of these:
+Read through the top-level assembly and each subcircuit it instantiates. For every connection between subcircuits, ask: does this actually work? Think about what happens electrically when these circuits are connected — voltage levels, current paths, signal integrity, startup sequencing.
 
-#### 1. Voltage Domain Audit
+Think about what could go wrong. Think about what a senior EE would flag in a design review. If something looks wrong, read the relevant datasheet to confirm.
 
-For every net in the design, verify:
-- What voltage is on this net?
-- Is anything connected to this net that can't handle that voltage?
-- Are all pull-ups to the correct voltage rail? (e.g., I2C pull-ups to 3.3V, not VBUS)
-- Are level shifters needed between different voltage domains?
+### Loopback
 
-**Common failures:** Pull-ups to VBUS on PD boards (20V kills 3.3V MCU inputs), mixed 1.8V/3.3V IO without level shifting.
+When the review finds issues:
 
-#### 2. Bus Contention Audit
+- **Identify the source:** which circuit or component needs to change?
+- **Loop back:** reopen the task in PLAN.md, spawn a sub-agent to fix it with the specific issue and datasheet reference
+- **After fixes:** re-run top-level assembly (Phase 3) and re-review
+- **Major redirections:** if the review reveals an architecture problem (e.g., need for additional ICs, analog switches, level shifters), update ARCHITECTURE.md and PLAN.md. Add new tasks and go back to the appropriate phase.
 
-For every shared bus (USB D+/D-, I2C, SPI, CAN):
-- How many drivers are on this bus?
-- Are any ICs driving the bus that shouldn't be? (e.g., PD controller driving D+/D- for BC1.2 while MCU uses them for data)
-- Are there analog switches or muxes needed?
-- Is bus termination correct and not duplicated?
-
-**Common failures:** USB D+/D- shared between PD controller and MCU, multiple I2C devices with conflicting address.
-
-#### 3. Missing Component Audit
-
-For every IC in the design, compare the circuit against the datasheet application circuit:
-- Count the external components in the datasheet. Count the components in the JITX circuit. Are any missing?
-- Specifically look for: external transistors (PMOS switches, level shifters), bootstrap capacitors, snubber circuits, compensation networks, discharge resistors
-- Check dual-function pins: are they configured with resistors (not hard ties)?
-
-**Common failures:** Missing PMOS on PD controller GATE output, missing bootstrap cap on buck converter, dual-function pin hard-tied to GND preventing fault detection.
-
-#### 4. SI Constraint Audit
-
-For every protocol that requires signal integrity:
-- Are constraints actually applied? (not just commented as "TODO")
-- Do the ports used in constraints actually exist and connect correctly?
-- If constraints failed to apply (e.g., ports aren't DiffPair bundles), this is a **blocking issue** — fix the upstream circuit, don't ship without constraints.
-
-**Common failures:** "Noted for future refactoring" — this means it's broken NOW. Fix it.
-
-#### 5. Power Sequencing Audit
-
-- What happens during power-on? Does anything get powered before its controller is ready?
-- Are enable pins handled for startup sequence?
-- Does the PD negotiation happen before or after the load powers up?
-
-### Loopback Protocol
-
-When the analysis finds issues:
-
-1. **Classify severity:**
-   - **Blocking** (electrical damage, bus contention, missing safety components) → MUST fix before Phase 4
-   - **Significant** (missing constraints, wrong configuration) → fix before Phase 4
-   - **Minor** (cosmetic, non-functional) → note for Phase 4 iteration
-
-2. **Identify the source:** Which Phase 2 circuit or component caused the issue?
-
-3. **Loop back:** Re-open the task in PLAN.md, spawn a sub-agent to fix it:
-   ```
-   REWORK for [task-id]: [specific issue found during design-level analysis]
-
-   The assembled design reveals: [describe the system-level problem]
-   Root cause in this circuit: [what needs to change]
-   Datasheet reference: [page/section showing correct circuit]
-   ```
-
-4. **After fixes:** Re-run top-level assembly (Phase 3) and re-do this analysis.
-
-5. **Major redirections:** If the analysis reveals a fundamental architecture problem (e.g., bus contention requiring analog switches, voltage domain incompatibility requiring additional ICs), update ARCHITECTURE.md and PLAN.md. Add new component and circuit tasks as needed. This may require going back to Phase 1 for new component models.
+Do not accept workarounds like "noted for future refactoring" — if something is broken, fix it now.
 
 ### Exit Gate: Phase 3b → Phase 4
 
-- [ ] **All blocking and significant issues resolved** (no known electrical errors)
-- [ ] Voltage domain audit passed (no high-voltage pull-ups on low-voltage ICs)
-- [ ] Bus contention audit passed (no shared buses with conflicting drivers)
-- [ ] Missing component audit passed (every IC's circuit matches its datasheet)
-- [ ] SI constraints applied and functional (not "noted for future")
+- [ ] Design review found no electrical errors (or all found issues were fixed via loopback)
+- [ ] SI constraints applied and functional
 - [ ] PLAN.md updated with all rework tasks completed
 
 ---
