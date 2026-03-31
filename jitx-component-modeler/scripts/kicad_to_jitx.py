@@ -656,8 +656,8 @@ def generate_pad_class(
                 return (
                     f"class {class_name}(Pad):\n"
                     f"    \"\"\"Non-plated through-hole (oval {fmt_float(d)} x {fmt_float(dw)} mm).\"\"\"\n"
-                    f"    shape = capsule({fmt_float(max(d, dw))}, {fmt_float(min(d, dw))})\n"
-                    f"    cutout = Cutout(capsule({fmt_float(max(d, dw))}, {fmt_float(min(d, dw))}))\n"
+                    f"    shape = capsule({fmt_float(d)}, {fmt_float(dw)})\n"
+                    f"    cutout = Cutout(capsule({fmt_float(d)}, {fmt_float(dw)}))\n"
                 )
             return (
                 f"class {class_name}(Pad):\n"
@@ -677,14 +677,14 @@ def generate_pad_class(
             drill = DrillInfo(diameter=min(w, h) * 0.5)
 
         if drill.oval and drill.width:
-            cutout_shape = f"capsule({fmt_float(max(drill.diameter, drill.width))}, {fmt_float(min(drill.diameter, drill.width))})"
+            cutout_shape = f"capsule({fmt_float(drill.diameter)}, {fmt_float(drill.width)})"
         else:
             cutout_shape = f"circle({fmt_float(drill.diameter / 2)})"
 
         if eshape == "circle":
             copper_shape = f"circle({fmt_float(w / 2)})"
         elif eshape == "capsule":
-            copper_shape = f"capsule({fmt_float(max(w, h))}, {fmt_float(min(w, h))})"
+            copper_shape = f"capsule({fmt_float(w)}, {fmt_float(h)})"
         else:
             copper_shape = f"rectangle({fmt_float(w)}, {fmt_float(h)})"
 
@@ -700,7 +700,7 @@ def generate_pad_class(
         diameter = max(w, h)
         shape_str = f"circle({fmt_float(diameter / 2)})"
     elif eshape == "capsule":
-        shape_str = f"capsule({fmt_float(max(w, h))}, {fmt_float(min(w, h))})"
+        shape_str = f"capsule({fmt_float(w)}, {fmt_float(h)})"
     else:
         shape_str = f"rectangle({fmt_float(w)}, {fmt_float(h)})"
 
