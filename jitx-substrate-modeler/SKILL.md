@@ -117,15 +117,34 @@ Reference table of common PCB dielectric materials. Values are typical at 10 GHz
 
 Copper surface roughness affects insertion loss at high frequencies. Choose foil type based on your frequency range.
 
-| Copper Type | Surface Roughness (Rz) | Use Case |
-|-------------|------------------------|----------|
-| Standard (STD) | 5–10 μm | Inner layers, low frequency |
-| Reverse Treated Foil (RTF) | 3–5 μm | Inner layers, better adhesion |
-| Low Profile (LoPro) | 2–3 μm | RF signal layers |
-| Very Low Profile (VLP) | 1–2 μm | High-frequency RF (>10 GHz) |
-| Hyper VLP (HVLP) | <1 μm | mmWave applications |
+Rz values below are for the **matte/bonding side** (the side laminated to the dielectric core), which is the surface that dominates conductor loss. The drum/resist side is typically 2–5× smoother; use its Ra value when modelling the top surface of a trace.
 
-**Rule of thumb:** For signals above 5 GHz, use LoPro or smoother. Above 10 GHz, use VLP. For mmWave (>24 GHz), use HVLP.
+| Copper Type | Rz — Matte/Bonding Side | Rz — Drum/Resist Side | Use Case |
+|-------------|-------------------------|-----------------------|----------|
+| Standard HTE (STD) | 5–10 μm | 3–5 μm | <1 GHz, general FR-4 inner layers |
+| Reverse Treated Foil (RTF) | 5–10 μm | 3–5 μm | <5 GHz; adhesion treatment moves to drum side |
+| Low Profile (LP / LoPro) | 2–4 μm | 1–2 μm | 1–10 GHz signal layers |
+| Very Low Profile (VLP) | 2.5–5 μm | 1–2 μm | 5–25 Gbps; Megtron 6, Isola IS415/FR408HR |
+| Hyper VLP (HVLP / SVLP) | 1–3 μm | 0.5–1 μm | 25–56 Gbps; high-speed SerDes |
+| Ultra Low Profile (ULP) | 0.5–1.5 μm | 0.3–0.5 μm | >56 Gbps, mmWave (>24 GHz) |
+| Rolled Annealed (RA) | 0.3–0.8 μm | 0.3–0.8 μm | RF/microwave, flex circuits; both sides smooth |
+
+**Rule of thumb:** For signals above 5 GHz, use LP or smoother. Above 10 GHz, use VLP. For 25 Gbps+, use HVLP. For mmWave (>24 GHz) or >56 Gbps, use ULP or RA.
+
+**Cannonball-Huray parameters** (for HFSS/EM simulation using the average HCPES+SCPES model):
+- Nodule radius: `a = 0.0573 × Rz` (µm)
+- Surface ratio: `Sr = 5.117` (constant, independent of foil type)
+- Use matte-side Rz for the bottom surface of a trace; drum-side Ra (≈ Rz/4) for the top surface.
+
+| Copper Type | Representative Rz (µm) | Nodule radius a (µm) |
+|-------------|------------------------|----------------------|
+| STD HTE | 8.0 | 0.458 |
+| RTF | 6.0 | 0.344 |
+| LP / LoPro | 3.0 | 0.172 |
+| VLP | 3.5 | 0.201 |
+| HVLP | 2.0 | 0.115 |
+| ULP | 1.0 | 0.057 |
+| RA | 0.5 | 0.029 |
 
 ## Stackup
 
