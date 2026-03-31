@@ -112,6 +112,7 @@ For building complete JITX designs from requirements — multiple components, su
 | 1 | Model substrate + all components | Fully parallel sub-agents |
 | 2 | SI constraints, pin assignment, circuit wiring | Clustered parallel |
 | 3 | Top-level assembly (instantiate, connect, constrain) | Single agent |
+| 3b | **Design-level analysis + loopback** (voltage domains, bus contention, missing components, SI) | Orchestrator — loops back to fix upstream |
 | 4 | Build, verify DRC + SI, iterate on failures | Single agent |
 
 For full phase details and gate criteria: read `references/project-builder-flow.md`
@@ -156,7 +157,8 @@ For domain checklists: read `references/domain-checklists.md`
 | 0 → 1 | PLAN.md created with all tasks, user approved plan |
 | 1 → 2 | All components + substrate build individually, acceptance reviews passed |
 | 2 → 3 | All circuits build, constraint classes valid, provide/require interfaces consistent |
-| 3 → 4 | Top-level assembles, all nets connected, power tree complete |
+| 3 → 3b | Top-level assembles, all nets connected, power tree complete |
+| 3b → 4 | **Design-level analysis passed**: voltage domains correct, no bus contention, no missing components, SI constraints functional. All blocking issues fixed via loopback. |
 
 Do NOT proceed past a gate if any task has unresolved failures. Fix upstream before moving downstream.
 
