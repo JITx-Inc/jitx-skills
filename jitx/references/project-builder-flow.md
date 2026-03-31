@@ -187,31 +187,67 @@ The orchestrator (or a single sub-agent) assembles the top-level design.
 
 ## Phase 3b: Design Review and Loopback
 
-**Who**: orchestrator
+**Who**: orchestrator spawns a **read-only audit agent** (critic only — no code edits), then separately spawns fix agents for issues found.
 
-Each subcircuit was designed in isolation. Now review the assembled design as a system and verify that circuits actually work together. **Do not proceed to Phase 4 with known electrical errors.**
+Each subcircuit was designed in isolation. Now review the assembled design as a system. **Do not proceed to Phase 4 with known electrical errors.**
 
-### Review
+### Audit Structure
 
-Read through the top-level assembly and each subcircuit it instantiates. For every connection between subcircuits, ask: does this actually work? Think about what happens electrically when these circuits are connected — voltage levels, current paths, signal integrity, startup sequencing.
+Spawn a sub-agent to perform the audit. The audit agent reads code and datasheets but **does not edit any files**. It produces a report with issues classified as CRITICAL / WARNING / NOTE.
 
-Think about what could go wrong. Think about what a senior EE would flag in a design review. If something looks wrong, read the relevant datasheet to confirm.
+The audit runs four passes:
+
+#### Pass 1: Circuit vs Datasheet Application Schematic
+
+For each major IC circuit, open the datasheet's typical application schematic and compare component-by-component:
+- Count external components in the datasheet. Count components in the code. Flag any missing.
+- Check passive values match datasheet recommendations (cap values, resistor values, inductor values).
+- Check component types match (e.g., datasheet says 0.22uF bootstrap but code has 0.1uF).
+- Note every assumption the circuit makes about its operating environment (input voltage, load current, enable timing, power sequencing).
+
+#### Pass 2: Assumption Compatibility
+
+Collect all assumptions from Pass 1 and check them at the system level:
+- Does the actual input voltage match what each circuit assumes?
+- Does the power sequencing match what each IC requires? (e.g., does the amp expect PDN held low during power-up, but the circuit pulls it high immediately?)
+- Do the current draws add up within regulator ratings?
+- Are voltage domains compatible across circuit boundaries?
+
+#### Pass 3: Interface-by-Interface Trace
+
+For every interface connecting two or more ICs, trace the complete signal path from source to destination through every component:
+- **USB**: trace D+/D- from connector through every device on the bus. Are there bus conflicts? ESD protection? Series termination? **Are SI constraints applied?**
+- **I2C**: trace SDA/SCL. Pull-up voltage and value correct? Address conflicts? Level compatible?
+- **I2S**: trace BCLK/LRCLK/DIN/DOUT. Clock source correct? Format (I2S vs TDM vs LJ) compatible?
+- **SPI**: trace MOSI/MISO/SCK/CS. Polarity? Speed? Pull-ups on CS?
+- **Power**: trace each rail from source through regulation to every load. Decoupling at every IC?
+- For every high-speed interface (USB, Ethernet, DDR, PCIe, HDMI): **verify SI constraints exist and are applied at the top level**. If constraints are missing, this is CRITICAL.
+
+#### Pass 4: Power and Thermal
+
+- Verify every regulator's output current rating exceeds the sum of its loads (with margin).
+- Check thermal dissipation: P = (Vin - Vout) * I for linear regulators, efficiency loss for switchers. Flag any package that will exceed its thermal rating.
+- Check hot-plug and transient scenarios: what happens when power appears suddenly? Does anything see voltage before its regulator stabilizes?
+- Verify bulk capacitance meets datasheet recommendations (especially for power amplifiers).
 
 ### Loopback
 
-When the review finds issues:
+After the audit report, the orchestrator (not the audit agent) decides what to fix:
 
-- **Identify the source:** which circuit or component needs to change?
-- **Loop back:** reopen the task in PLAN.md, spawn a sub-agent to fix it with the specific issue and datasheet reference
-- **After fixes:** re-run top-level assembly (Phase 3) and re-review
-- **Major redirections:** if the review reveals an architecture problem (e.g., need for additional ICs, analog switches, level shifters), update ARCHITECTURE.md and PLAN.md. Add new tasks and go back to the appropriate phase.
+- **CRITICAL issues**: must fix before Phase 4. Spawn a separate sub-agent for each fix with the specific issue and datasheet reference.
+- **WARNING issues**: should fix. Spawn fix agents or fix directly.
+- **NOTE issues**: document for the user, fix if straightforward.
 
-Do not accept workarounds like "noted for future refactoring" — if something is broken, fix it now.
+After fixes, **re-run the audit** to verify the fixes didn't introduce new issues and the original issues are resolved. Do not skip the re-audit.
+
+For major redirections (bus contention needing new ICs, missing power rails, architecture changes), update ARCHITECTURE.md and PLAN.md, add new tasks, and go back to the appropriate phase.
+
+Do not accept "noted for future refactoring" — if it's broken, fix it now.
 
 ### Exit Gate: Phase 3b → Phase 4
 
-- [ ] Design review found no electrical errors (or all found issues were fixed via loopback)
-- [ ] SI constraints applied and functional
+- [ ] Audit found no CRITICAL or WARNING issues (or all were fixed and re-audited)
+- [ ] Every high-speed interface has SI constraints applied and functional
 - [ ] PLAN.md updated with all rework tasks completed
 
 ---
