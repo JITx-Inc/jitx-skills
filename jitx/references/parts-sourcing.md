@@ -81,10 +81,3 @@ For connectors, RF modules, unusual mechanical packages:
 
 Always use `BoxSymbol`. Never convert KiCad schematic symbol graphics.
 
-## MCP Server (pcbparts)
-
-If the `pcbparts` MCP server is configured, **do NOT use it**. The `lcsc_lookup.py` + `kicad_to_jitx.py` pipeline is faster, more reliable, and covers all JLCPCB parts. Specifically:
-- No `board_search` / `board_get` (hobby reference designs)
-- No `get_design_rules` (design knowledge comes from Claude)
-- No `sensor_recommend`, `jlc_get_pinout`, `cse_get_kicad`, `cse_search`
-- No `jlc_search` (use `lcsc_lookup.py` for stock checks instead)

@@ -342,6 +342,144 @@ def extract_pads(sexpr: list) -> list[PadInfo]:
 
 
 # ---------------------------------------------------------------------------
+# Layer geometry extraction (silkscreen, courtyard, fab)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class LineSegment:
+    """A line segment from fp_line."""
+    x1: float
+    y1: float
+    x2: float
+    y2: float
+    width: float
+    layer: str
+
+
+@dataclass
+class CircleGeom:
+    """A circle from fp_circle."""
+    cx: float
+    cy: float
+    radius: float
+    width: float
+    layer: str
+
+
+@dataclass
+class TextGeom:
+    """A text element from fp_text."""
+    text_type: str  # "reference", "value", "user"
+    text: str
+    x: float
+    y: float
+    size: float
+    layer: str
+
+
+@dataclass
+class LayerGeometry:
+    """All non-pad geometry extracted from a footprint."""
+    silkscreen_lines: list[LineSegment] = field(default_factory=list)
+    silkscreen_circles: list[CircleGeom] = field(default_factory=list)
+    courtyard_lines: list[LineSegment] = field(default_factory=list)
+    fab_lines: list[LineSegment] = field(default_factory=list)
+    texts: list[TextGeom] = field(default_factory=list)
+
+
+def extract_layer_geometry(sexpr: list) -> LayerGeometry:
+    """Extract silkscreen, courtyard, fab lines and texts from a footprint."""
+    geom = LayerGeometry()
+
+    for child in sexpr:
+        if not isinstance(child, list) or not child:
+            continue
+
+        tag = child[0]
+
+        if tag == "fp_line":
+            start = find_node(child, "start")
+            end = find_node(child, "end")
+            layer_node = find_node(child, "layer")
+            width_node = find_node(child, "width")
+            if not (start and end and layer_node):
+                continue
+            layer = str(layer_node[1]) if len(layer_node) > 1 else ""
+            seg = LineSegment(
+                x1=to_float(start[1]) if len(start) > 1 else 0.0,
+                y1=to_float(start[2]) if len(start) > 2 else 0.0,
+                x2=to_float(end[1]) if len(end) > 1 else 0.0,
+                y2=to_float(end[2]) if len(end) > 2 else 0.0,
+                width=to_float(width_node[1]) if width_node and len(width_node) > 1 else 0.15,
+                layer=layer,
+            )
+            if layer == "F.SilkS":
+                geom.silkscreen_lines.append(seg)
+            elif layer == "F.CrtYd":
+                geom.courtyard_lines.append(seg)
+            elif layer == "F.Fab":
+                geom.fab_lines.append(seg)
+
+        elif tag == "fp_circle":
+            center = find_node(child, "center")
+            end = find_node(child, "end")
+            layer_node = find_node(child, "layer")
+            width_node = find_node(child, "width")
+            if not (center and end and layer_node):
+                continue
+            cx = to_float(center[1]) if len(center) > 1 else 0.0
+            cy = to_float(center[2]) if len(center) > 2 else 0.0
+            ex = to_float(end[1]) if len(end) > 1 else 0.0
+            ey = to_float(end[2]) if len(end) > 2 else 0.0
+            radius = math.sqrt((ex - cx) ** 2 + (ey - cy) ** 2)
+            layer = str(layer_node[1]) if len(layer_node) > 1 else ""
+            circ = CircleGeom(
+                cx=cx, cy=cy, radius=radius,
+                width=to_float(width_node[1]) if width_node and len(width_node) > 1 else 0.15,
+                layer=layer,
+            )
+            if layer == "F.SilkS":
+                geom.silkscreen_circles.append(circ)
+
+        elif tag == "fp_text":
+            text_type = str(child[1]) if len(child) > 1 else ""
+            text_val = str(child[2]) if len(child) > 2 else ""
+            at_node = find_node(child, "at")
+            layer_node = find_node(child, "layer")
+            effects_node = find_node(child, "effects")
+            x = to_float(at_node[1]) if at_node and len(at_node) > 1 else 0.0
+            y = to_float(at_node[2]) if at_node and len(at_node) > 2 else 0.0
+            layer = str(layer_node[1]) if layer_node and len(layer_node) > 1 else ""
+            size = 1.0
+            if effects_node:
+                font_node = find_node(effects_node, "font")
+                if font_node:
+                    size_node = find_node(font_node, "size")
+                    if size_node and len(size_node) > 1:
+                        size = to_float(size_node[1])
+            geom.texts.append(TextGeom(
+                text_type=text_type, text=text_val,
+                x=x, y=y, size=size, layer=layer,
+            ))
+
+    return geom
+
+
+def courtyard_rect_from_lines(lines: list[LineSegment]) -> tuple[float, float] | None:
+    """Compute bounding rectangle from courtyard line segments.
+
+    Returns (width, height) or None if no lines.
+    """
+    if not lines:
+        return None
+    min_x = min(min(l.x1, l.x2) for l in lines)
+    max_x = max(max(l.x1, l.x2) for l in lines)
+    min_y = min(min(l.y1, l.y2) for l in lines)
+    max_y = max(max(l.y1, l.y2) for l in lines)
+    return (max_x - min_x, max_y - min_y)
+
+
+# ---------------------------------------------------------------------------
 # Pad classification and grouping
 # ---------------------------------------------------------------------------
 
@@ -582,6 +720,7 @@ def generate_jitx_code(
     datasheet: str = "",
     ref_prefix: str = "J",
     description: str = "",
+    layer_geom: LayerGeometry | None = None,
 ) -> str:
     """Generate complete JITX Python component code from extracted pads.
 
@@ -694,10 +833,25 @@ def generate_jitx_code(
     desc = description or f"Component converted from KiCad footprint: {footprint_name}"
     out.write(f'"""\n{desc}\n\nAuto-generated from KiCad footprint: {footprint_name}\n"""\n\n')
 
+    # Check what layer features we need
+    has_silkscreen = bool(layer_geom and (layer_geom.silkscreen_lines or layer_geom.silkscreen_circles))
+    has_courtyard = bool(layer_geom and layer_geom.courtyard_lines)
+    has_fab_text = bool(layer_geom and any(t.text_type in ("value", "user") for t in layer_geom.texts))
+    has_ref_text = bool(layer_geom and any(t.text_type == "reference" for t in layer_geom.texts))
+
     # Imports
     out.write("import jitx\n")
     out.write("from jitx import PadMapping\n")
-    out.write("from jitx.feature import Courtyard, Cutout\n")
+
+    features = ["Cutout"]
+    if has_courtyard:
+        features.append("Courtyard")
+    if has_silkscreen or has_ref_text:
+        features.append("Silkscreen")
+    if has_fab_text:
+        features.append("Custom")
+    out.write(f"from jitx.feature import {', '.join(sorted(features))}\n")
+
     out.write("from jitx.landpattern import Landpattern, Pad\n")
     out.write("from jitx.net import Port\n")
 
@@ -715,14 +869,29 @@ def generate_jitx_code(
     has_thru = any(p.pad_type in ("thru_hole", "np_thru_hole") for p in pads)
     if has_thru:
         shape_funcs.add("circle")  # cutouts often circular
+    if has_courtyard:
+        shape_funcs.add("rectangle")
 
     composites_imports = sorted(shape_funcs & {"rectangle", "capsule"})
     primitive_imports = sorted(shape_funcs & {"circle"})
 
+    # Primitive shapes needed for silkscreen
+    prim_types = set()
+    if has_silkscreen and layer_geom:
+        if layer_geom.silkscreen_lines:
+            prim_types.add("Polyline")
+        if layer_geom.silkscreen_circles:
+            prim_types.update(["ArcPolyline", "Arc"])
+    if has_ref_text or has_fab_text:
+        prim_types.add("Text")
+
     if composites_imports:
         out.write(f"from jitx.shapes.composites import {', '.join(composites_imports)}\n")
-    if primitive_imports:
-        out.write(f"from jitx.shapes.primitive import {', '.join(primitive_imports)}\n")
+    prim_shape_items = sorted(set(primitive_imports) | prim_types)
+    if prim_shape_items:
+        out.write(f"from jitx.shapes.primitive import {', '.join(prim_shape_items)}\n")
+    if has_ref_text or has_fab_text:
+        out.write("from jitx.anchor import Anchor\n")
 
     out.write("from jitxlib.symbols.box import BoxSymbol, PinGroup, Row, Column\n")
     out.write("\n\n")
@@ -842,8 +1011,54 @@ def generate_jitx_code(
     for idx, var_name in all_pad_entries:
         out.write(f"                {idx}: {var_name},\n")
     out.write("            }\n")
-    out.write("\n")
 
+    # Layer geometry inside the landpattern class
+    if layer_geom:
+        # Reference designator
+        ref_texts = [t for t in layer_geom.texts if t.text_type == "reference"]
+        if ref_texts:
+            t = ref_texts[0]
+            out.write(f"            reference_designator = Silkscreen("
+                      f"Text(\">REF\", {fmt_float(t.size)}, Anchor.W)"
+                      f".at(({fmt_float(t.x)}, {fmt_float(-t.y)})))\n")
+
+        # Value label on Fab
+        val_texts = [t for t in layer_geom.texts if t.text_type in ("value", "user")]
+        if val_texts:
+            t = val_texts[0]
+            out.write(f"            value_label = Custom("
+                      f"Text(\">VALUE\", {fmt_float(t.size)}, Anchor.W)"
+                      f".at(({fmt_float(t.x)}, {fmt_float(-t.y)})), name=\"Fab\")\n")
+
+        # Silkscreen lines
+        if layer_geom.silkscreen_lines:
+            out.write("            silkscreen = [\n")
+            # Group connected line segments by width for cleaner output
+            for seg in layer_geom.silkscreen_lines:
+                out.write(f"                Silkscreen(Polyline({fmt_float(seg.width)}, "
+                          f"[({fmt_float(seg.x1)}, {fmt_float(-seg.y1)}), "
+                          f"({fmt_float(seg.x2)}, {fmt_float(-seg.y2)})])),\n")
+            # Silkscreen circles
+            for circ in layer_geom.silkscreen_circles:
+                out.write(f"                Silkscreen(ArcPolyline({fmt_float(circ.width)}, "
+                          f"[Arc(({fmt_float(circ.cx)}, {fmt_float(-circ.cy)}), "
+                          f"{fmt_float(circ.radius)}, 0, -360)])),\n")
+            out.write("            ]\n")
+        elif layer_geom.silkscreen_circles:
+            out.write("            silkscreen = [\n")
+            for circ in layer_geom.silkscreen_circles:
+                out.write(f"                Silkscreen(ArcPolyline({fmt_float(circ.width)}, "
+                          f"[Arc(({fmt_float(circ.cx)}, {fmt_float(-circ.cy)}), "
+                          f"{fmt_float(circ.radius)}, 0, -360)])),\n")
+            out.write("            ]\n")
+
+        # Courtyard
+        court_rect = courtyard_rect_from_lines(layer_geom.courtyard_lines)
+        if court_rect:
+            w, h = court_rect
+            out.write(f"            courtyard = Courtyard(rectangle({fmt_float(w)}, {fmt_float(h)}))\n")
+
+    out.write("\n")
     out.write("        self.landpattern = _lp\n\n")
 
     # Symbol
@@ -958,6 +1173,7 @@ def main():
 
     footprint_name = extract_footprint_name(sexpr)
     pads = extract_pads(sexpr)
+    layer_geom = extract_layer_geometry(sexpr)
 
     if not pads:
         print("Warning: No pads found in footprint.", file=sys.stderr)
@@ -1001,6 +1217,7 @@ def main():
         datasheet=args.datasheet,
         ref_prefix=args.ref_prefix,
         description=args.description,
+        layer_geom=layer_geom,
     )
 
     if args.output:
