@@ -39,10 +39,27 @@ python scripts/kicad_to_jitx.py usb_c.kicad_mod --class-name USB_C_16P \
 
 ### Full pipeline: LCSC → KiCad → JITX
 
+**All downloaded data must be saved to the project** — datasheets, KiCad footprints, and generated components. This ensures reproducibility and avoids repeated downloads.
+
 ```bash
-python scripts/lcsc_lookup.py C165948 --footprint -o /tmp/fp.kicad_mod && \
-python scripts/kicad_to_jitx.py /tmp/fp.kicad_mod --class-name USB_C_16P \
-    -o src/myproject/components/connectors/usb_c_16p.py
+# 1. Download footprint to project (creates directory if needed)
+mkdir -p kicad_footprints
+python scripts/lcsc_lookup.py C165948 --footprint -o kicad_footprints/TYPE-C-31-M-12.kicad_mod
+
+# 2. Convert to JITX component (output to project source tree)
+python scripts/kicad_to_jitx.py kicad_footprints/TYPE-C-31-M-12.kicad_mod \
+    --class-name USB_C_16P \
+    --manufacturer "Korean Hroparts Elec" --mpn "TYPE-C-31-M-12" \
+    -o src/<namespace>/components/connectors/usb_c_16p.py
+```
+
+**Project directory convention:**
+```
+project/
+├── datasheets/          # Downloaded PDFs (from manufacturer sites)
+├── kicad_footprints/    # Downloaded .kicad_mod files (from lcsc_lookup.py)
+└── src/<namespace>/
+    └── components/      # Generated JITX Python (from kicad_to_jitx.py)
 ```
 
 Copy both scripts into the project's `scripts/` directory so sub-agents can run them.

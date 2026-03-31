@@ -35,6 +35,15 @@ Load the appropriate JITX sub-skill and follow its instructions:
 | Pin assignment | `jitx-skills:jitx-pin-assignment` |
 | Verify | No skill — orchestrator runs `jitx build` and reviews output |
 
+#### Step 2b: Save All Source Data Locally
+
+All downloaded data must be saved to the project — never use /tmp or transient locations:
+- **Datasheets** → `datasheets/<mpn>.pdf`
+- **KiCad footprints** → `kicad_footprints/<mpn>.kicad_mod` (from `lcsc_lookup.py --footprint -o`)
+- **Generated components** → `src/<namespace>/components/<category>/<file>.py`
+
+This ensures reproducibility across sessions and avoids repeated downloads.
+
 #### Step 3: Initial Build Test
 
 Build using the lock wrapper to avoid collisions with parallel agents:
