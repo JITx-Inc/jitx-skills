@@ -90,6 +90,15 @@ project/
 └── .venv/                  # Virtual environment
 ```
 
+## First: Decide the Workflow
+
+After environment setup, decide which workflow to use:
+
+- **Building a complete board** (multiple components, circuits, substrate) → Use the **Project Builder Workflow** below. Start with Phase 0: create PLAN.md and ARCHITECTURE.md before writing any code.
+- **Single task** (one component, one circuit, one substrate) → Invoke the appropriate subskill directly.
+
+Do NOT skip the planning phase for complete board designs. Do not start exploring libraries or writing code until PLAN.md exists.
+
 ## Core Concepts
 
 **Circuit**: Python class inheriting from `jitx.Circuit`. Contains components and connections.
