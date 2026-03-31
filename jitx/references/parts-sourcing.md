@@ -70,50 +70,34 @@ Use JITX standard landpattern generators for all standard packages:
 
 Always use `BoxSymbol` for schematic symbols. Never convert KiCad symbol graphics.
 
-### Conversion Process
+### Conversion: Use the `kicad_to_jitx.py` Script
 
-From a KiCad `.kicad_mod` footprint:
+Do NOT manually write pad positions from KiCad data — use the conversion script. It deterministically parses the S-expression format and generates correct JITX code with proper Y-axis inversion, pad grouping, and BoxSymbol layout.
 
-1. **Parse pad definitions**: name, position (x, y), size (width, height), shape, drill (if through-hole)
-2. **Map to JITX pads**:
-   - SMD rectangular: `smd_pad(width, height)` at `pose(x, y, rotation)`
-   - SMD circular: `bga_pad(diameter)` at position
-   - Through-hole: `th_pad(drill, pad_diameter)` at position
-3. **Build Component**: ports matching pin names, `Landpattern` with pads, `BoxSymbol`, `PadMapping`
-4. **Test harness**: build to confirm pad positions and mapping
+```bash
+# From a .kicad_mod file
+python scripts/kicad_to_jitx.py connector.kicad_mod --class-name USB_C_16P
 
-### Example
+# With metadata
+python scripts/kicad_to_jitx.py connector.kicad_mod \
+    --class-name USB_C_16P \
+    --manufacturer "Amphenol" --mpn "12401610E4#2A" \
+    -o src/myproject/components/connectors/usb_c_16p.py
 
-KiCad pads:
-```
-(pad "1" smd rect (at -2.5 0) (size 1.0 2.0) (layers "F.Cu" "F.Paste" "F.Mask"))
-(pad "2" smd rect (at  0.0 0) (size 1.0 2.0) (layers "F.Cu" "F.Paste" "F.Mask"))
-(pad "3" smd rect (at  2.5 0) (size 1.0 2.0) (layers "F.Cu" "F.Paste" "F.Mask"))
-```
+# From MCP tool output (piped)
+echo '<kicad_mod content>' | python scripts/kicad_to_jitx.py --stdin --class-name USB_C_16P
 
-JITX equivalent:
-```python
-class MyConnector(Component):
-    pin1 = Port()
-    pin2 = Port()
-    pin3 = Port()
-
-    def __init__(self):
-        self.landpattern = Landpattern(
-            pads=[
-                Pad("1", smd_pad(1.0, 2.0), pose(-2.5, 0.0)),
-                Pad("2", smd_pad(1.0, 2.0), pose(0.0, 0.0)),
-                Pad("3", smd_pad(1.0, 2.0), pose(2.5, 0.0)),
-            ]
-        )
-        self.symbol = BoxSymbol(self)
-        self.pad_mapping = PadMapping(
-            mapping={
-                "1": self.pin1,
-                "2": self.pin2,
-                "3": self.pin3,
-            }
-        )
+# Debug: inspect parsed pads as JSON
+python scripts/kicad_to_jitx.py connector.kicad_mod --dump-pads
 ```
 
-For complex connectors (USB-C with 16+ pads, shield tabs, mounting posts), group related ports logically (DP/DM for data, CC1/CC2 for configuration, VBUS/GND for power, shield for shielding tabs).
+The script handles:
+- SMD, through-hole, and non-plated pads (all shapes: rect, oval, circle, roundrect, custom)
+- Pad rotation, duplicate pad names (USB-C A/B rows), shield/mounting pads
+- KiCad Y-axis inversion (KiCad Y+ = down, JITX Y+ = up)
+- Automatic BoxSymbol with power up, ground down, signals left, shield right
+- PadMapping linking ports to landpattern pads
+
+Copy `scripts/kicad_to_jitx.py` from this skill into the project if sub-agents need to run it.
+
+After generation, review the output and build-test the component. The script produces mechanically correct geometry but you may want to rename ports for clarity (e.g., group USB data pins into DP/DM bundles).
