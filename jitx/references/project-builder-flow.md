@@ -193,7 +193,15 @@ Each subcircuit was designed in isolation. Now review the assembled design as a 
 
 ### Audit Structure
 
-Spawn a sub-agent to perform the audit. The audit agent reads code and datasheets but **does not edit any files**. It produces a report with issues classified as CRITICAL / WARNING / NOTE.
+Before spawning the audit agent, run the static lint check:
+
+```bash
+python scripts/jitx_lint.py src/<namespace>/
+```
+
+This catches mechanical mistakes (square cutouts, VBUS pull-ups, missing self. storage, bare net expressions, I2C pull-ups in subcircuits, missing SI constraints, hard-tied dual-function pins). Fix any errors before proceeding.
+
+Then spawn a sub-agent to perform the design-level audit. The audit agent reads code and datasheets but **does not edit any files**. It produces a report with issues classified as CRITICAL / WARNING / NOTE.
 
 The audit runs four passes:
 
