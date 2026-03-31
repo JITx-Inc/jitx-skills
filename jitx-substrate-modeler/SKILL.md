@@ -7,6 +7,10 @@ description: This skill should be used when the user asks to "create a substrate
 
 Generate complete JITX Python substrate definitions — stackups, materials, vias, routing structures, and fabrication constraints — all in a single file.
 
+## Quick Start: JLCPCB 4-Layer
+
+For JLCPCB fabrication, a complete 4-layer stackup with impedance-controlled routing structures (50 ohm SE, 90 ohm diff for USB, 100 ohm diff for Ethernet/DDR) and JLCPCB fab rules is documented in `references/substrate-api-reference.md` — search for "JLCPCB 4-Layer with Multiple Impedances". Copy and adapt this example rather than building from scratch. It includes the stackup, via definitions, routing structures, and fabrication constraints matching JLCPCB's standard 4-layer process.
+
 ## Environment
 
 Environment setup is handled by the base `jitx` skill. Ensure it has been invoked first.
