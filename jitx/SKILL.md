@@ -162,17 +162,14 @@ Do NOT proceed past a gate if any task has unresolved failures. Fix upstream bef
 
 ### Optional: Parts Sourcing and Footprint Conversion
 
-Claude selects parts based on engineering requirements and tradeoffs first. When the `pcbparts` MCP server is available, only use these two tools:
+Claude selects parts based on engineering requirements first. Two Python scripts handle sourcing and footprint data (requires `pip install easyeda2kicad requests`):
 
-- **`jlc_search`** — verify sourcing for a specific MPN (exact part number queries only)
-- **`cse_get_kicad`** — download KiCad footprint for non-standard packages, then convert with `scripts/kicad_to_jitx.py`
+- **`scripts/lcsc_lookup.py <LCSC_ID>`** — real-time stock, pricing, datasheet URL, KiCad footprint download
+- **`scripts/kicad_to_jitx.py <file.kicad_mod>`** — deterministic KiCad-to-JITX footprint conversion
 
-**Do NOT use any other pcbparts MCP tools.** Specifically:
-- No `board_search` / `board_get` (reference designs are hobby-grade, not professional)
-- No `get_design_rules` (design knowledge comes from Claude, not external databases)
-- No `sensor_recommend`, `jlc_get_pinout`, `jlc_get_part`, `cse_search`
+For non-standard packages (connectors, RF modules): run both scripts in sequence. **NEVER hand-craft pad positions** — the test run got USB-C row spacing wrong by 3x doing this. Standard packages (QFN, SOIC, BGA, SOT) use built-in JITX generators. All symbols use `BoxSymbol`.
 
-For non-standard footprints (connectors, RF modules), always use the `kicad_to_jitx.py` script — never hand-craft pad positions. Standard packages (QFN, SOIC, BGA, SOT) use built-in JITX landpattern generators. All symbols use `BoxSymbol`.
+**Do NOT use the pcbparts MCP server** if configured. The Python scripts are faster, more reliable, and cover all JLCPCB parts. No `board_search`, `get_design_rules`, `jlc_search`, `cse_get_kicad`, or any other MCP tools.
 
 For details: read `references/parts-sourcing.md`
 

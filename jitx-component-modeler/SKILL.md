@@ -148,10 +148,11 @@ Is it a 2-sided package?
     ├── 4-sided flat/no-lead → QFN
     ├── Bottom ball array → BGA
     └── Custom/unusual (connectors, RF modules, irregular pads)
-        → Use `scripts/kicad_to_jitx.py` to convert from KiCad footprint
-          Download .kicad_mod via `cse_get_kicad` MCP tool, then run:
-          python scripts/kicad_to_jitx.py footprint.kicad_mod --class-name MyPart
+        → Download footprint and convert to JITX using scripts:
+          python scripts/lcsc_lookup.py C165948 --footprint -o fp.kicad_mod
+          python scripts/kicad_to_jitx.py fp.kicad_mod --class-name MyPart
           NEVER hand-craft pad positions for non-standard packages.
+          Scripts are in the jitx skill's scripts/ directory. Copy to project.
 ```
 
 ### Step 3: Generate Component Code

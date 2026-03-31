@@ -1,63 +1,63 @@
 # Parts Sourcing and Footprint Conversion
 
-Optional integration for verifying sourcing of chosen parts and obtaining footprint data. The MCP tools are dumb data lookups — they do NOT make engineering decisions. Claude selects parts based on electrical requirements and tradeoffs first, then optionally checks sourcing availability.
+Optional tools for verifying part sourcing and obtaining footprints. Claude selects parts based on engineering requirements and tradeoffs first — these tools are dumb data lookups, not decision makers.
 
-## Caution
+## Setup
 
-The pcbparts MCP server also exposes reference board search, design rules, and sensor recommendation tools. **Do NOT use these.** The reference board data is contaminated with hobby-grade Adafruit/SparkFun designs that are not appropriate for professional hardware. Design rules and circuit topology come from Claude's own engineering knowledge and the domain checklists — not from an external database. Only use the two tools listed below.
-
-## Available Tools (via pcbparts MCP)
-
-Available when the `pcbparts` MCP server is configured. If not present, skip and use datasheets directly.
-
-### Sourcing Check: `jlc_search`
-
-Verify that a specific part is in stock. Search by **exact MPN only** — do not use semantic/natural language queries like "3.3V LDO" or "USB-C connector". Claude already knows what part it wants; this tool just checks if JLCPCB has it.
-
-```
-jlc_search(query="STM32F103C8T6")
-jlc_search(query="ME6211C33M5G-N")
-jlc_search(query="AO3400A")
+```bash
+pip install easyeda2kicad requests
 ```
 
-Returns: MPN, manufacturer, package, stock, price, LCSC code.
+## Scripts (in this skill's `scripts/` directory)
 
-Do NOT use: `jlc_search(query="3.3V LDO SOT-23 500mA")` — this is a semantic search that returns whatever the database ranks highest, not what the design needs.
+### `lcsc_lookup.py` — Stock, pricing, datasheet, footprint
 
-### KiCad Footprint Download: `cse_get_kicad`
+Given an LCSC part number, fetches real-time stock/pricing from LCSC and KiCad footprints from EasyEDA. No API keys required.
 
-Download KiCad footprint for a part. Slow (~45s) — only use for non-standard packages where JITX landpattern generators don't apply.
+```bash
+# Check stock and pricing
+python scripts/lcsc_lookup.py C165948
 
+# Download KiCad footprint
+python scripts/lcsc_lookup.py C165948 --footprint -o usb_c.kicad_mod
+
+# Get pinout
+python scripts/lcsc_lookup.py C165948 --pinout
+
+# Everything at once
+python scripts/lcsc_lookup.py C165948 --all -o usb_c.kicad_mod
 ```
-cse_get_kicad(query="USB-C connector MPN")
+
+### `kicad_to_jitx.py` — Convert KiCad footprint to JITX component
+
+Deterministic converter from `.kicad_mod` to JITX Python. Handles all pad types, Y-axis inversion, duplicate names, BoxSymbol layout.
+
+```bash
+python scripts/kicad_to_jitx.py usb_c.kicad_mod --class-name USB_C_16P \
+    --manufacturer "Korean Hroparts Elec" --mpn "TYPE-C-31-M-12"
 ```
 
-Returns: raw `.kicad_sym` and `.kicad_mod` file contents.
+### Full pipeline: LCSC → KiCad → JITX
 
-## Phase 0: Part Selection
+```bash
+python scripts/lcsc_lookup.py C165948 --footprint -o /tmp/fp.kicad_mod && \
+python scripts/kicad_to_jitx.py /tmp/fp.kicad_mod --class-name USB_C_16P \
+    -o src/myproject/components/connectors/usb_c_16p.py
+```
 
-Claude drives part selection based on engineering judgment. The MCP is a lookup tool, not a decision maker.
+Copy both scripts into the project's `scripts/` directory so sub-agents can run them.
 
-1. **Claude proposes ideal parts** based on the design requirements: voltage/current ratings, package thermal limits, peripheral set, interface support, proven reliability, datasheet quality. Weigh tradeoffs (dropout vs efficiency, pin count vs board area, feature set vs complexity).
-2. **Optionally verify sourcing**: use `jlc_search` to check if the proposed parts are in stock and at reasonable cost. If a preferred part is unavailable or prohibitively expensive, Claude proposes an alternative with equivalent specs — do not let the search results dictate the architecture.
-3. **Record chosen parts** in PLAN.md task descriptions with MPN, package, key specs, and rationale for the selection.
+## Part Selection Workflow
 
-The search tool is a filter, not an oracle. Never pick a part just because it has high stock or low price — pick the right part for the design, then check if it's sourceable.
+1. **Claude proposes ideal parts** based on engineering requirements: voltage/current ratings, package thermal limits, peripheral set, interface support, proven reliability. Weigh tradeoffs (dropout vs efficiency, pin count vs board area, feature set vs complexity).
 
-## KiCad-to-JITX Footprint Conversion
+2. **Optionally verify sourcing**: if a specific LCSC part number is known, run `lcsc_lookup.py` to check stock and pricing. If the preferred part is unavailable, Claude proposes an alternative — the lookup does not dictate the architecture.
 
-### When to Convert
+3. **Record chosen parts** in PLAN.md with MPN, LCSC code (if applicable), package, key specs, and rationale.
 
-Only for **non-standard packages** where JITX built-in generators don't work:
+## Footprint Workflow
 
-- Connectors (USB-C, QSFP, board-to-board, card edge)
-- RF modules (antenna footprints, shielding cans)
-- Unusual mechanical packages (custom thermal pads, non-rectangular outlines)
-- Parts with asymmetric or irregular pad layouts
-
-### When NOT to Convert
-
-Use JITX standard landpattern generators for all standard packages:
+### Standard packages — use JITX generators
 
 | Package | Generator |
 |---------|-----------|
@@ -68,36 +68,23 @@ Use JITX standard landpattern generators for all standard packages:
 | QFP | `QFP(...)` |
 | BGA | `BGA(...)` |
 
-Always use `BoxSymbol` for schematic symbols. Never convert KiCad symbol graphics.
+### Non-standard packages — use the scripts
 
-### Conversion: Use the `kicad_to_jitx.py` Script
+For connectors, RF modules, unusual mechanical packages:
 
-Do NOT manually write pad positions from KiCad data — use the conversion script. It deterministically parses the S-expression format and generates correct JITX code with proper Y-axis inversion, pad grouping, and BoxSymbol layout.
+1. Find the LCSC part number (from JLCPCB search or Claude's knowledge)
+2. Run `lcsc_lookup.py <LCSC_ID> --footprint -o fp.kicad_mod`
+3. Run `kicad_to_jitx.py fp.kicad_mod --class-name MyPart`
+4. Review output and build-test
 
-```bash
-# From a .kicad_mod file
-python scripts/kicad_to_jitx.py connector.kicad_mod --class-name USB_C_16P
+**NEVER hand-craft pad positions for non-standard packages.** The scripts produce geometrically correct footprints from EasyEDA's verified models. Hand-crafting introduces dimensional errors (the test run got USB-C row spacing wrong by 3x).
 
-# With metadata
-python scripts/kicad_to_jitx.py connector.kicad_mod \
-    --class-name USB_C_16P \
-    --manufacturer "Amphenol" --mpn "12401610E4#2A" \
-    -o src/myproject/components/connectors/usb_c_16p.py
+Always use `BoxSymbol`. Never convert KiCad schematic symbol graphics.
 
-# From MCP tool output (piped)
-echo '<kicad_mod content>' | python scripts/kicad_to_jitx.py --stdin --class-name USB_C_16P
+## MCP Server (pcbparts)
 
-# Debug: inspect parsed pads as JSON
-python scripts/kicad_to_jitx.py connector.kicad_mod --dump-pads
-```
-
-The script handles:
-- SMD, through-hole, and non-plated pads (all shapes: rect, oval, circle, roundrect, custom)
-- Pad rotation, duplicate pad names (USB-C A/B rows), shield/mounting pads
-- KiCad Y-axis inversion (KiCad Y+ = down, JITX Y+ = up)
-- Automatic BoxSymbol with power up, ground down, signals left, shield right
-- PadMapping linking ports to landpattern pads
-
-Copy `scripts/kicad_to_jitx.py` from this skill into the project if sub-agents need to run it.
-
-After generation, review the output and build-test the component. The script produces mechanically correct geometry but you may want to rename ports for clarity (e.g., group USB data pins into DP/DM bundles).
+If the `pcbparts` MCP server is configured, **do NOT use it**. The `lcsc_lookup.py` + `kicad_to_jitx.py` pipeline is faster, more reliable, and covers all JLCPCB parts. Specifically:
+- No `board_search` / `board_get` (hobby reference designs)
+- No `get_design_rules` (design knowledge comes from Claude)
+- No `sensor_recommend`, `jlc_get_pinout`, `cse_get_kicad`, `cse_search`
+- No `jlc_search` (use `lcsc_lookup.py` for stock checks instead)
