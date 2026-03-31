@@ -162,9 +162,17 @@ Do NOT proceed past a gate if any task has unresolved failures. Fix upstream bef
 
 ### Optional: Parts Sourcing and Footprint Conversion
 
-Claude selects parts based on engineering requirements and tradeoffs first. When the `pcbparts` MCP server is available, optionally verify sourcing (`jlc_search`) or download KiCad footprints for non-standard packages (`cse_get_kicad`). The MCP is a dumb data lookup — it does not drive architecture decisions. Standard packages always use built-in JITX landpattern generators. All symbols use `BoxSymbol`.
+Claude selects parts based on engineering requirements and tradeoffs first. When the `pcbparts` MCP server is available, only use these two tools:
 
-Optional and swappable — the project builder works without it.
+- **`jlc_search`** — verify sourcing for a specific MPN (exact part number queries only)
+- **`cse_get_kicad`** — download KiCad footprint for non-standard packages, then convert with `scripts/kicad_to_jitx.py`
+
+**Do NOT use any other pcbparts MCP tools.** Specifically:
+- No `board_search` / `board_get` (reference designs are hobby-grade, not professional)
+- No `get_design_rules` (design knowledge comes from Claude, not external databases)
+- No `sensor_recommend`, `jlc_get_pinout`, `jlc_get_part`, `cse_search`
+
+For non-standard footprints (connectors, RF modules), always use the `kicad_to_jitx.py` script — never hand-craft pad positions. Standard packages (QFN, SOIC, BGA, SOT) use built-in JITX landpattern generators. All symbols use `BoxSymbol`.
 
 For details: read `references/parts-sourcing.md`
 

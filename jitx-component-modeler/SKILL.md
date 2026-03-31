@@ -147,7 +147,11 @@ Is it a 2-sided package?
     ├── 4-sided gull-wing leads → QFP
     ├── 4-sided flat/no-lead → QFN
     ├── Bottom ball array → BGA
-    └── Custom/unusual → Manual Landpattern
+    └── Custom/unusual (connectors, RF modules, irregular pads)
+        → Use `scripts/kicad_to_jitx.py` to convert from KiCad footprint
+          Download .kicad_mod via `cse_get_kicad` MCP tool, then run:
+          python scripts/kicad_to_jitx.py footprint.kicad_mod --class-name MyPart
+          NEVER hand-craft pad positions for non-standard packages.
 ```
 
 ### Step 3: Generate Component Code
