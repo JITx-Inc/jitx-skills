@@ -471,7 +471,9 @@ After generating code, provide:
 - [List any discrepancies or assumptions made]
 ```
 
-## Step 5: Capture Application Circuit (Optional)
+## Step 5: Capture Application Circuit
+
+**In the project builder workflow, this step is MANDATORY — not optional.** The application circuit from the datasheet is the foundation for the circuit task. Always capture it.
 
 After generating component code, check the datasheet for "Typical Application", "Reference Design", or "Application Circuit" sections. These provide valuable circuit templates.
 

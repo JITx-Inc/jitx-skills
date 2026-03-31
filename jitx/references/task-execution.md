@@ -37,15 +37,20 @@ Read your task definition from PLAN.md. Note:
 
 **For circuit tasks specifically:**
 
-1. Download the datasheet for every IC in the circuit to `datasheets/<mpn>.pdf`
-2. Read the "Typical Application Circuit" or "Application Information" section
-3. The datasheet application circuit shows required external components (transistors, resistors, capacitors, inductors) — implement ALL of them
-4. If the datasheet shows a PMOS switch, include a PMOS switch. If it shows a bootstrap cap, include it. Do not simplify or omit components.
-5. Invoke the component modeler skill for any IC that needs a component model
-6. Invoke the circuit builder skill for the wiring patterns
+1. Download the datasheet for every IC in the circuit to `datasheets/<mpn>.pdf` — get the ENGLISH version from the manufacturer's site (ti.com, espressif.com, etc.), not LCSC which may have Chinese-only versions
+2. Use the component modeler skill's `extract_pages.py` to extract the application circuit pages from the PDF — do not try to read the entire datasheet
+3. Read the "Typical Application Circuit" or "Application Information" section
+4. The datasheet application circuit shows required external components (transistors, resistors, capacitors, inductors) — implement ALL of them. Count them. If the datasheet shows 8 external components and you have 4, you're missing half.
+5. If the datasheet shows a PMOS switch, include a PMOS switch. If it shows output filter inductors, include them. If it shows a bootstrap cap, include it. Do not simplify or omit components.
+6. Invoke the component modeler skill (Step 5: Capture Application Circuit) for the IC — this is NOT optional in the project builder workflow
+7. Invoke the circuit builder skill for the wiring patterns
+
+**Parts not in jitxlib:** If a passive or simple component (LED, TVS diode, ferrite bead) is not available from jitxlib queries, use `lcsc_lookup.py` to find it on LCSC and import with `kicad_to_jitx.py`. Do not give up on a component because it's not in the standard library.
 
 **Common mistakes from not reading the datasheet:**
 - Missing external transistors (e.g., PMOS for power switching on PD controllers)
+- Missing output filter inductors (e.g., LC filter on Class D amplifier outputs)
+- Missing reset/boot circuitry on MCUs (RC filter on reset, pull-up on boot pins)
 - Wrong pull-up voltage domain (e.g., pulling I2C to VBUS instead of 3.3V)
 - Connecting data lines that the IC drives internally (e.g., D+/D- on a PD controller that uses them for BC1.2)
 - Omitting bootstrap capacitors on buck converters
