@@ -193,8 +193,41 @@ def check_hard_tied_dual_function(path: str, lines: list[str]) -> list[LintIssue
 # Runner
 # ---------------------------------------------------------------------------
 
+def check_thermal_pad_aspect(path: str, lines: list[str]) -> list[LintIssue]:
+    """Thermal pads on SOIC/TSSOP/QFN should typically be wider than tall (or square).
+
+    HTSSOP/TSSOP/SOIC packages have pins on the long sides, so the package is
+    taller than wide. The thermal pad usually follows the body proportion.
+    A thermal pad that is wider than tall on a tall package is likely swapped.
+    """
+    issues = []
+    full_text = '\n'.join(lines)
+    # Only check files that look like components (have Landpattern/thermal_pad)
+    if 'thermal_pad' not in full_text:
+        return issues
+
+    # Detect package orientation from body dimensions or pin count clues
+    # HTSSOP/TSSOP/SOIC with many pins: body is taller than wide
+    is_tall_package = bool(re.search(r'HTSSOP|TSSOP|SOIC|SSOP|DFN.*[12]\d', full_text, re.IGNORECASE))
+
+    # Search across joined text for multi-line thermal_pad calls
+    full = '\n'.join(lines)
+    for m in re.finditer(r'thermal_pad\s*\([^)]*rectangle\s*\(\s*([\d.]+)\s*,\s*([\d.]+)\s*\)', full, re.DOTALL):
+        w, h = float(m.group(1)), float(m.group(2))
+        line_num = full[:m.start()].count('\n') + 1
+        if is_tall_package and w > h * 1.15:
+            issues.append(LintIssue(
+                path, line_num, "warning", "W006",
+                f"Thermal pad rectangle({w}, {h}) is wider than tall on a tall package — "
+                f"check if width/height are swapped. TI convention: D=along pins (Y), E=across (X). "
+                f"Use rectangle(E2, D2) not rectangle(D2, E2)."
+            ))
+    return issues
+
+
 ALL_CHECKS = [
     check_square_cutout,
+    check_thermal_pad_aspect,
     check_hardcoded_feedback_divider,
     check_vbus_pullup,
     check_bare_net_expression,

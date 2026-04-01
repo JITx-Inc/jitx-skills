@@ -248,7 +248,7 @@ port arrays, inactive positions, and non-uniform BGA grids, see
 | e | Lead pitch | `LeadProfile.pitch` |
 | b | Lead width | `SMDLead.width` / `QFNLead.width` |
 | L | Lead length | `SMDLead.length` / `QFNLead.length` |
-| D2 / E2 | Thermal pad size | `.thermal_pad(rectangle(D2, E2))` |
+| D2 / E2 | Thermal pad size | `.thermal_pad(rectangle(E2, D2))` — **E2 is width (X), D2 is height (Y)**. D=along pins, E=across. Do NOT write rectangle(D2, E2). |
 
 ## Common Patterns
 
