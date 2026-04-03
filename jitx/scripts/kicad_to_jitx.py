@@ -154,6 +154,7 @@ class PadInfo:
     drill: DrillInfo | None = None
     layers: list[str] = field(default_factory=list)
     roundrect_rratio: float = 0.25  # default for roundrect
+    solder_mask_margin: float | None = None  # per-pad mask expansion (mm)
     # For custom pads, store the bounding box of primitives
     custom_primitives: list[Any] = field(default_factory=list)
     custom_anchor: str = "circle"
@@ -304,10 +305,12 @@ def extract_pad(node: list) -> PadInfo:
     if layers_node:
         pad.layers = [str(l) for l in layers_node[1:] if not isinstance(l, list)]
 
-    # Roundrect ratio
+    # Roundrect ratio and solder mask margin
     for child in node:
         if isinstance(child, list) and len(child) >= 2 and child[0] == "roundrect_rratio":
             pad.roundrect_rratio = to_float(child[1])
+        elif isinstance(child, list) and len(child) >= 2 and child[0] == "solder_mask_margin":
+            pad.solder_mask_margin = to_float(child[1])
 
     # Custom pad primitives
     if pad.shape == "custom":
@@ -385,6 +388,8 @@ class LayerGeometry:
     courtyard_lines: list[LineSegment] = field(default_factory=list)
     fab_lines: list[LineSegment] = field(default_factory=list)
     texts: list[TextGeom] = field(default_factory=list)
+    soldermask_lines: list[LineSegment] = field(default_factory=list)
+    soldermask_circles: list[CircleGeom] = field(default_factory=list)
 
 
 def extract_layer_geometry(sexpr: list) -> LayerGeometry:
@@ -419,6 +424,8 @@ def extract_layer_geometry(sexpr: list) -> LayerGeometry:
                 geom.courtyard_lines.append(seg)
             elif layer == "F.Fab":
                 geom.fab_lines.append(seg)
+            elif layer in ("F.Mask", "B.Mask"):
+                geom.soldermask_lines.append(seg)
 
         elif tag == "fp_circle":
             center = find_node(child, "center")
@@ -440,6 +447,8 @@ def extract_layer_geometry(sexpr: list) -> LayerGeometry:
             )
             if layer == "F.SilkS":
                 geom.silkscreen_circles.append(circ)
+            elif layer in ("F.Mask", "B.Mask"):
+                geom.soldermask_circles.append(circ)
 
         elif tag == "fp_text":
             text_type = str(child[1]) if len(child) > 1 else ""
@@ -634,6 +643,61 @@ def needs_rotation(pad: PadInfo) -> bool:
     return abs(pad.rotation) > 0.01
 
 
+def _has_mask_layer(pad: PadInfo, side: str) -> bool:
+    """Check if a pad has a soldermask layer for the given side ('F' or 'B')."""
+    target = f"{side}.Mask"
+    return any(l in (target, "*.Mask") for l in pad.layers)
+
+
+def _mask_shape_str(pad: PadInfo, margin: float) -> str:
+    """Compute the soldermask opening shape string expanded by *margin* mm."""
+    w, h = effective_pad_size(pad)
+    eshape = effective_pad_shape(pad)
+    mw = w + 2 * margin
+    mh = h + 2 * margin
+    if eshape == "circle":
+        d = max(mw, mh)
+        return f"circle({fmt_float(d / 2)})"
+    elif eshape == "capsule":
+        return f"capsule({fmt_float(mw)}, {fmt_float(mh)})"
+    else:
+        return f"rectangle({fmt_float(mw)}, {fmt_float(mh)})"
+
+
+def _soldermask_attrs(pad: PadInfo) -> str:
+    """Return soldermask/paste attribute lines for a custom Pad subclass.
+
+    Only SMD/connect pads use custom Pad subclasses in JITX — through-hole and
+    NPTH pads use THPad()/NPTHPad() constructors, which handle mask internally.
+
+    Returns empty string when the default JITX behaviour (auto-expand by
+    registration amount) is correct.
+    """
+    if pad.pad_type not in ("smd", "connect"):
+        return ""
+
+    has_front = _has_mask_layer(pad, "F")
+    has_paste = any(l in ("F.Paste", "*.Paste") for l in pad.layers)
+    margin = pad.solder_mask_margin
+    lines = ""
+
+    # Soldermask
+    if pad.layers and not has_front:
+        lines += "    soldermask = None\n"
+    elif margin is not None:
+        mask_shape = _mask_shape_str(pad, margin)
+        lines += f"    soldermask = Soldermask({mask_shape})\n"
+
+    # Paste (mirrors soldermask shape when present, suppressed when no paste layer)
+    if pad.layers and not has_paste:
+        lines += "    paste = None\n"
+    elif margin is not None:
+        paste_shape = _mask_shape_str(pad, margin)
+        lines += f"    paste = Paste({paste_shape})\n"
+
+    return lines
+
+
 def generate_pad_class(
     pad: PadInfo,
     class_name: str,
@@ -646,6 +710,7 @@ def generate_pad_class(
     """
     w, h = effective_pad_size(pad)
     eshape = effective_pad_shape(pad)
+    mask = _soldermask_attrs(pad)
 
     if pad.pad_type == "np_thru_hole":
         # Non-plated through hole: just a cutout, no copper
@@ -658,17 +723,20 @@ def generate_pad_class(
                     f"    \"\"\"Non-plated through-hole (oval {fmt_float(d)} x {fmt_float(dw)} mm).\"\"\"\n"
                     f"    shape = capsule({fmt_float(d)}, {fmt_float(dw)})\n"
                     f"    cutout = Cutout(capsule({fmt_float(d)}, {fmt_float(dw)}))\n"
+                    + mask
                 )
             return (
                 f"class {class_name}(Pad):\n"
                 f"    \"\"\"Non-plated through-hole ({fmt_float(d)} mm).\"\"\"\n"
                 f"    shape = circle({fmt_float(d / 2)})\n"
                 f"    cutout = Cutout(circle({fmt_float(d / 2)}))\n"
+                + mask
             )
         return (
             f"class {class_name}(Pad):\n"
             f"    shape = circle({fmt_float(w / 2)})\n"
             f"    cutout = Cutout(circle({fmt_float(w / 2)}))\n"
+            + mask
         )
 
     if pad.pad_type == "thru_hole":
@@ -693,6 +761,7 @@ def generate_pad_class(
             f"    \"\"\"Through-hole pad.\"\"\"\n"
             f"    shape = {copper_shape}\n"
             f"    cutout = Cutout({cutout_shape})\n"
+            + mask
         )
 
     # SMD or connect pad
@@ -708,6 +777,7 @@ def generate_pad_class(
         f"class {class_name}(Pad):\n"
         f"    \"\"\"SMD pad ({fmt_float(w)} x {fmt_float(h)} mm).\"\"\"\n"
         f"    shape = {shape_str}\n"
+        + mask
     )
 
 
@@ -755,7 +825,7 @@ def generate_jitx_code(
             signal_groups.append(g)
 
     # Build unique pad shape classes
-    # Key: (pad_type, effective_shape, effective_w, effective_h, drill_key) -> class_name
+    # Key includes mask info so pads with different soldermask get distinct classes
     pad_shape_map: dict[tuple, str] = {}
     pad_class_defs: list[str] = []
     pad_class_counter = 0
@@ -774,7 +844,13 @@ def generate_jitx_code(
                 round(pad.drill.width, 4) if pad.drill.width else None,
                 pad.drill.oval,
             )
-        key = (pad.pad_type, eshape, w, h, drill_key)
+        has_paste = any(l in ("F.Paste", "*.Paste") for l in pad.layers)
+        mask_key = (
+            _has_mask_layer(pad, "F"),
+            has_paste,
+            round(pad.solder_mask_margin, 4) if pad.solder_mask_margin is not None else None,
+        )
+        key = (pad.pad_type, eshape, w, h, drill_key, mask_key)
         if key in pad_shape_map:
             return pad_shape_map[key]
 
@@ -838,6 +914,10 @@ def generate_jitx_code(
     has_courtyard = bool(layer_geom and layer_geom.courtyard_lines)
     has_fab_text = bool(layer_geom and any(t.text_type in ("value", "user") for t in layer_geom.texts))
     has_ref_text = bool(layer_geom and any(t.text_type == "reference" for t in layer_geom.texts))
+    has_mask_geom = bool(layer_geom and (layer_geom.soldermask_lines or layer_geom.soldermask_circles))
+    pad_mask_attrs = {id(p): _soldermask_attrs(p) for p in pads}
+    needs_soldermask = has_mask_geom or any("Soldermask" in a for a in pad_mask_attrs.values())
+    needs_paste = any("Paste" in a for a in pad_mask_attrs.values())
 
     # Imports
     out.write("import jitx\n")
@@ -850,6 +930,10 @@ def generate_jitx_code(
         features.append("Silkscreen")
     if has_fab_text:
         features.append("Custom")
+    if needs_paste:
+        features.append("Paste")
+    if needs_soldermask:
+        features.append("Soldermask")
     out.write(f"from jitx.feature import {', '.join(sorted(features))}\n")
 
     out.write("from jitx.landpattern import Landpattern, Pad\n")
@@ -875,12 +959,17 @@ def generate_jitx_code(
     composites_imports = sorted(shape_funcs & {"rectangle", "capsule"})
     primitive_imports = sorted(shape_funcs & {"circle"})
 
-    # Primitive shapes needed for silkscreen
+    # Primitive shapes needed for silkscreen / soldermask geometry
     prim_types = set()
     if has_silkscreen and layer_geom:
         if layer_geom.silkscreen_lines:
             prim_types.add("Polyline")
         if layer_geom.silkscreen_circles:
+            prim_types.update(["ArcPolyline", "Arc"])
+    if has_mask_geom and layer_geom:
+        if layer_geom.soldermask_lines:
+            prim_types.add("Polyline")
+        if layer_geom.soldermask_circles:
             prim_types.update(["ArcPolyline", "Arc"])
     if has_ref_text or has_fab_text:
         prim_types.add("Text")
@@ -1058,6 +1147,19 @@ def generate_jitx_code(
             w, h = court_rect
             out.write(f"            courtyard = Courtyard(rectangle({fmt_float(w)}, {fmt_float(h)}))\n")
 
+        # Soldermask geometry (custom openings drawn on F.Mask / B.Mask)
+        if layer_geom.soldermask_lines or layer_geom.soldermask_circles:
+            out.write("            soldermask_geometry = [\n")
+            for seg in layer_geom.soldermask_lines:
+                out.write(f"                Soldermask(Polyline({fmt_float(seg.width)}, "
+                          f"[({fmt_float(seg.x1)}, {fmt_float(-seg.y1)}), "
+                          f"({fmt_float(seg.x2)}, {fmt_float(-seg.y2)})])),\n")
+            for circ in layer_geom.soldermask_circles:
+                out.write(f"                Soldermask(ArcPolyline({fmt_float(circ.width)}, "
+                          f"[Arc(({fmt_float(circ.cx)}, {fmt_float(-circ.cy)}), "
+                          f"{fmt_float(circ.radius)}, 0, -360)])),\n")
+            out.write("            ]\n")
+
     out.write("\n")
     out.write("        self.landpattern = _lp\n\n")
 
@@ -1193,6 +1295,8 @@ def main():
                 "height": p.height,
                 "layers": p.layers,
             }
+            if p.solder_mask_margin is not None:
+                d["solder_mask_margin"] = p.solder_mask_margin
             if p.drill:
                 d["drill"] = {
                     "diameter": p.drill.diameter,
