@@ -195,6 +195,7 @@ Apply the relevant protocol check:
 
 ## Substrate
 
+- [ ] **Predefined substrate considered first**: if JLCPCB + standard FR-4 + 50/90/100 ohm, use `jitxlib.jlcpcb` (JLC04161H_1080, JLC04161H_7628, JLC06161H_7628) instead of creating custom
 - [ ] Layer count sufficient for routing density and reference plane continuity
 - [ ] Impedance targets achievable with chosen dielectric Dk and geometry
 - [ ] Via definitions cover ALL needed layer transitions (not just top-to-bottom)

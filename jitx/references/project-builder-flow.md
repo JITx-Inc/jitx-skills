@@ -53,7 +53,7 @@ pending → in-progress → review → accepted
 
 4. **Plan the power tree**: trace power from input through regulators to every load. Note voltage, current, and sequencing requirements.
 
-5. **Assess substrate needs**: based on interface speeds and routing density, determine layer count, material class, and via technology.
+5. **Assess substrate needs**: based on interface speeds and routing density, determine layer count, material class, and via technology. **Check predefined substrates first**: if fab house is JLCPCB and design needs standard 4-layer or 6-layer FR-4 with 50/90/100 ohm impedance, use a predefined substrate from `jitxlib.jlcpcb` (JLC04161H_1080, JLC04161H_7628, JLC06161H_7628) — no substrate modeling task needed. Only create a custom substrate for non-JLCPCB, non-FR-4, or non-standard impedance requirements.
 
 6. **Decompose into tasks**: follow `references/decomposition-guide.md` to create the task graph.
 

@@ -30,7 +30,7 @@ Read your task definition from PLAN.md. Note:
 | Component | `jitx-skills:jitx-component-modeler` | Download and extract pinout + mechanical drawing |
 | Circuit | `jitx-skills:jitx-circuit-builder` + `jitx-component-modeler` | **Read the application circuit from every IC's datasheet.** Follow it. |
 | Assembly | `jitx-skills:jitx-circuit-builder` | Review all subcircuit ports and ARCHITECTURE.md |
-| Substrate | `jitx-skills:jitx-substrate-modeler` | Reference design spec for impedance targets |
+| Substrate | `jitx-skills:jitx-substrate-modeler` (only if custom needed — check `jitxlib.jlcpcb` predefined substrates first) | Reference design spec for impedance targets |
 | SI constraints | `jitx-skills:jitx-interconnect-constraints` | Protocol spec for timing/impedance |
 | Pin assignment | `jitx-skills:jitx-pin-assignment` | Datasheet for mux options |
 | Verify | No skill — orchestrator runs build | N/A |

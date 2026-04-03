@@ -17,13 +17,30 @@ Parse the requirements and categorize everything needed:
 | Peripherals | Sensors, drivers, transceivers, ADC/DAC | One task per IC |
 | Passives | Resistors, caps, inductors | No task needed — these come from jitxlib at circuit build time |
 
-### Substrate (one task — or use SampleDesign for simple boards)
+### Substrate (one task — or use SampleDesign / predefined substrate)
 - If the design has **no SI constraints** (no differential pairs, no impedance control): `SampleDesign` from jitx.sample is sufficient — skip the substrate task
-- If the design has **any SI constraints** (USB, Ethernet, DDR, PCIe, etc.): a custom substrate is required with routing structures that match the protocol impedance targets. The constraint definitions in Phase 2 reference these routing structures — without them, constraints can't be applied.
-- Layer count and material class (FR-4, low-loss, RF)
-- Routing structures (single-ended and differential) for each impedance class
-- Via types needed (through-hole, microvia, blind, buried, backdrilled)
-- Fabrication constraints (JLCPCB rules documented in substrate skill reference)
+- If the design has **SI constraints** (USB, Ethernet, DDR, PCIe, etc.): a substrate with routing structures is required. **Check predefined substrates first** before creating a custom one:
+
+  **Predefined JLCPCB substrates** (from `jitxlib.jlcpcb`):
+  | Class | Layers | Prepreg | Routing Structures | Import |
+  |-------|--------|---------|-------------------|--------|
+  | `JLC04161H_1080` | 4 | 1080 | RS_50, DRS_90, DRS_100 | `from jitxlib.jlcpcb import JLC04161H_1080` |
+  | `JLC04161H_7628` | 4 | 7628 | RS_50, DRS_90, DRS_100 | `from jitxlib.jlcpcb import JLC04161H_7628` |
+  | `JLC06161H_7628` | 6 | 7628 | RS_50, DRS_100 | `from jitxlib.jlcpcb import JLC06161H_7628` |
+
+  These include stackup, fabrication constraints, vias (11 via definitions including tented/filled for via-in-pad), and impedance-matched routing structures. **Use them directly** — do not recreate from scratch:
+  ```python
+  from jitxlib.jlcpcb import JLC04161H_1080
+  substrate = JLC04161H_1080()
+  ```
+
+  **When to use predefined:** The fab house is JLCPCB and a 4-layer or 6-layer FR-4 stackup with standard impedance targets (50/90/100 ohm) is sufficient. This covers most designs with USB, Ethernet, I2C, SPI, I2S.
+
+  **When to create custom:** Non-JLCPCB fab house, unusual layer count, non-FR-4 materials (Rogers, Megtron), non-standard impedance targets, or additional routing structures beyond what the predefined substrate provides. In this case, invoke `jitx-substrate-modeler` and define:
+  - Layer count and material class (FR-4, low-loss, RF)
+  - Routing structures (single-ended and differential) for each impedance class
+  - Via types needed (through-hole, microvia, blind, buried, backdrilled)
+  - Fabrication constraints
 
 ### Interfaces (each becomes a circuit task in Phase 2)
 - Memory interfaces (DDR5, LPDDR, SRAM bus)

@@ -227,13 +227,18 @@ For provide/require pin assignment patterns, use `jitx-pin-assignment` instead.
 
 ### Substrate Modeler (`jitx-substrate-modeler`)
 
-**Invoke this subskill** when user asks to:
-- Create a substrate or define a stackup
-- Add via definitions (laser, mechanical, backdrilled, blind, buried)
-- Set up routing structures or impedance control
-- Define differential pair routing
-- Set fabrication rules or constraints
-- Model a PCB layer structure
+**Before invoking**, check if a predefined substrate from `jitxlib.jlcpcb` is sufficient:
+- `JLC04161H_1080` — 4-layer, 1080 prepreg, RS_50/DRS_90/DRS_100
+- `JLC04161H_7628` — 4-layer, 7628 prepreg, RS_50/DRS_90/DRS_100
+- `JLC06161H_7628` — 6-layer, 7628 prepreg, RS_50/DRS_100
+
+Import: `from jitxlib.jlcpcb import JLC04161H_1080`. These include stackup, fab rules, 11 via definitions, and routing structures. Use directly for JLCPCB + standard FR-4 + 50/90/100 ohm impedance.
+
+**Invoke this subskill** only when a custom substrate is needed:
+- Non-JLCPCB fab house
+- Non-FR-4 materials (Rogers, Megtron)
+- Non-standard layer count or impedance targets
+- Additional routing structures beyond predefined
 
 **How to invoke:** Use the Skill tool with `skill: "jitx-skills:jitx-substrate-modeler"`
 

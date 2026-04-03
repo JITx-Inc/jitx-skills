@@ -1,11 +1,36 @@
 ---
 name: jitx-substrate-modeler
-description: This skill should be used when the user asks to "create a substrate", "define a stackup", "add via definitions", "set up routing structures", "configure impedance control", "define differential pairs", "set fabrication rules", or "model a PCB layer structure". Covers Stackup, Symmetric, Conductor, Dielectric, Via (laser, mechanical, backdrilled, blind, buried, stacked), RoutingStructure, DifferentialRoutingStructure, NeckDown, via fencing, geometry, reference planes, and FabricationConstraints.
+description: This skill should be used when the user asks to "create a substrate", "define a stackup", "add via definitions", "set up routing structures", "configure impedance control", "define differential pairs", "set fabrication rules", or "model a PCB layer structure". IMPORTANT - Check predefined substrates from jitxlib.jlcpcb FIRST (JLC04161H_1080, JLC04161H_7628, JLC06161H_7628) before creating custom — these cover JLCPCB 4/6-layer FR-4 with 50/90/100 ohm routing structures, vias, and fab rules. Only create custom for non-JLCPCB, non-FR-4, or non-standard impedance. Covers Stackup, Symmetric, Conductor, Dielectric, Via (laser, mechanical, backdrilled, blind, buried, stacked), RoutingStructure, DifferentialRoutingStructure, NeckDown, via fencing, geometry, reference planes, and FabricationConstraints.
 ---
 
 # JITX Substrate Modeler
 
 Generate complete JITX Python substrate definitions — stackups, materials, vias, routing structures, and fabrication constraints — all in a single file.
+
+## Predefined Substrates — Check These First
+
+Before creating a custom substrate, check if a predefined one from `jitxlib.jlcpcb` matches the design requirements. These are production-validated with correct materials, vias, fab rules, and impedance-matched routing structures:
+
+| Class | Layers | Prepreg | Routing Structures | Import |
+|-------|--------|---------|-------------------|--------|
+| `JLC04161H_1080` | 4 | 1080 | RS_50, DRS_90, DRS_100 | `from jitxlib.jlcpcb import JLC04161H_1080` |
+| `JLC04161H_7628` | 4 | 7628 | RS_50, DRS_90, DRS_100 | `from jitxlib.jlcpcb import JLC04161H_7628` |
+| `JLC06161H_7628` | 6 | 7628 | RS_50, DRS_100 | `from jitxlib.jlcpcb import JLC06161H_7628` |
+
+Each includes: Symmetric stackup, JLCPCBRules (FabricationConstraints), 11 JLCPCB via definitions (StdVia, StdViaPreferred, MultiLayerVia1-3 + Preferred variants, StdViaTentedFilled for via-in-pad), and routing structures for 50/90/100 ohm impedance targets.
+
+**Use directly** — no substrate file needed:
+```python
+from jitxlib.jlcpcb import JLC04161H_1080
+substrate = JLC04161H_1080()
+
+# Access routing structures for SI constraints:
+# substrate.RS_50, substrate.DRS_90, substrate.DRS_100
+```
+
+**When to use predefined:** JLCPCB fab house + 4 or 6 layer FR-4 + standard impedance targets (50/90/100 ohm). This covers USB, Ethernet, I2C, SPI, I2S, and most common protocols.
+
+**When to create custom (use the rest of this skill):** Non-JLCPCB fab, unusual layer count, non-FR-4 materials (Rogers, Megtron), non-standard impedance, or additional routing structures needed.
 
 ## Environment
 
