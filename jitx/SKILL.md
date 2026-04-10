@@ -160,7 +160,7 @@ For domain checklists: read `references/domain-checklists.md`
 
 | Gate | Key Criteria |
 |------|-------------|
-| 0 → 1 | PLAN.md created with all tasks, user approved plan |
+| 0 → 1 | PLAN.md created with all tasks, data source audit approved, user approved plan |
 | 1 → 2 | All components + substrate build individually, acceptance reviews passed |
 | 2 → 3 | All circuits build, constraint classes valid, provide/require interfaces consistent |
 | 3 → 3b | Top-level assembles, all nets connected, power tree complete |
@@ -168,14 +168,22 @@ For domain checklists: read `references/domain-checklists.md`
 
 Do NOT proceed past a gate if any task has unresolved failures. Fix upstream before moving downstream.
 
-### Optional: Parts Sourcing and Footprint Conversion
+### Parts Data and Footprint Conversion
 
-Claude selects parts based on engineering requirements first. Two Python scripts handle sourcing and footprint data (requires `pip install easyeda2kicad requests`):
+Claude selects parts based on engineering requirements first. Data for each component comes from the **user-approved data source plan** (see Phase 0 data audit).
 
-- **`scripts/lcsc_lookup.py <LCSC_ID>`** — real-time stock, pricing, datasheet URL, KiCad footprint download
-- **`scripts/kicad_to_jitx.py <file.kicad_mod>`** — deterministic KiCad-to-JITX footprint conversion
+**Data sources (in priority order):**
+1. **User-provided** — datasheets, KiCad footprints, or specs the user supplies directly
+2. **JITX generators** — standard packages (QFN, SOIC, BGA, SOT, SON, QFP) with dimensions from datasheets
+3. **LCSC/EasyEDA** (optional fallback) — install `parts2jitx` into the project venv when needed:
+   ```bash
+   pip install parts2jitx
+   ```
+   Then use:
+   - **`parts2jitx-lcsc <LCSC_ID>`** — stock, pricing, datasheet URL, KiCad footprint download
+   - **`parts2jitx-kicad <file.kicad_mod>`** — deterministic KiCad-to-JITX footprint conversion
 
-For non-standard packages (connectors, RF modules): run both scripts in sequence. **NEVER hand-craft pad positions** — the test run got USB-C row spacing wrong by 3x doing this. Standard packages (QFN, SOIC, BGA, SOT) use built-in JITX generators. All symbols use `BoxSymbol`.
+For non-standard packages (connectors, RF modules): convert from a `.kicad_mod` file (user-provided or downloaded). **NEVER hand-craft pad positions** — use the converter. Standard packages use built-in JITX generators. All symbols use `BoxSymbol`.
 
 For details: read `references/parts-sourcing.md`
 

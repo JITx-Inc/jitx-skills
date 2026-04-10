@@ -47,7 +47,7 @@ pending → in-progress → review → accepted
 
 1. **Analyze requirements**: parse the user's request, spec documents, or reference designs into structured form.
 
-2. **Identify all components**: propose ideal parts based on electrical requirements and engineering tradeoffs (voltage/current, thermal, peripheral set, package, reliability). Note the part number, package, and datasheet for each. Optionally verify sourcing with `scripts/lcsc_lookup.py` (see `references/parts-sourcing.md`) — but sourcing does not drive the selection.
+2. **Identify all components**: propose ideal parts based on electrical requirements and engineering tradeoffs (voltage/current, thermal, peripheral set, package, reliability). Note the part number, package, and datasheet for each.
 
 3. **Map interfaces**: document which components connect to which, via what protocol, and whether SI constraints are needed.
 
@@ -55,17 +55,54 @@ pending → in-progress → review → accepted
 
 5. **Assess substrate needs**: based on interface speeds and routing density, determine layer count, material class, and via technology. **Check predefined substrates first**: if fab house is JLCPCB and design needs standard 4-layer or 6-layer FR-4 with 50/90/100 ohm impedance, use a predefined substrate from `jitxlib.jlcpcb` (JLC04161H_1080, JLC04161H_7628, JLC06161H_7628) — no substrate modeling task needed. Only create a custom substrate for non-JLCPCB, non-FR-4, or non-standard impedance requirements.
 
-6. **Decompose into tasks**: follow `references/decomposition-guide.md` to create the task graph.
+6. **Data source audit**: for every component, identify where its data will come from. Present a table to the user for approval **before proceeding**. See the Data Source Audit section below.
 
-7. **Write PLAN.md**: use `references/plan-template.md` as the starting point. Fill in every task with specific details.
+7. **Decompose into tasks**: follow `references/decomposition-guide.md` to create the task graph.
 
-8. **Write ARCHITECTURE.md**: summarize module hierarchy, power tree, and interface map. This gives sub-agents the big picture.
+8. **Write PLAN.md**: use `references/plan-template.md` as the starting point. Fill in every task with specific details. Include the approved data sources.
+
+9. **Write ARCHITECTURE.md**: summarize module hierarchy, power tree, and interface map. This gives sub-agents the big picture.
+
+### Data Source Audit
+
+Before decomposing into tasks, present the user with a data source plan for each component. This ensures the user controls where data comes from and can provide their own files.
+
+**Present this table and wait for approval:**
+
+```
+## Data Source Plan
+
+| Component | Package | Data Source | Footprint Method | Status |
+|-----------|---------|-------------|------------------|--------|
+| MCU (STM32H753) | QFP-100 | User datasheet (provided) | JITX QFP generator | Ready |
+| USB-C connector | Non-std | Need footprint | User to provide .kicad_mod, or LCSC lookup | Needs input |
+| LDO (LM1117) | SOT-223 | Datasheet from manufacturer | JITX SOT generator | Will fetch |
+| Buck (TPS62933) | SOT-23-6 | User datasheet (provided) | JITX SOT23_6 generator | Ready |
+| WiFi module | Non-std | Need footprint + datasheet | User to provide, or LCSC lookup | Needs input |
+
+**Data sources:**
+- "User datasheet (provided)" — user has already supplied the PDF
+- "Datasheet from manufacturer" — will download from manufacturer site (ti.com, st.com, etc.)
+- "JITX [generator] generator" — standard package, dimensions from datasheet
+- "User to provide .kicad_mod" — non-standard package, user has KiCad footprint
+- "LCSC lookup" — non-standard package, will use parts2jitx if installed (fallback)
+
+Please confirm data sources or provide alternatives (datasheets, footprints, specs).
+```
+
+**Rules:**
+- Always prefer user-provided data over automated lookups
+- Standard packages (QFN, SOIC, SON, SOT, QFP, BGA) use JITX generators — no footprint download needed
+- For non-standard packages, ask the user if they have a `.kicad_mod` before suggesting LCSC
+- LCSC/EasyEDA is a fallback, not the default — only suggest it when the user has no data and `parts2jitx` is available
+- Do NOT proceed past the data audit until the user approves the data source plan
 
 ### Exit Gate
 
 - [ ] PLAN.md exists with all tasks defined
 - [ ] ARCHITECTURE.md exists with power tree and interface map
-- [ ] All datasheets and reference materials identified and accessible
+- [ ] Data source audit completed and user approved
+- [ ] All datasheets and reference materials identified and accessible (or user committed to providing them)
 - [ ] Dependencies are acyclic
 - [ ] No ambiguous requirements remain (ask user if unclear)
 - [ ] User has reviewed and approved the plan

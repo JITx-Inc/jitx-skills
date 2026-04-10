@@ -1,11 +1,11 @@
 ---
 name: jitx-component-modeler
-description: This skill should be used when the user asks to "create a component", "model a part", "generate a component", "add a component", or "make a JITX component" - even without a datasheet. Also triggers on part numbers (NE555, LM1117, RP2040, etc.) and package types (SOIC, QFN, BGA, SON, SOT). Supports multi-unit symbols, thermal pads, and complex pin mappings.
+description: Create JITX Python component code from datasheets, KiCad footprints, or user specifications. ALWAYS use this skill when user asks to "create a component", "model a part", "generate a component", "add a component", or "make a JITX component" - even without a datasheet. Also triggers on part numbers (NE555, LM1117, RP2040, etc.) and package types (SOIC, QFN, BGA, SON, SOT). Supports user-provided data, JITX generators for standard packages, and optional LCSC/EasyEDA fallback for non-standard footprints. Supports multi-unit symbols, thermal pads, and complex pin mappings.
 ---
 
 # JITX Component Generation Skill
 
-Generate JITX Python component code from datasheets and specifications.
+Generate JITX Python component code from datasheets, user-provided KiCad footprints, or specifications. Data can come from multiple sources — always prefer user-provided data over automated lookups.
 
 ## Environment
 
@@ -148,12 +148,20 @@ Is it a 2-sided package?
     ├── 4-sided flat/no-lead → QFN
     ├── Bottom ball array → BGA
     └── Custom/unusual (connectors, RF modules, irregular pads)
-        → Download footprint and convert to JITX using scripts:
-          python scripts/lcsc_lookup.py C165948 --footprint -o fp.kicad_mod
-          python scripts/kicad_to_jitx.py fp.kicad_mod --class-name MyPart
+        → Convert from a KiCad footprint (.kicad_mod):
+          parts2jitx-kicad fp.kicad_mod --class-name MyPart
           NEVER hand-craft pad positions for non-standard packages.
-          Scripts are in the jitx skill's scripts/ directory. Copy to project.
 ```
+
+**Getting a .kicad_mod for non-standard packages** (in priority order):
+1. **User-provided** — ask if they have a `.kicad_mod` from their KiCad library or manufacturer download
+2. **Manufacturer KiCad library** — many vendors (Molex, TE, Amphenol) publish official KiCad footprints
+3. **LCSC/EasyEDA fallback** — install `parts2jitx` if not already available, then use:
+   ```bash
+   pip install parts2jitx
+   parts2jitx-lcsc C165948 --footprint -o kicad_footprints/fp.kicad_mod
+   parts2jitx-kicad kicad_footprints/fp.kicad_mod --class-name MyPart
+   ```
 
 ### Step 3: Generate Component Code
 

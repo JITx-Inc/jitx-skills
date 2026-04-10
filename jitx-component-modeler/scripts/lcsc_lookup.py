@@ -1,1 +1,0 @@
-../../jitx/scripts/lcsc_lookup.py

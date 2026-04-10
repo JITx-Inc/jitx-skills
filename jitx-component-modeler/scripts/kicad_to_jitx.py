@@ -1,1 +1,0 @@
-../../jitx/scripts/kicad_to_jitx.py
