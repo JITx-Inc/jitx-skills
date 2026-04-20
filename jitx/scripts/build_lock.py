@@ -5,6 +5,8 @@ Serialized JITX build wrapper for parallel agent safety.
 Acquires an exclusive file lock before running `jitx build` so parallel
 Claude sub-agents sharing a single JITX WebSocket backend don't collide.
 
+Note: Uses fcntl for file locking (Unix/macOS only). Not supported on Windows.
+
 Usage (CLI):
     python build_lock.py <module.path.DesignClass>
     python build_lock.py <module.path.DesignClass> --timeout 600

@@ -43,7 +43,7 @@ Copy this into the project root and fill in task details. The orchestrator maint
 ### [sub-01] Substrate
 - **Type:** substrate
 - **Skill:** jitx-substrate-modeler (only if custom substrate needed)
-- **Description:** [FIRST check predefined substrates from jitxlib.jlcpcb — JLC04161H_1080 (4L/1080), JLC04161H_7628 (4L/7628), JLC06161H_7628 (6L/7628). These include stackup, fab rules, vias, and routing structures (RS_50, DRS_90, DRS_100). Use predefined if fab house is JLCPCB and standard FR-4 with 50/90/100 ohm impedance targets. Import directly: `from jitxlib.jlcpcb import JLC04161H_1080`. Only invoke `jitx-skills:jitx-substrate-modeler` if custom substrate is needed (non-JLCPCB, unusual layers, non-FR-4 materials, non-standard impedance).]
+- **Description:** [If user confirmed JLCPCB as fab house, predefined substrates from jitxlib.jlcpcb are available — JLC04161H_1080 (4L/1080), JLC04161H_7628 (4L/7628), JLC06161H_7628 (6L/7628) — with stackup, fab rules, vias, and routing structures (RS_50, DRS_90, DRS_100). Import directly: `from jitxlib.jlcpcb import JLC04161H_1080`. Otherwise (default), invoke `jitx-skills:jitx-substrate-modeler` to create a custom substrate for the target fab house. Consider whether component packages (e.g., high-pin-count BGAs) require more layers than a simple 4-layer stackup.]
 - **Inputs:** [reference design, spec document, or requirements section]
 - **Checklist:** Substrate
 - **Verification:** `python runner/build_lock.py <ns>.substrate.TestDesign` (skip if using predefined — no separate file to test)

@@ -45,7 +45,7 @@ Read your task definition from PLAN.md. Note:
 6. Invoke the component modeler skill (Step 5: Capture Application Circuit) for the IC — this is NOT optional in the project builder workflow
 7. Invoke the circuit builder skill for the wiring patterns
 
-**Parts not in jitxlib:** If a passive or simple component (LED, TVS diode, ferrite bead) is not available from jitxlib queries, check if the user provided a KiCad footprint or ask them for one. As a fallback, install `parts2jitx` (`pip install parts2jitx`) and use `parts2jitx-lcsc` to find it on LCSC and convert with `parts2jitx-kicad`. Do not give up on a component because it's not in the standard library.
+**Parts not in jitxlib:** If a passive or simple component (LED, TVS diode, ferrite bead) is not available from jitxlib queries, check if the user provided a KiCad footprint or ask them for one. If the user has approved LCSC/EasyEDA as a data source (see Phase 0 data audit), install `parts2jitx` (`pip install parts2jitx`) and use `parts2jitx-lcsc` to find it on LCSC and convert with `parts2jitx-kicad`. Do not use LCSC data without user approval. Do not give up on a component because it's not in the standard library.
 
 **Common mistakes from not reading the datasheet:**
 - Missing external transistors (e.g., PMOS for power switching on PD controllers)

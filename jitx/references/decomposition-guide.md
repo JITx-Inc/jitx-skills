@@ -18,29 +18,29 @@ Parse the requirements and categorize everything needed:
 | Passives | Resistors, caps, inductors | No task needed — these come from jitxlib at circuit build time |
 
 ### Substrate (one task — or use SampleDesign / predefined substrate)
-- If the design has **no SI constraints** (no differential pairs, no impedance control): `SampleDesign` from jitx.sample is sufficient — skip the substrate task
-- If the design has **SI constraints** (USB, Ethernet, DDR, PCIe, etc.): a substrate with routing structures is required. **Check predefined substrates first** before creating a custom one:
+- If the design has **no SI constraints** (no differential pairs, no impedance control) **and** the layer count is appropriate for the routing density: `SampleDesign` from jitx.sample may be sufficient — skip the substrate task. However, `SampleDesign` uses a fixed layer count that may not match the design's complexity. A high-pin-count BGA or dense routing topology will require more layers than SampleDesign provides.
+- If the design has **SI constraints** (USB, Ethernet, DDR, PCIe, etc.): a substrate with routing structures is required. **Ask the user which fab house they are targeting:**
 
-  **Predefined JLCPCB substrates** (from `jitxlib.jlcpcb`):
+  **If user confirms JLCPCB**, predefined substrates from `jitxlib.jlcpcb` are available:
   | Class | Layers | Prepreg | Routing Structures | Import |
   |-------|--------|---------|-------------------|--------|
   | `JLC04161H_1080` | 4 | 1080 | RS_50, DRS_90, DRS_100 | `from jitxlib.jlcpcb import JLC04161H_1080` |
   | `JLC04161H_7628` | 4 | 7628 | RS_50, DRS_90, DRS_100 | `from jitxlib.jlcpcb import JLC04161H_7628` |
   | `JLC06161H_7628` | 6 | 7628 | RS_50, DRS_100 | `from jitxlib.jlcpcb import JLC06161H_7628` |
 
-  These include stackup, fabrication constraints, vias (11 via definitions including tented/filled for via-in-pad), and impedance-matched routing structures. **Use them directly** — do not recreate from scratch:
+  These include stackup, fabrication constraints, vias (11 via definitions including tented/filled for via-in-pad), and impedance-matched routing structures:
   ```python
   from jitxlib.jlcpcb import JLC04161H_1080
   substrate = JLC04161H_1080()
   ```
 
-  **When to use predefined:** The fab house is JLCPCB and a 4-layer or 6-layer FR-4 stackup with standard impedance targets (50/90/100 ohm) is sufficient. This covers most designs with USB, Ethernet, I2C, SPI, I2S.
-
-  **When to create custom:** Non-JLCPCB fab house, unusual layer count, non-FR-4 materials (Rogers, Megtron), non-standard impedance targets, or additional routing structures beyond what the predefined substrate provides. In this case, invoke `jitx-substrate-modeler` and define:
+  **When to create custom (default path):** User has not confirmed JLCPCB, non-FR-4 materials (Rogers, Megtron), unusual layer count, non-standard impedance targets, or additional routing structures needed. In this case, invoke `jitx-substrate-modeler` and define:
   - Layer count and material class (FR-4, low-loss, RF)
   - Routing structures (single-ended and differential) for each impedance class
   - Via types needed (through-hole, microvia, blind, buried, backdrilled)
   - Fabrication constraints
+
+  **Note:** Substrate choice is not always independent of component selection. A high-pin-count BGA will require a substrate with enough layers and microvia capability that a simple 4-layer FR-4 cannot provide. Consider component package complexity when assessing substrate needs.
 
 ### Interfaces (each becomes a circuit task in Phase 2)
 - Memory interfaces (DDR5, LPDDR, SRAM bus)
@@ -68,7 +68,7 @@ Components (all independent of each other) ────┤
          Build + Verify
 ```
 
-Key insight: **substrate and all components have zero mutual dependencies** and can run fully in parallel. This is where the biggest parallelism win comes from.
+Key insight: **substrate and most components are independent** and can run in parallel. This is where the biggest parallelism win comes from. However, note that this independence is not absolute — a high-pin-count BGA may require a substrate with enough layers and microvia capability, and power supply complexity can be driven by the aggregate requirements of individual components. The orchestrator should identify these coupling points during Phase 0 and document them in ARCHITECTURE.md.
 
 ## Step 3: Assign to Phases
 
@@ -88,8 +88,8 @@ All of these are independent and spawn as parallel sub-agents.
 ### Phase 2: Constraints + Circuits + Pin Assignment (partially parallel)
 Group into independent clusters that can run in parallel:
 - Cluster A: Pin assignment wrappers (depend on central IC component — other clusters may need these)
-- Cluster B: Power circuits (depend on power components only)
-- Cluster C: Interface circuits + constraints (depend on central IC, connectors, substrate, and possibly Cluster A)
+- Cluster B: Power circuits (depend on power components only). For complex power trees (3+ regulators, mixed switching/linear, sequencing requirements), this cluster may need iterative design: regulator type selection (buck, boost, LDO, hybrid) depends on efficiency targets, noise budgets, and thermal constraints. Document the power plan in ARCHITECTURE.md including load current per rail, noise/ripple requirements, transient load handling, and sequencing order.
+- Cluster C: Interface circuits + constraints (depend on central IC, connectors, substrate, and possibly Cluster A). Include clock distribution planning here — protocols like PCIe require shared reference clocks with jitter budgets.
 
 Within each cluster, tasks may need to be sequential (e.g., constraints before circuits that use them). Between clusters, tasks can run in parallel.
 
@@ -98,8 +98,9 @@ Within each cluster, tasks may need to be sequential (e.g., constraints before c
 - Connect power and ground nets with `GroundSymbol` / `PowerSymbol` (these go HERE, not in subcircuits)
 - Wire interfaces via require() from provides
 - Apply ALL SI constraints here within `ReferencePlanes(GND)` (constraints go HERE, not in subcircuits — subcircuits only create `>>` topologies)
-- Add ground pours on ground plane layers
-- Define board geometry (shape, mounting holes)
+- Add ground pours on ground plane layers. For designs with multiple power domains, plan power planes and split planes as needed (e.g., analog/digital ground partitioning on mixed-signal boards)
+- Define board geometry (shape, mounting holes). If mechanical constraints exist (DXF board outline, EMN placement data, keepout zones, height restrictions), incorporate them here. A dedicated mechanical interface skill may be used for importing DXF/EMN data.
+- Verify power sequencing requirements are met by the physical power tree
 
 ### Phase 4: Build + Verify + Iterate (single agent, sequential)
 - Full build
@@ -259,7 +260,7 @@ Phase 4: Build + verify + iterate
 
 ## De-Risk / Bundle Strategy
 
-Adapted from the godogen decomposition pattern:
+Strategy for managing risk and reducing task overhead:
 
 **De-risk first**: Identify the technically hardest piece of the design and tackle it early. In hardware, this is usually:
 - The highest-speed interface (DDR5, 25G+ SerDes)

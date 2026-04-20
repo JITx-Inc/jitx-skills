@@ -53,7 +53,7 @@ pending → in-progress → review → accepted
 
 4. **Plan the power tree**: trace power from input through regulators to every load. Note voltage, current, and sequencing requirements.
 
-5. **Assess substrate needs**: based on interface speeds and routing density, determine layer count, material class, and via technology. **Check predefined substrates first**: if fab house is JLCPCB and design needs standard 4-layer or 6-layer FR-4 with 50/90/100 ohm impedance, use a predefined substrate from `jitxlib.jlcpcb` (JLC04161H_1080, JLC04161H_7628, JLC06161H_7628) — no substrate modeling task needed. Only create a custom substrate for non-JLCPCB, non-FR-4, or non-standard impedance requirements.
+5. **Assess substrate needs**: based on interface speeds, routing density, and component package complexity (e.g., high-pin-count BGAs require more layers), determine layer count, material class, and via technology. **Ask the user which fab house they are targeting.** If they confirm JLCPCB and need standard 4-layer or 6-layer FR-4 with 50/90/100 ohm impedance, predefined substrates from `jitxlib.jlcpcb` (JLC04161H_1080, JLC04161H_7628, JLC06161H_7628) are available — no substrate modeling task needed. Otherwise, create a custom substrate (the default path).
 
 6. **Data source audit**: for every component, identify where its data will come from. Present a table to the user for approval **before proceeding**. See the Data Source Audit section below.
 
@@ -61,7 +61,7 @@ pending → in-progress → review → accepted
 
 8. **Write PLAN.md**: use `references/plan-template.md` as the starting point. Fill in every task with specific details. Include the approved data sources.
 
-9. **Write ARCHITECTURE.md**: summarize module hierarchy, power tree, and interface map. This gives sub-agents the big picture.
+9. **Write ARCHITECTURE.md**: use `references/architecture-template.md` as the starting point. Include module hierarchy, power tree (with noise/ripple requirements and sequencing), interface map (with clock distribution), voltage domains, and mechanical constraints. This gives sub-agents the big picture.
 
 ### Data Source Audit
 
@@ -85,16 +85,17 @@ Before decomposing into tasks, present the user with a data source plan for each
 - "Datasheet from manufacturer" — will download from manufacturer site (ti.com, st.com, etc.)
 - "JITX [generator] generator" — standard package, dimensions from datasheet
 - "User to provide .kicad_mod" — non-standard package, user has KiCad footprint
-- "LCSC lookup" — non-standard package, will use parts2jitx if installed (fallback)
+- "LCSC lookup" — non-standard package, user approved LCSC/EasyEDA as data source
 
 Please confirm data sources or provide alternatives (datasheets, footprints, specs).
+**Note:** LCSC/EasyEDA data requires explicit approval. Some users (especially commercial) may not want EasyEDA-sourced data in their project.
 ```
 
 **Rules:**
 - Always prefer user-provided data over automated lookups
 - Standard packages (QFN, SOIC, SON, SOT, QFP, BGA) use JITX generators — no footprint download needed
 - For non-standard packages, ask the user if they have a `.kicad_mod` before suggesting LCSC
-- LCSC/EasyEDA is a fallback, not the default — only suggest it when the user has no data and `parts2jitx` is available
+- LCSC/EasyEDA requires explicit user approval — do not assume it is acceptable. Ask.
 - Do NOT proceed past the data audit until the user approves the data source plan
 
 ### Exit Gate

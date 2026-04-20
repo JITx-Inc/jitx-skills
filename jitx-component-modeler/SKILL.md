@@ -156,12 +156,13 @@ Is it a 2-sided package?
 **Getting a .kicad_mod for non-standard packages** (in priority order):
 1. **User-provided** — ask if they have a `.kicad_mod` from their KiCad library or manufacturer download
 2. **Manufacturer KiCad library** — many vendors (Molex, TE, Amphenol) publish official KiCad footprints
-3. **LCSC/EasyEDA fallback** — install `parts2jitx` if not already available, then use:
+3. **LCSC/EasyEDA fallback (opt-in only)** — only if user explicitly approves this data source. Install `parts2jitx` if not already available, then use:
    ```bash
    pip install parts2jitx
    parts2jitx-lcsc C165948 --footprint -o kicad_footprints/fp.kicad_mod
    parts2jitx-kicad kicad_footprints/fp.kicad_mod --class-name MyPart
    ```
+   Ask the user before using LCSC data — commercial users may not want EasyEDA-sourced data in their project.
 
 ### Step 3: Generate Component Code
 

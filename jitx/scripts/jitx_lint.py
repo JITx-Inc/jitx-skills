@@ -135,7 +135,7 @@ def check_i2c_pullup_in_subcircuit(path: str, lines: list[str]) -> list[LintIssu
     issues = []
     # Skip if this looks like a top-level design (has SampleDesign or Board)
     full_text = '\n'.join(lines)
-    if 'SampleDesign' in full_text or 'class.*Board' in full_text:
+    if 'SampleDesign' in full_text or re.search(r'class\s+\w+.*\bBoard\b', full_text):
         return issues
 
     for i, line in enumerate(lines, 1):
