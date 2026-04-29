@@ -171,6 +171,7 @@ Subcircuits that expose bundles (I2C, ULPI, USB2, etc.) for any signal that will
 - [ ] Provide/require interfaces are consistent across wrapper and consuming circuits
 - [ ] **Interface circuits expose bundle-typed ports** (I2S, I2C, SPI, USB2, GPIO, Power) — not individual signal ports. If a circuit wraps individual-pin components, the bundle wiring happens inside the circuit.
 - [ ] **For any signal that will receive an SI constraint at top level, the subcircuit's bundle wiring uses `>>` (not `+`)** between component pins and bundle sub-ports — see Phase 3 "Topology vs net membership"
+- [ ] **No anonymous `Resistor` / `Capacitor` / `Inductor` `.insert(...)` calls and no bare `+` / `>>` expressions** in the subcircuit — every structural object stored on `self` (see Phase 3 "Silent-drop patterns")
 - [ ] Port names and bundle types match between providers and consumers
 - [ ] Power circuit outputs match the voltage/current needs documented in ARCHITECTURE.md
 
@@ -342,6 +343,56 @@ For every signal that will have an SI constraint applied at the top level:
 
 If a top-level constraint reports "no path" or "incomplete segments", trace each port name in the error backwards through the source — the missing segment is almost always a `+` where there should be a `>>`.
 
+### Silent-drop patterns (CRITICAL)
+
+Two source patterns build with `status: ok` and pass every JITX-side check but produce a **wrong netlist**, because the Python expression evaluates and is then immediately discarded. The design looks correct from the build but isn't.
+
+JITX warns for *some* of these cases (you'll see `WARNING:jitx._structural:Reference to structural object <Class> at <file>:<line> lost during instantiation, it likely needs to be assigned to an object` for unassigned constraint objects and similar structural classes), but **the warning does not cover bare net or topology expressions** (`+` / `>>` between ports), which is exactly where this trap is easiest to fall into. Treat all such warnings as errors, and code review for the two patterns below regardless.
+
+#### Pattern 1: anonymous `Resistor` / `Capacitor` / `Inductor` with `.insert(...)`
+
+```python
+# WRONG — Resistor object is garbage-collected after .insert returns;
+# the design ends up without the resistor.
+Resistor(resistance=10e3).insert(self.MCU.NRST, self.V3V3)
+
+# RIGHT — store on self, then insert
+self.r_nrst = Resistor(resistance=10e3)
+self.r_nrst.insert(self.MCU.NRST, self.V3V3)
+```
+
+The same applies to `Capacitor`, `Inductor`, and any structural component constructor.
+
+#### Pattern 2: bare net or topology expressions
+
+```python
+# WRONG — the Net object is built and discarded; no connection in the netlist.
+self.usb.A6 + self.usb.B6                          # bare `+`
+self.driver.OUT.p >> self.receiver.INP.p           # bare `>>`
+
+# RIGHT — assign to a `self.<name>` attribute (any name is fine — JITX
+# tracks structural objects by their attribute on the parent), or use the
+# `+=` form which adds to the circuit's net list:
+self.dp_mirror = self.usb.A6 + self.usb.B6         # named net
+self += self.driver.OUT.p >> self.receiver.INP.p   # added to circuit
+```
+
+The trap is that the *expression evaluates without error* — Python sees `port_a + port_b` as `Net.__add__`, which returns a `Net` object, which Python then drops because nothing held a reference to it. No exception, no warning at parse time, and JITX has no way to recover the Net once it's been garbage-collected.
+
+### Editor-side coverage
+
+Configure the editor's Python language server to surface unused-expression warnings — this catches Pattern 2 before any build runs. Recommended:
+
+- **Ruff** (works in any editor): enable rule `B018` ("Found useless expression") which flags top-level expressions whose return value is discarded. Add to `pyproject.toml`:
+  ```toml
+  [tool.ruff.lint]
+  extend-select = ["B018"]
+  ```
+- **Pyright / Pylance** (VS Code default): enable `reportUnusedExpression = "warning"` (or `"error"`) in `pyrightconfig.json` or VS Code settings.
+- **Pyflakes**: emits `Statement seems to have no effect` by default — also catches bare `+` / `>>` expressions.
+
+These editor-side checks won't catch Pattern 1 (the `.insert(...)` call has a side effect, so it isn't a "useless expression" from the type checker's view), but they cover Pattern 2 cheaply, and any extra signal during code review is worth turning on.
+
 ### Exit Gate: Phase 3 → Phase 3b
 
 - [ ] Top-level design builds with `status: ok`
@@ -351,6 +402,7 @@ If a top-level constraint reports "no path" or "incomplete segments", trace each
 - [ ] `GroundSymbol` on GND net, `PowerSymbol` on every power rail
 - [ ] SI constraints applied **at this level** (not inside subcircuits) for every protocol with impedance/timing requirements
 - [ ] **No "Invalid Topology Definitions" or "No path for signal constraint" errors in the JITX UI Issues list** — every constraint endpoint reachable via `>>` chains, not `+` (see "Topology vs net membership" above)
+- [ ] **No `Reference to structural object … lost during instantiation` warnings in the build output** — every structural object stored on `self`; no bare `+` / `>>` expressions (see "Silent-drop patterns" above)
 - [ ] `ReferencePlanes(GND)` context wraps all constraint applications
 - [ ] Board geometry defined (shape, mounting holes, pours)
 - [ ] `capacitor_defaults` and `resistor_defaults` set on Design class (`mounting="smd"`, sensible case range) — verify a build does not pick through-hole leaded parts
@@ -365,15 +417,9 @@ Each subcircuit was designed in isolation. Now review the assembled design as a 
 
 ### Audit Structure
 
-Before spawning the audit agent, run the static lint check:
+Spawn a sub-agent to perform the design-level audit. The audit agent reads code and datasheets but **does not edit any files**. It produces a report with issues classified as CRITICAL / WARNING / NOTE.
 
-```bash
-python scripts/jitx_lint.py src/<namespace>/
-```
-
-This catches mechanical mistakes (square cutouts, VBUS pull-ups, missing self. storage, bare net expressions, I2C pull-ups in subcircuits, missing SI constraints, hard-tied dual-function pins). Fix any errors before proceeding.
-
-Then spawn a sub-agent to perform the design-level audit. The audit agent reads code and datasheets but **does not edit any files**. It produces a report with issues classified as CRITICAL / WARNING / NOTE.
+Before the audit runs, the orchestrator must have already addressed the build-time silent-drop patterns documented in Phase 3 → "Silent-drop patterns" — those bugs build with `status: ok` but produce a wrong design, and the audit agent's datasheet-comparison passes assume the netlist matches the source. JITX emits a `Reference to structural object … lost during instantiation` warning for some of these cases (constraint and similar structural classes), but not for bare net or topology expressions — handle both manually.
 
 The audit runs four passes:
 
