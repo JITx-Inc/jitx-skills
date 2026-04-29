@@ -159,6 +159,10 @@ Run independent clusters in parallel. Within a cluster, respect dependencies.
 3. As tasks complete and are accepted, check if new tasks are unblocked.
 4. Continue until all Phase 2 tasks are accepted.
 
+### Topology-friendly bundle wiring
+
+Subcircuits that expose bundles (I2C, ULPI, USB2, etc.) for any signal that will receive an SI constraint at top level **must** wire the bundle sub-ports with `>>`, not `+`. The constraint solver only walks `>>` chains; ports reached only via `+` are invisible to it. This is a common silent failure — the netlist is correct, the build passes, but the JITX UI reports "No path for signal constraint" once constraints are applied. See the Phase 3 "Topology vs net membership" section for the failure modes and patterns.
+
 ### Exit Gate: Phase 2 → Phase 3
 
 - [ ] Every Phase 2 task has status `accepted`
@@ -166,6 +170,7 @@ Run independent clusters in parallel. Within a cluster, respect dependencies.
 - [ ] Constraint classes instantiate without error
 - [ ] Provide/require interfaces are consistent across wrapper and consuming circuits
 - [ ] **Interface circuits expose bundle-typed ports** (I2S, I2C, SPI, USB2, GPIO, Power) — not individual signal ports. If a circuit wraps individual-pin components, the bundle wiring happens inside the circuit.
+- [ ] **For any signal that will receive an SI constraint at top level, the subcircuit's bundle wiring uses `>>` (not `+`)** between component pins and bundle sub-ports — see Phase 3 "Topology vs net membership"
 - [ ] Port names and bundle types match between providers and consumers
 - [ ] Power circuit outputs match the voltage/current needs documented in ARCHITECTURE.md
 
@@ -206,9 +211,136 @@ The orchestrator (or a single sub-agent) assembles the top-level design.
            .structure(substrate.DRS_90) \
            .timing_difference(0.1e-12)
    ```
-   Every protocol with impedance or timing requirements needs constraints here.
+   Every protocol with impedance or timing requirements needs constraints here. **Read "Topology vs net membership" below before designing the chains.**
 8. Define board shape, mounting holes, and any keepout zones.
-9. Build and verify `status: ok`.
+9. **Set passive query defaults on the Design class** so auto-selected resistors and capacitors land on assemblable parts (see "Passive query defaults" below). The default `jitxlib.parts` search returns through-hole electrolytics first, which is wrong for almost every modern design.
+10. Build and verify `status: ok`.
+
+### Passive query defaults
+
+**STRONGLY RECOMMENDED — the top-level Design class should set `capacitor_defaults` and `resistor_defaults` to SMD-only and a sensible case range.** Without this, every passive auto-selected by `Capacitor(capacitance=...)` or `Resistor(resistance=...)` hits the unfiltered jitxlib search, which currently returns through-hole leaded parts (Panasonic ECM-G / ECA radial electrolytics, etc.) ahead of SMD ceramics.
+
+```python
+from jitxlib.parts import CapacitorQuery, ResistorQuery
+
+class Design(...):
+    substrate = ...
+    board = ...
+
+    # SMD-only, JLCPCB-economy-friendly case range. Override per-circuit with
+    # `with CapacitorQuery.refine(case="0805"): ...` if a specific block needs
+    # different sizes (e.g., bulk caps, RF parts, thermal-limited regulators).
+    capacitor_defaults = CapacitorQuery(
+        mounting="smd",
+        type="ceramic",
+        case=["0402", "0603", "0805"],
+    )
+    resistor_defaults = ResistorQuery(
+        mounting="smd",
+        case=["0402", "0603", "0805"],
+    )
+
+    circuit = TopCircuit()
+```
+
+**Why these defaults:**
+- `mounting="smd"` — through-hole picks are wrong for every JLCPCB SMT design and almost every commercial design. This is the single most important filter.
+- `type="ceramic"` (capacitors) — covers the typical decoupling / filtering case. Override locally for circuits that genuinely need polymer or tantalum (large bulk caps, low-ESR rails).
+- `case=["0402", "0603", "0805"]` — 0402 is the smallest size assemblable by JLCPCB economy SMT and reasonable for hand-rework; 1206+ wastes board area for typical decoupling. Drop to `["0603", "0805"]` for hand-soldered prototypes.
+
+**How to override.** These are *defaults* — circuit-level `Capacitor(...)` or `Resistor(...)` calls take query refinements via `CapacitorQuery.refine(...)` context managers, and explicit `query=...` arguments override the design-level defaults entirely. If a circuit needs a 22 µF tantalum bulk cap on a power rail, scope a refinement around just that capacitor:
+
+```python
+with CapacitorQuery.refine(type="tantalum", case="1210"):
+    self.c_bulk = Capacitor(capacitance=22e-6, rated_voltage=10.0)
+```
+
+### Topology vs net membership (CRITICAL)
+
+**`+` and `>>` are not interchangeable.** Both connect ports, but only `>>` creates a topology segment that the SI constraint solver can walk. Ports reached only via `+` are on the same *net* but invisible to `Constrain` / `ConstrainDiffPair` / `ConstrainReferenceDifference`.
+
+When you call `Topology(src_endpoint, dst_endpoint)` and then `ConstrainDiffPair(topo)`, the engine searches for a chain of `>>` segments connecting the endpoints. If any physical port on the signal path is reached only by `+`, the search fails with one of:
+
+- "Incomplete topology segments between X and Y"
+- "No path for signal constraint from X to Y"
+
+#### Common failure mode 1: virtual DiffPair endpoints aliased via `+`
+
+A natural pattern is to declare a virtual `DiffPair` port at a circuit boundary so the top level can apply `ConstrainDiffPair`. The trap is wiring the alias with `+`:
+
+```python
+# WRONG — connector pads invisible to constraint solver
+class USBFrontend(Circuit):
+    usb_at_connector = DiffPair()                        # virtual endpoint
+
+    def __init__(self):
+        # `+` only — connector.A6 is on the net but not in any `>>` chain
+        self.dp_alias = self.usb_at_connector.p + self.connector.A6
+        self.dn_alias = self.usb_at_connector.n + self.connector.A7
+        # Topology jumps straight from virtual port to ESD, skipping the connector pad
+        self += self.usb_at_connector.p >> self.esd.usb.p >> self.phy.usb_data.p
+        self += self.usb_at_connector.n >> self.esd.usb.n >> self.phy.usb_data.n
+```
+
+Result at top level: `Topology(usb.usb_at_connector, usb.phy.usb_data)` cannot find a path through `connector.A6` even though the net is correct. The router fails with "Incomplete topology segments".
+
+```python
+# RIGHT — chain through every physical port
+self += (
+    self.usb_at_connector.p
+    >> self.connector.A6
+    >> self.esd.usb.p
+    >> self.phy.usb_data.p
+)
+self += (
+    self.usb_at_connector.n
+    >> self.connector.A7
+    >> self.esd.usb.n
+    >> self.phy.usb_data.n
+)
+```
+
+#### Common failure mode 2: bundle wiring with `+` instead of `>>`
+
+A subcircuit that exposes a bundle (I2C, ULPI, SPI, etc.) and wires the bundle sub-ports to component pins with `+` produces a constraint-invisible signal path:
+
+```python
+# WRONG — `+` only, no topology segments through the bundle
+class USBFrontend(Circuit):
+    ulpi = ULPI()
+    def __init__(self):
+        self.clk_net = self.ulpi.clk + self.phy.CLKOUT       # net merge only
+        # ... 11 more `+` joins
+class MCUWrapper(Circuit):
+    ulpi = ULPI()
+    def __init__(self):
+        self.ulpi.clk + self.mcu.PA[5]                        # net merge only
+```
+
+Result: `Topology(usb.phy.CLKOUT, mcu.mcu.PA[5])` reports "No path for signal constraint" even though the netlist is fully connected.
+
+```python
+# RIGHT — `>>` from physical pin through bundle sub-port
+# In USBFrontend (PHY-side):
+self += self.phy.CLKOUT >> self.ulpi.clk
+self += self.ulpi.stp   >> self.phy.STP        # MCU drives STP, hence reverse direction
+
+# In MCUWrapper (MCU-side):
+self += self.ulpi.clk   >> self.mcu.PA[5]
+self += self.mcu.PC[0]  >> self.ulpi.stp
+```
+
+The two `>>` segments per signal stitch together when the top level merges the bundle sub-ports with `+` (`self.usb.ulpi.clk + self.mcu.ulpi.clk`). The engine walks `phy.CLKOUT >> ulpi.clk(usb) — joined to — ulpi.clk(mcu) >> mcu.PA[5]` end-to-end.
+
+#### Quick checklist
+
+For every signal that will have an SI constraint applied at the top level:
+- [ ] Both Topology endpoints exist as actual ports (real component pins or virtual DiffPair / bundle ports declared on circuits)
+- [ ] Every physical port between the endpoints is on a `>>` chain — not just on the same net via `+`
+- [ ] Bundle sub-ports are `>>`-chained to the component pins they alias, in **both** subcircuits that touch the bundle
+- [ ] Direction of `>>` follows signal flow at each end (driver → receiver). Bidirectional buses pick one direction by convention.
+
+If a top-level constraint reports "no path" or "incomplete segments", trace each port name in the error backwards through the source — the missing segment is almost always a `+` where there should be a `>>`.
 
 ### Exit Gate: Phase 3 → Phase 3b
 
@@ -218,8 +350,10 @@ The orchestrator (or a single sub-agent) assembles the top-level design.
 - [ ] All require() calls have matching provides
 - [ ] `GroundSymbol` on GND net, `PowerSymbol` on every power rail
 - [ ] SI constraints applied **at this level** (not inside subcircuits) for every protocol with impedance/timing requirements
+- [ ] **No "Invalid Topology Definitions" or "No path for signal constraint" errors in the JITX UI Issues list** — every constraint endpoint reachable via `>>` chains, not `+` (see "Topology vs net membership" above)
 - [ ] `ReferencePlanes(GND)` context wraps all constraint applications
 - [ ] Board geometry defined (shape, mounting holes, pours)
+- [ ] `capacitor_defaults` and `resistor_defaults` set on Design class (`mounting="smd"`, sensible case range) — verify a build does not pick through-hole leaded parts
 
 ---
 
