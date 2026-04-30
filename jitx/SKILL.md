@@ -1,6 +1,6 @@
 ---
 name: jitx
-description: This skill should be used when the user asks to "build my JITX design", "set up JITX environment", "create a circuit", or works with JITX Python projects for PCB design, circuit creation, and build commands. CRITICAL - If user asks to create/model/generate a component or mentions a part number (NE555, LM1117, RP2040, etc.), immediately invoke jitx-component-modeler subskill. If user asks to create a substrate, stackup, via definitions, or routing structures, invoke jitx-substrate-modeler subskill.
+description: Base skill for JITX hardware design workflow. Use for JITX Python projects, PCB design, circuit creation, and build commands. Use when the user asks to "build my JITX design", "set up JITX environment", "create a circuit", "build a complete board", "design a PCB from requirements", or "create a full JITX project". For multi-component designs (3+ components, substrate, circuits), invoke the Project Builder workflow for orchestrated parallel agent execution with quality gates. CRITICAL - If user asks to create/model/generate a component or mentions a part number (NE555, LM1117, RP2040, etc.), immediately invoke jitx-component-modeler subskill. If user asks to create a substrate, stackup, via definitions, or routing structures, invoke jitx-substrate-modeler subskill.
 ---
 
 # JITX Workflow Skill
@@ -18,24 +18,21 @@ if [ ! -f pyproject.toml ] || ! grep -q "jitx" pyproject.toml; then
   exit 1
 fi
 
-# Create venv if missing
+# Create venv if missing, install deps
 if [ ! -d .venv ]; then
-  echo "Creating virtual environment..."
   python3 -m venv .venv
+  source .venv/bin/activate
+  pip install -e . --quiet 2>&1 | tail -1
+  pip install ruff --quiet 2>&1 | tail -1
+else
+  source .venv/bin/activate
 fi
 
-# Activate venv and install deps
-source .venv/bin/activate
-pip install -e . --quiet
-
-# Install ruff for code formatting
-pip install ruff --quiet
-
-# Verify
-python -c "import jitx; print(f'JITX ready: {jitx.__version__}')"
+# Verify (don't check __version__ — not present in all JITX versions)
+python -c "import jitx; print('JITX ready')"
 ```
 
-Run this automatically when starting JITX work. Don't ask user to do manual setup.
+Only install deps on first run (venv creation). Skip `pip install` on subsequent runs — it's slow and noisy. Don't ask user to do manual setup.
 
 ## Python Linting Setup (Recommended)
 
@@ -90,6 +87,15 @@ project/
 └── .venv/                  # Virtual environment
 ```
 
+## First: Decide the Workflow
+
+After environment setup, decide which workflow to use:
+
+- **Building a complete board** (multiple components, circuits, substrate) → Use the **Project Builder Workflow** below. Start with Phase 0: create PLAN.md and ARCHITECTURE.md before writing any code.
+- **Single task** (one component, one circuit, one substrate) → Invoke the appropriate subskill directly.
+
+Do NOT skip the planning phase for complete board designs. Do not start exploring libraries or writing code until PLAN.md exists.
+
 ## Core Concepts
 
 **Circuit**: Python class inheriting from `jitx.Circuit`. Contains components and connections.
@@ -99,6 +105,97 @@ project/
 **Design**: Python class inheriting from design base (e.g., `SampleDesign`). Top-level entry point.
 
 For net wiring, passives, and circuit patterns, invoke the `jitx-circuit-builder` subskill.
+
+## Project Builder Workflow
+
+For building complete JITX designs from requirements — multiple components, substrate, circuits, and constraints assembled into a working board. Use this when the design involves 3+ components with a substrate and interconnected circuits.
+
+### Phases
+
+| Phase | What | Parallelism |
+|-------|------|-------------|
+| 0 | Requirements analysis, decompose into tasks, create PLAN.md | Orchestrator only |
+| 1 | Model substrate + all components | Fully parallel sub-agents |
+| 2 | SI constraints, pin assignment, circuit wiring | Clustered parallel |
+| 3 | Top-level assembly (instantiate, connect, constrain) | Single agent |
+| 3b | **Design-level analysis + loopback** (voltage domains, bus contention, missing components, SI) | Orchestrator — loops back to fix upstream |
+| 4 | Build, verify DRC + SI, iterate on failures | Single agent |
+
+For full phase details and gate criteria: read `references/project-builder-flow.md`
+For how to decompose requirements into tasks: read `references/decomposition-guide.md`
+For PLAN.md format: read `references/plan-template.md`
+For ARCHITECTURE.md format: read `references/architecture-template.md`
+
+### Parallel Build Safety
+
+JITX uses a single WebSocket backend — concurrent builds collide. When running parallel sub-agents, use the build lock wrapper:
+
+```bash
+python runner/build_lock.py <module.path.DesignClass>
+```
+
+Copy `scripts/build_lock.py` from this skill into the project's `runner/` directory. Sub-agents call this instead of `jitx build` directly. The lock serializes builds via `fcntl.flock`; parallel agents wait their turn.
+
+### Two-Tier Quality System
+
+Sub-agent work goes through TWO quality checks before being accepted:
+
+**1. Sub-Agent Self-Validation ("Think Twice")**
+
+After initial implementation, sub-agents MUST stop and run the domain-specific checklist against the datasheet before returning. This forced second pass typically catches 3-5 missed details (floating enable pins, missing thermal pads, wrong output types, forgotten decoupling). Sub-agents return a self-evaluation report documenting what they checked and fixed.
+
+**2. Orchestrator Acceptance Review**
+
+The orchestrator does NOT blindly trust self-evaluation. For each returned task:
+- Read the generated code for obvious issues
+- Spot-check high-risk checklist items independently
+- Verify interface compatibility with downstream tasks
+- Issue verdict: **accept** / **rework** (send back with specific issues) / **reject** (replan)
+
+Phase gates only open when ALL tasks in the phase are `accepted` by the orchestrator.
+
+For the full protocol: read `references/task-execution.md`
+For domain checklists: read `references/domain-checklists.md`
+
+### Exit Gates
+
+| Gate | Key Criteria |
+|------|-------------|
+| 0 → 1 | PLAN.md created with all tasks, data source audit approved, user approved plan |
+| 1 → 2 | All components + substrate build individually, acceptance reviews passed |
+| 2 → 3 | All circuits build, constraint classes valid, provide/require interfaces consistent |
+| 3 → 3b | Top-level assembles, all nets connected, power tree complete |
+| 3b → 4 | **Design-level analysis passed**: voltage domains correct, no bus contention, no missing components, SI constraints functional. All blocking issues fixed via loopback. |
+
+Do NOT proceed past a gate if any task has unresolved failures. Fix upstream before moving downstream.
+
+### Parts Data and Footprint Conversion
+
+Claude selects parts based on engineering requirements first. Data for each component comes from the **user-approved data source plan** (see Phase 0 data audit).
+
+**Data sources (in priority order):**
+1. **User-provided** — datasheets, KiCad footprints, or specs the user supplies directly
+2. **JITX generators** — standard packages (QFN, SOIC, BGA, SOT, SON, QFP) with dimensions from datasheets
+3. **LCSC/EasyEDA** (opt-in only — ask user before using) — if user explicitly approves, install `parts2jitx` into the project venv:
+   ```bash
+   pip install parts2jitx
+   ```
+   Then use:
+   - **`parts2jitx-lcsc <LCSC_ID>`** — stock, pricing, datasheet URL, KiCad footprint download
+   - **`parts2jitx-kicad <file.kicad_mod>`** — deterministic KiCad-to-JITX footprint conversion
+   
+   Do not use LCSC/EasyEDA data without user approval. Commercial users may have licensing concerns.
+
+For non-standard packages (connectors, RF modules): convert from a `.kicad_mod` file (user-provided or downloaded). **NEVER hand-craft pad positions** — use the converter. Standard packages use built-in JITX generators. All symbols use `BoxSymbol`.
+
+For details: read `references/parts-sourcing.md`
+
+### Shared State Documents
+
+The orchestrator creates and maintains these in the project root:
+
+- **PLAN.md** — Task registry with status, dependencies, and acceptance verdicts. Single source of truth. Enables session resumption.
+- **ARCHITECTURE.md** — Power tree, interface map, module hierarchy. Gives sub-agents the big picture.
 
 ## Subskills
 
@@ -141,13 +238,18 @@ For provide/require pin assignment patterns, use `jitx-pin-assignment` instead.
 
 ### Substrate Modeler (`jitx-substrate-modeler`)
 
-**Invoke this subskill** when user asks to:
-- Create a substrate or define a stackup
-- Add via definitions (laser, mechanical, backdrilled, blind, buried)
-- Set up routing structures or impedance control
-- Define differential pair routing
-- Set fabrication rules or constraints
-- Model a PCB layer structure
+**Ask the user which fab house they are targeting.** If they confirm JLCPCB, predefined substrates from `jitxlib.jlcpcb` are available:
+- `JLC04161H_1080` — 4-layer, 1080 prepreg, RS_50/DRS_90/DRS_100
+- `JLC04161H_7628` — 4-layer, 7628 prepreg, RS_50/DRS_90/DRS_100
+- `JLC06161H_7628` — 6-layer, 7628 prepreg, RS_50/DRS_100
+
+Import: `from jitxlib.jlcpcb import JLC04161H_1080`. These include stackup, fab rules, 11 via definitions, and routing structures.
+
+**Invoke this subskill** to create a custom substrate (the default path unless user opts into a predefined one):
+- User has not confirmed JLCPCB as fab house
+- Non-FR-4 materials (Rogers, Megtron)
+- Non-standard layer count or impedance targets
+- Additional routing structures beyond predefined
 
 **How to invoke:** Use the Skill tool with `skill: "jitx-skills:jitx-substrate-modeler"`
 

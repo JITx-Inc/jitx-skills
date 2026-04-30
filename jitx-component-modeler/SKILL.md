@@ -1,11 +1,11 @@
 ---
 name: jitx-component-modeler
-description: This skill should be used when the user asks to "create a component", "model a part", "generate a component", "add a component", or "make a JITX component" - even without a datasheet. Also triggers on part numbers (NE555, LM1117, RP2040, etc.) and package types (SOIC, QFN, BGA, SON, SOT). Supports multi-unit symbols, thermal pads, and complex pin mappings.
+description: Create JITX Python component code from datasheets, KiCad footprints, or user specifications. ALWAYS use this skill when user asks to "create a component", "model a part", "generate a component", "add a component", or "make a JITX component" - even without a datasheet. Also triggers on part numbers (NE555, LM1117, RP2040, etc.) and package types (SOIC, QFN, BGA, SON, SOT). Supports user-provided data, JITX generators for standard packages, and optional LCSC/EasyEDA fallback for non-standard footprints. Supports multi-unit symbols, thermal pads, and complex pin mappings.
 ---
 
 # JITX Component Generation Skill
 
-Generate JITX Python component code from datasheets and specifications.
+Generate JITX Python component code from datasheets, user-provided KiCad footprints, or specifications. Data can come from multiple sources — always prefer user-provided data over automated lookups.
 
 ## Environment
 
@@ -147,8 +147,22 @@ Is it a 2-sided package?
     ├── 4-sided gull-wing leads → QFP
     ├── 4-sided flat/no-lead → QFN
     ├── Bottom ball array → BGA
-    └── Custom/unusual → Manual Landpattern
+    └── Custom/unusual (connectors, RF modules, irregular pads)
+        → Convert from a KiCad footprint (.kicad_mod):
+          parts2jitx-kicad fp.kicad_mod --class-name MyPart
+          NEVER hand-craft pad positions for non-standard packages.
 ```
+
+**Getting a .kicad_mod for non-standard packages** (in priority order):
+1. **User-provided** — ask if they have a `.kicad_mod` from their KiCad library or manufacturer download
+2. **Manufacturer KiCad library** — many vendors (Molex, TE, Amphenol) publish official KiCad footprints
+3. **LCSC/EasyEDA fallback (opt-in only)** — only if user explicitly approves this data source. Install `parts2jitx` if not already available, then use:
+   ```bash
+   pip install parts2jitx
+   parts2jitx-lcsc C165948 --footprint -o kicad_footprints/fp.kicad_mod
+   parts2jitx-kicad kicad_footprints/fp.kicad_mod --class-name MyPart
+   ```
+   Ask the user before using LCSC data — commercial users may not want EasyEDA-sourced data in their project.
 
 ### Step 3: Generate Component Code
 
@@ -243,7 +257,7 @@ port arrays, inactive positions, and non-uniform BGA grids, see
 | e | Lead pitch | `LeadProfile.pitch` |
 | b | Lead width | `SMDLead.width` / `QFNLead.width` |
 | L | Lead length | `SMDLead.length` / `QFNLead.length` |
-| D2 / E2 | Thermal pad size | `.thermal_pad(rectangle(D2, E2))` |
+| D2 / E2 | Thermal pad size | `.thermal_pad(rectangle(E2, D2))` — **E2 is width (X), D2 is height (Y)**. D=along pins, E=across. Do NOT write rectangle(D2, E2). |
 
 ## Common Patterns
 
@@ -466,7 +480,9 @@ After generating code, provide:
 - [List any discrepancies or assumptions made]
 ```
 
-## Step 5: Capture Application Circuit (Optional)
+## Step 5: Capture Application Circuit
+
+**In the project builder workflow, this step is MANDATORY — not optional.** The application circuit from the datasheet is the foundation for the circuit task. Always capture it.
 
 After generating component code, check the datasheet for "Typical Application", "Reference Design", or "Application Circuit" sections. These provide valuable circuit templates.
 
