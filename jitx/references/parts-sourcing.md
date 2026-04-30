@@ -30,9 +30,11 @@ For standard packages, use JITX landpattern generators — no external data need
 
 Dimensions come from the datasheet (user-provided or fetched). No footprint download needed.
 
-### 3. LCSC/EasyEDA Lookup (optional fallback)
+### 3. LCSC/EasyEDA Lookup (opt-in only — requires user approval)
 
-For non-standard packages (connectors, RF modules, unusual mechanical) where the user doesn't have a footprint, the `parts2jitx` pip package provides automated lookup:
+> **Licensing note:** EasyEDA component data may have its own terms of use. The `parts2jitx` tool and the LCSC/EasyEDA data flow should be treated as a separate, optional integration. **Do not use this data source without explicit user approval.** Ask the user before suggesting LCSC lookup — some users (especially commercial) will not want EasyEDA-sourced data in their project.
+
+For non-standard packages (connectors, RF modules, unusual mechanical) where the user doesn't have a footprint and has approved LCSC/EasyEDA as a data source, the `parts2jitx` pip package provides automated lookup:
 
 ```bash
 pip install parts2jitx
@@ -55,15 +57,16 @@ parts2jitx-kicad kicad_footprints/usb_c.kicad_mod --class-name USB_C_16P \
     --manufacturer "Korean Hroparts Elec" --mpn "TYPE-C-31-M-12"
 ```
 
-**When to suggest LCSC lookup:**
-- User needs a non-standard footprint and doesn't have one
+**When to suggest LCSC lookup (only after user approval):**
+- User needs a non-standard footprint, doesn't have one, and approves LCSC as a source
 - User wants to verify stock/pricing for a JLCPCB order
 - User provides an LCSC part number (C-prefix)
 
 **When NOT to use:**
 - User has their own footprint data
 - Standard package with JITX generators available
-- User doesn't want LCSC/JLCPCB sourcing
+- User has not explicitly approved LCSC/EasyEDA sourcing
+- Commercial projects where data provenance matters
 
 ### Converting User-Provided KiCad Footprints
 
@@ -100,7 +103,7 @@ Dimensions from the datasheet mechanical drawing. No external footprint needed.
 Source the `.kicad_mod` from one of:
 - User's existing KiCad library
 - Manufacturer's KiCad library download
-- LCSC/EasyEDA (via `parts2jitx-lcsc --footprint`, if `parts2jitx` installed)
+- LCSC/EasyEDA (via `parts2jitx-lcsc --footprint`, only if user has approved this data source)
 
 Then convert: `parts2jitx-kicad <file.kicad_mod> --class-name MyPart`
 

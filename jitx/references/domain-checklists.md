@@ -61,6 +61,7 @@ Run the base Component checklist above FIRST, then verify these:
 - [ ] External clock input pins present (if supported)
 - [ ] PLL reference clock pins present (for FPGAs with transceivers)
 - [ ] RTC crystal pins (LSE_IN, LSE_OUT) if RTC is supported
+- [ ] Clock distribution requirements identified — protocols like PCIe require shared reference clocks (REFCLK) to all endpoints on the same clock domain. Plan clock tree topology (point-to-point, fanout buffer, clock generator) during decomposition.
 
 ### Programming and Debug
 - [ ] JTAG pins present: TCK, TMS, TDI, TDO (and optionally nTRST)
@@ -97,6 +98,8 @@ Run the base Component checklist above FIRST, then verify these:
 - [ ] Output voltage matches the load requirement
 - [ ] Output current rating sufficient with margin (>20% headroom recommended)
 - [ ] Efficiency acceptable at expected load (check datasheet curves)
+- [ ] Output noise/ripple within load IC requirements (especially for analog, RF, PLL supplies)
+- [ ] Transient load response adequate for the load profile (check datasheet load transient plots)
 
 ### Enable Pin — CRITICAL (commonly missed)
 - [ ] Enable pin is NOT left floating
@@ -115,10 +118,23 @@ Run the base Component checklist above FIRST, then verify these:
 ### Soft-Start and Sequencing
 - [ ] Soft-start capacitor included if pin is available (prevents inrush)
 - [ ] Power sequencing requirements documented if multiple rails
+- [ ] Sequencing order correct: core supplies before IO supplies, analog before digital where required
+- [ ] Sequencing implementation identified: PGOOD chaining, enable sequencing, or dedicated sequencer IC
+
+### Switching Regulator Specifics (skip for LDOs)
+- [ ] Inductor selected: saturation current > peak current, DCR acceptable for efficiency, core material appropriate for frequency
+- [ ] Bootstrap capacitor present if required (buck converters with high-side FET)
+- [ ] Compensation network matches datasheet recommendation (Type II/III, values from datasheet or calculator)
+- [ ] Input capacitance meets datasheet minimum (low-ESR ceramic + bulk), voltage rating exceeds max input
+- [ ] Output capacitance meets datasheet minimum for stability AND transient response
+- [ ] Boost capacitor present if required (e.g., charge pump pin on some converters)
+- [ ] Frequency-setting resistor correct if oscillator frequency is configurable
+- [ ] Current sense resistor value correct (if external current sensing)
+- [ ] Layout-sensitive components identified (input cap, bootstrap cap, inductor — must be close to IC)
 
 ### Output Stage
 - [ ] Output capacitance meets datasheet minimum
-- [ ] Output capacitor ESR within stability range (check datasheet)
+- [ ] Output capacitor ESR within stability range (check datasheet — some LDOs require minimum ESR)
 - [ ] Output decoupling: at minimum 100nF ceramic + bulk cap per datasheet
 
 ### Input Stage
@@ -159,6 +175,7 @@ Run the base Component checklist above FIRST, then verify these:
 - [ ] Voltage domains of connected ICs compared — level shifter needed if they differ
 - [ ] Level shifter direction correct (unidirectional vs bidirectional)
 - [ ] Level shifter OE pin handled (not floating)
+- [ ] Open-collector/open-drain outputs: pull-up voltage compatible with the receiving IC's input voltage range (e.g., a 5V-tolerant OC output pulled up to 5V must not drive a 3.3V-only input)
 
 ### Control Signal Handling
 - [ ] I2C lines: open-drain with pull-ups to VDDIO (value per bus speed: 4.7k for 100kHz, 2.2k for 400kHz)
@@ -185,9 +202,11 @@ Apply the relevant protocol check:
 
 **Ethernet (RGMII/SGMII)**: TX/RX clock routing, 50 ohm / 100 ohm impedance, magnetics/transformer, MDI termination
 
-**DDR**: per-byte-lane DQ-to-DQS matching, CK differential, command/address timing, ODT values, VREF decoupling, ZQ calibration resistor
+**DDR (DDR3/DDR4/DDR5)**: per-byte-lane DQ-to-DQS matching, CK differential, command/address timing, ODT values, VREF decoupling, ZQ calibration resistor
 
-**PCIe**: AC coupling on TX, 100 ohm differential, REFCLK distribution, PERST# handling, WAKE# pull-up
+**LPDDR (LPDDR4/LPDDR5)**: differential read/write strobes per byte lane (different signaling than standard DDR), per-lane DQ-to-DQS matching, CK differential, CA bus timing, VREF decoupling, termination values differ from DDR — consult the specific LPDDR spec
+
+**PCIe**: AC coupling on TX (required by spec for different ground references between endpoints — but verify for your specific link configuration), 100 ohm differential, REFCLK distribution to all endpoints on same clock domain, PERST# handling, WAKE# pull-up
 
 **SPI**: clock polarity (CPOL) and phase (CPHA) mode verified, chip select unique per device
 
@@ -195,7 +214,7 @@ Apply the relevant protocol check:
 
 ## Substrate
 
-- [ ] **Predefined substrate considered first**: if JLCPCB + standard FR-4 + 50/90/100 ohm, use `jitxlib.jlcpcb` (JLC04161H_1080, JLC04161H_7628, JLC06161H_7628) instead of creating custom
+- [ ] **User's fab house confirmed**: if user confirmed JLCPCB, predefined substrates from `jitxlib.jlcpcb` (JLC04161H_1080, JLC04161H_7628, JLC06161H_7628) are available for standard FR-4 + 50/90/100 ohm. Otherwise, create a custom substrate (default)
 - [ ] Layer count sufficient for routing density and reference plane continuity
 - [ ] Impedance targets achievable with chosen dielectric Dk and geometry
 - [ ] Via definitions cover ALL needed layer transitions (not just top-to-bottom)
@@ -232,7 +251,7 @@ After the domain-specific checklist, verify these universal items:
 - [ ] All components stored on `self` — anonymous `Component().insert()` fails at build time
 - [ ] All topologies stored on `self` — bare `a >> b` without assignment is silently dropped
 - [ ] No aliasing of component ports: `self.x = self.r1.p2` causes multiple-parent errors
-- [ ] Port definitions at class level (not inside `__init__`) except for PadMapping
+- [ ] Port definitions at class level (not inside `__init__`) except for PadMapping and dynamically-configured ports set at instantiation time
 
 ### Top-Level Only (do NOT put these in subcircuits)
 - [ ] `GroundSymbol` on GND net — applied at top-level design only

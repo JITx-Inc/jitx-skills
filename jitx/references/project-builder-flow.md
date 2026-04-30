@@ -53,7 +53,7 @@ pending → in-progress → review → accepted
 
 4. **Plan the power tree**: trace power from input through regulators to every load. Note voltage, current, and sequencing requirements.
 
-5. **Assess substrate needs**: based on interface speeds and routing density, determine layer count, material class, and via technology. **Check predefined substrates first**: if fab house is JLCPCB and design needs standard 4-layer or 6-layer FR-4 with 50/90/100 ohm impedance, use a predefined substrate from `jitxlib.jlcpcb` (JLC04161H_1080, JLC04161H_7628, JLC06161H_7628) — no substrate modeling task needed. Only create a custom substrate for non-JLCPCB, non-FR-4, or non-standard impedance requirements.
+5. **Assess substrate needs**: based on interface speeds, routing density, and component package complexity (e.g., high-pin-count BGAs require more layers), determine layer count, material class, and via technology. **Ask the user which fab house they are targeting.** If they confirm JLCPCB and need standard 4-layer or 6-layer FR-4 with 50/90/100 ohm impedance, predefined substrates from `jitxlib.jlcpcb` (JLC04161H_1080, JLC04161H_7628, JLC06161H_7628) are available — no substrate modeling task needed. Otherwise, create a custom substrate (the default path).
 
 6. **Data source audit**: for every component, identify where its data will come from. Present a table to the user for approval **before proceeding**. See the Data Source Audit section below.
 
@@ -61,7 +61,7 @@ pending → in-progress → review → accepted
 
 8. **Write PLAN.md**: use `references/plan-template.md` as the starting point. Fill in every task with specific details. Include the approved data sources.
 
-9. **Write ARCHITECTURE.md**: summarize module hierarchy, power tree, and interface map. This gives sub-agents the big picture.
+9. **Write ARCHITECTURE.md**: use `references/architecture-template.md` as the starting point. Include module hierarchy, power tree (with noise/ripple requirements and sequencing), interface map (with clock distribution), voltage domains, and mechanical constraints. This gives sub-agents the big picture.
 
 ### Data Source Audit
 
@@ -85,16 +85,17 @@ Before decomposing into tasks, present the user with a data source plan for each
 - "Datasheet from manufacturer" — will download from manufacturer site (ti.com, st.com, etc.)
 - "JITX [generator] generator" — standard package, dimensions from datasheet
 - "User to provide .kicad_mod" — non-standard package, user has KiCad footprint
-- "LCSC lookup" — non-standard package, will use parts2jitx if installed (fallback)
+- "LCSC lookup" — non-standard package, user approved LCSC/EasyEDA as data source
 
 Please confirm data sources or provide alternatives (datasheets, footprints, specs).
+**Note:** LCSC/EasyEDA data requires explicit approval. Some users (especially commercial) may not want EasyEDA-sourced data in their project.
 ```
 
 **Rules:**
 - Always prefer user-provided data over automated lookups
 - Standard packages (QFN, SOIC, SON, SOT, QFP, BGA) use JITX generators — no footprint download needed
 - For non-standard packages, ask the user if they have a `.kicad_mod` before suggesting LCSC
-- LCSC/EasyEDA is a fallback, not the default — only suggest it when the user has no data and `parts2jitx` is available
+- LCSC/EasyEDA requires explicit user approval — do not assume it is acceptable. Ask.
 - Do NOT proceed past the data audit until the user approves the data source plan
 
 ### Exit Gate
@@ -158,6 +159,10 @@ Run independent clusters in parallel. Within a cluster, respect dependencies.
 3. As tasks complete and are accepted, check if new tasks are unblocked.
 4. Continue until all Phase 2 tasks are accepted.
 
+### Topology-friendly bundle wiring
+
+Subcircuits that expose bundles (I2C, ULPI, USB2, etc.) for any signal that will receive an SI constraint at top level **must** wire the bundle sub-ports with `>>`, not `+`. The constraint solver only walks `>>` chains; ports reached only via `+` are invisible to it. This is a common silent failure — the netlist is correct, the build passes, but the JITX UI reports "No path for signal constraint" once constraints are applied. See the Phase 3 "Topology vs net membership" section for the failure modes and patterns.
+
 ### Exit Gate: Phase 2 → Phase 3
 
 - [ ] Every Phase 2 task has status `accepted`
@@ -165,6 +170,8 @@ Run independent clusters in parallel. Within a cluster, respect dependencies.
 - [ ] Constraint classes instantiate without error
 - [ ] Provide/require interfaces are consistent across wrapper and consuming circuits
 - [ ] **Interface circuits expose bundle-typed ports** (I2S, I2C, SPI, USB2, GPIO, Power) — not individual signal ports. If a circuit wraps individual-pin components, the bundle wiring happens inside the circuit.
+- [ ] **For any signal that will receive an SI constraint at top level, the subcircuit's bundle wiring uses `>>` (not `+`)** between component pins and bundle sub-ports — see Phase 3 "Topology vs net membership"
+- [ ] **No anonymous `Resistor` / `Capacitor` / `Inductor` `.insert(...)` calls and no bare `+` / `>>` expressions** in the subcircuit — every structural object stored on `self` (see Phase 3 "Silent-drop patterns")
 - [ ] Port names and bundle types match between providers and consumers
 - [ ] Power circuit outputs match the voltage/current needs documented in ARCHITECTURE.md
 
@@ -205,9 +212,186 @@ The orchestrator (or a single sub-agent) assembles the top-level design.
            .structure(substrate.DRS_90) \
            .timing_difference(0.1e-12)
    ```
-   Every protocol with impedance or timing requirements needs constraints here.
+   Every protocol with impedance or timing requirements needs constraints here. **Read "Topology vs net membership" below before designing the chains.**
 8. Define board shape, mounting holes, and any keepout zones.
-9. Build and verify `status: ok`.
+9. **Set passive query defaults on the Design class** so auto-selected resistors and capacitors land on assemblable parts (see "Passive query defaults" below). The default `jitxlib.parts` search returns through-hole electrolytics first, which is wrong for almost every modern design.
+10. Build and verify `status: ok`.
+
+### Passive query defaults
+
+**STRONGLY RECOMMENDED — the top-level Design class should set `capacitor_defaults` and `resistor_defaults` to SMD-only and a sensible case range.** Without this, every passive auto-selected by `Capacitor(capacitance=...)` or `Resistor(resistance=...)` hits the unfiltered jitxlib search, which currently returns through-hole leaded parts (Panasonic ECM-G / ECA radial electrolytics, etc.) ahead of SMD ceramics.
+
+```python
+from jitxlib.parts import CapacitorQuery, ResistorQuery
+
+class Design(...):
+    substrate = ...
+    board = ...
+
+    # SMD-only, JLCPCB-economy-friendly case range. Override per-circuit with
+    # `with CapacitorQuery.refine(case="0805"): ...` if a specific block needs
+    # different sizes (e.g., bulk caps, RF parts, thermal-limited regulators).
+    capacitor_defaults = CapacitorQuery(
+        mounting="smd",
+        type="ceramic",
+        case=["0402", "0603", "0805"],
+    )
+    resistor_defaults = ResistorQuery(
+        mounting="smd",
+        case=["0402", "0603", "0805"],
+    )
+
+    circuit = TopCircuit()
+```
+
+**Why these defaults:**
+- `mounting="smd"` — through-hole picks are wrong for every JLCPCB SMT design and almost every commercial design. This is the single most important filter.
+- `type="ceramic"` (capacitors) — covers the typical decoupling / filtering case. Override locally for circuits that genuinely need polymer or tantalum (large bulk caps, low-ESR rails).
+- `case=["0402", "0603", "0805"]` — 0402 is the smallest size assemblable by JLCPCB economy SMT and reasonable for hand-rework; 1206+ wastes board area for typical decoupling. Drop to `["0603", "0805"]` for hand-soldered prototypes.
+
+**How to override.** These are *defaults* — circuit-level `Capacitor(...)` or `Resistor(...)` calls take query refinements via `CapacitorQuery.refine(...)` context managers, and explicit `query=...` arguments override the design-level defaults entirely. If a circuit needs a 22 µF tantalum bulk cap on a power rail, scope a refinement around just that capacitor:
+
+```python
+with CapacitorQuery.refine(type="tantalum", case="1210"):
+    self.c_bulk = Capacitor(capacitance=22e-6, rated_voltage=10.0)
+```
+
+### Topology vs net membership (CRITICAL)
+
+**`+` and `>>` are not interchangeable.** Both connect ports, but only `>>` creates a topology segment that the SI constraint solver can walk. Ports reached only via `+` are on the same *net* but invisible to `Constrain` / `ConstrainDiffPair` / `ConstrainReferenceDifference`.
+
+When you call `Topology(src_endpoint, dst_endpoint)` and then `ConstrainDiffPair(topo)`, the engine searches for a chain of `>>` segments connecting the endpoints. If any physical port on the signal path is reached only by `+`, the search fails with one of:
+
+- "Incomplete topology segments between X and Y"
+- "No path for signal constraint from X to Y"
+
+#### Common failure mode 1: virtual DiffPair endpoints aliased via `+`
+
+A natural pattern is to declare a virtual `DiffPair` port at a circuit boundary so the top level can apply `ConstrainDiffPair`. The trap is wiring the alias with `+`:
+
+```python
+# WRONG — connector pads invisible to constraint solver
+class USBFrontend(Circuit):
+    usb_at_connector = DiffPair()                        # virtual endpoint
+
+    def __init__(self):
+        # `+` only — connector.A6 is on the net but not in any `>>` chain
+        self.dp_alias = self.usb_at_connector.p + self.connector.A6
+        self.dn_alias = self.usb_at_connector.n + self.connector.A7
+        # Topology jumps straight from virtual port to ESD, skipping the connector pad
+        self += self.usb_at_connector.p >> self.esd.usb.p >> self.phy.usb_data.p
+        self += self.usb_at_connector.n >> self.esd.usb.n >> self.phy.usb_data.n
+```
+
+Result at top level: `Topology(usb.usb_at_connector, usb.phy.usb_data)` cannot find a path through `connector.A6` even though the net is correct. The router fails with "Incomplete topology segments".
+
+```python
+# RIGHT — chain through every physical port
+self += (
+    self.usb_at_connector.p
+    >> self.connector.A6
+    >> self.esd.usb.p
+    >> self.phy.usb_data.p
+)
+self += (
+    self.usb_at_connector.n
+    >> self.connector.A7
+    >> self.esd.usb.n
+    >> self.phy.usb_data.n
+)
+```
+
+#### Common failure mode 2: bundle wiring with `+` instead of `>>`
+
+A subcircuit that exposes a bundle (I2C, ULPI, SPI, etc.) and wires the bundle sub-ports to component pins with `+` produces a constraint-invisible signal path:
+
+```python
+# WRONG — `+` only, no topology segments through the bundle
+class USBFrontend(Circuit):
+    ulpi = ULPI()
+    def __init__(self):
+        self.clk_net = self.ulpi.clk + self.phy.CLKOUT       # net merge only
+        # ... 11 more `+` joins
+class MCUWrapper(Circuit):
+    ulpi = ULPI()
+    def __init__(self):
+        self.ulpi.clk + self.mcu.PA[5]                        # net merge only
+```
+
+Result: `Topology(usb.phy.CLKOUT, mcu.mcu.PA[5])` reports "No path for signal constraint" even though the netlist is fully connected.
+
+```python
+# RIGHT — `>>` from physical pin through bundle sub-port
+# In USBFrontend (PHY-side):
+self += self.phy.CLKOUT >> self.ulpi.clk
+self += self.ulpi.stp   >> self.phy.STP        # MCU drives STP, hence reverse direction
+
+# In MCUWrapper (MCU-side):
+self += self.ulpi.clk   >> self.mcu.PA[5]
+self += self.mcu.PC[0]  >> self.ulpi.stp
+```
+
+The two `>>` segments per signal stitch together when the top level merges the bundle sub-ports with `+` (`self.usb.ulpi.clk + self.mcu.ulpi.clk`). The engine walks `phy.CLKOUT >> ulpi.clk(usb) — joined to — ulpi.clk(mcu) >> mcu.PA[5]` end-to-end.
+
+#### Quick checklist
+
+For every signal that will have an SI constraint applied at the top level:
+- [ ] Both Topology endpoints exist as actual ports (real component pins or virtual DiffPair / bundle ports declared on circuits)
+- [ ] Every physical port between the endpoints is on a `>>` chain — not just on the same net via `+`
+- [ ] Bundle sub-ports are `>>`-chained to the component pins they alias, in **both** subcircuits that touch the bundle
+- [ ] Direction of `>>` follows signal flow at each end (driver → receiver). Bidirectional buses pick one direction by convention.
+
+If a top-level constraint reports "no path" or "incomplete segments", trace each port name in the error backwards through the source — the missing segment is almost always a `+` where there should be a `>>`.
+
+### Silent-drop patterns (CRITICAL)
+
+Two source patterns build with `status: ok` and pass every JITX-side check but produce a **wrong netlist**, because the Python expression evaluates and is then immediately discarded. The design looks correct from the build but isn't.
+
+JITX warns for *some* of these cases (you'll see `WARNING:jitx._structural:Reference to structural object <Class> at <file>:<line> lost during instantiation, it likely needs to be assigned to an object` for unassigned constraint objects and similar structural classes), but **the warning does not cover bare net or topology expressions** (`+` / `>>` between ports), which is exactly where this trap is easiest to fall into. Treat all such warnings as errors, and code review for the two patterns below regardless.
+
+#### Pattern 1: anonymous `Resistor` / `Capacitor` / `Inductor` with `.insert(...)`
+
+```python
+# WRONG — Resistor object is garbage-collected after .insert returns;
+# the design ends up without the resistor.
+Resistor(resistance=10e3).insert(self.MCU.NRST, self.V3V3)
+
+# RIGHT — store on self, then insert
+self.r_nrst = Resistor(resistance=10e3)
+self.r_nrst.insert(self.MCU.NRST, self.V3V3)
+```
+
+The same applies to `Capacitor`, `Inductor`, and any structural component constructor.
+
+#### Pattern 2: bare net or topology expressions
+
+```python
+# WRONG — the Net object is built and discarded; no connection in the netlist.
+self.usb.A6 + self.usb.B6                          # bare `+`
+self.driver.OUT.p >> self.receiver.INP.p           # bare `>>`
+
+# RIGHT — assign to a `self.<name>` attribute (any name is fine — JITX
+# tracks structural objects by their attribute on the parent), or use the
+# `+=` form which adds to the circuit's net list:
+self.dp_mirror = self.usb.A6 + self.usb.B6         # named net
+self += self.driver.OUT.p >> self.receiver.INP.p   # added to circuit
+```
+
+The trap is that the *expression evaluates without error* — Python sees `port_a + port_b` as `Net.__add__`, which returns a `Net` object, which Python then drops because nothing held a reference to it. No exception, no warning at parse time, and JITX has no way to recover the Net once it's been garbage-collected.
+
+### Editor-side coverage
+
+Configure the editor's Python language server to surface unused-expression warnings — this catches Pattern 2 before any build runs. Recommended:
+
+- **Ruff** (works in any editor): enable rule `B018` ("Found useless expression") which flags top-level expressions whose return value is discarded. Add to `pyproject.toml`:
+  ```toml
+  [tool.ruff.lint]
+  extend-select = ["B018"]
+  ```
+- **Pyright / Pylance** (VS Code default): enable `reportUnusedExpression = "warning"` (or `"error"`) in `pyrightconfig.json` or VS Code settings.
+- **Pyflakes**: emits `Statement seems to have no effect` by default — also catches bare `+` / `>>` expressions.
+
+These editor-side checks won't catch Pattern 1 (the `.insert(...)` call has a side effect, so it isn't a "useless expression" from the type checker's view), but they cover Pattern 2 cheaply, and any extra signal during code review is worth turning on.
 
 ### Exit Gate: Phase 3 → Phase 3b
 
@@ -217,8 +401,11 @@ The orchestrator (or a single sub-agent) assembles the top-level design.
 - [ ] All require() calls have matching provides
 - [ ] `GroundSymbol` on GND net, `PowerSymbol` on every power rail
 - [ ] SI constraints applied **at this level** (not inside subcircuits) for every protocol with impedance/timing requirements
+- [ ] **No "Invalid Topology Definitions" or "No path for signal constraint" errors in the JITX UI Issues list** — every constraint endpoint reachable via `>>` chains, not `+` (see "Topology vs net membership" above)
+- [ ] **No `Reference to structural object … lost during instantiation` warnings in the build output** — every structural object stored on `self`; no bare `+` / `>>` expressions (see "Silent-drop patterns" above)
 - [ ] `ReferencePlanes(GND)` context wraps all constraint applications
 - [ ] Board geometry defined (shape, mounting holes, pours)
+- [ ] `capacitor_defaults` and `resistor_defaults` set on Design class (`mounting="smd"`, sensible case range) — verify a build does not pick through-hole leaded parts
 
 ---
 
@@ -230,15 +417,9 @@ Each subcircuit was designed in isolation. Now review the assembled design as a 
 
 ### Audit Structure
 
-Before spawning the audit agent, run the static lint check:
+Spawn a sub-agent to perform the design-level audit. The audit agent reads code and datasheets but **does not edit any files**. It produces a report with issues classified as CRITICAL / WARNING / NOTE.
 
-```bash
-python scripts/jitx_lint.py src/<namespace>/
-```
-
-This catches mechanical mistakes (square cutouts, VBUS pull-ups, missing self. storage, bare net expressions, I2C pull-ups in subcircuits, missing SI constraints, hard-tied dual-function pins). Fix any errors before proceeding.
-
-Then spawn a sub-agent to perform the design-level audit. The audit agent reads code and datasheets but **does not edit any files**. It produces a report with issues classified as CRITICAL / WARNING / NOTE.
+Before the audit runs, the orchestrator must have already addressed the build-time silent-drop patterns documented in Phase 3 → "Silent-drop patterns" — those bugs build with `status: ok` but produce a wrong design, and the audit agent's datasheet-comparison passes assume the netlist matches the source. JITX emits a `Reference to structural object … lost during instantiation` warning for some of these cases (constraint and similar structural classes), but not for bare net or topology expressions — handle both manually.
 
 The audit runs four passes:
 

@@ -124,6 +124,7 @@ For building complete JITX designs from requirements — multiple components, su
 For full phase details and gate criteria: read `references/project-builder-flow.md`
 For how to decompose requirements into tasks: read `references/decomposition-guide.md`
 For PLAN.md format: read `references/plan-template.md`
+For ARCHITECTURE.md format: read `references/architecture-template.md`
 
 ### Parallel Build Safety
 
@@ -175,13 +176,15 @@ Claude selects parts based on engineering requirements first. Data for each comp
 **Data sources (in priority order):**
 1. **User-provided** — datasheets, KiCad footprints, or specs the user supplies directly
 2. **JITX generators** — standard packages (QFN, SOIC, BGA, SOT, SON, QFP) with dimensions from datasheets
-3. **LCSC/EasyEDA** (optional fallback) — install `parts2jitx` into the project venv when needed:
+3. **LCSC/EasyEDA** (opt-in only — ask user before using) — if user explicitly approves, install `parts2jitx` into the project venv:
    ```bash
    pip install parts2jitx
    ```
    Then use:
    - **`parts2jitx-lcsc <LCSC_ID>`** — stock, pricing, datasheet URL, KiCad footprint download
    - **`parts2jitx-kicad <file.kicad_mod>`** — deterministic KiCad-to-JITX footprint conversion
+   
+   Do not use LCSC/EasyEDA data without user approval. Commercial users may have licensing concerns.
 
 For non-standard packages (connectors, RF modules): convert from a `.kicad_mod` file (user-provided or downloaded). **NEVER hand-craft pad positions** — use the converter. Standard packages use built-in JITX generators. All symbols use `BoxSymbol`.
 
@@ -235,15 +238,15 @@ For provide/require pin assignment patterns, use `jitx-pin-assignment` instead.
 
 ### Substrate Modeler (`jitx-substrate-modeler`)
 
-**Before invoking**, check if a predefined substrate from `jitxlib.jlcpcb` is sufficient:
+**Ask the user which fab house they are targeting.** If they confirm JLCPCB, predefined substrates from `jitxlib.jlcpcb` are available:
 - `JLC04161H_1080` — 4-layer, 1080 prepreg, RS_50/DRS_90/DRS_100
 - `JLC04161H_7628` — 4-layer, 7628 prepreg, RS_50/DRS_90/DRS_100
 - `JLC06161H_7628` — 6-layer, 7628 prepreg, RS_50/DRS_100
 
-Import: `from jitxlib.jlcpcb import JLC04161H_1080`. These include stackup, fab rules, 11 via definitions, and routing structures. Use directly for JLCPCB + standard FR-4 + 50/90/100 ohm impedance.
+Import: `from jitxlib.jlcpcb import JLC04161H_1080`. These include stackup, fab rules, 11 via definitions, and routing structures.
 
-**Invoke this subskill** only when a custom substrate is needed:
-- Non-JLCPCB fab house
+**Invoke this subskill** to create a custom substrate (the default path unless user opts into a predefined one):
+- User has not confirmed JLCPCB as fab house
 - Non-FR-4 materials (Rogers, Megtron)
 - Non-standard layer count or impedance targets
 - Additional routing structures beyond predefined
