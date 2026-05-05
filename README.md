@@ -148,7 +148,7 @@ jitx-skills/
 ## Requirements
 
 - A JITX Python project (with `pyproject.toml` containing jitx dependency)
-- Python 3.10+
+- Python 3.12+
 - For datasheet processing: `pip install pymupdf`
 
 ## Usage Examples
