@@ -52,6 +52,25 @@ npm install -g pyright
 pyright src/
 ```
 
+## JITX Python Code Conventions
+
+Durable rules for JITX Python user code. The first three don'ts protect JITX's internal instantiation tracking; the rest are standard Python encapsulation discipline.
+
+### Don'ts
+
+- **No `setattr` / `getattr`.** They exist for very narrow scenarios; JITX user code is not one of them. Use lists/dicts when you need to store a programmatic collection on `self`.
+- **No dynamic types at runtime.** Do not call `type(...)` to construct a new class on the fly. This breaks JITX's internal instantiation tracking. Express the same intent with parameterized classes — instantiate, don't synthesize.
+- **No subclassing JITX classes inside functions or methods.** Same instantiation-tracking failure mode. Declare jitx-class subclasses at module scope (nested at class-body scope is fine).
+- **No `type()` for type checks.** Use `isinstance` so subclasses are handled correctly.
+- **No access to double-underscore (private) members.** They are private for a reason.
+- **No use of leading-underscore packages, modules, or functions from elsewhere.** The Python "protected" convention applies. The single exception is a method calling another method on the same class.
+
+### Dos
+
+- **Run pyright** for type checking and language-server diagnostics.
+- **Run `ruff check`** for common-mistake analysis (the `ruff` package is already installed by the environment-setup step).
+- **Run `ruff format`** for style consistency.
+
 ## Running JITX Designs
 
 ```bash
