@@ -57,22 +57,22 @@ Every finding from codex must include a file:line citation and (if it references
 
 ## How to invoke
 
-The codex skill in this repo lives at `/Users/duncan/.claude/skills/codex/` with `scripts/run_codex.sh`. Use it:
+The configured outside-voice reviewer in Claude Code is the **codex** skill. Invoke it via the `Skill` tool with `skill: "codex"` (or `/codex` as a slash command from the user). The skill resolves its own paths — do not hard-code installation locations in the project.
 
-```bash
-# Write the prompt to a temp file (keeps it auditable)
-cat > /tmp/codex-<task-id>.txt <<'EOF'
-<prompt body>
-EOF
+### Checking availability
 
-# Run codex
-bash /Users/duncan/.claude/skills/codex/scripts/run_codex.sh \
-    <project-root> \
-    <project-root>/.context/codex-review-<task-id>.md \
-    < /tmp/codex-<task-id>.txt
-```
+Skills available in the current session appear in the system reminder Claude receives at startup. To check from the agent's side:
 
-In principle the workflow is tool-agnostic: any read-only outside-voice reviewer that takes a prompt and produces severity-tagged findings can substitute. Document the configured reviewer in the project's `.context/` notes.
+- **Preferred:** look for `codex` in the session's available-skills list (the system reminder lists what's installed); if it's not there, treat the reviewer as unavailable.
+- **Shell-side cross-check:** `command -v codex` returns non-empty if the codex CLI is on `$PATH`. Useful for scripted flows but does not guarantee the wrapping skill is loaded.
+
+If neither check passes, record `Outside-voice review: not run: codex skill not available` in the relevant block. Per the rule above, this **blocks complete-board Phase 3b advancement unless the user explicitly approves proceeding**.
+
+### Invocation pattern
+
+The codex skill itself documents how to run a focused review. Pass it: the target directory codex may read, an output file under `.context/`, and the prompt via stdin or as an argument per the skill's interface. Keep prompts narrow and evidence-anchored (see "What outside-voice reviews — prompt shape" above).
+
+Any read-only outside-voice reviewer that takes a prompt and produces severity-tagged findings can substitute for codex. Document the configured reviewer in the project's `.context/` notes if it isn't codex.
 
 ## Integrating findings — combined verdict rule
 
