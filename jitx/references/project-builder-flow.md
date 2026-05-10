@@ -99,6 +99,8 @@ Please confirm data sources or provide alternatives (datasheets, footprints, spe
 **Note:** LCSC/EasyEDA data requires explicit approval. Some users (especially commercial) may not want EasyEDA-sourced data in their project.
 ```
 
+**Channel evidence is required.** If the user has named a sourcing channel (LCSC/JLCPCB, Digi-Key/Mouser, internal PLM), the audit table must include channel-specific evidence for every named IC and connector before code is written. For LCSC/JLCPCB, that means `parts2jitx-lcsc <C-number>` output (stock, lifecycle, datasheet URL) plus `parts2jitx-lcsc <C-number> --pinout` saved to the project. The orchestrator may `pip install parts2jitx` automatically when LCSC/JLCPCB is the named channel. See `references/parts-sourcing.md` "Required-Sourcing Rule" for the full ladder including non-LCSC channels.
+
 **Rules:**
 - Always prefer user-provided data over automated lookups
 - Standard packages (QFN, SOIC, SON, SOT, QFP, BGA) use JITX generators — no footprint download needed

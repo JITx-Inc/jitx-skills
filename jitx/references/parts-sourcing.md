@@ -102,6 +102,31 @@ This works with any `.kicad_mod` file regardless of source — not just LCSC/Eas
 
 In the Project Builder workflow, Phase 0 includes a **data source audit** before any work begins. The orchestrator presents a table showing where each component's data will come from, and the user approves or provides alternatives. See `references/project-builder-flow.md` Phase 0 for details.
 
+## Required-Sourcing Rule (named channel → channel-specific evidence)
+
+When the user has named a sourcing channel — LCSC / JLCPCB / "buy from Mouser" / an LCSC C-number for any part / an internal PLM — channel-specific evidence is **required** for every named part before any component code is written. The evidence is saved to the project (so reviewers can verify) and cited in the Phase 0 data source audit row for the part.
+
+| Channel named | Required evidence | How |
+|---------------|------------------|-----|
+| **LCSC / JLCPCB** | Stock + lifecycle + datasheet URL + pinout for each LCSC C-number | `parts2jitx-lcsc <C-number>` output saved (or piped to the data-source-audit doc). `parts2jitx-lcsc <C-number> --pinout` for pin-label cross-check. The orchestrator may `pip install parts2jitx` automatically — naming LCSC/JLCPCB as the channel implies consent for *lookup/evidence* via parts2jitx. Note: using LCSC/EasyEDA *footprint data* as the footprint source for a non-standard package still requires explicit approval (see "LCSC/EasyEDA Lookup via parts2jitx" above). |
+| **Digi-Key / Mouser / Newark / other distributor** | Saved screenshot or text excerpt of stock + manufacturer/datasheet from the distributor page; user approves the evidence method | Manual save to `datasheets/sourcing/<mpn>-<distributor>.txt` or similar. No automated tool today. |
+| **Internal PLM / user library** | Reference to the PLM record or library entry; user confirms the record is current | Cite the record ID or library file path in the data source audit row. |
+| **No channel named** | Treat sourcing as an open question — ask the user before proposing parts | The component-choice rationale table is incomplete without a channel; flag in Phase 0. |
+
+When `parts2jitx` is the required tool (LCSC/JLCPCB channel) and isn't installed, install it:
+
+```bash
+pip install parts2jitx
+```
+
+The datasheet remains the higher authority for dimensions, pin labels, and pad assignments. Sourcing-channel pinout (e.g., `parts2jitx-lcsc --pinout`) is a useful cross-check but does not replace the datasheet's mechanical drawing and pinout table. When the two disagree, the datasheet wins and the conflict is documented in the task acceptance block under `Secondary references`.
+
+**Standard packages (QFN, SON, DFN, SOIC, SOT, QFP, BGA):** parts2jitx-lcsc gives you stock + pinout. Use the **JITX generator** for the landpattern, with dimensions from the datasheet mechanical drawing. Do not import the LCSC KiCad footprint as the landpattern for standard packages — see `jitx-component-modeler/SKILL.md` "Standard-Package Decision Rule".
+
+**Mechanical / pad-only footprints (Tag-Connect TC2050, fiducials, castellations, pogo pads):** these have no purchasable component — no stock/lifecycle to check. Channel evidence does not apply; the vendor mechanical drawing is the source. See "Mechanical / Vendor-Defined Footprints" above.
+
+**Standard passives queried via `jitxlib.parts`:** the LCSC channel for an `R 4.7kΩ 0402` is satisfied by the query — `jitxlib.parts` already returns LCSC-stocked options when `mounting="smd"` is set in the design's passive defaults. Don't run `parts2jitx-lcsc` for every passive; only for named ICs and connectors.
+
 ## Part Selection Workflow
 
 1. **Read the requirements lock first.** Component proposals must respect the locked answers from `decomposition-guide.md` "Requirements Lock" — assembly-cost target, RF policy, programming path, fab house. Proposing an ESP32 to a user who locked "JLCPCB economy, no extended parts" wastes a cycle.

@@ -66,7 +66,7 @@ Copy this template verbatim. Fill every field. Every `N/A` requires a reason.
 
 **Build:** `status: ok` (via `<exact build command run>`)
 
-**Primary source:** <datasheet PDF path + sections referenced, OR the equivalent source-of-truth — manufacturer reference design, vendor mechanical drawing, protocol spec>
+**Primary source:** <datasheet PDF path + sections referenced (cite page/figure for any mechanical dimension), OR the equivalent source-of-truth — manufacturer reference design, vendor mechanical drawing, protocol spec. **For any named IC / connector / non-passive part where the user named a sourcing channel:** the row must also include channel evidence (e.g. for LCSC: `parts2jitx-lcsc <C-number>` output path saved to project). See `parts-sourcing.md` "Required-Sourcing Rule". Bare "datasheet (from memory)" or "typical dimensions" is invalid for a real MPN.>
 
 **Secondary references:** <list, or "none">
 - <e.g. "User-supplied known-good design at <path> — used to cross-check pinout">
