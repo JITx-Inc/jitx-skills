@@ -92,19 +92,28 @@ For all provide/require patterns (`@provide`, `@provide.one_of`, `@provide.subse
 
 ## Pours
 
-Pours belong in the **top-level circuit**, not subcircuits.
+Pours belong in the **top-level circuit**, not subcircuits. Pour every plane intended as a return path — pours on inner layers alone leave the outer layers without ground reference.
 
 ```python
 from jitx import Pour, current
 
 board_shape = current.design.board.shape
 
-# Pour(shape, layer, *, isolate=0, rank=0, orphans=True)
+# Pour(shape, layer, *, rank=0, orphans=True)
 # layer is an int: 0=top, -1=bottom, 1/2/...=inner layers
-self.gnd += Pour(layer=0, shape=board_shape, isolate=0.15)          # Top layer
-self.gnd += Pour(layer=-1, shape=board_shape, isolate=0.15)         # Bottom layer
-self.gnd += Pour(layer=2, shape=board_shape, isolate=0.15, rank=1)  # Inner layer
+self.gnd += Pour(layer=0, shape=board_shape)             # Top layer
+self.gnd += Pour(layer=-1, shape=board_shape)            # Bottom layer
+self.gnd += Pour(layer=2, shape=board_shape, rank=1)     # Inner layer
 ```
+
+### `isolate=` is legacy — do not use it
+
+The `Pour(..., isolate=...)` parameter is being removed. Pour clearance is governed by the substrate's `FabricationConstraints` (the default copper-to-edge and copper-to-net spacing) and by per-net-class `design_constraint(...)` rules with Tags. Express non-default clearance there, not on the pour:
+
+- For a net class that needs wider keepout (HV creepage, switch-node spacing, RF clearance under an antenna), declare a Tag and apply `design_constraint(<MyTag>(), priority=N).clearance(...)` against tagged nets.
+- For substrate-wide changes, edit the `FabricationConstraints` on the substrate.
+
+New skill examples must not introduce `isolate=`. Existing user code that has it should migrate to `design_constraint(...)` when convenient — `grep_gates.sh` flags it as review-required, dispositioned `fixed (migrated)` or `deferred (legacy file)`.
 
 ## Copper Geometry
 

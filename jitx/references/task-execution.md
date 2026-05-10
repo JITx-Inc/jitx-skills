@@ -10,6 +10,8 @@ Two-tier quality system: sub-agents validate their own work, then the orchestrat
 
 When Claude builds something complex in hardware, they tend to miss key details on the first pass — floating enable pins, missing thermal pads, wrong output types, forgotten decoupling. But when prompted to look harder at the same data, they catch what was missed. This protocol formalizes that second look.
 
+The output of Part A is a **task acceptance block** (template in `references/completion-blocks.md`) — a structured artifact, not a prose summary. The orchestrator in Part B reviews the block, not free-form text.
+
 ### The Protocol
 
 #### Step 1: Receive Task
@@ -23,7 +25,7 @@ Read your task definition from PLAN.md. Note:
 
 #### Step 2: Invoke Sub-Skill, Read the Datasheet, and Implement
 
-**You MUST invoke the sub-skill and read the actual datasheet.** Do NOT design circuits from memory. The datasheet's application circuit is the ground truth.
+**You MUST invoke the sub-skill and read the actual datasheet.** Do NOT design circuits from memory. The datasheet's application circuit is the ground truth — see `references/parts-sourcing.md` "Evidence Hierarchy and Conflict Resolution" for source ranking when sources disagree (datasheet > errata > app notes > vendor reference design > user-supplied known-good > prior internal project > community).
 
 | Task Type | Skill | Datasheet Requirement |
 |-----------|-------|-----------------------|
@@ -75,7 +77,7 @@ python <project>/runner/build_lock.py <module.path.TestDesign>
 
 If it fails, fix errors and rebuild until `status: ok`. Do not proceed to Step 4 with a broken build.
 
-#### Step 4: Domain Checklist Review (CRITICAL)
+#### Step 4: Domain Checklist Review + Grep Gates (CRITICAL)
 
 **STOP. Do not return yet.**
 
@@ -97,58 +99,48 @@ This step typically catches 3-5 issues. Common misses by domain:
 
 **Substrate**: missing via definition for a needed layer transition, routing structure velocity in wrong units
 
+After the domain checklist, run the grep gates:
+
+```bash
+bash <project>/scripts/grep_gates.sh src/<ns>/
+```
+
+The script reports hard-fail and review-required hits. Hard-fail hits must be fixed before proceeding. Review-required hits get a disposition (`fixed`, `accepted with rationale: <why>`, or `deferred to <named follow-up>`) when reported in the task acceptance block in Step 6.
+
+For the full pattern set and copy-paste templates: read `references/completion-blocks.md` "Grep Gate Patterns" section.
+
 #### Step 5: Fix and Rebuild
 
-If Step 4 found issues (it usually does), fix them all and rebuild:
+If Step 4 found issues (it usually does — checklist or grep), fix them all and rebuild:
 
 ```bash
 python <project>/runner/build_lock.py <module.path.TestDesign>
 ```
 
-Verify `status: ok`.
+Verify `status: ok`. Re-run `bash <project>/scripts/grep_gates.sh src/<ns>/` if any code changed; the hard-fail set must now show 0 hits.
 
-#### Step 6: Self-Evaluation Report
+#### Step 6: Emit the Task Acceptance Block
 
-Write a report in this format:
+Emit the **task acceptance block** verbatim using the template in `references/completion-blocks.md`. The block is the report — prose summaries are not a substitute. Required fields include `Primary source`, `Secondary references`, `Footprint source`, `Checks run` (domain checklist + General Gotcha Scrub + `ruff check` + `ruff format` + `pyright`), `Interface notes`, and `Verdict (self): ready-for-review`.
 
-```
-## Task: [task-id] [Task Name]
-## Status: PASS | FAIL
+Rules (full set in `completion-blocks.md`):
 
-### Implementation
-[1-2 sentences: what was built, key decisions made]
-
-### Build Result
-status: ok
-[or: status: error — with the error details]
-
-### Checklist Review
-Checklist(s) used: [Component + MCU/FPGA, Power Circuit, etc.]
-Items checked: N/N
-Issues found and fixed:
-  - [issue 1]: [what was wrong] → [what was fixed]
-  - [issue 2]: [what was wrong] → [what was fixed]
-Items not applicable:
-  - [item]: [why it doesn't apply]
-
-### Interface Notes
-Ports exposed: [list of ports that downstream tasks will connect to]
-Power requirements: [voltage and current needs for upstream power tree]
-Constraints needed: [any SI constraints that should be applied at top level]
-
-### Known Limitations
-[Anything that could not be resolved, or assumptions made]
-```
+- **No block, not done.** A task without the block is `in-progress` regardless of build state.
+- **`N/A` requires a reason.** Bare `N/A` in any field is rejected on review.
+- **Primary source must be ground truth.** Datasheet, manufacturer reference design, vendor mechanical drawing, or protocol spec — not a prior project. Prior projects belong only under `Secondary references`.
+- **Static checks** (`ruff check`, `ruff format`) are required where Python was touched. `pyright`: `clean | issues | not available (<reason>)`.
 
 #### Step 7: Return
 
-Return the self-evaluation report. Do NOT return without completing Steps 4-6.
+Return the task acceptance block. Do NOT return without completing Steps 4-6.
 
 ---
 
 ## Part B: Orchestrator Acceptance Review
 
-After a sub-agent returns, the orchestrator performs an independent review. The orchestrator does NOT trust the self-evaluation at face value.
+After a sub-agent returns, the orchestrator performs an independent review of the **task acceptance block** the sub-agent emitted. The orchestrator does NOT trust the block claims at face value — it verifies them against the code, the build, and the checklist.
+
+A returned task without an acceptance block is automatically `rework` with the reason "missing acceptance block". The block is the contract.
 
 ### Review Steps
 
@@ -161,7 +153,7 @@ Open each file the sub-agent created or modified. Scan for:
 
 #### 2. Verify the Build Claim
 
-If the sub-agent claims `status: ok`, confirm by checking for the test harness file and that the code structure is plausible. For critical tasks, re-run the build:
+If the sub-agent's block says `status: ok`, confirm by checking for the test harness file and that the code structure is plausible. For critical tasks, re-run the build:
 
 ```bash
 python <project>/runner/build_lock.py <module.path.TestDesign>
@@ -191,15 +183,24 @@ Verify that the task output is compatible with downstream tasks:
 
 #### 5. Issue Verdict
 
-**Accept** — Task passes. Update PLAN.md status to `accepted`.
+Append the acceptance verdict to the same task acceptance block the sub-agent emitted:
 
-**Rework** — Specific issues found. Respawn the same sub-agent with:
+```markdown
+**Verdict (acceptance):** accept | rework | reject
+**Notes:** <if rework or reject: specific issues with file:line references>
+```
+
+**Accept** — Task passes. Update PLAN.md status `review` → `accepted`.
+
+**Rework** — Specific issues found. Status `review` → `rework`. Respawn the same sub-agent with:
 - The original task definition
 - The specific issues found (code references, line numbers)
 - Instruction to fix only the identified issues and re-run checklist
 - The sub-agent retains its prior context; this is a continuation, not a restart
 
-**Reject** — Fundamental approach is wrong. Options:
+On respawn, status moves `rework` → `in-progress`.
+
+**Reject** — Fundamental approach is wrong. Status → `rejected`. Options:
 - Rewrite the task definition in PLAN.md with better guidance
 - Escalate to the user for clarification
 - Reassign to a different task decomposition
@@ -219,10 +220,10 @@ Action required:
 - Fix the issues listed above
 - Re-run the domain checklist (focus on the categories where issues were found)
 - Rebuild and verify status: ok
-- Return an updated self-evaluation report
+- Return an updated task acceptance block
 ```
 
-The sub-agent fixes only the identified issues, re-checks, rebuilds, and returns an updated report. The orchestrator reviews again. Maximum 2 rework cycles before escalating to reject.
+The sub-agent fixes only the identified issues, re-checks, rebuilds, and returns an updated task acceptance block. The orchestrator reviews again. Maximum 2 rework cycles before escalating to reject.
 
 ---
 

@@ -2,6 +2,10 @@
 
 Five-phase workflow for building complete JITX hardware designs from requirements. The orchestrator drives the flow, spawns parallel sub-agents, and enforces exit gates with acceptance reviews.
 
+**This file applies to the complete-board tier only.** Tier classification happens before Phase 0 — see `jitx/SKILL.md` "First: Pick the Workflow Tier" and `references/completion-blocks.md`. Single-task and small-board tiers do not enter the formal phase chain. If a small-board grows mid-work, upgrade it to complete-board and apply Phase 0 retroactively (write PLAN.md + ARCHITECTURE.md, run the data audit) before continuing.
+
+Every task in every phase emits a **task acceptance block** (template in `references/completion-blocks.md`) and the orchestrator appends the acceptance verdict to it. A task without an accepted block does not count toward an exit gate.
+
 ## Overview
 
 ```
@@ -17,7 +21,11 @@ Phase 2: Constraints + Circuits + Pins ──── clustered parallel
 Phase 3: Top-Level Assembly ──── single agent
     │  Acceptance review
     ▼
+Phase 3b: Design Review and Loopback ──── read-only audit + fix loopback
+    │  Audit block: CRITICAL / WARNING / NOTE; fixes re-audited
+    ▼
 Phase 4: Build + Verify + Iterate
+    Phase 4 verification block: JITX UI / Issues / DRC / SI
 ```
 
 ## Task Status Flow
@@ -32,7 +40,7 @@ pending → in-progress → review → accepted
 
 - `pending`: not started
 - `in-progress`: sub-agent working
-- `review`: sub-agent returned self-evaluation, awaiting orchestrator review
+- `review`: sub-agent returned task acceptance block, awaiting orchestrator review
 - `accepted`: orchestrator verified, ready for downstream tasks
 - `rework`: orchestrator found issues, sent back with specific feedback
 - `rejected`: fundamental problem, task needs replanning
@@ -98,7 +106,7 @@ Please confirm data sources or provide alternatives (datasheets, footprints, spe
 - LCSC/EasyEDA requires explicit user approval — do not assume it is acceptable. Ask.
 - Do NOT proceed past the data audit until the user approves the data source plan
 
-### Exit Gate
+### Exit Gate: Phase 0 → Phase 1
 
 - [ ] PLAN.md exists with all tasks defined
 - [ ] ARCHITECTURE.md exists with power tree and interface map
@@ -107,6 +115,8 @@ Please confirm data sources or provide alternatives (datasheets, footprints, spe
 - [ ] Dependencies are acyclic
 - [ ] No ambiguous requirements remain (ask user if unclear)
 - [ ] User has reviewed and approved the plan
+
+**Emit the `Gate: Phase 0 → Phase 1` block** from `references/completion-blocks.md` before advancing.
 
 ---
 
@@ -134,7 +144,9 @@ ALL of the following must be true:
 - [ ] Every component builds with `status: ok` in its test harness
 - [ ] Substrate builds with all routing structures and via definitions
 - [ ] Orchestrator has spot-checked high-risk items per task type (see task-execution.md Part B)
-- [ ] Interface notes in self-evaluation reports are consistent (port names, power requirements match ARCHITECTURE.md)
+- [ ] `Interface notes` fields in task acceptance blocks are consistent (port names, power requirements match ARCHITECTURE.md)
+
+**Emit the `Gate: Phase 1 → Phase 2` block** from `references/completion-blocks.md` before advancing.
 
 ---
 
@@ -171,9 +183,11 @@ Subcircuits that expose bundles (I2C, ULPI, USB2, etc.) for any signal that will
 - [ ] Provide/require interfaces are consistent across wrapper and consuming circuits
 - [ ] **Interface circuits expose bundle-typed ports** (I2S, I2C, SPI, USB2, GPIO, Power) — not individual signal ports. If a circuit wraps individual-pin components, the bundle wiring happens inside the circuit.
 - [ ] **For any signal that will receive an SI constraint at top level, the subcircuit's bundle wiring uses `>>` (not `+`)** between component pins and bundle sub-ports — see Phase 3 "Topology vs net membership"
-- [ ] **No anonymous `Resistor` / `Capacitor` / `Inductor` `.insert(...)` calls and no bare `+` / `>>` expressions** in the subcircuit — every structural object stored on `self` (see Phase 3 "Silent-drop patterns")
+- [ ] **No anonymous `Resistor` / `Capacitor` / `Inductor` `.insert(...)` calls and no bare `+` / `>>` expressions** in the subcircuit — every structural object stored on `self` (see Phase 3 "Silent-drop patterns"). Enforced via `bash scripts/grep_gates.sh src/<ns>/` — hard-fail hits block this gate.
 - [ ] Port names and bundle types match between providers and consumers
 - [ ] Power circuit outputs match the voltage/current needs documented in ARCHITECTURE.md
+
+**Emit the `Gate: Phase 2 → Phase 3` block** from `references/completion-blocks.md` before advancing.
 
 ---
 
@@ -214,12 +228,18 @@ The orchestrator (or a single sub-agent) assembles the top-level design.
    ```
    Every protocol with impedance or timing requirements needs constraints here. **Read "Topology vs net membership" below before designing the chains.**
 8. Define board shape, mounting holes, and any keepout zones.
-9. **Set passive query defaults on the Design class** so auto-selected resistors and capacitors land on assemblable parts (see "Passive query defaults" below). The default `jitxlib.parts` search returns through-hole electrolytics first, which is wrong for almost every modern design.
+9. **Set passive query defaults on the Design class** to match the design's manufacturing path and circuit role (see "Passive query defaults" below). Without explicit defaults, the unfiltered `jitxlib.parts` search may return parts unsuitable for the design (e.g. through-hole leaded electrolytics ahead of SMD ceramics on an SMT design).
 10. Build and verify `status: ok`.
 
-### Passive query defaults
+### Passive query defaults — match manufacturing and circuit role
 
-**STRONGLY RECOMMENDED — the top-level Design class should set `capacitor_defaults` and `resistor_defaults` to SMD-only and a sensible case range.** Without this, every passive auto-selected by `Capacitor(capacitance=...)` or `Resistor(resistance=...)` hits the unfiltered jitxlib search, which currently returns through-hole leaded parts (Panasonic ECM-G / ECA radial electrolytics, etc.) ahead of SMD ceramics.
+The top-level Design class should set `capacitor_defaults` and `resistor_defaults` so auto-selected passives match the design's manufacturing path and circuit role. The right defaults depend on the design:
+
+| Design class | Typical defaults | Why |
+|--------------|------------------|-----|
+| **SMT production / economy** (JLCPCB, full-machine assembly) | SMD-only, ceramic for caps, small case (0402–0805) | Through-hole picks are wrong; small case fits typical decoupling |
+| **Hand-build / prototype** (hand-soldered, mixed assembly) | SMD or mixed, larger case (0603–1206) for ease, allow common through-hole on large parts | Hand-rework needs accessible sizes |
+| **Specialty** (high-voltage, RF-heavy, precision analog, high-current, automotive temp) | Per-circuit refinement is the rule; design-level defaults stay broad | Circuit role dominates — bulk caps, film, RF passives, shunts, etc. need local choice |
 
 ```python
 from jitxlib.parts import CapacitorQuery, ResistorQuery
@@ -228,9 +248,9 @@ class Design(...):
     substrate = ...
     board = ...
 
-    # SMD-only, JLCPCB-economy-friendly case range. Override per-circuit with
-    # `with CapacitorQuery.refine(case="0805"): ...` if a specific block needs
-    # different sizes (e.g., bulk caps, RF parts, thermal-limited regulators).
+    # Example for an SMT-production design. Adjust per the design's class above.
+    # Per-circuit refinement via `with CapacitorQuery.refine(...)` for bulk caps,
+    # RF parts, thermal-limited regulators, etc.
     capacitor_defaults = CapacitorQuery(
         mounting="smd",
         type="ceramic",
@@ -244,17 +264,14 @@ class Design(...):
     circuit = TopCircuit()
 ```
 
-**Why these defaults:**
-- `mounting="smd"` — through-hole picks are wrong for every JLCPCB SMT design and almost every commercial design. This is the single most important filter.
-- `type="ceramic"` (capacitors) — covers the typical decoupling / filtering case. Override locally for circuits that genuinely need polymer or tantalum (large bulk caps, low-ESR rails).
-- `case=["0402", "0603", "0805"]` — 0402 is the smallest size assemblable by JLCPCB economy SMT and reasonable for hand-rework; 1206+ wastes board area for typical decoupling. Drop to `["0603", "0805"]` for hand-soldered prototypes.
-
 **How to override.** These are *defaults* — circuit-level `Capacitor(...)` or `Resistor(...)` calls take query refinements via `CapacitorQuery.refine(...)` context managers, and explicit `query=...` arguments override the design-level defaults entirely. If a circuit needs a 22 µF tantalum bulk cap on a power rail, scope a refinement around just that capacitor:
 
 ```python
 with CapacitorQuery.refine(type="tantalum", case="1210"):
     self.c_bulk = Capacitor(capacitance=22e-6, rated_voltage=10.0)
 ```
+
+**The point:** every design has a default that matches its manufacturing path, plus per-circuit overrides where the role demands them. The Phase 3 exit gate confirms defaults exist and overrides are documented — not that any specific filter is set.
 
 ### Topology vs net membership (CRITICAL)
 
@@ -403,9 +420,12 @@ These editor-side checks won't catch Pattern 1 (the `.insert(...)` call has a si
 - [ ] SI constraints applied **at this level** (not inside subcircuits) for every protocol with impedance/timing requirements
 - [ ] **No "Invalid Topology Definitions" or "No path for signal constraint" errors in the JITX UI Issues list** — every constraint endpoint reachable via `>>` chains, not `+` (see "Topology vs net membership" above)
 - [ ] **No `Reference to structural object … lost during instantiation` warnings in the build output** — every structural object stored on `self`; no bare `+` / `>>` expressions (see "Silent-drop patterns" above)
-- [ ] `ReferencePlanes(GND)` context wraps all constraint applications
+- [ ] `ReferencePlanes(...)` context wraps all constraint applications
 - [ ] Board geometry defined (shape, mounting holes, pours)
-- [ ] `capacitor_defaults` and `resistor_defaults` set on Design class (`mounting="smd"`, sensible case range) — verify a build does not pick through-hole leaded parts
+- [ ] `capacitor_defaults` and `resistor_defaults` set on Design class to match the design's manufacturing path and circuit role — per-circuit refinements documented for any specialty parts (HV, RF, bulk, precision, hand-build)
+- [ ] `bash scripts/grep_gates.sh src/<ns>/` reports 0 hard-fail hits; review-required hits dispositioned
+
+**Emit the `Gate: Phase 3 → Phase 3b` block** from `references/completion-blocks.md` before advancing.
 
 ---
 
@@ -417,7 +437,7 @@ Each subcircuit was designed in isolation. Now review the assembled design as a 
 
 ### Audit Structure
 
-Spawn a sub-agent to perform the design-level audit. The audit agent reads code and datasheets but **does not edit any files**. It produces a report with issues classified as CRITICAL / WARNING / NOTE.
+Spawn a sub-agent to perform the design-level audit. The audit agent reads code and datasheets but **does not edit any files**. It produces a **Phase 3b Audit Block** with issues classified as CRITICAL / WARNING / NOTE — see the template in `references/completion-blocks.md` "Phase 3b Design Audit Block".
 
 Before the audit runs, the orchestrator must have already addressed the build-time silent-drop patterns documented in Phase 3 → "Silent-drop patterns" — those bugs build with `status: ok` but produce a wrong design, and the audit agent's datasheet-comparison passes assume the netlist matches the source. JITX emits a `Reference to structural object … lost during instantiation` warning for some of these cases (constraint and similar structural classes), but not for bare net or topology expressions — handle both manually.
 
@@ -476,6 +496,8 @@ Do not accept "noted for future refactoring" — if it's broken, fix it now.
 - [ ] Every high-speed interface has SI constraints applied and functional
 - [ ] PLAN.md updated with all rework tasks completed
 
+**Emit the `Gate: Phase 3b → Phase 4` block** from `references/completion-blocks.md` before advancing. The gate references the Phase 3b audit block (in the same file), which the read-only audit agent emits during Phase 3b.
+
 ---
 
 ## Phase 4: Build + Verify + Iterate
@@ -492,18 +514,27 @@ Do not accept "noted for future refactoring" — if it's broken, fix it now.
    - Schematic: all connections present, symbols readable
    - Board: components placed (or floating), no overlaps
    - Issues List: SI constraints satisfied or flagged
+   - DRC: clean or flagged
 4. Iterate:
    - Build errors → fix code, rebuild
    - DRC violations → adjust clearances or routing structures
    - SI constraint failures → review parameters, check routing structure impedance
    - Missing connections → trace back to Phase 2/3 and fix
 
+5. **Emit the Phase 4 Verification Block** from `references/completion-blocks.md`. The block requires JITX UI / Issues List / DRC / SI / placement-overlap rows with explicit pass/fail status, or a `not run` reason for any row the environment can't run (e.g. headless CI). PLAN reconciliation, deferred items, and blocking items also belong in the block. **Blocking items must be empty for `Verdict: done`.**
+
 ### Completion Criteria
 
+The Phase 4 Verification Block is the completion criterion. The block enforces:
+
 - [ ] `status: ok` on final build
-- [ ] No critical DRC violations
-- [ ] All SI constraints satisfied (or user-acknowledged exceptions)
-- [ ] User has reviewed schematic and board in JITX UI
+- [ ] JITX UI verification rows pass or are `not run` with reason
+- [ ] Issues List, DRC, SI rows have status (or `not run` with reason)
+- [ ] All PLAN.md tasks accepted; all gate blocks emitted; Phase 3b audit verdict `clean`
+- [ ] No blocking items
+- [ ] User-approved deferrals documented
+
+A "builds clean" claim alone is not the criterion — the block is.
 
 ---
 

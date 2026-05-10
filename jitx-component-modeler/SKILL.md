@@ -106,6 +106,8 @@ Then read only the extracted PDF.
 
 ### Step 1: Extract Key Information
 
+**Before generating from scratch:** for a reusable IC family or common package pattern, search existing references first — see `jitx/references/parts-sourcing.md` "Reference Search Order for Component Modeling". User libraries → `jitxexamples.components` → vendor reference design → generate. Document `searched: found <path>` or `searched: no analog` in the task acceptance block.
+
 **IMPORTANT: Multiple Packages/Variants**
 
 If the datasheet covers multiple package options or component variants, ask the user which one to model:
@@ -151,6 +153,12 @@ Is it a 2-sided package?
         → Convert from a KiCad footprint (.kicad_mod):
           parts2jitx-kicad fp.kicad_mod --class-name MyPart
           NEVER hand-craft pad positions for non-standard packages.
+
+    Exception: mechanical / vendor-defined footprints (Tag-Connect TC2050,
+    pogo-pin fixtures, castellated edges, fiducials, board-edge contacts).
+    No purchasable component model exists; vendor mechanical drawing is
+    the source of truth. See parts-sourcing.md "Mechanical / Vendor-Defined
+    Footprints" for the workflow and verification checklist.
 ```
 
 **Getting a .kicad_mod for non-standard packages** (in priority order):

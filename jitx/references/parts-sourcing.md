@@ -2,6 +2,22 @@
 
 How to get component data (datasheets, footprints, pinouts) into JITX projects. Multiple data sources are supported — the user chooses what's appropriate for their workflow.
 
+## Evidence Hierarchy and Conflict Resolution
+
+When sourcing a component or designing a circuit around an IC, use sources in this order. Higher entries beat lower entries when they conflict. If sources disagree, document the conflict and pick with rationale; do not silently choose the convenient one.
+
+1. **Current datasheet** — the manufacturer's most recent revision. Always download fresh; do not reuse a year-old PDF without checking the manufacturer page for an update.
+2. **Errata** — same vendor, same part, same revision. Errata can supersede the datasheet on specific points; check before committing to a circuit detail that errata might change.
+3. **Application notes** — vendor-published guidance and worked examples. Useful for circuit topology and component values, but they interpret the datasheet — they don't override it.
+4. **Vendor reference design / eval board schematic, layout, BOM** — manufacturer or distributor reference design. Treat as authoritative for "this works"; cross-check against the current datasheet when something is surprising.
+5. **User-supplied known-good design** — a design the user explicitly identifies as field-validated and provides as a reference. Can be primary if the user explicitly says it is the source of truth for this design; otherwise treat as secondary and cross-check.
+6. **Prior internal project** — your own prior project that used the same part. Useful but secondary; cross-check against the current datasheet before relying on it for any pin function, register usage, or external component value.
+7. **Community examples** — Adafruit / SparkFun / hobbyist designs, forum posts, demo boards. Treat as hints, not authority.
+
+The task acceptance block's `Primary source:` field must come from items 1–4, OR item 5 when the user has explicitly designated it as authority. If a prior internal project (item 6) appears as primary, that's a flag — the orchestrator should ask the sub-agent to confirm against the datasheet.
+
+When sources conflict, the task acceptance block's `Secondary references:` field documents the conflict ("datasheet says X, user-supplied known-good says Y; chose Y because user confirmed Y is field-validated for this exact application").
+
 ## Data Sources (in priority order)
 
 ### 1. User-Provided Data (preferred)
@@ -30,7 +46,9 @@ For standard packages, use JITX landpattern generators — no external data need
 
 Dimensions come from the datasheet (user-provided or fetched). No footprint download needed.
 
-### 3. LCSC/EasyEDA Lookup (opt-in only — requires user approval)
+### 3. LCSC/EasyEDA Lookup via parts2jitx (opt-in only — requires user approval)
+
+`parts2jitx` is one of several footprint-ingestion paths for non-standard packages — alongside user-supplied `.kicad_mod` files, manufacturer KiCad library downloads, and vendor mechanical drawings (see "Mechanical / Vendor-Defined Footprints" below). The general rule for all of these: validate generated/imported code by smoke-build and geometry review before use.
 
 > **Licensing note:** EasyEDA component data may have its own terms of use. The `parts2jitx` tool and the LCSC/EasyEDA data flow should be treated as a separate, optional integration. **Do not use this data source without explicit user approval.** Ask the user before suggesting LCSC lookup — some users (especially commercial) will not want EasyEDA-sourced data in their project.
 
@@ -92,6 +110,17 @@ In the Project Builder workflow, Phase 0 includes a **data source audit** before
 
 3. **Record chosen parts** in PLAN.md with MPN, package, key specs, data source, and rationale.
 
+## Reference Search Order for Component Modeling
+
+Before generating a new component model, search existing sources in this order. Each source is one input; the goal is not to copy but to anchor the new model in proven patterns. Document `searched: found <path>` or `searched: no analog available` in the task acceptance block — but only for reusable IC families or common package patterns. A single resistor or jellybean connector doesn't need this overhead.
+
+1. **User's own libraries** — if the user maintains a JITX component library (in this project or a shared internal repo), check it first. The user's conventions take precedence.
+2. **`jitxexamples.components`** — the JITX-shipped examples package. Check for the same IC family or a closely-related package. Found a model? Use it as a starting point for pin patterns, port shape, and common idioms.
+3. **Vendor reference design** — manufacturer eval-board library or KiCad pack.
+4. **Generated from datasheet** — when no reference exists, generate from the datasheet using the `jitx-component-modeler` subskill.
+
+Don't skip steps, but don't pretend a search produced nothing without recording where you looked. If nothing applies (e.g. a one-off resistor), say so in one line.
+
 ## Footprint Workflow
 
 ### Standard packages — use JITX generators
@@ -110,6 +139,31 @@ Then convert: `parts2jitx-kicad <file.kicad_mod> --class-name MyPart`
 **NEVER hand-craft pad positions for non-standard packages.** Use the converter output as the base. If you must add pads the converter didn't generate, verify shapes against the datasheet mechanical drawing: round holes use `circle(radius)`, oval holes use `capsule(width, height)`.
 
 Always use `BoxSymbol`. Never convert KiCad schematic symbol graphics.
+
+## Mechanical / Vendor-Defined Footprints
+
+The "NEVER hand-craft pad positions" rule above has a legitimate exception: footprints that are board geometry, not a purchasable component. Examples include programming/test pad patterns (Tag-Connect TC2050, pogo-pin fixtures), castellated module edges, fiducials, board-edge shield contacts, and mounting pads with electrical function. For these, no `.kicad_mod` source exists — the source of truth is a vendor mechanical drawing.
+
+### When this applies
+
+- The "footprint" represents a mechanical/copper feature, not a part with an MPN.
+- Or: the part exists but no purchasable component model is available, and a vendor mechanical drawing is the source of truth.
+
+This exception does **not** authorize hand-crafting pad positions for purchasable components (resistors, ICs, connectors with MPNs). Those still go through the standard JITX generators or `parts2jitx-kicad` conversion.
+
+### Workflow
+
+1. **Source the vendor mechanical drawing** — manufacturer datasheet pad pattern, vendor application note, or user-provided drawing. Save to `kicad_footprints/<name>.pdf` (or wherever a static reference fits in the project — keep it findable).
+2. **Cite dimensions in the JITX code as comments** — pad center-to-center, pad size, hole sizes, keepouts, board-edge constraints. Future reviewers need to verify against the drawing without rediscovering the source.
+3. **Verification checklist** (include in the task acceptance block under `Checks run:`):
+    - Pad count matches drawing
+    - Pad pitch matches drawing
+    - Pad dimensions (width × length) match drawing
+    - Orientation / pin 1 marker matches drawing
+    - Keepouts and board-side restrictions captured
+    - Connection points electrically correct (e.g. TC2050 pin assignments per the programmer / debugger spec)
+
+Block completion until the verification checklist is full.
 
 ## Project Directory Convention
 

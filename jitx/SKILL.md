@@ -106,14 +106,21 @@ project/
 └── .venv/                  # Virtual environment
 ```
 
-## First: Decide the Workflow
+## First: Pick the Workflow Tier
 
-After environment setup, decide which workflow to use:
+After environment setup, classify the work into one of three tiers. The tier names which output blocks are required and whether the formal Phase 0 → Phase 4 chain applies. Every tier requires a **task acceptance block** for each unit of work — no exceptions.
 
-- **Building a complete board** (multiple components, circuits, substrate) → Use the **Project Builder Workflow** below. Start with Phase 0: create PLAN.md and ARCHITECTURE.md before writing any code.
-- **Single task** (one component, one circuit, one substrate) → Invoke the appropriate subskill directly.
+| Tier | When | Required output | Path |
+|------|------|-----------------|------|
+| **single-task** | One subskill against one artifact: a component, a circuit, a substrate, a constraint set, a pin-assignment wrapper. No top-level assembly. | Task acceptance block in chat | Invoke the subskill directly |
+| **small-board** | Trivially decomposable. Heuristics: 2–8 components, ≤2 power rails, no SI, predefined or trivial substrate, no sequencing or safety/thermal flag. | Task acceptance block per task + small-board design block at end | Lightweight PLAN.md (component list + power tree); no formal phase gates |
+| **complete-board** | Anything failing the small-board criteria, or user explicitly asks. Custom substrate, SI constraints, sequencing, safety-critical, ambiguous decomposition, multi-rail with thermal management. | Task acceptance block per task + phase exit gate blocks + Phase 3b audit + Phase 4 verification | Full Project Builder Workflow below |
 
-Do NOT skip the planning phase for complete board designs. Do not start exploring libraries or writing code until PLAN.md exists.
+**Escalation triggers** (force complete-board even if numerics suggest small-board): custom substrate, any SI-constrained interface, power sequencing, safety-critical function, high-current/high-thermal-density power, ambiguous decomposition.
+
+For tier definitions, the task acceptance block, the small-board design block, phase exit gate blocks, the Phase 3b design audit block, and the Phase 4 verification block: read `references/completion-blocks.md`.
+
+Do NOT skip the planning phase for complete-board designs. Do not start exploring libraries or writing code until PLAN.md exists.
 
 ## Core Concepts
 
@@ -155,25 +162,37 @@ python runner/build_lock.py <module.path.DesignClass>
 
 Copy `scripts/build_lock.py` from this skill into the project's `runner/` directory. Sub-agents call this instead of `jitx build` directly. The lock serializes builds via `fcntl.flock`; parallel agents wait their turn.
 
+### Grep Gate Enforcement
+
+Copy `scripts/grep_gates.sh` from this skill into the project's `scripts/` directory. Sub-agents (and the orchestrator at every phase exit gate) run it against `src/<ns>/` to enforce JITX code conventions and top-level-only rules:
+
+```bash
+bash scripts/grep_gates.sh src/<ns>/
+```
+
+The script reports hard-fail hits (which block task acceptance and gate transitions) and review-required hits (which need a disposition in the task acceptance block). Pattern set and disposition rules: `references/completion-blocks.md` "Grep Gate Patterns".
+
 ### Two-Tier Quality System
 
 Sub-agent work goes through TWO quality checks before being accepted:
 
 **1. Sub-Agent Self-Validation ("Think Twice")**
 
-After initial implementation, sub-agents MUST stop and run the domain-specific checklist against the datasheet before returning. This forced second pass typically catches 3-5 missed details (floating enable pins, missing thermal pads, wrong output types, forgotten decoupling). Sub-agents return a self-evaluation report documenting what they checked and fixed.
+After initial implementation, sub-agents MUST stop and run the domain-specific checklist against the datasheet before returning. This forced second pass typically catches 3-5 missed details (floating enable pins, missing thermal pads, wrong output types, forgotten decoupling). Sub-agents return a **task acceptance block** documenting what they checked and fixed — the block is mandatory; "build clean" is not a substitute. See `references/completion-blocks.md` for the template.
 
 **2. Orchestrator Acceptance Review**
 
-The orchestrator does NOT blindly trust self-evaluation. For each returned task:
+The orchestrator does NOT blindly trust the self-validation block. For each returned task:
 - Read the generated code for obvious issues
+- Verify the build claim (re-run `build_lock.py` for critical tasks)
 - Spot-check high-risk checklist items independently
 - Verify interface compatibility with downstream tasks
-- Issue verdict: **accept** / **rework** (send back with specific issues) / **reject** (replan)
+- Append the acceptance verdict to the same block: **accept** / **rework** (send back with specific issues) / **reject** (replan)
 
-Phase gates only open when ALL tasks in the phase are `accepted` by the orchestrator.
+A task without an acceptance block is `in-progress`, not done. Phase gates only open when ALL tasks in the phase have `Verdict (acceptance): accept` blocks.
 
 For the full protocol: read `references/task-execution.md`
+For block templates: read `references/completion-blocks.md`
 For domain checklists: read `references/domain-checklists.md`
 
 ### Exit Gates
@@ -205,7 +224,7 @@ Claude selects parts based on engineering requirements first. Data for each comp
    
    Do not use LCSC/EasyEDA data without user approval. Commercial users may have licensing concerns.
 
-For non-standard packages (connectors, RF modules): convert from a `.kicad_mod` file (user-provided or downloaded). **NEVER hand-craft pad positions** — use the converter. Standard packages use built-in JITX generators. All symbols use `BoxSymbol`.
+For non-standard packages (connectors, RF modules): convert from a `.kicad_mod` file (user-provided or downloaded). **NEVER hand-craft pad positions** — use the converter. Standard packages use built-in JITX generators. All symbols use `BoxSymbol`. Exception: mechanical / vendor-defined footprints (Tag-Connect, pogo-pin fixtures, castellations, fiducials) where no purchasable component exists — see `references/parts-sourcing.md` "Mechanical / Vendor-Defined Footprints".
 
 For details: read `references/parts-sourcing.md`
 
