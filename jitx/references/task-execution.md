@@ -183,6 +183,8 @@ Verify that the task output is compatible with downstream tasks:
 
 #### 5. Issue Verdict
 
+For task classes in the outside-voice trigger list (MCU/FPGA, RF, power converter, safety-critical, high-speed digital / controlled-impedance, battery charging / protection), **run an outside-voice (codex) pass before issuing `accept`**. See `references/outside-voice-review.md` for trigger rules, prompt shape, invocation, and the combined-verdict rule. Append the outside-voice result as a field in the task acceptance block; CRITICAL/WARNING findings block `accept` until fixed, downgraded with rationale, or user-approved.
+
 Append the acceptance verdict to the same task acceptance block the sub-agent emitted:
 
 ```markdown

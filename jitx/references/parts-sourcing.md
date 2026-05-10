@@ -104,11 +104,41 @@ In the Project Builder workflow, Phase 0 includes a **data source audit** before
 
 ## Part Selection Workflow
 
-1. **Claude proposes ideal parts** based on engineering requirements: voltage/current ratings, package thermal limits, peripheral set, interface support, proven reliability. Weigh tradeoffs (dropout vs efficiency, pin count vs board area, feature set vs complexity).
+1. **Read the requirements lock first.** Component proposals must respect the locked answers from `decomposition-guide.md` "Requirements Lock" — assembly-cost target, RF policy, programming path, fab house. Proposing an ESP32 to a user who locked "JLCPCB economy, no extended parts" wastes a cycle.
 
-2. **Identify data source** for each part: does the user have a datasheet? A footprint? Or should we search/download?
+2. **Claude proposes ideal parts** based on engineering requirements: voltage/current ratings, package thermal limits, peripheral set, interface support, proven reliability. Weigh tradeoffs (dropout vs efficiency, pin count vs board area, feature set vs complexity).
 
-3. **Record chosen parts** in PLAN.md with MPN, package, key specs, data source, and rationale.
+3. **Identify data source** for each part: does the user have a datasheet? A footprint? Or should we search/download?
+
+4. **Record chosen parts in PLAN.md** with MPN, package, key specs, data source, and the **component-choice rationale table** below.
+
+### Component-Choice Rationale Table
+
+For every part the orchestrator proposes, record the rationale. This is the table the user reviews at the Phase 0 data source audit. Filling it forces the agent to justify each choice against the locked requirements, not just availability.
+
+| Field | What to capture |
+|-------|-----------------|
+| **MPN / package** | The proposed part and package |
+| **Function** | One-line description of what role this part plays |
+| **Locked-requirement match** | Which lock items it satisfies (assembly-cost tier, RF policy, voltage/current, programming path, etc.) — and which it might strain (e.g. "uses extended JLCPCB part — user locked economy") |
+| **Stock / availability** | Stock level at the chosen distributor; lead time if not in stock |
+| **Fabrication risk** | Package class fab requires (e.g. "0.5 mm pitch BGA — needs ≥6-layer w/ microvias"), any DRC concerns |
+| **Thermal / power** | Worst-case dissipation, whether package can handle it, ambient assumption |
+| **Why this part over alternatives** | Concrete: which 1–2 alternatives were considered and why rejected (cost, availability, package, feature gap, EOL, etc.) |
+
+A row without a real "rejected alternatives" entry is a flag — it usually means the agent took the first hit from a query without weighing tradeoffs. The user can challenge any row at the data source audit.
+
+Example (one row):
+
+| Field | Value |
+|-------|-------|
+| MPN / package | TPS62933DRLR / SOT-583 6-pin |
+| Function | 5V → 3.3V buck, 2 A load |
+| Locked-requirement match | JLCPCB economy ✓ (basic part); 5V in / 3.3V out ✓; 2 A load + 30% margin ✓ |
+| Stock / availability | 25k+ at LCSC, no lead time |
+| Fabrication risk | SOT-583 needs 0.4 mm pitch reflow — within JLCPCB economy |
+| Thermal / power | P_diss ≈ 0.35 W worst-case; package θJA OK to 60 °C ambient |
+| Why this part over alternatives | Considered MP2315 (efficient but extended part on JLCPCB — fails cost lock); TLV62568 (cheaper but only 1 A — fails margin); chose TPS62933 for cost + headroom |
 
 ## Reference Search Order for Component Modeling
 

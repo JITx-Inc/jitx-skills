@@ -606,6 +606,8 @@ pyright path/to/circuit.py
 python -m jitx build <module.path.DesignClass>
 ```
 
+In a complete-board or sub-agent workflow, use `bash runner/build_lock.py <module.path.DesignClass>` instead — see `jitx/SKILL.md` "Parallel Build Safety".
+
 Pin assignment errors appear as "Unsatisfiable pin assignment" in the Issues List. Constraint violations appear under "Unsatisfied Signal Constraints".
 
 ## API Reference

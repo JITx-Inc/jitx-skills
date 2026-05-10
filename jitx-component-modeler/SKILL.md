@@ -161,6 +161,22 @@ Is it a 2-sided package?
     Footprints" for the workflow and verification checklist.
 ```
 
+### Standard-Package Decision Rule (parts2jitx + LCSC workflows)
+
+When using `parts2jitx-lcsc` for a part whose package is in the standard set (`QFN`, `SON`, `DFN`, `SOIC`, `SOT-23`, `SOT-223`, `QFP`, `BGA`), do **not** import the LCSC KiCad footprint as the landpattern. Use `parts2jitx-lcsc` for stock / pricing / pinout evidence only, and generate the landpattern with the corresponding JITX generator from the datasheet's mechanical drawing.
+
+| LCSC package | Use parts2jitx for | Use JITX generator for landpattern |
+|--------------|--------------------|------------------------------------|
+| QFN-* | Stock, pinout, datasheet URL | `QFN(...)` |
+| SON-* / DFN-* | Stock, pinout, datasheet URL | `SON(...)` |
+| SOIC-* | Stock, pinout, datasheet URL | `SOIC(...)` |
+| SOT-23 / SOT-223 | Stock, pinout, datasheet URL | jitxlib standard library |
+| QFP-* | Stock, pinout, datasheet URL | `QFP(...)` |
+| BGA-* | Stock, pinout, datasheet URL | `BGA(...)` |
+| Non-standard (connectors, RF modules, irregular pads) | Stock, pinout, footprint download | KiCad import via `parts2jitx-kicad` |
+
+Why: the JITX standard generators use datasheet mechanical dimensions and produce reviewable, parameterized code. KiCad-imported footprints carry the importer's quirks, may use non-standard pad shapes, and are harder to audit against the datasheet. The Encore audit found a QFN-56 imported from KiCad instead of generated — both worked, but the generated version is the maintainable form.
+
 **Getting a .kicad_mod for non-standard packages** (in priority order):
 1. **User-provided** — ask if they have a `.kicad_mod` from their KiCad library or manufacturer download
 2. **Manufacturer KiCad library** — many vendors (Molex, TE, Amphenol) publish official KiCad footprints
@@ -446,6 +462,8 @@ Always use the available virtual environment. If one is not present, stop and as
 ```bash
 python -m jitx build <module>.TestDesign
 ```
+
+In a complete-board or sub-agent workflow, use `bash runner/build_lock.py <module>.TestDesign` instead — direct `python -m jitx build` collides with parallel agents. See `jitx/SKILL.md` "Parallel Build Safety".
 
 **Success:** `status: ok`
 **Failure:** Python traceback or `status: error`

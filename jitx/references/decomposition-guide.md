@@ -2,6 +2,25 @@
 
 How to analyze requirements and break a hardware design into a parallelizable task graph for the project builder.
 
+## Step 0: Requirements Lock (do this before any decomposition)
+
+Before proposing subsystems or components, force the user to answer the requirements that drive part selection, mechanical fit, and assembly cost. Without these locked, every later proposal is guesswork and will need rework when the user pushes back. The Encore audit found the agent designed an ESP32 + USB-C input only to be told "no, that triggers the assembly cost I wanted to avoid" — the assembly-cost target wasn't locked before parts were chosen.
+
+Lock these answers in PLAN.md before Phase 0 closes:
+
+| Lock item | Why it matters | Example answers |
+|-----------|---------------|-----------------|
+| **Programming / debug path** | Drives MCU choice, connector, board area | "USB-C programming via on-chip bootloader", "JTAG via TC2050 pads", "pre-programmed module, no debug" |
+| **User interface (UI) count and class** | Drives connector list, board area, edge geometry | "0 (sealed)", "1 button + 1 LED", "OLED + 4 buttons", "rotary encoder + audio jack" |
+| **Power rails needed (count + voltage + load)** | Drives regulator topology, BOM, sequencing | "3.3V @ 200 mA", "3.3V + 1.8V + 5V analog, sequenced", "single 5V from USB-PD" |
+| **Assembly cost target / tier** | Eliminates whole part categories before proposing | "JLCPCB economy (basic parts only)", "JLCPCB standard (extended OK)", "hand-build prototype", "production-volume custom assembly" |
+| **RF / wireless module policy** | RF integration is a major design decision | "no RF", "BLE module (pre-certified)", "WiFi+BLE SoC (DIY antenna)", "external antenna module via U.FL" |
+| **Connector UX** | Drives footprint, mechanical, ESD strategy | "USB-C edge-mount, plug from end", "USB-C top-mount, plug from above", "screw terminals", "internal-only board-to-board" |
+| **Fab house / process** | Drives substrate choice (predefined vs custom), DRC | "JLCPCB 4-layer FR-4", "JLCPCB 6-layer 7628", "custom fab (Rogers)", "TBD — orchestrator asks" |
+| **Mechanical / enclosure constraint** | Drives board outline, height, mounting | "fits an Adafruit 1.4\" case", "DXF outline at <path>", "no enclosure constraint", "must mount to existing PCB via M3 holes" |
+
+The Phase 0 → 1 gate block requires that each of these is answered or explicitly marked "no constraint". Bare or hand-waved answers ("we'll figure out programming later") block the gate — they reliably become rework cycles.
+
 ## Step 1: Identify Subsystems
 
 Parse the requirements and categorize everything needed:

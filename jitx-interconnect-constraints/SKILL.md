@@ -605,6 +605,8 @@ pyright path/to/circuit.py
 python -m jitx build <module.path.DesignClass>
 ```
 
+In a complete-board or sub-agent workflow, use `bash runner/build_lock.py <module.path.DesignClass>` instead — see `jitx/SKILL.md` "Parallel Build Safety".
+
 SI constraint violations appear in the Issues List under "Unsatisfied Signal Constraints" in the JITX UI.
 
 ## API Reference

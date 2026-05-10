@@ -439,6 +439,8 @@ Each subcircuit was designed in isolation. Now review the assembled design as a 
 
 Spawn a sub-agent to perform the design-level audit. The audit agent reads code and datasheets but **does not edit any files**. It produces a **Phase 3b Audit Block** with issues classified as CRITICAL / WARNING / NOTE — see the template in `references/completion-blocks.md` "Phase 3b Design Audit Block".
 
+**After the same-model audit, run an outside-voice (codex) pass — mandatory for complete-board tier.** The two reviews are additive: the same-model audit uses skill knowledge, codex provides independent perspective from outside the conversation. See `references/outside-voice-review.md` for the trigger rules, prompt shape, invocation command, and combined-verdict rule (any CRITICAL/WARNING outside-voice finding makes the combined verdict `issues-pending` even if the same-model audit said `clean`).
+
 Before the audit runs, the orchestrator must have already addressed the build-time silent-drop patterns documented in Phase 3 → "Silent-drop patterns" — those bugs build with `status: ok` but produce a wrong design, and the audit agent's datasheet-comparison passes assume the netlist matches the source. JITX emits a `Reference to structural object … lost during instantiation` warning for some of these cases (constraint and similar structural classes), but not for bare net or topology expressions — handle both manually.
 
 The audit runs four passes:
@@ -552,6 +554,21 @@ This is why PLAN.md must be kept up-to-date with every status change.
 ---
 
 ## Recovery Procedures
+
+### Missing-Dependency Escalation
+
+When a required dependency is missing — `jitxlib` doesn't import, the target substrate package isn't available, `parts2jitx` returns broken output that can't be patched in a smoke build, the datasheet PDF the user said they'd provide hasn't arrived — that is a **blocker**, not a license to drop the design requirement.
+
+The Encore failure mode: `jitxlib` failed to import, so the agent silently dropped controlled-impedance routing from the design rather than fix the environment. **Do not do this.**
+
+Concrete rule:
+
+1. **Surface the missing dependency to the user immediately.** Name what's missing and what work it blocks.
+2. **Do not substitute a lower-fidelity design as a workaround** — no removing SI constraints because the SI module didn't load, no skipping `voltage_divider_from_constraints()` because the solver isn't available, no swapping a custom substrate for a fallback because the predefined package didn't import.
+3. **Wait for user confirmation** before making any design-scope change. If the user explicitly accepts a reduced scope ("ship without controlled impedance, we'll fix the env after"), record that as a deferred item with their approval in the relevant gate block.
+4. **Environment fixes go before design fixes.** If the missing dependency is a setup issue (wrong venv, missing pip install, wrong Python version), fix the setup. If it's a real availability gap (`jitxexamples` not installed but referenced), confirm with the user before proceeding.
+
+This rule applies through every phase, not just Phase 0. Mid-project missing-dependency discoveries follow the same protocol.
 
 ### Rework Loop
 

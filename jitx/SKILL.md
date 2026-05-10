@@ -28,9 +28,35 @@ else
   source .venv/bin/activate
 fi
 
-# Verify (don't check __version__ — not present in all JITX versions)
-python -c "import jitx; print('JITX ready')"
+# Verify core imports (don't check __version__ — not present in all JITX versions).
+# Fail loud if any import is missing; do not work around with substitutions.
+python - <<'PY'
+import sys
+required = [
+    "jitx",
+    "jitxlib",
+    "jitxlib.parts",
+    "jitxlib.symbols.box",
+    "jitxlib.voltage_divider",
+]
+missing = []
+for mod in required:
+    try:
+        __import__(mod)
+    except Exception as e:
+        missing.append(f"{mod}: {e}")
+if missing:
+    print("ERROR: missing required JITX modules:")
+    for m in missing:
+        print(f"  - {m}")
+    sys.exit(1)
+print("JITX core ready")
+PY
 ```
+
+Also probe the target substrate package if known (e.g., `python -c "import jitxlib.jlcpcb"` when the user has chosen JLCPCB). For complete-board tier, the Phase 0 → 1 gate requires this probe.
+
+**Missing-dependency rule:** if any required import fails, stop and surface it to the user as a blocker. Do NOT remove or substitute design requirements as a workaround (e.g. dropping controlled-impedance routing because `jitxlib` didn't import). See `references/project-builder-flow.md` Recovery Procedures → "Missing dependency escalation".
 
 Only install deps on first run (venv creation). Skip `pip install` on subsequent runs — it's slow and noisy. Don't ask user to do manual setup.
 
@@ -81,6 +107,8 @@ python -m jitx build <module.path.DesignClass>
 python -m jitx build-all
 ```
 
+**Forbidden in complete-board and sub-agent workflows.** Sub-agents and the orchestrator MUST use `bash runner/build_lock.py <module>` instead — see "Parallel Build Safety" below. JITX uses a single WebSocket backend; concurrent direct `jitx build` calls collide and corrupt output. Direct `python -m jitx build` is only acceptable for ad-hoc single-task work where no parallel agents are running and the user is at the terminal.
+
 **Success output:** `status: ok`
 **Error output:** Python traceback or `status: error`
 
@@ -116,7 +144,9 @@ After environment setup, classify the work into one of three tiers. The tier nam
 | **small-board** | Trivially decomposable. Heuristics: 2–8 components, ≤2 power rails, no SI, predefined or trivial substrate, no sequencing or safety/thermal flag. | Task acceptance block per task + small-board design block at end | Lightweight PLAN.md (component list + power tree); no formal phase gates |
 | **complete-board** | Anything failing the small-board criteria, or user explicitly asks. Custom substrate, SI constraints, sequencing, safety-critical, ambiguous decomposition, multi-rail with thermal management. | Task acceptance block per task + phase exit gate blocks + Phase 3b audit + Phase 4 verification | Full Project Builder Workflow below |
 
-**Escalation triggers** (force complete-board even if numerics suggest small-board): custom substrate, any SI-constrained interface, power sequencing, safety-critical function, high-current/high-thermal-density power, ambiguous decomposition.
+**Escalation triggers** (force complete-board even if numerics suggest small-board): custom substrate; any SI-constrained interface; external connector / hot-plug interface needing ESD-or-justification; RF / antenna geometry; programming/debug access pads that must connect to an interface; user assembly-cost constraints affecting part selection; required board-edge / mechanical geometry; power sequencing; safety-critical function; high-current / high-thermal-density power; ambiguous decomposition.
+
+**Bias rule:** when classification is uncertain, choose complete-board. The cost of extra ceremony on a smaller design is small; the cost of small-board on a complete-board-grade design is shipping with required features missing.
 
 For tier definitions, the task acceptance block, the small-board design block, phase exit gate blocks, the Phase 3b design audit block, and the Phase 4 verification block: read `references/completion-blocks.md`.
 
@@ -394,5 +424,6 @@ ruff format path/to/file.py
 
 | Task | Command/Pattern |
 |------|-----------------|
-| Build design | `python -m jitx build module.Design` |
+| Build design (ad-hoc only) | `python -m jitx build module.Design` |
+| Build design (sub-agent / complete-board) | `bash runner/build_lock.py module.Design` |
 | Format code | `ruff format path/to/file.py` |

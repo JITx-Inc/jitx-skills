@@ -32,6 +32,11 @@ A task that would otherwise look like small-board must be promoted to complete-b
 
 - Custom substrate (not a `jitxlib.jlcpcb` predefined)
 - Any SI-constrained interface (USB, Ethernet, DDR, PCIe, HDMI, DisplayPort, etc.)
+- **External connector / hot-plug interface** that needs ESD-or-justification (USB, audio jack, debug header if user-accessible, expansion connector, antenna connector) — see `domain-checklists.md` "External Connector / Hot-Plug Interface"
+- **RF / antenna geometry** (PCB antenna, matched feed, return-plane keepout requirement)
+- **Programming / debug access pads** that must connect to a real interface (TC2050, JTAG header, edge-mount programming) — leaving these unconnected at completion is the canonical "looks done, isn't" failure
+- **User assembly-cost constraints** affect part selection (target BOM, assembly tier, hand-build vs. machine assembly)
+- **Required board-edge / mechanical geometry** (DXF outline, EMN placement, mounting-hole tolerance, height restrictions)
 - Power sequencing requirement between rails
 - Safety-critical function (medical, automotive safety, mains voltage, isolation)
 - High-current or high-thermal-density power conversion
@@ -39,6 +44,8 @@ A task that would otherwise look like small-board must be promoted to complete-b
 - User explicitly requests the full workflow
 
 The numeric heuristics in the table are guidance for unambiguous cases. Escalation triggers override them.
+
+**Bias rule:** when classification is uncertain, choose complete-board. The cost of complete-board ceremony on a smaller-than-expected design is small (a few extra blocks); the cost of small-board on a complete-board-grade design is the original Encore failure mode (shipping with required features missing). When in doubt, classify up.
 
 ### Tier upgrade
 
@@ -79,6 +86,13 @@ Copy this template verbatim. Fill every field. Every `N/A` requires a reason.
 - Ports exposed: <bundle types, e.g. "I2S (out), Power (3V3 in), GPIO (status)">
 - Power requirements: <voltage and current draw>
 - Constraints needed at top level: <SI constraints to apply, or "none">
+
+**Outside-voice review (codex):** clean | <N> findings | not applicable: <task class not in trigger list> | not run: <reason — blocking unless user approves on trigger-list tasks>
+- CRITICAL: <one-line> — file:line — datasheet p.M fig.N (or "inference") — disposition
+- WARNING: ...
+- NOTE: ...
+
+See `references/outside-voice-review.md` for trigger list and prompt shape. The field is always present — `not applicable: <reason>` is valid for non-triggered task classes.
 
 **Verdict (self):** ready-for-review
 
@@ -216,9 +230,12 @@ The criteria mirror the exit-gate bullet lists in `references/project-builder-fl
 ```markdown
 ## Gate: Phase 0 → Phase 1
 
+**Environment probe:** all of `jitx`, `jitxlib`, `jitxlib.parts`, `jitxlib.symbols.box`, `jitxlib.voltage_divider` import; target substrate package imports (e.g. `jitxlib.jlcpcb` for JLCPCB). See `jitx/SKILL.md` "Environment Setup".
+**Requirements lock complete:** yes — see `decomposition-guide.md` "Requirements Lock" — programming path, UI count, rails, assembly-cost target, RF/module policy, connector UX, fab house all answered in PLAN.md
 **PLAN.md exists:** yes — `<path>` (referenced)
 **ARCHITECTURE.md exists:** yes — `<path>` (power tree, interface map, voltage domains, board)
 **Data source audit completed:** yes — table presented to user, user approved on <date>
+**Component-choice rationale documented:** yes — see `parts-sourcing.md` "Component-Choice Rationale Table" — every proposed part has assembly tier, stock, package, fabrication risk, rejected alternatives
 **All datasheets and reference materials identified:** <yes | partial — list missing items>
 **Dependencies acyclic:** yes (verified by reading PLAN.md task graph)
 **No ambiguous requirements:** yes | <list of open questions for user>
@@ -378,18 +395,31 @@ Findings:
 - **WARNING** ...
 - **NOTE** ...
 
+### Outside-Voice Review (codex)
+
+**Required for complete-board.** Run after the four passes above; codex provides an independent perspective from outside the conversation context. See `references/outside-voice-review.md` for invocation, prompt shape, and combined-verdict rule.
+
+```
+Outside-voice review (codex): clean | <N> findings | not run: <reason — blocking unless user approves>
+- CRITICAL: <one-line> — file:line — datasheet p.M fig.N (or "inference") — disposition: fix → new task `<task-id>` | accept with rationale: <why>
+- WARNING: ...
+- NOTE: ...
+```
+
+Any CRITICAL or WARNING outside-voice finding changes the combined audit verdict to `issues-pending`, even if the four passes above were `clean`.
+
 ### Loopback Decisions
 
-| Finding | Severity | Decision | Owner |
-|---------|----------|----------|-------|
-| <one-line> | CRITICAL | fix → new task `<task-id>` | <sub-agent> |
-| <one-line> | WARNING | fix inline | orchestrator |
-| <one-line> | NOTE | document only | — |
-| <one-line> | WARNING | accepted with rationale: <why> | — |
+| Finding | Severity | Source | Decision | Owner |
+|---------|----------|--------|----------|-------|
+| <one-line> | CRITICAL | same-model | fix → new task `<task-id>` | <sub-agent> |
+| <one-line> | WARNING | outside-voice | fix inline | orchestrator |
+| <one-line> | NOTE | same-model | document only | — |
+| <one-line> | WARNING | outside-voice | accepted with rationale: <why> | — |
 
 **Re-audit needed:** yes (after fixes land) | no (no fixes)
 
-**Audit verdict:** clean | issues-pending (returns to phase chain after fixes)
+**Audit verdict (combined):** clean | issues-pending (returns to phase chain after fixes)
 ```
 
 Severity definitions:
