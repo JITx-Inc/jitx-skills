@@ -222,6 +222,39 @@ class MySubstrate(Substrate):
 
 Define as **nested classes** inside Substrate. All properties are `ClassVar`.
 
+> ⚠️ **Two pitfalls observed in the wild** (TEC-example pilot):
+>
+> 1. **Attribute names are `start_layer` / `stop_layer`** (with `_layer`
+>    suffix), NOT `start` / `stop`. Some `Via` docstring examples in the
+>    package source show `start = Side.Top; stop = Side.Bottom` — that
+>    form is broken and causes
+>    `AttributeError: type object 'THVia' has no attribute 'start_layer'`
+>    at build time. Always use the `_layer` suffix.
+> 2. **Vias must be nested classes, not instance attributes.** Placing
+>    `th_via = THVia()` as an instance attribute on a `Substrate` raises
+>    `InvalidElementException: THVia element substrate.th_via has no effect`
+>    at build time:
+>
+>    ```python
+>    # WRONG — instance attribute:
+>    class MySubstrate(Substrate):
+>        stackup = MyStackup()
+>        th_via = THVia()              # → InvalidElementException
+>
+>    # RIGHT — nested class:
+>    class MySubstrate(Substrate):
+>        stackup = MyStackup()
+>        class THVia(Via):
+>            start_layer = 0
+>            stop_layer = 3
+>    ```
+>
+> Prefer **integer layer indices** (`0` = top, `N-1` = bottom) for clarity
+> when the substrate has more than two layers. `Side.Top` / `Side.Bottom`
+> resolve correctly for `start_layer` / `stop_layer` on a two-sided
+> stackup but are ambiguous on a four-layer build — int indices are
+> always unambiguous.
+
 ### Through-Hole (Standard)
 
 ```python
