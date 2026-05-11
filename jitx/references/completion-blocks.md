@@ -6,11 +6,10 @@ This file holds:
 
 1. **Workflow tiers** — which artifacts apply to which size of job.
 2. **Task acceptance block** — the per-task completion artifact (universal: every tier requires this).
-3. **Small-board design block** — the end-of-work artifact for small-board tier.
-4. **Grep gate patterns** — what `jitx/scripts/grep_gates.sh` enforces.
-5. **Phase exit gate blocks** — for complete-board tier transitions (Phase 0→1, 1→2, 2→3, 3→3b, 3b→4).
-6. **Phase 3b design audit block** — read-only audit with CRITICAL / WARNING / NOTE classification.
-7. **Phase 4 verification block** — final JITX UI / Issues / DRC / SI verification with explicit tool-availability handling.
+3. **Grep gate patterns** — what `jitx/scripts/grep_gates.sh` enforces.
+4. **Phase exit gate blocks** — for complete-board tier transitions (Phase 0→1, 1→2, 2→3, 3→3b, 3b→4).
+5. **Phase 3b design audit block** — read-only audit with CRITICAL / WARNING / NOTE classification.
+6. **Phase 4 verification block** — final JITX UI / Issues / DRC / SI verification with explicit tool-availability handling.
 
 ---
 
@@ -18,38 +17,22 @@ This file holds:
 
 The first decision in any JITX work is which tier applies. The tier names which blocks are required, not which work is done. Every tier requires the **task acceptance block** for each unit of work.
 
-**Tier classification is upstream of Phase 0.** Only complete-board enters the formal Phase 0 → Phase 4 chain. Single-task and small-board are routed before that.
+**Tier classification is upstream of Phase 0.** Only complete-board enters the formal Phase 0 → Phase 4 chain. Single-task is routed before that.
 
 | Tier | When to use | Required output blocks | Phase chain |
 |------|-------------|------------------------|-------------|
 | **single-task** | One subskill invocation against one artifact: one component, one circuit, one substrate, one constraint set, one pin-assignment wrapper. No top-level assembly. | Task acceptance block (1) | None |
-| **small-board** | Trivially decomposable and reviewable without formal phase gates. Heuristics: 2–8 components, ≤2 power rails, no SI-constrained interfaces, predefined or trivial substrate, no power sequencing requirement, no safety/thermal risk flag, decomposition unambiguous. | Task acceptance block per task + small-board design block (1) at end | Implicit: components → assembly → verify |
-| **complete-board** | Anything that fails the small-board criteria, OR the user explicitly asks for the project-builder workflow. Custom substrate, SI constraints, power sequencing, safety-critical, multi-rail with thermal management, ambiguous decomposition. | Task acceptance block per task + phase exit gate blocks + Phase 3b audit block + Phase 4 verification block | Full Phase 0 → 1 → 2 → 3 → 3b → 4 |
+| **complete-board** | Anything beyond a single isolated artifact — any work that produces a buildable board, no matter how few components. | Task acceptance block per task + phase exit gate blocks + Phase 3b audit block + Phase 4 verification block | Full Phase 0 → 1 → 2 → 3 → 3b → 4 |
 
-### Escalation triggers (force complete-board)
+### Why no "small-board" middle tier
 
-A task that would otherwise look like small-board must be promoted to complete-board if **any** of the following are true:
+Earlier revisions of this skill defined a small-board tier as a lighter-weight middle ground for "trivially decomposable" projects. It turned out to be a footgun: agents used "this is just a small board" as an escape hatch from Phase 0 ceremony, and the numeric heuristics (2–8 components, ≤2 power rails) excluded boards that genuinely needed the full process. The cost of Phase 0–4 on a small project is a few extra block emissions; the cost of skipping it on a real project is shipping with required features missing.
 
-- Custom substrate (not a `jitxlib.jlcpcb` predefined)
-- Any SI-constrained interface (USB, Ethernet, DDR, PCIe, HDMI, DisplayPort, etc.)
-- **External connector / hot-plug interface** that needs ESD-or-justification (USB, audio jack, debug header if user-accessible, expansion connector, antenna connector) — see `domain-checklists.md` "External Connector / Hot-Plug Interface"
-- **RF / antenna geometry** (PCB antenna, matched feed, return-plane keepout requirement)
-- **Programming / debug access pads** that must connect to a real interface (TC2050, JTAG header, edge-mount programming) — leaving these unconnected at completion is the canonical "looks done, isn't" failure
-- **User assembly-cost constraints** affect part selection (target BOM, assembly tier, hand-build vs. machine assembly)
-- **Required board-edge / mechanical geometry** (DXF outline, EMN placement, mounting-hole tolerance, height restrictions)
-- Power sequencing requirement between rails
-- Safety-critical function (medical, automotive safety, mains voltage, isolation)
-- High-current or high-thermal-density power conversion
-- Decomposition is ambiguous or unclear
-- User explicitly requests the full workflow
-
-The numeric heuristics in the table are guidance for unambiguous cases. Escalation triggers override them.
-
-**Bias rule:** when classification is uncertain, choose complete-board. The cost of complete-board ceremony on a smaller-than-expected design is small (a few extra blocks); the cost of small-board on a complete-board-grade design is the original Encore failure mode (shipping with required features missing). When in doubt, classify up.
+If you're tempted to call something "small" or "trivial" to avoid the workflow, classify it as complete-board. Phase 0 will be brief; that's fine.
 
 ### Tier upgrade
 
-A small-board that grows mid-work can be re-classed as complete-board. Update the existing artifacts (or write PLAN.md / ARCHITECTURE.md if missing) and apply the additional block requirements going forward. Don't downgrade tiers — once a complete-board, stay complete-board.
+If a job classified as `single-task` grows beyond a single artifact mid-work, re-class it as `complete-board`. Write `PLAN.md` and `ARCHITECTURE.md` retroactively, then continue with full Phase 0 → 4 enforcement. Don't drift past the single-artifact line without upgrading.
 
 ---
 
@@ -124,42 +107,9 @@ The orchestrator (or user) then appends the acceptance decision:
 
 ---
 
-## Small-Board Design Block
-
-**Required:** small-board tier only, at end of work.
-
-This is the equivalent of the complete-board Phase 4 verification block, scaled down. Complete-board uses a fuller version (see "Phase 4 Verification Block" below); small-board uses this minimal version:
-
-```markdown
-## Design complete: <project-name>
-
-**Final build:** `status: ok` (via `<exact build command>`)
-
-**Components accepted:** <count> / <total> — all task acceptance blocks present and `accepted`
-**Open task acceptance blocks:** <list, or "none">
-
-**Plan reconciliation:** <every component in the original component list has a corresponding accepted task, OR explain deferrals>
-
-**JITX UI verification:** <if available — schematic, board, Issues List checked / blocked: tool not run because <reason>>
-
-**Deferred items:** <user-approved deferrals only — list with reason and follow-up>
-
-**Blocking items:** <must be empty to claim done>
-
-**Verdict:** done | not-yet — open: <list>
-```
-
-Rules:
-
-- `Blocking items` must be empty. Any non-blocking deferral must have user approval and a follow-up plan.
-- `JITX UI verification` may be `not run` if the UI is unavailable (CI, headless), but the reason must be stated.
-- A small-board with non-empty `Blocking items` cannot claim `done` — verdict is `not-yet`.
-
----
-
 ## Grep Gate Patterns
 
-The `Grep gates:` line in the task acceptance block reports the result of running `jitx/scripts/grep_gates.sh` against the project's source tree. The script is the executable source of truth — copy it into the project's `scripts/` directory alongside `build_lock.py`. This section summarizes which patterns are checked and why.
+The `Grep gates:` line in the task acceptance block reports the result of running `jitx/scripts/grep_gates.sh` against the project's source tree. The script is the executable source of truth — copy it into the project's `scripts/` directory. This section summarizes which patterns are checked and why.
 
 > **Note on table display.** The regex patterns below are rendered inside markdown tables, so `|` in alternations is escaped as `\|` for readability. The script in `jitx/scripts/grep_gates.sh` carries the exact regexes — read it for the runnable form.
 
@@ -222,7 +172,7 @@ TOP_LEVEL_PATH=top bash scripts/grep_gates.sh src/<ns>/
 
 ## Phase Exit Gate Blocks (complete-board only)
 
-Each transition between phases emits one block before advancing. Single-task and small-board tiers do not have phase gates — they use the task acceptance block and (for small-board) the small-board design block instead. The block is the gate; an unemitted block means the transition has not happened.
+Each transition between phases emits one block before advancing. Single-task tier does not have phase gates — it uses the task acceptance block only. The block is the gate; an unemitted block means the transition has not happened.
 
 The criteria mirror the exit-gate bullet lists in `references/project-builder-flow.md`. The Phase 3b → Phase 4 gate references the Phase 3b audit block (see "Phase 3b Design Audit Block" below).
 
@@ -442,12 +392,12 @@ Rules:
 
 ## Phase 4 Verification Block (complete-board only)
 
-Final verification before declaring the project done. The small-board tier uses a simpler block (see "Small-Board Design Block" above); complete-board uses this fuller version because the design has SI constraints, multi-rail power, or other complexity that requires the JITX UI checks.
+Final verification before declaring the project done.
 
 ```markdown
 ## Phase 4 Verification: <project-name>
 
-**Final build:** `status: ok` (via `<exact build command — usually `bash runner/build_lock.py <ns>.designs.Design`>`)
+**Final build:** `status: ok` (via `<exact build command — usually `python -m jitx build <ns>.designs.Design`>`)
 
 **Build warnings:** none | <list — every warning needs a disposition>
 

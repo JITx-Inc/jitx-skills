@@ -1,16 +1,14 @@
 #!/usr/bin/env python3
 """
-JITX build wrapper with file-locked invocation.
+JITX build wrapper with file-locked invocation. NOT RECOMMENDED.
 
-Acquires an exclusive file lock before running `jitx build`. This serializes
-the build calls themselves when parallel agents share a project, which
-*reduces* — but does not eliminate — the risk of conflicts: cache state,
-build artifacts, and WebSocket session state extend past the build call,
-so concurrent work on the same design remains risky.
-
-Working on the same JITX design in parallel is not recommended. For
-genuinely independent work, sequence tasks against the same design or
-run parallel agents on different projects.
+The JITX skill no longer recommends parallel builds on the same project.
+This script remains for users who choose to run parallel builds at their
+own risk; it acquires an exclusive file lock before `jitx build` so the
+build calls themselves don't overlap, but cache state, build artifacts,
+and the WebSocket session state extend past the build call — so concurrent
+work on the same design remains unreliable. The right answer is to
+sequence builds. See `jitx/SKILL.md` "Build Safety".
 
 Note: Uses fcntl for file locking (Unix/macOS only). Not supported on Windows.
 

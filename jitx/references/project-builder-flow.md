@@ -2,7 +2,7 @@
 
 Five-phase workflow for building complete JITX hardware designs from requirements. The orchestrator drives the flow, spawns parallel sub-agents, and enforces exit gates with acceptance reviews.
 
-**This file applies to the complete-board tier only.** Tier classification happens before Phase 0 — see `jitx/SKILL.md` "First: Pick the Workflow Tier" and `references/completion-blocks.md`. Single-task and small-board tiers do not enter the formal phase chain. If a small-board grows mid-work, upgrade it to complete-board and apply Phase 0 retroactively (write PLAN.md + ARCHITECTURE.md, run the data audit) before continuing.
+**This file applies to the complete-board tier only.** Tier classification happens before Phase 0 — see `jitx/SKILL.md` "First: Pick the Workflow Tier" and `references/completion-blocks.md`. Single-task tier does not enter the formal phase chain. If a single-task grows beyond a single artifact mid-work, upgrade to complete-board and apply Phase 0 retroactively (write PLAN.md + ARCHITECTURE.md, run the data audit) before continuing.
 
 Every task in every phase emits a **task acceptance block** (template in `references/completion-blocks.md`) and the orchestrator appends the acceptance verdict to it. A task without an accepted block does not count toward an exit gate.
 
@@ -128,16 +128,15 @@ Please confirm data sources or provide alternatives (datasheets, footprints, spe
 
 ### Orchestrator Actions
 
-1. Copy `build_lock.py` from skill scripts into the project's `runner/` directory.
-2. For each Phase 1 task in PLAN.md:
+1. For each Phase 1 task in PLAN.md:
    a. Update status to `in-progress`
    b. Spawn a sub-agent with the task definition, relevant datasheets, and instruction to follow `references/task-execution.md`
-3. As sub-agents return, perform acceptance review (Part B of task-execution.md).
-4. Issue verdicts: accept, rework, or reject.
+2. As sub-agents return, perform acceptance review (Part B of task-execution.md).
+3. Issue verdicts: accept, rework, or reject.
 
 ### Parallel Safety
 
-All Phase 1 tasks are independent — zero mutual dependencies — and each writes its own component file and test design. Sub-agents use `build_lock.py` for test builds to serialize the build call itself, which reduces conflict risk; it does not eliminate it (cache and session state still extend past the build). If a Phase 1 task fails non-deterministically when run in parallel, run it sequentially. See `jitx/SKILL.md` "Parallel Build Safety".
+Phase 1 tasks are independent at the *design* level — each sub-agent writes its own component file with its own test design. **Builds are sequenced**: the orchestrator does not issue concurrent `python -m jitx build` calls against the project. Sub-agents return their code; the orchestrator runs each test build one at a time as part of the acceptance review (Part B Step 2 in task-execution.md). This preserves parallel design work without exposing the JITX backend to concurrent calls. See `jitx/SKILL.md` "Build Safety".
 
 ### Exit Gate: Phase 1 → Phase 2
 
@@ -582,7 +581,7 @@ Do not accept "noted for future refactoring" — if it's broken, fix it now.
 
 ### Process
 
-1. Run full build: `python runner/build_lock.py <ns>.main.Design`
+1. Run full build: `python -m jitx build <ns>.main.Design`
 2. Check output for:
    - `status: ok` — proceed to verification
    - `status: error` — read traceback, fix, rebuild

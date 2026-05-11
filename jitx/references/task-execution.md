@@ -72,7 +72,7 @@ This ensures reproducibility across sessions and avoids repeated downloads.
 Build using the lock wrapper to avoid collisions with parallel agents:
 
 ```bash
-python <project>/runner/build_lock.py <module.path.TestDesign>
+python -m jitx build <module.path.TestDesign>
 ```
 
 If it fails, fix errors and rebuild until `status: ok`. Do not proceed to Step 4 with a broken build.
@@ -114,7 +114,7 @@ For the full pattern set and copy-paste templates: read `references/completion-b
 If Step 4 found issues (it usually does — checklist or grep), fix them all and rebuild:
 
 ```bash
-python <project>/runner/build_lock.py <module.path.TestDesign>
+python -m jitx build <module.path.TestDesign>
 ```
 
 Verify `status: ok`. Re-run `bash <project>/scripts/grep_gates.sh src/<ns>/` if any code changed; the hard-fail set must now show 0 hits.
@@ -156,7 +156,7 @@ Open each file the sub-agent created or modified. Scan for:
 If the sub-agent's block says `status: ok`, confirm by checking for the test harness file and that the code structure is plausible. For critical tasks, re-run the build:
 
 ```bash
-python <project>/runner/build_lock.py <module.path.TestDesign>
+python -m jitx build <module.path.TestDesign>
 ```
 
 #### 3. Spot-Check High-Risk Checklist Items

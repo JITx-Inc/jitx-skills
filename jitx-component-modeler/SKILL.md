@@ -179,10 +179,10 @@ Is it a 2-sided package?
 
 ### Standard-Package Decision Rule (parts2jitx + LCSC workflows)
 
-When using `parts2jitx-lcsc` for a part whose package is in the standard set (`QFN`, `SON`, `DFN`, `SOIC`, `SOT-23`, `SOT-223`, `QFP`, `BGA`), do **not** import the LCSC KiCad footprint as the landpattern. Use `parts2jitx-lcsc` for stock / pricing / pinout evidence only, and generate the landpattern with the corresponding JITX generator from the datasheet's mechanical drawing.
+When using `parts2jitx-lcsc` for a part whose package is in the standard set (`QFN`, `SON`, `DFN`, `SOIC`, `SOT-23`, `SOT-223`, `QFP`, `BGA`), use `parts2jitx-lcsc` for stock / pricing / pinout evidence and **default to the JITX generator** for the landpattern, with dimensions from the datasheet's mechanical drawing.
 
-| LCSC package | Use parts2jitx for | Use JITX generator for landpattern |
-|--------------|--------------------|------------------------------------|
+| LCSC package | Use parts2jitx for | Default landpattern |
+|--------------|--------------------|---------------------|
 | QFN-* | Stock, pinout, datasheet URL | `QFN(...)` |
 | SON-* / DFN-* | Stock, pinout, datasheet URL | `SON(...)` |
 | SOIC-* | Stock, pinout, datasheet URL | `SOIC(...)` |
@@ -191,7 +191,13 @@ When using `parts2jitx-lcsc` for a part whose package is in the standard set (`Q
 | BGA-* | Stock, pinout, datasheet URL | `BGA(...)` |
 | Non-standard (connectors, RF modules, irregular pads) | Stock, pinout, footprint download | KiCad import via `parts2jitx-kicad` |
 
-Why: the JITX standard generators use datasheet mechanical dimensions and produce reviewable, parameterized code. KiCad-imported footprints carry the importer's quirks, may use non-standard pad shapes, and are harder to audit against the datasheet. The Encore audit found a QFN-56 imported from KiCad instead of generated — both worked, but the generated version is the maintainable form.
+Why default to the generator: JITX standard generators use datasheet mechanical dimensions and produce reviewable, parameterized code. KiCad-imported footprints carry the importer's quirks, may use non-standard pad shapes, and are harder to audit against the datasheet.
+
+**Fall back to KiCad import when the generator can't represent the package.** Some "QFN-like" parts (especially regulators from TI, Micrel, Microchip) have specialty paddle geometry — split paddles, non-standard thermal pad dimensions, asymmetric layouts — that the generic `QFN(...)` / `SON(...)` generator can't express cleanly. When this happens:
+
+1. Try the generator first against the datasheet mechanical drawing.
+2. If the generator can't represent the paddle (or the lead layout), import the KiCad footprint via `parts2jitx-kicad` and verify pad-by-pad against the datasheet.
+3. Document the reason for falling back in the task acceptance block under `Notes` (e.g. "TPS62903 split thermal paddle not expressible in QFN generator — imported from KiCad and verified against figure 9-1 page 18").
 
 **Getting a .kicad_mod for non-standard packages** (in priority order):
 1. **User-provided** — ask if they have a `.kicad_mod` from their KiCad library or manufacturer download
@@ -479,7 +485,7 @@ Always use the available virtual environment. If one is not present, stop and as
 python -m jitx build <module>.TestDesign
 ```
 
-In a complete-board or sub-agent workflow, prefer `bash runner/build_lock.py <module>.TestDesign` over direct `python -m jitx build` — it reduces (does not eliminate) the risk of conflicts when multiple agents build against the same project. Parallel work on the same design is not recommended. See `jitx/SKILL.md` "Parallel Build Safety".
+Don't run parallel JITX builds against the same project — sequence them. See `jitx/SKILL.md` "Build Safety".
 
 **Success:** `status: ok`
 **Failure:** Python traceback or `status: error`

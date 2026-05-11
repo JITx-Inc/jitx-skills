@@ -107,7 +107,7 @@ python -m jitx build <module.path.DesignClass>
 python -m jitx build-all
 ```
 
-**Working on the same design in parallel is not recommended.** Concurrent builds against the same project share cache state, build artifacts, and a WebSocket session — the conflict window extends past the build invocation itself, so even tools like `runner/build_lock.py` only reduce the risk, they don't eliminate it. For complete-board / sub-agent workflows, prefer `bash runner/build_lock.py <module>` over direct `python -m jitx build`, and prefer sequencing tasks that touch the same design over running them in parallel. See "Parallel Build Safety" below. Direct `python -m jitx build` is acceptable for ad-hoc single-task work where the user is at the terminal.
+**Don't run parallel builds on the same design.** Concurrent JITX builds against the same project share cache state, build artifacts, and a WebSocket session, and there is currently no reliable way to operate on the same design in parallel. Sequence tasks that touch the same design instead. For genuinely independent work across different projects, parallel is fine.
 
 **Success output:** `status: ok`
 **Error output:** Python traceback or `status: error`
@@ -138,7 +138,7 @@ project/
 
 > **STOP. Classify first. Before any architecture proposal, parts research, design prose, code, or `Skill(...)` invocation other than environment probes, your first observable action must be a chat line of the form:**
 >
-> > **Workflow tier: `single-task` | `small-board` | `complete-board` — because `<one-sentence reason>`**
+> > **Workflow tier: `single-task` | `complete-board` — because `<one-sentence reason>`**
 >
 > **For `complete-board`, the *next* observable action must be writing `PLAN.md` (and `ARCHITECTURE.md`).** Verbal architecture proposals, parts-list bullets, "here's what I'll build" prose, or `Write(...)` of code before `PLAN.md` exists are explicitly invalid work for a complete-board project — they must be backed out before the workflow can continue.
 >
@@ -146,19 +146,16 @@ project/
 >
 > This callout exists because the prior failure mode was exactly this: the agent jumped from request to architecture prose to component files without classifying, never entered Phase 0, and bypassed every Pass 1–5 enforcement.
 
-After environment setup, classify the work into one of three tiers. The tier names which output blocks are required and whether the formal Phase 0 → Phase 4 chain applies. Every tier requires a **task acceptance block** for each unit of work — no exceptions.
+After environment setup, classify the work into one of two tiers. The tier names which output blocks are required and whether the formal Phase 0 → Phase 4 chain applies. Every tier requires a **task acceptance block** for each unit of work — no exceptions.
 
 | Tier | When | Required output | Path |
 |------|------|-----------------|------|
 | **single-task** | One subskill against one artifact: a component, a circuit, a substrate, a constraint set, a pin-assignment wrapper. No top-level assembly. | Task acceptance block in chat | Invoke the subskill directly |
-| **small-board** | Trivially decomposable. Heuristics: 2–8 components, ≤2 power rails, no SI, predefined or trivial substrate, no sequencing or safety/thermal flag. | Task acceptance block per task + small-board design block at end | Lightweight PLAN.md (component list + power tree); no formal phase gates |
-| **complete-board** | Anything failing the small-board criteria, or user explicitly asks. Custom substrate, SI constraints, sequencing, safety-critical, ambiguous decomposition, multi-rail with thermal management. | Task acceptance block per task + phase exit gate blocks + Phase 3b audit + Phase 4 verification | Full Project Builder Workflow below |
+| **complete-board** | Anything beyond a single isolated artifact — anything that produces a buildable board, no matter how few components. | Task acceptance block per task + phase exit gate blocks + Phase 3b audit + Phase 4 verification | Full Project Builder Workflow below |
 
-**Escalation triggers** (force complete-board even if numerics suggest small-board): custom substrate; any SI-constrained interface; external connector / hot-plug interface needing ESD-or-justification; RF / antenna geometry; programming/debug access pads that must connect to an interface; user assembly-cost constraints affecting part selection; required board-edge / mechanical geometry; power sequencing; safety-critical function; high-current / high-thermal-density power; ambiguous decomposition.
+If you're tempted to call something "small" or "trivial" to avoid the workflow, classify it as complete-board. The Phase 0–4 ceremony is cheap on a small board (a few extra block emissions); the cost of skipping it on a real board is shipping with required features missing. The original failure mode of this skill was exactly the "looks small, skip the workflow" escape hatch.
 
-**Bias rule:** when classification is uncertain, choose complete-board. The cost of extra ceremony on a smaller design is small; the cost of small-board on a complete-board-grade design is shipping with required features missing.
-
-For tier definitions, the task acceptance block, the small-board design block, phase exit gate blocks, the Phase 3b design audit block, and the Phase 4 verification block: read `references/completion-blocks.md`.
+For tier definitions, the task acceptance block, phase exit gate blocks, the Phase 3b design audit block, and the Phase 4 verification block: read `references/completion-blocks.md`.
 
 Do NOT skip the planning phase for complete-board designs. Do not start exploring libraries or writing code until PLAN.md exists.
 
@@ -192,17 +189,13 @@ For how to decompose requirements into tasks: read `references/decomposition-gui
 For PLAN.md format: read `references/plan-template.md`
 For ARCHITECTURE.md format: read `references/architecture-template.md`
 
-### Parallel Build Safety
+### Build Safety — Don't Parallelize Same-Design Work
 
-**Parallel work on the same JITX design is not recommended.** Concurrent activity against the same project (build state, cache, WebSocket session) can produce inconsistent results, and the conflict window extends past the `jitx build` call itself. There is currently no fully reliable way to operate on the same design in parallel. For genuinely independent work, sequence tasks that touch the same design, or run parallel sub-agents on different projects.
+Parallel builds against the same JITX project are not recommended. Cache state, build artifacts, and the WebSocket session are project-scoped, and there's currently no reliable way to operate on the same design in parallel.
 
-When parallel sub-agents must share a project (the project-builder workflow runs Phase 1 component tasks in parallel), use the build lock wrapper. It serializes the build invocation, which **reduces but does not eliminate** the risk:
+For the project-builder workflow: sub-agents can *design* in parallel (writing component `.py` files is independent), but the orchestrator sequences the *test builds* — one build at a time per project. This preserves the parallelism win for the human/agent-time-bound work (writing code, reading datasheets) without exposing the JITX backend to concurrent calls. Phase 2/3/4 builds are inherently sequential anyway.
 
-```bash
-python runner/build_lock.py <module.path.DesignClass>
-```
-
-Copy `scripts/build_lock.py` from this skill into the project's `runner/` directory. Sub-agents call this instead of `jitx build` directly. The lock acquires `fcntl.flock` for the duration of the build call; concurrent calls wait their turn for the build, but downstream cache state and session state can still drift if multiple agents touch the same design within the same project session.
+For ad-hoc work outside the project-builder flow: just don't run two `python -m jitx build` calls at once against the same project.
 
 ### Grep Gate Enforcement
 
@@ -226,7 +219,7 @@ After initial implementation, sub-agents MUST stop and run the domain-specific c
 
 The orchestrator does NOT blindly trust the self-validation block. For each returned task:
 - Read the generated code for obvious issues
-- Verify the build claim (re-run `build_lock.py` for critical tasks)
+- Verify the build claim (re-run `python -m jitx build` for critical tasks)
 - Spot-check high-risk checklist items independently
 - Verify interface compatibility with downstream tasks
 - Append the acceptance verdict to the same block: **accept** / **rework** (send back with specific issues) / **reject** (replan)
@@ -436,6 +429,5 @@ ruff format path/to/file.py
 
 | Task | Command/Pattern |
 |------|-----------------|
-| Build design (ad-hoc only) | `python -m jitx build module.Design` |
-| Build design (sub-agent / complete-board) | `bash runner/build_lock.py module.Design` |
+| Build design | `python -m jitx build module.Design` (sequence calls — see "Build Safety") |
 | Format code | `ruff format path/to/file.py` |

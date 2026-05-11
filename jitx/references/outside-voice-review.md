@@ -33,7 +33,7 @@ For other task classes (passive circuit, low-speed interface like I2C/SPI/UART, 
 
 ### When outside-voice does NOT run
 
-- single-task or small-board tier (cost > value)
+- single-task tier (cost > value)
 - non-triggered task classes (use orchestrator judgement; record reason if invoked)
 - re-review of a fix-only loopback where the fix didn't touch the originally flagged code
 

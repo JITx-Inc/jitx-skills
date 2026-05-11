@@ -92,7 +92,7 @@ For all provide/require patterns (`@provide`, `@provide.one_of`, `@provide.subse
 
 ## Pours
 
-Pours belong in the **top-level circuit**, not subcircuits. Pour every plane intended as a return path — pours on inner layers alone leave the outer layers without ground reference.
+Pours belong in the **top-level circuit**, not subcircuits. Pour every plane intended as a return path; the reference plane for an outer-layer signal can be an adjacent inner-layer pour (microstrip over an inner ground pour is fine) — what matters is continuity, not which layer the pour sits on. Split or interrupted reference planes underneath high-speed signals are the SI failure, not whether the pour is outer or inner.
 
 ```python
 from jitx import Pour, current
@@ -105,6 +105,8 @@ self.gnd += Pour(layer=0, shape=board_shape)             # Top layer
 self.gnd += Pour(layer=-1, shape=board_shape)            # Bottom layer
 self.gnd += Pour(layer=2, shape=board_shape, rank=1)     # Inner layer
 ```
+
+> **`orphans=True` is the API default.** Leaving it produces orphan copper regions (islands of pour not electrically connected to the named net) that the agent must consciously handle — either set `orphans=False` to drop them, or accept them with rationale (e.g. intentional thermal mass, antenna ground plane). Don't ship a design with orphans left over by default.
 
 ### `isolate=` is legacy — do not use it
 
