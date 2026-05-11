@@ -188,6 +188,7 @@ A review-required hit does not block, but each hit must appear in the task accep
 | 6 | Bare net/topology expression (silent-drop pattern 2 — `self.a + self.b` or `self.a >> self.b` with no LHS assignment) | `^\s*self\.\w+(\.\w+\|\[[^]]+\])*\s*(\+\|>>)\s*self\.\w+(\.\w+\|\[[^]]+\])*(\s*#.*)?$` | anywhere in `src/<ns>/` |
 | 7 | `type(...)` call — verify not used for runtime type construction (use `isinstance` for type checks) | `\btype\s*\(` | anywhere in `src/<ns>/` |
 | 8 | I2C pull-up (`r_sda` / `r_scl`) outside top-level designs — shared-bus components belong at top level | `\br_(sda\|scl)\b` | `src/<ns>/` excluding `src/<ns>/designs/` |
+| 9 | `.insert(...)` calls missing `short_trace=` — every power-rail capacitor insert (decoupling, bypass, bulk, output filter) needs `short_trace=True`. Non-power-rail caps and non-cap inserts dispositioned as exception or N/A. See `jitx-circuit-builder/SKILL.md` "short_trace=True is the default for power-rail capacitors" | `\.insert\s*\(` then `grep -v short_trace` | anywhere in `src/<ns>/` |
 
 Pattern 7 is intentionally broad; it will match comments and legitimate `isinstance`-adjacent uses. The disposition workflow handles this — review-required is the right severity.
 
@@ -277,6 +278,7 @@ The criteria mirror the exit-gate bullet lists in `references/project-builder-fl
 **Provide/require interfaces consistent:** confirmed across wrappers and consumers
 **Bundle-typed ports:** every interface circuit exposes bundle-typed ports (I2S, I2C, SPI, USB2, etc.) — not individual signal ports — confirmed by code review
 **Topology vs net wiring:** subcircuits exposing bundles for SI-constrained signals wire bundle sub-ports with `>>` not `+` — confirmed
+**`short_trace=True` on power-rail caps:** every decoupling / bypass / bulk / output-filter capacitor `.insert(...)` uses `short_trace=True`. Non-power-rail caps (AC coupling, RC, RF, crystal load) and non-cap inserts dispositioned in task acceptance blocks. `bash scripts/grep_gates.sh src/<ns>/` review-required hits all resolved.
 **Power circuit outputs match ARCHITECTURE.md:** voltage and current ratings line up with the documented power tree
 
 **Open from this phase:** <list, or "none">

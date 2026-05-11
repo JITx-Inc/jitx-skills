@@ -192,7 +192,7 @@ Run the base Component checklist above FIRST, then verify these:
 ### Decoupling — CRITICAL (commonly missed)
 - [ ] 100nF bypass cap on EVERY power pin of EVERY active IC in the circuit
 - [ ] Bulk capacitor (10uF) per power domain
-- [ ] Decoupling caps placed physically close (use `short_trace=True` where supported)
+- [ ] **Every power-rail cap `.insert(...)` uses `short_trace=True`** — decoupling, bypass, bulk, output filter. Exceptions (AC coupling, RC time constants, RF, crystal load) are dispositioned in the task acceptance block. Gated at Phase 2 → 3.
 - [ ] Ferrite bead or filter on analog supply pins if mixed-signal
 
 ### Protocol-Specific Checks

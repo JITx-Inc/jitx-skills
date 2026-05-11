@@ -133,6 +133,21 @@ run_check "I2C pull-up (r_sda/r_scl) outside ${TOP_LEVEL_PATH}/" \
     '\br_(sda|scl)\b' \
     "yes" "review"
 
+# .insert(...) calls missing short_trace= — Phase 2 power-rail cap gate.
+# False positives on resistor/inductor inserts and on non-power-rail caps
+# (AC coupling, RC, RF, crystal load) — agent dispositions each per
+# `jitx-circuit-builder/SKILL.md` "short_trace=True is the default for
+# power-rail capacitors".
+INSERT_HITS=$(run_search '\.insert\s*\(' "no" | grep -v 'short_trace' || true)
+if [[ -z "$INSERT_HITS" ]]; then
+    echo "  ok    no hits: .insert(...) missing short_trace= (power-rail cap default)"
+else
+    insert_count=$(echo "$INSERT_HITS" | wc -l | tr -d ' ')
+    echo "  HIT $insert_count .insert(...) calls missing short_trace= (power-rail cap default)"
+    echo "$INSERT_HITS" | sed 's/^/      /'
+    REVIEW=$((REVIEW + insert_count))
+fi
+
 echo ""
 echo "=== summary ==="
 echo "hard-fail hits: $HARD_FAIL"

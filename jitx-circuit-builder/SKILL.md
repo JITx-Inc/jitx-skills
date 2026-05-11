@@ -145,7 +145,30 @@ self.inductor = Inductor(inductance=4.7e-6, current_rating=3.0)
 
 For all passive values, especially those that are calculated, use the eseries Python package to ensure that the value is legal. If not otherwise specified use the E96 range of values.
 
-For decoupling capacitors, use the short_trace argument to a part query or use the ShortTrace(p1, p2) function to connect the ports of two components, see https://docs.jitx.com/en/latest/api/jitx.net.html#jitx.net.ShortTrace.
+### `short_trace=True` is the default for power-rail capacitors
+
+Every capacitor `.insert(...)` call on a power rail — decoupling, bypass, bulk, output filter — **must** pass `short_trace=True`. The router uses this to minimize the trace length between the cap and its connected ports, which is what makes the cap actually decouple. Without it, the router may place a 0402 100 nF cap 20 mm from the IC and route through vias, defeating the purpose.
+
+```python
+# DEFAULT — every power-rail cap
+self.c_bulk = Capacitor(capacitance=10e-6, rated_voltage=10.0)
+self.c_bulk.insert(self.ic.VCC, self.GND, short_trace=True)
+
+self.c_hf = Capacitor(capacitance=100e-9, rated_voltage=10.0)
+self.c_hf.insert(self.ic.VCC, self.GND, short_trace=True)
+```
+
+**Exceptions** (caps where `short_trace=True` is NOT used — placement is part of the design):
+
+- AC coupling caps in signal paths (e.g., audio out, USB SS data) — placement is symmetric to the trace topology
+- RC time-constant caps (reset RC, soft-start, debounce) — value determines behavior, placement isn't the constraint
+- Compensation network caps in switching regulator feedback loops — datasheet defines layout near the FB pin
+- RF matching, coupling, or shunt caps (LNA input network, antenna feed) — placement is bookend-specific per the impedance budget
+- Crystal load caps — placed per the crystal datasheet, not as decoupling
+
+The `short_trace=True` rule is gated at the Phase 2 → Phase 3 exit. `bash scripts/grep_gates.sh src/<ns>/` flags every `.insert(...)` call missing `short_trace=` as review-required; the agent dispositions each: fix (add `short_trace=True`) for power-rail caps, accept-with-rationale (`exception: AC coupling`, `exception: RC time constant`, etc.) for non-power-rail caps, or N/A (`not a capacitor — resistor insert`).
+
+The skill also documents `ShortTrace(p1, p2)` as an alternative connect-with-short-trace primitive — see https://docs.jitx.com/en/latest/api/jitx.net.html#jitx.net.ShortTrace.
 
 
 ## Advanced Patterns
