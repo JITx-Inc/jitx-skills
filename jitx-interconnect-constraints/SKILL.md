@@ -605,7 +605,7 @@ pyright path/to/circuit.py
 python -m jitx build <module.path.DesignClass>
 ```
 
-In a complete-board or sub-agent workflow, use `bash runner/build_lock.py <module.path.DesignClass>` instead — see `jitx/SKILL.md` "Parallel Build Safety".
+In a complete-board or sub-agent workflow, prefer `bash runner/build_lock.py <module.path.DesignClass>` — it reduces (does not eliminate) the risk of conflicts when multiple agents build against the same project. Parallel work on the same design is not recommended. See `jitx/SKILL.md` "Parallel Build Safety".
 
 SI constraint violations appear in the Issues List under "Unsatisfied Signal Constraints" in the JITX UI.
 

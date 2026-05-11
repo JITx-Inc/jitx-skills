@@ -1,9 +1,16 @@
 #!/usr/bin/env python3
 """
-Serialized JITX build wrapper for parallel agent safety.
+JITX build wrapper with file-locked invocation.
 
-Acquires an exclusive file lock before running `jitx build` so parallel
-Claude sub-agents sharing a single JITX WebSocket backend don't collide.
+Acquires an exclusive file lock before running `jitx build`. This serializes
+the build calls themselves when parallel agents share a project, which
+*reduces* — but does not eliminate — the risk of conflicts: cache state,
+build artifacts, and WebSocket session state extend past the build call,
+so concurrent work on the same design remains risky.
+
+Working on the same JITX design in parallel is not recommended. For
+genuinely independent work, sequence tasks against the same design or
+run parallel agents on different projects.
 
 Note: Uses fcntl for file locking (Unix/macOS only). Not supported on Windows.
 

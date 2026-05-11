@@ -613,7 +613,7 @@ class SubstrateB(Substrate, MyVias):
 5. **Define vias** — all via types needed (through, micro, stacked, blind, buried, backdrilled)
 6. **Add routing structures** — `RoutingStructure` and `DifferentialRoutingStructure` for each impedance target
 7. **Add design rules** — Tags and `design_constraint()` for clearances if needed
-8. **Verify** — `pyright` type check, then `python -m jitx build` (or `bash runner/build_lock.py` in complete-board / sub-agent workflows — see `jitx/SKILL.md` "Parallel Build Safety") with a test design
+8. **Verify** — `pyright` type check, then `python -m jitx build` (or `bash runner/build_lock.py` in complete-board / sub-agent workflows; the lock reduces but does not eliminate conflict risk, and parallel work on the same design is not recommended — see `jitx/SKILL.md` "Parallel Build Safety") with a test design
 
 ## API Reference
 

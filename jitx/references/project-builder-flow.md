@@ -137,7 +137,7 @@ Please confirm data sources or provide alternatives (datasheets, footprints, spe
 
 ### Parallel Safety
 
-All Phase 1 tasks are independent — zero mutual dependencies. Spawn all sub-agents simultaneously. Each uses `build_lock.py` for test builds to avoid WebSocket collisions.
+All Phase 1 tasks are independent — zero mutual dependencies — and each writes its own component file and test design. Sub-agents use `build_lock.py` for test builds to serialize the build call itself, which reduces conflict risk; it does not eliminate it (cache and session state still extend past the build). If a Phase 1 task fails non-deterministically when run in parallel, run it sequentially. See `jitx/SKILL.md` "Parallel Build Safety".
 
 ### Exit Gate: Phase 1 → Phase 2
 

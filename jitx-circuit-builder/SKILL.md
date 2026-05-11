@@ -225,7 +225,7 @@ class TestDesign(SampleDesign):
 python -m jitx build <module>.design.TestDesign
 ```
 
-In a complete-board or sub-agent workflow, use `bash runner/build_lock.py <module>.design.TestDesign` instead — direct `python -m jitx build` collides with parallel agents. See `jitx/SKILL.md` "Parallel Build Safety".
+In a complete-board or sub-agent workflow, prefer `bash runner/build_lock.py <module>.design.TestDesign` over direct `python -m jitx build` — it reduces (does not eliminate) the risk of conflicts when multiple agents build against the same project. Parallel work on the same design is not recommended. See `jitx/SKILL.md` "Parallel Build Safety".
 
 **If a `build_test` helper is available** (e.g., in the skill_eval package), use it instead:
 ```bash

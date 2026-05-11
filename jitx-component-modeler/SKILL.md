@@ -479,7 +479,7 @@ Always use the available virtual environment. If one is not present, stop and as
 python -m jitx build <module>.TestDesign
 ```
 
-In a complete-board or sub-agent workflow, use `bash runner/build_lock.py <module>.TestDesign` instead — direct `python -m jitx build` collides with parallel agents. See `jitx/SKILL.md` "Parallel Build Safety".
+In a complete-board or sub-agent workflow, prefer `bash runner/build_lock.py <module>.TestDesign` over direct `python -m jitx build` — it reduces (does not eliminate) the risk of conflicts when multiple agents build against the same project. Parallel work on the same design is not recommended. See `jitx/SKILL.md` "Parallel Build Safety".
 
 **Success:** `status: ok`
 **Failure:** Python traceback or `status: error`

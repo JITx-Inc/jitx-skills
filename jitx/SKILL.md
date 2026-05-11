@@ -107,7 +107,7 @@ python -m jitx build <module.path.DesignClass>
 python -m jitx build-all
 ```
 
-**Forbidden in complete-board and sub-agent workflows.** Sub-agents and the orchestrator MUST use `bash runner/build_lock.py <module>` instead — see "Parallel Build Safety" below. JITX uses a single WebSocket backend; concurrent direct `jitx build` calls collide and corrupt output. Direct `python -m jitx build` is only acceptable for ad-hoc single-task work where no parallel agents are running and the user is at the terminal.
+**Working on the same design in parallel is not recommended.** Concurrent builds against the same project share cache state, build artifacts, and a WebSocket session — the conflict window extends past the build invocation itself, so even tools like `runner/build_lock.py` only reduce the risk, they don't eliminate it. For complete-board / sub-agent workflows, prefer `bash runner/build_lock.py <module>` over direct `python -m jitx build`, and prefer sequencing tasks that touch the same design over running them in parallel. See "Parallel Build Safety" below. Direct `python -m jitx build` is acceptable for ad-hoc single-task work where the user is at the terminal.
 
 **Success output:** `status: ok`
 **Error output:** Python traceback or `status: error`
@@ -194,13 +194,15 @@ For ARCHITECTURE.md format: read `references/architecture-template.md`
 
 ### Parallel Build Safety
 
-JITX uses a single WebSocket backend — concurrent builds collide. When running parallel sub-agents, use the build lock wrapper:
+**Parallel work on the same JITX design is not recommended.** Concurrent activity against the same project (build state, cache, WebSocket session) can produce inconsistent results, and the conflict window extends past the `jitx build` call itself. There is currently no fully reliable way to operate on the same design in parallel. For genuinely independent work, sequence tasks that touch the same design, or run parallel sub-agents on different projects.
+
+When parallel sub-agents must share a project (the project-builder workflow runs Phase 1 component tasks in parallel), use the build lock wrapper. It serializes the build invocation, which **reduces but does not eliminate** the risk:
 
 ```bash
 python runner/build_lock.py <module.path.DesignClass>
 ```
 
-Copy `scripts/build_lock.py` from this skill into the project's `runner/` directory. Sub-agents call this instead of `jitx build` directly. The lock serializes builds via `fcntl.flock`; parallel agents wait their turn.
+Copy `scripts/build_lock.py` from this skill into the project's `runner/` directory. Sub-agents call this instead of `jitx build` directly. The lock acquires `fcntl.flock` for the duration of the build call; concurrent calls wait their turn for the build, but downstream cache state and session state can still drift if multiple agents touch the same design within the same project session.
 
 ### Grep Gate Enforcement
 
