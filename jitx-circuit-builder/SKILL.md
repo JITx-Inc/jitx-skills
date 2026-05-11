@@ -156,9 +156,29 @@ placement, and a complete application circuit example, see
 
 ### Voltage Divider — Critical Rules
 
+> ⚠️ **Version note**: `jitxlib.voltage_divider` (with
+> `VoltageDividerConstraints` / `voltage_divider_from_constraints`) does
+> **not** exist in `jitx-4.0.5`. Attempting to import it raises
+> `ModuleNotFoundError: No module named 'jitxlib.voltage_divider'`.
+> **Always verify the import is available before recommending it**:
+> `python -c "import jitxlib.voltage_divider"`. On 4.0.5 (and any release
+> where the import fails) manually compute E96 feedback resistors instead:
+>
+> ```python
+> # Vout=3.3V, Vref=0.8V → R_hi/R_lo = 3.125
+> # Nearest E96: 31.6kΩ / 10kΩ
+> self.r_fb_hi = Resistor(resistance=31.6e3)
+> self.r_fb_hi.insert(self.VOUT, self.FB)
+> self.r_fb_lo = Resistor(resistance=10e3)
+> self.r_fb_lo.insert(self.FB, self.GND)
+> ```
+>
+> More generally, API availability in `jitxlib.*` is version-dependent;
+> the skill should not assume any specific helper exists without checking.
+
 **NEVER manually calculate resistor values for voltage dividers.** Manual values like 8kΩ or 25kΩ
 are often not standard E-series values and will fail with "No components meeting requirements".
-Always use `voltage_divider_from_constraints()`:
+Always use `voltage_divider_from_constraints()` **when it's available** in the installed jitx version:
 
 ```python
 # WRONG — manual resistor values, 8k is not a standard E-series value
@@ -180,7 +200,40 @@ VoltageDividerConstraints(
 
 ### Provider / Require Patterns
 
-For all `@provide` / `@provide.one_of` / `@provide.subset_of` / `Provide()` / `require()` patterns, see the **jitx-pin-assignment** skill. Invoke with `skill: "jitx-skills:jitx-pin-assignment"`.
+For all `@provide` / `@provide.one_of` / `@provide.subset_of` / `Provide()` / `require()` patterns, the right reference is the **jitx-pin-assignment** skill.
+
+> ⚠️ **Skills cannot invoke other skills.** This skill cannot automatically
+> hand off to `jitx-pin-assignment` — if a circuit contains a Stanza
+> `require` / `supports` / `provide` construct that needs pin assignment,
+> the calling human / agent **must explicitly invoke
+> `jitx-pin-assignment`** before closing the circuit. Leaving a stubbed
+> `Port()` with a `# TODO` is a silent failure mode: the build will still
+> report `status: ok` with `module port(s) have no internal connections`
+> warnings, but the wiring is incomplete. See `jitx-port-3-to-4`
+> Phase 4 exit criteria.
+>
+> Also check first whether the `require` reflects **real layout
+> flexibility** (true pin-mux → pin-assignment) or just a bundle
+> abstraction over fixed hardware wiring (single valid path → plain
+> `Net` with no pin-assignment involvement). Most `require` clauses in
+> real designs are fixed wiring.
+
+### Port immutability — `+=` on `Port` is forbidden
+
+Circuit-level `Port` attributes are **immutable**. The natural translation
+of Stanza `net (a, b)` as `self.a += b` fails:
+
+```python
+# WRONG:
+self.i2c_sda += self.stereo.SDA
+# → NotImplementedError: Ports are immutable. Use + to create a new net instead of +=
+
+# RIGHT — create a named Net and += into it:
+self.I2C_SDA = Net(name="I2C_SDA")
+self.I2C_SDA += self.i2c_sda + self.stereo.SDA
+```
+
+This is one of the most common errors when porting Stanza-style wiring.
 
 ### `net.symbol` — Net Symbols
 
