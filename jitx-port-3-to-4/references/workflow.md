@@ -52,8 +52,9 @@ Stub the top-level `class <Design>(Design)` so `python -m jitx build` can find a
 > "$PWD" &` and wait for `.socket.jitx` to appear. The `interactive` subcommand
 > is **not** listed in `jitx --help` (known quirk) — do not assume it's missing
 > because `--help` doesn't show it. Without it, builds fail with
-> `Unable to determine socket URI`. See `verification.md` §"4.x bootstrap
-> ordering checklist" for the full ordered recipe.
+> `Unable to determine socket URI`. See the canonical bootstrap recipe at
+> [`jitx-skills:jitx/references/bootstrap.md`](../../jitx/references/bootstrap.md)
+> for the full ordered checklist.
 
 ## Phase 3 — Port components (leaves first)
 

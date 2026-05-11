@@ -128,95 +128,48 @@ Expected artifacts under `$OUT/` (varies by design): KiCad project + 3D STEP und
 
 The 4.x build runs from a **project venv** that has the JITX Python toolchain pip-installed; the `~/.jitx/<4.x>/` install supplies the `jitx interactive` server (which the build connects to) and `jitx sign-in`, but does **not** provide a `jitx build` subcommand.
 
-### 4.x bootstrap ordering checklist
+### Bootstrap sequence
 
-The steps below are **order-sensitive**. Skipping or reordering them produces
-opaque failures (silent hangs, "Unable to determine socket URI", auth errors with
-no hint that `sign-in` is the missing step).
+The order-sensitive 4.x startup recipe (symlink → sign-in → interactive →
+socket wait → pip install → version check → headless build) is the
+**canonical bootstrap** for any 4.x design and lives in the top-level
+`jitx` skill: see
+[`jitx-skills:jitx/references/bootstrap.md`](../../jitx/references/bootstrap.md).
+Follow that checklist verbatim — it is the source of truth for every
+porting session.
 
-1. **Symlink first**: `ln -sfn <version> ~/.jitx/current` — must point at the
-   4.x install before launching `jitx interactive`. The interactive server
-   reads runtime state via `~/.jitx/current/`; a stale symlink poisons the
-   build (see the §"⚠️ CRITICAL" warning above).
-2. **Sign in once** (if not already): `"$JITX_4X/jitx" sign-in -email <email>`
-   — `python -m jitx build` fails authentication if the user is not signed
-   in, with no hint that sign-in is the missing step. See §"Sign-in" above.
-3. **Start the interactive server**: `"$JITX_4X/jitx" interactive "$PWD" &`.
-   ⚠️ `interactive` is **not** listed in `jitx --help` — this is a known
-   quirk, not a missing binary. Without it, the build fails with
-   `Unable to determine socket URI`.
-4. **Wait for the socket** before issuing any build: the server takes a few
-   seconds to write `.socket.jitx`. Use a real wait, not a fixed `sleep`:
-   `until [ -e .socket.jitx ]; do sleep 1; done`.
-5. **Install the project**: `pip install --pre .` inside the venv. The
-   server must already be up — some `pip install` paths exercise jitx
-   imports that need the server.
-6. **Verify version match**: `python -c 'import jitx; print(jitx.__version__)'`
-   should match `readlink ~/.jitx/current`. Mismatches may work but cause
-   subtle API drift; flag them.
-7. **Build headless**: prefix with `JITX_SKIP_STABILIZE_CONFIRMATION=1`.
-   Without this env var, `python -m jitx build` pauses interactively asking
-   "save stable design?" and hangs any CI / unattended run.
+### Porting-specific additions on top of the canonical bootstrap
 
-### Worked snippet
+For the post-port build, layer these porting-only requirements on top of
+the canonical recipe:
 
-```bash
-DESIGN=ethernet_io
-PORT_DIR=/path/to/ported/${DESIGN}
-DESIGN_NAME=runnable_example.main.RunnableExample   # <package>.<module>.<DesignClass>
-JITX_4X=~/.jitx/4.1.0                               # adjust
-OUT=/tmp/jitx-port/${DESIGN}/ported-4.x
-mkdir -p "$OUT"
-
-# (1) Repoint ~/.jitx/current at the 4.x install before doing anything else.
-ln -sfn "$(basename "$JITX_4X")" ~/.jitx/current
-
-# (2) Sign in (once per session; auth state shared across versioned installs).
-"$JITX_4X/jitx" sign-in -email "$JITX_USER_EMAIL" <<<"$JITX_USER_PASS"
-
-(
-  cd "$PORT_DIR"
-
-  # (3) Start the interactive server. It writes .socket.jitx in $PWD; the
-  # build auto-discovers it by walking up from cwd.
-  # NOTE: `interactive` is not listed in `jitx --help` — known quirk.
-  "$JITX_4X/jitx" interactive "$PWD" > "$OUT/interactive.log" 2>&1 &
-  INT_PID=$!
-
-  # (4) Wait for the socket file rather than a fixed sleep.
-  until [ -e .socket.jitx ]; do sleep 1; done
-
-  # (5) Project venv with the jitx Python toolchain (pre-release wheels are
-  # common). Internal package index access required for `pip install jitx*`.
-  python -m venv .venv
-  source .venv/bin/activate
-  pip install --pre . > "$OUT/pip.log" 2>&1
-
-  # (6) Sanity-check that the pip-installed jitx matches ~/.jitx/current.
-  python -c 'import jitx; print(jitx.__version__)' > "$OUT/jitx-version.txt"
-  echo "current -> $(readlink ~/.jitx/current)" >> "$OUT/jitx-version.txt"
-
-  # Pre-flight: pyright must be clean.
-  pyright . > "$OUT/pyright.txt" 2>&1 || { echo "pyright failed"; exit 1; }
-
-  # (7) Build headless. JITX_SKIP_STABILIZE_CONFIRMATION=1 suppresses the
-  # interactive "save stable design?" prompt that would otherwise hang.
-  # PYTHONPATH=. ensures the project package is importable.
-  JITX_SKIP_STABILIZE_CONFIRMATION=1 \
-      PYTHONPATH="$PWD" python -m jitx build "$DESIGN_NAME" \
-      > "$OUT/build.stdout" 2> "$OUT/build.stderr"
-  echo $? > "$OUT/exit-code"
-
-  kill $INT_PID 2>/dev/null
-)
-```
-
-Notes:
-
-- The design name is the fully-qualified Python class path: `<package>.<module>.<class>`. Find it with `python -m jitx find .` from the project root.
-- The `.socket.jitx` file the interactive server writes is the discovery hook used by `python -m jitx build` — there's no need to pass `--port` if you build from the project root.
-- Some projects use `uv sync --active --prerelease=allow` instead of `pip install --pre .` (see `jitx-test/scripts/jitx-build-design.bash`).
-- `pyright` issues block the build review even if `python -m jitx build` succeeds. Treat type errors as wiring bugs (see `pitfalls.md`).
+1. **Set `~/.jitx/current` to the 4.x install** (not the 3.x that the
+   pre-port build pointed at). The porting workflow alternates between
+   the two; the `~/.jitx/current` symlink must match the binary you're
+   about to invoke. See the §"⚠️ CRITICAL" warning above.
+2. **Capture build artifacts to a known directory** so the future export
+   comparator can find them:
+   ```bash
+   OUT=/tmp/jitx-port/<design>/ported-4.x
+   mkdir -p "$OUT"
+   ```
+   Redirect `interactive.log`, `pip.log`, `jitx-version.txt`,
+   `pyright.txt`, `build.stdout`, `build.stderr`, and `exit-code` into
+   `$OUT` so the §"Compare exports — structured checklist" section can
+   diff them against the 3.x baseline.
+3. **`pyright` must pass before the build is reviewable**:
+   ```bash
+   pyright . > "$OUT/pyright.txt" 2>&1 || { echo "pyright failed"; exit 1; }
+   ```
+   Treat any `pyright` error as blocking — type errors in JITX 4.x
+   commonly mask wiring bugs (see `pitfalls.md`).
+4. **CI sign-in via env vars**: in headless / CI runs, set
+   `JITX_USER_EMAIL` and `JITX_USER_PASS` and pipe the password into
+   `jitx sign-in -email "$JITX_USER_EMAIL" <<<"$JITX_USER_PASS"`. See
+   `jitx-test/scripts/jitx-build-design.bash` for the production pattern
+   (which also sets `JITX_ENV` to `app` / `app-testing` / `app-dev`).
+5. **Some projects use `uv sync --active --prerelease=allow`** instead
+   of `pip install --pre .` for the venv install step.
 
 ## Compare exports — structured checklist
 
