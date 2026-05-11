@@ -73,16 +73,50 @@ Durable rules for JITX Python user code. The first three don'ts protect JITX's i
 
 ## Running JITX Designs
 
-```bash
-# Build a specific design
-python -m jitx build <module.path.DesignClass>
+A `python -m jitx build` invocation requires an `interactive` server to
+be running and a valid sign-in. The steps below are **order-sensitive**.
 
-# Build all designs in project
-python -m jitx build-all
+```bash
+JITX_VER=4.1.0                 # adjust to your installed 4.x version
+
+# (1) Point ~/.jitx/current at the install you're about to use.
+ln -sfn "$JITX_VER" ~/.jitx/current
+
+# (2) Sign in once (auth state shared across versioned installs).
+~/.jitx/$JITX_VER/jitx sign-in -email "$EMAIL"
+# Headless: pipe the password in via stdin instead of typing it:
+#   ~/.jitx/$JITX_VER/jitx sign-in -email "$EMAIL" <<<"$PASS"
+
+# (3) Start the JITX backend server. `interactive` is NOT listed in
+#     `jitx --help` — known quirk, but it's required.
+~/.jitx/$JITX_VER/jitx interactive $(pwd) &
+
+# (4) Wait for the socket file rather than a fixed sleep.
+until [ -e .socket.jitx ]; do sleep 1; done
+
+# (5) Build (headless: suppress the interactive stabilize prompt).
+JITX_SKIP_STABILIZE_CONFIRMATION=1 \
+    python -m jitx build <module.path.DesignClass>
+
+# Or build every Design subclass in the project:
+JITX_SKIP_STABILIZE_CONFIRMATION=1 python -m jitx build-all
 ```
 
 **Success output:** `status: ok`
 **Error output:** Python traceback or `status: error`
+
+**Common startup failures**
+
+| Symptom | Cause |
+|---|---|
+| `Unable to determine socket URI` | `jitx interactive` not running, or socket not yet written — see step (3)/(4) |
+| `You are not authenticated` | Missing sign-in (step 2) |
+| Build hangs at "save stable design?" | Missing `JITX_SKIP_STABILIZE_CONFIRMATION=1` |
+| `FATAL PLUGIN ERROR: No appropriate branch for arguments of type (False)` in `write-stable-id` | `~/.jitx/current` symlink mismatch — see step (1) |
+
+For deeper troubleshooting (parallel-install layout, version-mismatch
+failure modes, `pyright` integration) see the `jitx-port-3-to-4` skill's
+`references/verification.md`.
 
 **Output files** (in `designs/<design_name>/`):
 - `cache/netlist.json` - JSON netlist for verification
