@@ -107,7 +107,45 @@ ln -sfn "$JITX_VER" ~/.jitx/current
 | Build hangs at "save stable design?" | Missing `JITX_SKIP_STABILIZE_CONFIRMATION=1` (step 7) |
 | `FATAL PLUGIN ERROR: No appropriate branch for arguments of type (False)` in `write-stable-id` | `~/.jitx/current` symlink mismatch — see step (1) |
 | `pip install` errors importing jitx mid-install | `jitx interactive` not yet up, or version mismatch between symlink and installed wheel |
-| `ModuleNotFoundError: No module named 'jitx'` after `pip install --pre .` succeeded | Wrong venv active; re-run `source .venv/bin/activate` |
+| `ModuleNotFoundError: No module named 'jitx'` | See §"`ModuleNotFoundError: No module named 'jitx'`" below — most common causes are the wrong venv being active or `pip install` ran without `--pre` against a pre-release-only project |
+
+### `ModuleNotFoundError: No module named 'jitx'`
+
+Three distinct causes, in roughly decreasing frequency:
+
+1. **Wrong venv active.** `pip install` ran inside one venv but the build
+   shell is in another (or no venv). Re-run `source .venv/bin/activate`
+   from the project root and confirm with `which python` and
+   `python -c 'import jitx'`.
+
+2. **`pip install` ran without `--pre` against a pre-release-only
+   project.** Pre-release Python jitx wheels — anything with a
+   [PEP 440](https://peps.python.org/pep-0440/) pre/dev tag in the
+   version, e.g. `4.1.0.dev0`, `4.1.0a3`, `4.1.0rc1` — live on a
+   **private JITX PyPI server** and are fetched only when `--pre` (or
+   the equivalent flag in another installer) is set. Without it, pip
+   walks public PyPI, finds no matching version, and the install
+   completes with `jitx` simply absent — no error, just a missing
+   module at import time.
+
+   | Project pins | Install command |
+   |---|---|
+   | Pre/dev version (e.g. `jitx==4.1.0.dev0`, `jitx==4.1.0a3`) | `pip install --pre .` &nbsp;or&nbsp; `uv sync --active --prerelease=allow` |
+   | Final release (e.g. `jitx==4.1.0`, `jitx>=4.0,<5`) | `pip install .` works; `pip install --pre .` is also fine — the flag does no harm when no pre-release would satisfy the constraint |
+
+   When unsure, **default to `--pre`**: it's a no-op for final-release
+   pins and necessary for pre-release pins. Anything fetched from the
+   private PyPI server also requires that the server be reachable and
+   that pip's configured indexes include it (typically via
+   `pip.conf`/`PIP_INDEX_URL`/`PIP_EXTRA_INDEX_URL` set up by the JITX
+   onboarding script). General-public PyPI users do not have access to
+   the private server.
+
+3. **`pip install` silently failed mid-stream.** Re-run with the output
+   captured (`pip install --pre . > pip.log 2>&1`) and grep for
+   `ERROR` / `Could not find a version`. The common subcase is
+   `jitx interactive` not yet up when an `pip install` hook tries to
+   import jitx — start the server first (step 3) and re-install.
 
 ## Parallel installs
 
