@@ -73,55 +73,38 @@ Durable rules for JITX Python user code. The first three don'ts protect JITX's i
 
 ## Running JITX Designs
 
-A `python -m jitx build` invocation requires an `interactive` server to
-be running and a valid sign-in. The steps below are **order-sensitive**.
+A `python -m jitx build` invocation cannot succeed in isolation — it
+requires a `~/.jitx/current` symlink, an active sign-in, a running
+`jitx interactive` backend server, and `JITX_SKIP_STABILIZE_CONFIRMATION=1`
+for headless runs. The setup is **order-sensitive**.
+
+**Full ordered checklist, worked snippet, and failure-mode table:**
+[`references/bootstrap.md`](references/bootstrap.md) — this is the
+**canonical source** for the bootstrap sequence; other skills and
+per-design `CLAUDE.md` files link here.
+
+### Quick reference
 
 ```bash
-JITX_VER=4.1.0                 # adjust to your installed 4.x version
-
-# (1) Point ~/.jitx/current at the install you're about to use.
-ln -sfn "$JITX_VER" ~/.jitx/current
-
-# (2) Sign in once (auth state shared across versioned installs).
-~/.jitx/$JITX_VER/jitx sign-in -email "$EMAIL"
-# Headless: pipe the password in via stdin instead of typing it:
-#   ~/.jitx/$JITX_VER/jitx sign-in -email "$EMAIL" <<<"$PASS"
-
-# (3) Start the JITX backend server. `interactive` is NOT listed in
-#     `jitx --help` — known quirk, but it's required.
-~/.jitx/$JITX_VER/jitx interactive $(pwd) &
-
-# (4) Wait for the socket file rather than a fixed sleep.
-until [ -e .socket.jitx ]; do sleep 1; done
-
-# (5) Build (headless: suppress the interactive stabilize prompt).
+JITX_VER=4.1.0                                       # adjust
+ln -sfn "$JITX_VER" ~/.jitx/current                  # (1) symlink
+~/.jitx/$JITX_VER/jitx sign-in -email "$EMAIL"       # (2) sign in
+~/.jitx/$JITX_VER/jitx interactive $(pwd) &          # (3) server
+until [ -e .socket.jitx ]; do sleep 1; done          # (4) wait
+pip install --pre .                                  # (5) install (in venv)
+python -c 'import jitx; print(jitx.__version__)'     # (6) version check
 JITX_SKIP_STABILIZE_CONFIRMATION=1 \
-    python -m jitx build <module.path.DesignClass>
-
+    python -m jitx build <module.path.DesignClass>   # (7) build
 # Or build every Design subclass in the project:
 JITX_SKIP_STABILIZE_CONFIRMATION=1 python -m jitx build-all
 ```
 
-**Success output:** `status: ok`
-**Error output:** Python traceback or `status: error`
-
-**Common startup failures**
-
-| Symptom | Cause |
-|---|---|
-| `Unable to determine socket URI` | `jitx interactive` not running, or socket not yet written — see step (3)/(4) |
-| `You are not authenticated` | Missing sign-in (step 2) |
-| Build hangs at "save stable design?" | Missing `JITX_SKIP_STABILIZE_CONFIRMATION=1` |
-| `FATAL PLUGIN ERROR: No appropriate branch for arguments of type (False)` in `write-stable-id` | `~/.jitx/current` symlink mismatch — see step (1) |
-
-For deeper troubleshooting (parallel-install layout, version-mismatch
-failure modes, `pyright` integration) see the `jitx-port-3-to-4` skill's
-`references/verification.md`.
+**Success output:** `status: ok` &nbsp;&nbsp;**Error output:** Python traceback or `status: error`
 
 **Output files** (in `designs/<design_name>/`):
-- `cache/netlist.json` - JSON netlist for verification
-- `cache/design-explorer.json` - Design hierarchy
-- `design-info/stable.design` - Design snapshot
+- `cache/netlist.json` — JSON netlist for verification
+- `cache/design-explorer.json` — design hierarchy
+- `design-info/stable.design` — design snapshot
 
 ## Project Structure
 
