@@ -1,0 +1,13 @@
+[build-system]
+requires = ["hatchling>=1.27.0,<2.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "runnable_example"
+version = "0.1"
+requires-python = ">=3.12"
+dependencies = [
+  "jitx>=4.0.0,<5",
+  "jitxlib-parts>=1.0.0,<2",
+  "jitxlib-standard>=4.0.0,<5",
+]

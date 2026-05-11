@@ -11,7 +11,7 @@
   "plugins": [
     {
       "name": "jitx-skills",
-      "description": "JITX workflow skills for PCB design. Use jitx-component-modeler for component creation from datasheets. Use jitx-circuit-builder for wiring circuits, passives, and application circuits. Use jitx-substrate-modeler for capturing information about the fabrication substrate. Use jitx-interconnect-constraints for signal integrity constraints, topology, differential pairs, and protocol-level constraint patterns. Use jitx-pin-assignment for pin assignment patterns including provide/require, pin muxing, DiffPair P/N swapping, PCIe lane ordering, DDR byte/bit swapping, and topology+constraint composition on pin-assigned ports.",
+      "description": "JITX workflow skills for PCB design. Use jitx-component-modeler for component creation from datasheets. Use jitx-circuit-builder for wiring circuits, passives, and application circuits. Use jitx-substrate-modeler for capturing information about the fabrication substrate. Use jitx-interconnect-constraints for signal integrity constraints, topology, differential pairs, and protocol-level constraint patterns. Use jitx-pin-assignment for pin assignment patterns including provide/require, pin muxing, DiffPair P/N swapping, PCIe lane ordering, DDR byte/bit swapping, and topology+constraint composition on pin-assigned ports. Use lbstanza for writing, reading, debugging, or explaining LB Stanza source code in **JITX 3.x designs ONLY** — JITX 3.x is the deprecated Stanza-based line; JITX 4.x is Python-based and is the supported model going forward. Use jitx-port-3-to-4 for porting JITX 3.x (LB Stanza) PCB designs to JITX 4.x (Python), including construct mapping and pre/post build verification using parallel 3.x + 4.x installs.",
       "source": "./",
       "strict": false,
       "skills": [
@@ -20,7 +20,9 @@
         "./jitx-circuit-builder",
         "./jitx-substrate-modeler",
         "./jitx-interconnect-constraints",
-        "./jitx-pin-assignment"
+        "./jitx-pin-assignment",
+        "./lbstanza",
+        "./jitx-port-3-to-4"
       ]
     }
   ]

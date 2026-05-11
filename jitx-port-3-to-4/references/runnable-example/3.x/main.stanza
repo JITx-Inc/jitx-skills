@@ -1,0 +1,20 @@
+#use-added-syntax(jitx)
+defpackage runnable-example :
+  import core
+  import jitx
+  import jitx/commands
+  import ocdb/utils/defaults
+  import ocdb/utils/generic-components
+
+pcb-module simple-circuit :
+  inst r1 : chip-resistor(1.0e3)
+  inst r2 : chip-resistor(1.0e3)
+  net SIG (r1.p[2], r2.p[1])
+
+set-current-design("runnable-example")
+make-default-board(simple-circuit, 2, Rectangle(20.0, 15.0))
+
+set-export-backend(`kicad)
+export-cad()
+view-board()
+view-schematic()

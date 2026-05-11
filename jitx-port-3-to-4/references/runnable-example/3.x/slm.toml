@@ -1,0 +1,13 @@
+name = "runnable-example"
+version = "0.1.0"
+
+[dependencies]
+# JITX, JITX3, ocdb ship bundled with the install at ~/.jitx/<ver>/slm/.
+# Stanza is JITX 3.x — adjust the path to your installed 3.x version.
+JITX = { path = "/home/claude/.jitx/3.36.1/slm/JITX" }
+JITX3 = { path = "/home/claude/.jitx/3.36.1/slm/JITX3" }
+ocdb = { path = "/home/claude/.jitx/3.36.1/slm/ocdb" }
+
+# jsl is fetched from GitHub by `slm fetch`. Use the version JITX3 in your
+# installed 3.x release pins (e.g. 3.36.1 pins 0.10.11).
+jsl = { git = "JITx-Inc/jsl", version = "0.10.11" }

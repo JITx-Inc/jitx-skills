@@ -1,0 +1,5 @@
+; SLM-managed: slm.toml declares deps; `slm fetch` populates .slm/.
+include? ".slm/stanza.proj"
+pkg-cache: ".slm/pkg-cache"
+
+package runnable-example defined-in "main.stanza"
