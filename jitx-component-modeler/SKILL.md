@@ -11,6 +11,23 @@ Generate JITX Python component code from datasheets, user-provided KiCad footpri
 
 Environment setup is handled by the base `jitx` skill. Ensure it has been invoked first.
 
+### Verify optional library availability before importing
+
+Before recommending an import from an optional companion library (e.g.
+`jitxexamples.components.switchmode_power`, `jitxlib.protocols.*`,
+`jitxlib.voltage_divider`), **verify it's importable first**:
+
+```bash
+python -c "import jitxexamples"        # ModuleNotFoundError = not installed
+python -c "import jitxlib.voltage_divider"
+```
+
+`jitxexamples` in particular is **not** installed by `pip install jitx` or
+`pip install jitxlib-parts`. If it's missing, port the component from
+scratch rather than recommending an import that will fail. Similarly,
+`jitxlib.voltage_divider` does not exist in `jitx-4.0.5` (introduced
+later) — verify before generating code that imports it.
+
 ## Datasheet Handling
 
 **ALWAYS save datasheets locally before reading.**
@@ -252,7 +269,7 @@ port arrays, inactive positions, and non-uniform BGA grids, see
 |-----------------|-------------|----------------|
 | D | Package length | `RectanglePackage.length` |
 | E | Package width | `RectanglePackage.width` |
-| A | Package height | `RectanglePackage.height` |
+| A | Package height | `RectanglePackage.height` (**required keyword arg** — omitting it raises `TypeError: __init__() missing 1 required keyword-only argument: 'height'` at class definition time) |
 | E1 / D1 | Lead span | `LeadProfile.span` |
 | e | Lead pitch | `LeadProfile.pitch` |
 | b | Lead width | `SMDLead.width` / `QFNLead.width` |
@@ -399,7 +416,11 @@ SOIC(num_leads=8).lead_profile(SOIC_DEFAULT_LEAD_PROFILE).narrow(Toleranced.min_
 
 # Equivalent explicit form using .package_body()
 SOIC(num_leads=8).lead_profile(SOIC_DEFAULT_LEAD_PROFILE).package_body(
-    RectanglePackage(width=Toleranced.exact(3.9), length=Toleranced.min_max(4.81, 5.0))
+    RectanglePackage(
+        width=Toleranced.exact(3.9),
+        length=Toleranced.min_max(4.81, 5.0),
+        height=Toleranced.min_max(1.35, 1.75),   # required kwarg — see Dimension Mapping
+    )
 )
 ```
 
