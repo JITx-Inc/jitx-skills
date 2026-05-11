@@ -98,8 +98,11 @@ ln -sfn "$(basename "$JITX_3X")" ~/.jitx/current
   cd "$PROJECT_DIR"
 
   # Resolve SLM dependencies declared in slm.toml (clones jsl etc.). Stanza
-  # must be on PATH for SLM to invoke it.
-  PATH="$JITX_3X/stanza:$PATH" "$JITX_3X/slm/slm" fetch
+  # must be on PATH for SLM to invoke it, and SLM_ROOT must point at the
+  # 3.x slm install or `slm fetch` exits with
+  #   ValueError: No Environment Variable 'SLM_ROOT' found
+  SLM_ROOT="$JITX_3X/slm" \
+      PATH="$JITX_3X/stanza:$PATH" "$JITX_3X/slm/slm" fetch
 
   # Run via the `jitx` wrapper, which finds the install's .stanza config.
   # Calling jstanza directly fails with "Could not locate .stanza
@@ -125,6 +128,38 @@ Expected artifacts under `$OUT/` (varies by design): KiCad project + 3D STEP und
 
 The 4.x build runs from a **project venv** that has the JITX Python toolchain pip-installed; the `~/.jitx/<4.x>/` install supplies the `jitx interactive` server (which the build connects to) and `jitx sign-in`, but does **not** provide a `jitx build` subcommand.
 
+### 4.x bootstrap ordering checklist
+
+The steps below are **order-sensitive**. Skipping or reordering them produces
+opaque failures (silent hangs, "Unable to determine socket URI", auth errors with
+no hint that `sign-in` is the missing step).
+
+1. **Symlink first**: `ln -sfn <version> ~/.jitx/current` — must point at the
+   4.x install before launching `jitx interactive`. The interactive server
+   reads runtime state via `~/.jitx/current/`; a stale symlink poisons the
+   build (see the §"⚠️ CRITICAL" warning above).
+2. **Sign in once** (if not already): `"$JITX_4X/jitx" sign-in -email <email>`
+   — `python -m jitx build` fails authentication if the user is not signed
+   in, with no hint that sign-in is the missing step. See §"Sign-in" above.
+3. **Start the interactive server**: `"$JITX_4X/jitx" interactive "$PWD" &`.
+   ⚠️ `interactive` is **not** listed in `jitx --help` — this is a known
+   quirk, not a missing binary. Without it, the build fails with
+   `Unable to determine socket URI`.
+4. **Wait for the socket** before issuing any build: the server takes a few
+   seconds to write `.socket.jitx`. Use a real wait, not a fixed `sleep`:
+   `until [ -e .socket.jitx ]; do sleep 1; done`.
+5. **Install the project**: `pip install --pre .` inside the venv. The
+   server must already be up — some `pip install` paths exercise jitx
+   imports that need the server.
+6. **Verify version match**: `python -c 'import jitx; print(jitx.__version__)'`
+   should match `readlink ~/.jitx/current`. Mismatches may work but cause
+   subtle API drift; flag them.
+7. **Build headless**: prefix with `JITX_SKIP_STABILIZE_CONFIRMATION=1`.
+   Without this env var, `python -m jitx build` pauses interactively asking
+   "save stable design?" and hangs any CI / unattended run.
+
+### Worked snippet
+
 ```bash
 DESIGN=ethernet_io
 PORT_DIR=/path/to/ported/${DESIGN}
@@ -133,29 +168,42 @@ JITX_4X=~/.jitx/4.1.0                               # adjust
 OUT=/tmp/jitx-port/${DESIGN}/ported-4.x
 mkdir -p "$OUT"
 
-# Repoint ~/.jitx/current at the 4.x install for this build.
+# (1) Repoint ~/.jitx/current at the 4.x install before doing anything else.
 ln -sfn "$(basename "$JITX_4X")" ~/.jitx/current
+
+# (2) Sign in (once per session; auth state shared across versioned installs).
+"$JITX_4X/jitx" sign-in -email "$JITX_USER_EMAIL" <<<"$JITX_USER_PASS"
 
 (
   cd "$PORT_DIR"
 
-  # Project venv with the jitx Python toolchain (pre-release wheels are
+  # (3) Start the interactive server. It writes .socket.jitx in $PWD; the
+  # build auto-discovers it by walking up from cwd.
+  # NOTE: `interactive` is not listed in `jitx --help` — known quirk.
+  "$JITX_4X/jitx" interactive "$PWD" > "$OUT/interactive.log" 2>&1 &
+  INT_PID=$!
+
+  # (4) Wait for the socket file rather than a fixed sleep.
+  until [ -e .socket.jitx ]; do sleep 1; done
+
+  # (5) Project venv with the jitx Python toolchain (pre-release wheels are
   # common). Internal package index access required for `pip install jitx*`.
   python -m venv .venv
   source .venv/bin/activate
   pip install --pre . > "$OUT/pip.log" 2>&1
 
+  # (6) Sanity-check that the pip-installed jitx matches ~/.jitx/current.
+  python -c 'import jitx; print(jitx.__version__)' > "$OUT/jitx-version.txt"
+  echo "current -> $(readlink ~/.jitx/current)" >> "$OUT/jitx-version.txt"
+
   # Pre-flight: pyright must be clean.
   pyright . > "$OUT/pyright.txt" 2>&1 || { echo "pyright failed"; exit 1; }
 
-  # Start the interactive server. It writes .socket.jitx in $PWD; the build
-  # auto-discovers it by walking up from cwd.
-  "$JITX_4X/jitx" interactive "$PWD" > "$OUT/interactive.log" 2>&1 &
-  INT_PID=$!
-  sleep 2
-
-  # Build. PYTHONPATH=. ensures the project package is importable.
-  PYTHONPATH="$PWD" python -m jitx build "$DESIGN_NAME" \
+  # (7) Build headless. JITX_SKIP_STABILIZE_CONFIRMATION=1 suppresses the
+  # interactive "save stable design?" prompt that would otherwise hang.
+  # PYTHONPATH=. ensures the project package is importable.
+  JITX_SKIP_STABILIZE_CONFIRMATION=1 \
+      PYTHONPATH="$PWD" python -m jitx build "$DESIGN_NAME" \
       > "$OUT/build.stdout" 2> "$OUT/build.stderr"
   echo $? > "$OUT/exit-code"
 
@@ -170,9 +218,79 @@ Notes:
 - Some projects use `uv sync --active --prerelease=allow` instead of `pip install --pre .` (see `jitx-test/scripts/jitx-build-design.bash`).
 - `pyright` issues block the build review even if `python -m jitx build` succeeds. Treat type errors as wiring bugs (see `pitfalls.md`).
 
-## Compare exports — placeholder
+## Compare exports — structured checklist
 
-Today this step is a manual visual comparison. The skill reserves a future automated comparator at `scripts/compare-exports.py` (not yet implemented), with this expected interface:
+`status: ok` is not sufficient evidence that the port is correct. The
+TEC-example pilot built cleanly with four distinct categories of silent
+netlist errors (swapped connector pins, wrong PVDD source, an entire output
+filter section missing, mis-wired control signals). Walk the six sections
+below for every port — they catch errors that the build will not.
+
+### A. Net inventory
+
+1. Grep the Stanza source for every `net <Name> (...)` declaration.
+2. For each, verify a correspondingly-named net exists in the Python
+   netlist at `designs/<design_name>/cache/netlist.json`.
+3. Any Stanza net with no Python counterpart is a potential missing
+   connection — investigate before signing off.
+
+### B. Connector pin assignment
+
+1. Read every `inst <conn> : pin-header(N)` and `net (<conn>.p[i] <name>)`
+   in the Stanza source.
+2. Verify the Python connector uses matching assignments. **Stanza pin
+   indices are 1-based; Python is 0-based** — `conn.p[1]` in Stanza is
+   `conn.p[0]` in Python.
+3. Confirm every connector pin's net name matches (`VCC`, `GND`, `EN`,
+   `SCL`, `SDA`, etc.).
+
+### C. Power topology
+
+1. Identify the **external input net** (connected to the connector and
+   to the regulator's VIN).
+2. Identify the **regulated output net** (connected to the regulator's
+   VOUT).
+3. For each sub-circuit, verify its power ports connect to the correct
+   rail — amp PVDD on the raw external supply, MCU/digital DVDD on the
+   regulated rail. See `pitfalls.md` §"Power topology / net naming" —
+   this is the most-inverted check in practice.
+
+### D. Component output pins
+
+1. For every IC in the design, grep the Stanza source for every component pin.
+2. For output-stage ICs (amplifiers, regulators, motor drivers): verify
+   every output pin (`OUT_x`, `BST_x`, `SW`, etc.) is connected to a net.
+   **A floating output pin is always wrong.**
+3. In the Python port, confirm no `OUT_*` / `BST_*` / `SW` pin appears
+   only inside its component's GND/DVDD/PVDD net — that pattern indicates
+   the output filter / bootstrap / switching network was never added (the
+   classic GAP-18 module-wrapper miss).
+
+### E. Passive count sanity
+
+Compare approximate passive counts between Stanza and Python:
+
+- Stanza: count `bypass-cap-strap`, `cap-strap`, `res-strap`, and direct
+  `inst c : capacitor`/`resistor` calls per module.
+- Python: count `Capacitor`, `Resistor`, `Inductor` instances per `Circuit`.
+- A discrepancy of more than ~2× per circuit is a strong signal that a
+  `pcb-module` wrapper was missed (see workflow.md Phase 3/4 boundary).
+
+### F. Control-signal completeness
+
+1. List every GPIO / control connection in Stanza (`net (ctrl amp.GPIO0)`,
+   `net (mute mcu.gpio[3] amp.MUTE)`, etc.).
+2. Verify each appears in the Python netlist with the correct number of
+   pins on the net.
+3. Stanza often wires "tie-off" control signals to the digital supply
+   (e.g. `net (VDD amp.PDN_NOT)`). If the design intent is MCU-controlled
+   instead, the Python port must wire that pin to an MCU GPIO, not to the
+   rail.
+
+### Future automation
+
+A future automated comparator at `scripts/compare-exports.py` (not yet
+implemented) is expected to mechanize sections A, B, E, F:
 
 ```bash
 # FUTURE — not implemented yet
@@ -182,16 +300,9 @@ python scripts/compare-exports.py \
     --report   /tmp/jitx-port/<design>/diff-report.html
 ```
 
-The comparator should diff the artifact pairs:
-
-| Artifact | Comparison |
-|---|---|
-| BOM (CSV) | Sort + diff by part number / value / count. |
-| Netlist | Graph isomorphism on (component, pin) ↔ net mapping. |
-| Board geometry | Layer-by-layer polygon equivalence. Strict tolerance for component placement; loose for trace routing (the routers differ). |
-| Schematic | Out of scope for automation — recommend visual review. |
-
-Until the comparator exists, every porting session should still produce both directories under `/tmp/jitx-port/<design>/{baseline-3.x,ported-4.x}/` so the future tool can be retrofit without re-running builds.
+Until then, every porting session should still produce both directories
+under `/tmp/jitx-port/<design>/{baseline-3.x,ported-4.x}/` so the future
+tool can be retrofit without re-running builds.
 
 ## Smoke test
 

@@ -48,6 +48,13 @@ Use the `jitx` skill for the canonical layout. Minimum:
 
 Stub the top-level `class <Design>(Design)` so `python -m jitx build` can find a target before the implementation lands. Use the `jitx-component-modeler` and `jitx-circuit-builder` skills for boilerplate templates.
 
+> ⚠️ Before the first build smoke, you must run `~/.jitx/<4.x>/jitx interactive
+> "$PWD" &` and wait for `.socket.jitx` to appear. The `interactive` subcommand
+> is **not** listed in `jitx --help` (known quirk) — do not assume it's missing
+> because `--help` doesn't show it. Without it, builds fail with
+> `Unable to determine socket URI`. See `verification.md` §"4.x bootstrap
+> ordering checklist" for the full ordered recipe.
+
 ## Phase 3 — Port components (leaves first)
 
 One Python file per `pcb-component`. For each:
@@ -57,6 +64,27 @@ One Python file per `pcb-component`. For each:
 3. Defer API depth to `jitx-component-modeler` — especially for symbol generation, multi-unit symbols, thermal pads, and complex pin mappings.
 4. If the Stanza component used parametric helpers (e.g. a generator that produced a family of components), port the generator as a Python function or factory rather than transcribing every emitted instance.
 
+### Read `components/*/module.stanza` before closing Phase 3
+
+In Stanza, a `pcb-component` is the bare IC. A companion `pcb-module` in
+`components/<part>/module.stanza` (or similar wrapper) is a parametric
+**application circuit** that adds bypass caps, output filter networks,
+bootstrap caps, thermal vias, and exposes higher-level ports. Skipping
+these wrappers is the most common silent-failure mode — the bare component
+ports cleanly, the design builds `status: ok`, and entire output sections
+are missing from the netlist (see SKILL_GAPS GAP-18).
+
+For each component used by the design:
+
+- [ ] Does `components/<part>/` contain both `component.stanza` and
+      `module.stanza` (or `<part>-module.stanza`, etc.)?
+- [ ] If yes: read `module.stanza` fully. List its ports, passives,
+      output networks, and any `add-thermal-vias` calls.
+- [ ] Map each element of `module.stanza` into the **Python `Circuit`**
+      that instantiates the component. The bare component goes in Phase 3;
+      the module wrapper's contents go in Phase 4 inside the appropriate
+      Circuit.
+
 ## Phase 4 — Port circuits / modules
 
 Bottom-up: leaf circuits before parents. For each:
@@ -65,7 +93,77 @@ Bottom-up: leaf circuits before parents. For each:
 2. Map `inst` declarations to attribute assignments inside `__init__`.
 3. Translate every `net (a, b)` / `connect ...` to a Python `+` chain on `Port`s.
 4. Use `jitx-circuit-builder` for nets, passives, power, pours, copper geometry.
-5. Use `jitx-pin-assignment` for any `supports` / `require` clauses — they map to `@provide` / `@require` decorators with subtle hierarchical-composition differences from Stanza.
+5. For any `supports` / `require` clause, first run the **hardware-analysis
+   gate** below before delegating to `jitx-pin-assignment` — most `require`
+   constructs in real designs are bundle-typed fixed wiring, not pin-mux.
+
+### Hardware-analysis gate for `require` / `supports`
+
+Stanza syntax alone does not tell you whether a `require` reflects real
+layout-engine flexibility. Apply this gate before deciding how to translate it:
+
+| Stanza construct | Hardware check | 4.x translation |
+|---|---|---|
+| `require X from Y` where Y has N interchangeable pins (MCU GPIO, PCIe lanes, FPGA banks) | Component has **true mux flexibility** — datasheet shows multiple valid configurations | `@provide` / `require()` via `jitx-pin-assignment` |
+| `require X from Y` where Y has one fixed hardware path (SDMO output, crystal pins, dedicated comm port) | Datasheet shows a **single valid config**, often firmware-pinned | Plain `Net` wiring; no provide/require needed |
+| `require X from Y` — datasheet not yet read | Unknown | Stub as TODO with the note *"check datasheet before invoking jitx-pin-assignment"* — do **not** assume it's pin-assignment by default |
+
+Bundle types (e.g. `jitxlib.protocols.serial.I2S` with sub-ports `sck`, `ws`,
+`sd`) can be used as typed circuit ports (`i2s_in = I2S()`) without any
+provide/require involvement. That's the right pattern for an I2S input on a
+fixed-wired circuit — don't reach for pin-assignment just because the
+Stanza source used a `require` clause.
+
+### Phase 4 exit criteria (do not skip)
+
+`status: ok` from `python -m jitx build` is **not** sufficient to close
+Phase 4. A design with stub `Port()` connections and "module port(s) have
+no internal connections" warnings can build cleanly while half the wiring
+is missing.
+
+Before advancing to Phase 5, grep the ported circuits for `# TODO` and
+unconnected `Port()` declarations that correspond to Stanza `require` /
+`supports` / `provide` constructs. Every one must reach one of these
+three states:
+
+| State | How to reach it |
+|---|---|
+| **Implemented as fixed wiring** | Hardware analysis (above) shows no layout flexibility; wired as plain `Net` |
+| **Implemented via `@provide` / `require()`** | Invoke `jitx-pin-assignment` inline before closing Phase 4 — do not defer |
+| **Explicitly deferred** | Named follow-up task created; reason documented in a `PORT-DEFERRED.md` or PR notes; not just a `# TODO` comment |
+
+> ⚠️ The `jitx-circuit-builder` skill **cannot invoke other skills**. Its
+> delegation notes for `require` / `provide` describe what a human (or the
+> calling agent) should do — they do not happen automatically. If you see
+> a stubbed provide/require after `jitx-circuit-builder` finishes, **you
+> must explicitly invoke `jitx-pin-assignment` yourself** as part of Phase 4.
+
+> ⚠️ Build warnings of the form `module port(s) <foo> have no internal
+> connections` are a **signal that Phase 4 is incomplete**, not a cosmetic
+> artifact. Treat them as Phase 4 errors and resolve before Phase 5.
+
+### Power topology check (mandatory)
+
+Stanza power-net names invert easily during porting. Before naming any net
+in Python, read **every** Stanza net definition that touches the input
+connector (`net (conn.p[N] ...)`) and the regulator (`net (reg.vout ...)`)
+and write down which Python name maps to which physical rail. See
+`pitfalls.md` §"Power topology / net naming" for the explicit mapping
+table and rationale.
+
+### Context budget
+
+Phase 4 is the most context-intensive step in the port. Designs with **≥3
+interconnected circuits** routinely exhaust a single session's context
+window, forcing a re-synthesis of the skill content from summaries and
+risking drift. Mitigations:
+
+- Checkpoint **one circuit per session**; commit a green build before
+  starting the next.
+- Keep the Stanza source for the in-progress circuit and the corresponding
+  Python file open simultaneously — do not rely on memory of either.
+- For three-circuit designs, prefer a long-context model (e.g. Claude
+  Opus 4.5 / 4.7 in 1M-context mode).
 
 ## Phase 5 — Substrate, constraints, topology, pin assignment
 
@@ -88,16 +186,23 @@ These are the domain-heavy parts of the port. They typically arrive intact in th
 6. Run `python -m jitx build <package>.<module>.<DesignClass>` from the project root (with `PYTHONPATH=$PWD` if the project isn't installed). See `verification.md` for the exact invocation.
 7. Capture the export to `/tmp/jitx-port/<design>/ported-4.x/`.
 
-## Phase 7 — Compare exports (placeholder)
+## Phase 7 — Compare exports
 
-Manual today, automatable later. Diff the artifact pairs:
+Manual today, automatable later. Walk the six-section comparison checklist
+in `verification.md` §"Compare exports — structured checklist":
 
-- BOM (CSV) — same parts, same counts, same values.
-- Netlist — same (component, pin) ↔ net mapping.
-- Board geometry — same component placement (strict) and similar trace routing (loose).
-- Schematic — visual review.
+- A. Net inventory (every Stanza `net <Name>` appears in Python netlist.json)
+- B. Connector pin assignment (Python is 0-based; Stanza is 1-based)
+- C. Power topology (raw input vs regulated rails wired correctly)
+- D. Component output pins (no floating `OUT_*` / `BST_*` / `SW`)
+- E. Passive count sanity (large discrepancies indicate a missed module wrapper)
+- F. Control-signal completeness (every Stanza ctrl net mapped)
 
-The `verification.md` doc names a future `scripts/compare-exports.py` slot. Until that exists, attach the two export directories to the PR / report and call out any divergence found by manual review.
+`status: ok` is not evidence of correctness — the TEC-example pilot built
+cleanly with four categories of silent netlist errors. Treat Phase 7 as
+mandatory, not optional. The `verification.md` doc names a future
+`scripts/compare-exports.py` slot; until that exists, attach the two export
+directories to the PR / report and complete the checklist by hand.
 
 ## Heuristic: what to port first when stuck
 

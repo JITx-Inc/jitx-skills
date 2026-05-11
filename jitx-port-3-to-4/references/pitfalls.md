@@ -12,16 +12,116 @@ Things that bite during a port and aren't covered by the construct map.
 - **Stanza connects by name (string-typed nets)** when you write `net pwr (a.vcc, b.vcc)`. **Python connects by Port object identity** with the `+` operator: `self.nets = [a.vcc + b.vcc]`. There is no global string namespace for nets in Python.
 - **`+` is the net operator**, not topology. **`>>` is the topology (routed-graph) operator.** Mixing them produces type errors that pyright will catch — trust pyright here.
 - **Named nets** (e.g., labeling `gnd` so it shows up in the schematic with that name) require explicit Python helpers; do not assume the Python form picks up names automatically.
+- **Circuit-level `Port` attributes are immutable** — `self.port += self.other` raises
+  `NotImplementedError: Ports are immutable. Use + to create a new net instead of +=`.
+  This trips up the natural Stanza-style translation of `net (a, b)` into
+  `self.a += b`. The correct pattern is to create a `Net` first, then `+=` into the net:
+
+  ```python
+  # WRONG — Port += Port:
+  self.i2c_sda += self.stereo.SDA   # NotImplementedError
+
+  # RIGHT — named net:
+  self.I2C_SDA = Net(name="I2C_SDA")
+  self.I2C_SDA += self.i2c_sda + self.stereo.SDA
+  ```
+
+## Naming
+
+- ❌ **Do not name the ported design class `SampleDesign`** when subclassing
+  `jitx.sample.SampleDesign`. Python rebinding makes
+  `class SampleDesign(SampleDesign): ...` technically legal but confuses readers
+  and static analysis tools. Pick something distinctive (`TecDesign`, `MyBoard`,
+  `EthernetIODesign`).
 
 ## Pins, ports, and direction
 
 - Stanza `pin.up` / `pin.down` (schematic placement direction) maps to **Python `Pin.up()` / `Pin.down()` / `Pin.right()` — these are method calls returning configured pin objects**, not enum values. Easy to mistype.
 - Stanza `pin-properties` declarations cover pin number + name + direction in one block. The Python form splits this across `Pin` (logical), `Pad` (physical), and the symbol/landpattern mapping objects.
+- **Stanza port arrays with non-contiguous valid indices must use a `dict`,
+  not a `list`, in Python.** Many MCU packages with depopulated pins (e.g.
+  ESP32-S3 FN8 has GPIOs 0–14, 17–21, 33–38, 45, 46 but not 15, 16, 22–32,
+  39–44) cannot be modeled as a dense `[Port() for _ in range(N)]` — the
+  resulting non-physical entries fail at build time with
+  `port GPIO[15] is not mapped to a symbol pin`.
+
+  ```python
+  # WRONG — dense list includes non-physical GPIO indices:
+  GPIO = [Port() for _ in range(47)]
+
+  # RIGHT — sparse dict, only physically-present indices:
+  _gpio_indices = list(range(15)) + list(range(17, 22)) + list(range(33, 39)) + [45, 46]
+  GPIO = {i: Port() for i in _gpio_indices}
+
+  # Symbol unpacking from a dict-port-array uses .values():
+  symbol = BoxSymbol(rows=Row(right=PinGroup(*GPIO.values(), ...)))
+  ```
 
 ## Provide / require
 
 - Stanza `supports` / `require` and Python `@provide` / `@require` are *similar* but **not identical** in hierarchical composition. Cases that "just worked" in Stanza via implicit propagation may need an explicit `Provide(...)` declaration in Python.
 - `@provide.one_of`, `@provide.subset_of`, `@provide.all_of` are the Python idioms for the patterns Stanza expressed via free-form `supports` clauses with conditions. See `jitx-pin-assignment` for which to use.
+
+## Power topology / net naming (mandatory Phase 4 check)
+
+Stanza power-net naming is conventional: `VCC` is typically the **raw external
+supply** (from the connector or input header), and `VDD` is typically the
+**regulated output** (from a buck/LDO). The natural Python instinct is to use
+`VCC` for the most prominent rail in the design — which is often the regulated
+3.3 V, not the raw input. **This inversion produces a clean build with the
+wrong voltage on PVDD / I²C pullups / copper pours.** The build will not
+catch it; only Phase 7's power-topology check will.
+
+Before naming any net in the Python port, read every Stanza `net` definition
+that touches the input connector AND the regulator, and write down the
+mapping explicitly:
+
+```stanza
+net VCC (conn.p[1])                     ; VCC = external input from connector
+net VDD (vreg.vout)                     ; VDD = regulated output
+net (VCC amps.pvdd.vdd)                 ; speaker supply = raw external
+net (VDD amps.dvdd.vdd mcu.mcu-power.vdd)  ; digital supply = regulated
+```
+
+| Stanza net | Voltage | Python name |
+|---|---|---|
+| Connected to input connector AND regulator VIN | raw input | `VCC` |
+| Connected to regulator VOUT | regulated | `VDD` |
+
+If any amp PVDD / high-voltage speaker supply / motor-driver VBAT port
+connects to the raw supply in Stanza, it **must** connect to the same net
+as the regulator input in Python — not to a separate connector pin and not
+to the regulated rail.
+
+## Thermal vias
+
+Stanza `add-thermal-vias(net, shape)` places a grid of through-hole vias
+under a thermal pad and connects them to the given net. **There is no
+direct equivalent function in JITX 4.x.** The closest API is a
+`design_constraint(tag).stitch_via(...)` rule that the router applies
+inside an existing copper pour:
+
+```python
+from jitx.constraints import design_constraint, Tag
+from jitx.constraints import SquareViaStitchGrid
+
+self.thermal_via_rule = design_constraint(
+    self.GND_tag,
+).stitch_via(
+    MySubstrate.THVia,
+    SquareViaStitchGrid(pitch=1.2, inset=0.3),
+)
+```
+
+Prerequisites that aren't obvious from the API shape:
+
+- The target net needs a `Tag` so the constraint can reference it.
+- A copper **`Pour`** must already cover the thermal pad area — without
+  the pour, `stitch_via` has nothing to fill and the constraint silently
+  does nothing.
+- This is a layout-quality concern (thermal performance), not a
+  connectivity concern. A Phase 7 build will pass without thermal vias;
+  flag them as a deferred task with a `PORT-DEFERRED.md` entry.
 
 ## Topology and constraints
 
