@@ -70,12 +70,12 @@ Copy this template verbatim. Fill every field. Every `N/A` requires a reason.
 - Power requirements: <voltage and current draw>
 - Constraints needed at top level: <SI constraints to apply, or "none">
 
-**Outside-voice review (codex):** clean | <N> findings | not applicable: <task class not in trigger list> | not run: <reason — blocking unless user approves on trigger-list tasks>
+**Outside-voice review (codex):** clean | <N> findings | not applicable: single-task tier | not applicable: complete-board, task class not in trigger list | not run: <reason — blocking unless user approves on trigger-list tasks>
 - CRITICAL: <one-line> — file:line — datasheet p.M fig.N (or "inference") — disposition
 - WARNING: ...
 - NOTE: ...
 
-See `references/outside-voice-review.md` for trigger list and prompt shape. The field is always present — `not applicable: <reason>` is valid for non-triggered task classes.
+See `references/outside-voice-review.md` for trigger list and prompt shape. The field is always present. `not applicable: single-task tier` is the correct value whenever the task is in single-task tier (regardless of task class) — the trigger list only applies to complete-board.
 
 **Verdict (self):** ready-for-review
 

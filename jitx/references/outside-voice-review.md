@@ -12,9 +12,9 @@ After the same-model audit produces its block (see `completion-blocks.md` "Phase
 
 If the outside-voice tool is unavailable, the verdict for the Phase 3b → 4 gate defaults to **`block`** unless the user explicitly approves proceeding without it. Record `Outside-voice review: not run: <reason>` with `blocking unless user approves` in the audit block.
 
-### Per-task — mandatory for triggered tasks
+### Per-task — mandatory for triggered tasks (complete-board tier)
 
-During Part B (orchestrator acceptance review) — see `task-execution.md` Part B Step 5 — an outside-voice pass runs **before** issuing `accept` for any task in the trigger list below.
+During Part B (orchestrator acceptance review) — see `task-execution.md` Part B Step 5 — an outside-voice pass runs **before** issuing `accept` for any complete-board task in the trigger list below. **The trigger list applies only to complete-board tier.** In single-task tier, the task acceptance block's `Outside-voice review` field is always `not applicable: single-task tier`, regardless of whether the task class is in the list. A user invoking the component-modeler subskill directly for a single MCU does not trigger a codex pass; if they want an outside-voice review on that work, they invoke it themselves.
 
 **Trigger list (mandatory outside-voice):**
 
@@ -33,8 +33,8 @@ For other task classes (passive circuit, low-speed interface like I2C/SPI/UART, 
 
 ### When outside-voice does NOT run
 
-- single-task tier (cost > value)
-- non-triggered task classes (use orchestrator judgement; record reason if invoked)
+- **single-task tier** — the trigger list does not apply; field value is `not applicable: single-task tier`. User can invoke codex manually if they want.
+- complete-board tier, non-triggered task class (orchestrator may invoke if a red flag warrants it; record reason if invoked)
 - re-review of a fix-only loopback where the fix didn't touch the originally flagged code
 
 ## What outside-voice reviews — prompt shape

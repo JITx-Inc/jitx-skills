@@ -47,7 +47,7 @@ Read your task definition from PLAN.md. Note:
 6. Invoke the component modeler skill (Step 5: Capture Application Circuit) for the IC — this is NOT optional in the project builder workflow
 7. Invoke the circuit builder skill for the wiring patterns
 
-**Parts not in jitxlib:** If a passive or simple component (LED, TVS diode, ferrite bead) is not available from jitxlib queries, check if the user provided a KiCad footprint or ask them for one. If the user has approved LCSC/EasyEDA as a data source (see Phase 0 data audit), install `parts2jitx` (`pip install parts2jitx`) and use `parts2jitx-lcsc` to find it on LCSC and convert with `parts2jitx-kicad`. Do not use LCSC data without user approval. Do not give up on a component because it's not in the standard library.
+**Parts not in jitxlib:** If a passive or simple component (LED, TVS diode, ferrite bead) is not available from jitxlib queries, check if the user provided a KiCad footprint or ask them for one. If the user has named LCSC/JLCPCB as the sourcing channel, `parts2jitx-lcsc` *lookup/evidence* (stock, lifecycle, datasheet URL, pinout) is implied — install `parts2jitx` and run it. **Footprint data ingestion** via `parts2jitx-lcsc --footprint` + `parts2jitx-kicad` still requires explicit per-project approval (EasyEDA terms-of-use). See `references/parts-sourcing.md` "LCSC / JLCPCB via parts2jitx" for the split-consent table. Do not give up on a component because it's not in the standard library.
 
 **Common mistakes from not reading the datasheet:**
 - Missing external transistors (e.g., PMOS for power switching on PD controllers)
@@ -69,11 +69,13 @@ This ensures reproducibility across sessions and avoids repeated downloads.
 
 #### Step 3: Initial Build Test
 
-Build using the lock wrapper to avoid collisions with parallel agents:
+Run the test build:
 
 ```bash
 python -m jitx build <module.path.TestDesign>
 ```
+
+Don't run a concurrent build of the same design in parallel — see `jitx/SKILL.md` "Build Safety".
 
 If it fails, fix errors and rebuild until `status: ok`. Do not proceed to Step 4 with a broken build.
 
@@ -183,7 +185,7 @@ Verify that the task output is compatible with downstream tasks:
 
 #### 5. Issue Verdict
 
-For task classes in the outside-voice trigger list (MCU/FPGA, RF, power converter, safety-critical, high-speed digital / controlled-impedance, battery charging / protection), **run an outside-voice (codex) pass before issuing `accept`**. See `references/outside-voice-review.md` for trigger rules, prompt shape, invocation, and the combined-verdict rule. Append the outside-voice result as a field in the task acceptance block; CRITICAL/WARNING findings block `accept` until fixed, downgraded with rationale, or user-approved.
+For **complete-board** tasks in the outside-voice trigger list (MCU/FPGA, RF, power converter, safety-critical, high-speed digital / controlled-impedance, battery charging / protection), **run an outside-voice (codex) pass before issuing `accept`**. The trigger list does not apply to single-task tier; for single-task, the block's `Outside-voice review` field is `not applicable: single-task tier`. See `references/outside-voice-review.md` for trigger rules, prompt shape, invocation, and the combined-verdict rule. Append the outside-voice result as a field in the task acceptance block; CRITICAL/WARNING findings block `accept` until fixed, downgraded with rationale, or user-approved.
 
 Append the acceptance verdict to the same task acceptance block the sub-agent emitted:
 

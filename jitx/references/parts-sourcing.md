@@ -46,45 +46,37 @@ For standard packages, use JITX landpattern generators — no external data need
 
 Dimensions come from the datasheet (user-provided or fetched). No footprint download needed.
 
-### 3. LCSC/EasyEDA Lookup via parts2jitx (opt-in only — requires user approval)
+### 3. LCSC / JLCPCB via parts2jitx (split consent: lookup vs footprint data)
 
-`parts2jitx` is one of several footprint-ingestion paths for non-standard packages — alongside user-supplied `.kicad_mod` files, manufacturer KiCad library downloads, and vendor mechanical drawings (see "Mechanical / Vendor-Defined Footprints" below). The general rule for all of these: validate generated/imported code by smoke-build and geometry review before use.
+There are **two distinct uses** of parts2jitx; each has its own consent rule. They are routinely confused.
 
-> **Licensing note:** EasyEDA component data may have its own terms of use. The `parts2jitx` tool and the LCSC/EasyEDA data flow should be treated as a separate, optional integration. **Do not use this data source without explicit user approval.** Ask the user before suggesting LCSC lookup — some users (especially commercial) will not want EasyEDA-sourced data in their project.
+| Use | What it does | Consent rule |
+|-----|--------------|--------------|
+| **Lookup / evidence** | `parts2jitx-lcsc <C-number>` (stock, lifecycle, datasheet URL) and `parts2jitx-lcsc <C-number> --pinout` (pin labels). Cross-checks the datasheet and confirms the part is buyable. | **Implied** when the user names LCSC / JLCPCB / a specific LCSC C-number as the sourcing channel. The orchestrator may `pip install parts2jitx` automatically — naming the channel implies consent for the lookup tool. |
+| **Footprint data ingestion** | `parts2jitx-lcsc --footprint` downloads the EasyEDA-sourced `.kicad_mod`; `parts2jitx-kicad` converts it into JITX landpattern code. Uses the EasyEDA component database as the *primary geometric source*. | **Explicit per-project approval required.** EasyEDA component data has its own terms of use; commercial users in particular may not want EasyEDA-sourced footprint provenance in their project. Always ask before using the footprint download path. |
 
-For non-standard packages (connectors, RF modules, unusual mechanical) where the user doesn't have a footprint and has approved LCSC/EasyEDA as a data source, the `parts2jitx` pip package provides automated lookup:
+For standard packages (QFN, SON, DFN, SOIC, SOT, QFP, BGA), the default landpattern source is the **JITX generator** with dimensions from the datasheet mechanical drawing — not the LCSC KiCad footprint. Fall back to KiCad import only when the generator can't represent specialty paddle geometry (split paddles, non-standard thermal pads, asymmetric layouts). See `jitx-component-modeler/SKILL.md` "Standard-Package Decision Rule".
+
+For non-standard packages (connectors, RF modules, unusual mechanical), the workflow is:
 
 ```bash
+# Install (auto-OK once user has named LCSC/JLCPCB as the channel)
 pip install parts2jitx
-```
 
-**CLI commands:**
+# Lookup / evidence (auto-OK once user has named LCSC/JLCPCB)
+parts2jitx-lcsc C165948                                      # stock, lifecycle, datasheet URL
+parts2jitx-lcsc C165948 --pinout                             # pin labels
 
-```bash
-# Check stock and pricing
-parts2jitx-lcsc C165948
-
-# Download KiCad footprint
+# Footprint data ingestion (requires explicit per-project user approval)
 parts2jitx-lcsc C165948 --footprint -o kicad_footprints/usb_c.kicad_mod
-
-# Get pinout
-parts2jitx-lcsc C165948 --pinout
-
-# Convert KiCad footprint to JITX component
 parts2jitx-kicad kicad_footprints/usb_c.kicad_mod --class-name USB_C_16P \
     --manufacturer "Korean Hroparts Elec" --mpn "TYPE-C-31-M-12"
 ```
 
-**When to suggest LCSC lookup (only after user approval):**
-- User needs a non-standard footprint, doesn't have one, and approves LCSC as a source
-- User wants to verify stock/pricing for a JLCPCB order
-- User provides an LCSC part number (C-prefix)
-
-**When NOT to use:**
-- User has their own footprint data
-- Standard package with JITX generators available
-- User has not explicitly approved LCSC/EasyEDA sourcing
-- Commercial projects where data provenance matters
+**Skip parts2jitx entirely** when:
+- The user has their own footprint data (use it directly)
+- The package is standard and the JITX generator handles it
+- The user explicitly declined LCSC/EasyEDA (use manufacturer KiCad library or ask the user for the footprint)
 
 ### Converting User-Provided KiCad Footprints
 
@@ -108,7 +100,7 @@ When the user has named a sourcing channel — LCSC / JLCPCB / "buy from Mouser"
 
 | Channel named | Required evidence | How |
 |---------------|------------------|-----|
-| **LCSC / JLCPCB** | Stock + lifecycle + datasheet URL + pinout for each LCSC C-number | `parts2jitx-lcsc <C-number>` output saved (or piped to the data-source-audit doc). `parts2jitx-lcsc <C-number> --pinout` for pin-label cross-check. The orchestrator may `pip install parts2jitx` automatically — naming LCSC/JLCPCB as the channel implies consent for *lookup/evidence* via parts2jitx. Note: using LCSC/EasyEDA *footprint data* as the footprint source for a non-standard package still requires explicit approval (see "LCSC/EasyEDA Lookup via parts2jitx" above). |
+| **LCSC / JLCPCB** | Stock + lifecycle + datasheet URL + pinout for each LCSC C-number | `parts2jitx-lcsc <C-number>` output saved (or piped to the data-source-audit doc). `parts2jitx-lcsc <C-number> --pinout` for pin-label cross-check. The orchestrator may `pip install parts2jitx` automatically — naming LCSC/JLCPCB as the channel implies consent for *lookup/evidence* via parts2jitx. *Footprint data ingestion* (using LCSC/EasyEDA's `.kicad_mod` as the landpattern source) is the separate, opt-in path — see "LCSC / JLCPCB via parts2jitx" above. |
 | **Digi-Key / Mouser / Newark / other distributor** | Saved screenshot or text excerpt of stock + manufacturer/datasheet from the distributor page; user approves the evidence method | Manual save to `datasheets/sourcing/<mpn>-<distributor>.txt` or similar. No automated tool today. |
 | **Internal PLM / user library** | Reference to the PLM record or library entry; user confirms the record is current | Cite the record ID or library file path in the data source audit row. |
 | **No channel named** | Treat sourcing as an open question — ask the user before proposing parts | The component-choice rationale table is incomplete without a channel; flag in Phase 0. |

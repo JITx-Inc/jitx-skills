@@ -93,10 +93,10 @@ Before decomposing into tasks, present the user with a data source plan for each
 - "Datasheet from manufacturer" — will download from manufacturer site (ti.com, st.com, etc.)
 - "JITX [generator] generator" — standard package, dimensions from datasheet
 - "User to provide .kicad_mod" — non-standard package, user has KiCad footprint
-- "LCSC lookup" — non-standard package, user approved LCSC/EasyEDA as data source
+- "LCSC lookup" — non-standard package, user named LCSC/JLCPCB as the channel; *lookup/evidence* via parts2jitx is implied. *Footprint data ingestion* (EasyEDA `.kicad_mod` as landpattern source) is a separate opt-in.
 
 Please confirm data sources or provide alternatives (datasheets, footprints, specs).
-**Note:** LCSC/EasyEDA data requires explicit approval. Some users (especially commercial) may not want EasyEDA-sourced data in their project.
+**Note:** *Lookup/evidence* via parts2jitx is implied when LCSC/JLCPCB is the named channel. *Footprint data ingestion* (using EasyEDA-sourced `.kicad_mod` as the landpattern) requires explicit per-project approval — some users (especially commercial) may not want EasyEDA-sourced data in their project. See `references/parts-sourcing.md` "LCSC / JLCPCB via parts2jitx".
 ```
 
 **Channel evidence is required.** If the user has named a sourcing channel (LCSC/JLCPCB, Digi-Key/Mouser, internal PLM), the audit table must include channel-specific evidence for every named IC and connector before code is written. For LCSC/JLCPCB, that means `parts2jitx-lcsc <C-number>` output (stock, lifecycle, datasheet URL) plus `parts2jitx-lcsc <C-number> --pinout` saved to the project. The orchestrator may `pip install parts2jitx` automatically when LCSC/JLCPCB is the named channel. See `references/parts-sourcing.md` "Required-Sourcing Rule" for the full ladder including non-LCSC channels.
@@ -105,7 +105,7 @@ Please confirm data sources or provide alternatives (datasheets, footprints, spe
 - Always prefer user-provided data over automated lookups
 - Standard packages (QFN, SOIC, SON, SOT, QFP, BGA) use JITX generators — no footprint download needed
 - For non-standard packages, ask the user if they have a `.kicad_mod` before suggesting LCSC
-- LCSC/EasyEDA requires explicit user approval — do not assume it is acceptable. Ask.
+- LCSC/JLCPCB *lookup/evidence* (parts2jitx CLI) is implied when the user named that channel. LCSC/EasyEDA *footprint data ingestion* (using `.kicad_mod` as the landpattern source) requires explicit per-project approval — do not assume it is acceptable. Ask.
 - Do NOT proceed past the data audit until the user approves the data source plan
 
 ### Exit Gate: Phase 0 → Phase 1

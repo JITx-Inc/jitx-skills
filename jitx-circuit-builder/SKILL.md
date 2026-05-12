@@ -98,9 +98,10 @@ Device = MyCircuit
 
 ## Net Definitions
 
-Nets can be named in the design when the net is defined. It is good practice to name the net so that the schematic and layout construction are easy to follow. For power and ground nets, it is also useful to provide a symbol definition (i.e. PowerSymbol() or GroundSymbol()).
+Nets can be named in the design when the net is defined. It is good practice to name the net so that the schematic and layout construction are easy to follow. For power and ground nets, it is also useful to provide a symbol definition (i.e. PowerSymbol() or GroundSymbol()) — **at the top-level design only**. `PowerSymbol()` / `GroundSymbol()` outside `TOP_LEVEL_PATH` (default `designs/`) is a hard-fail under `scripts/grep_gates.sh`; the example below shows the *top-level* pattern.
 
 ```python
+# Top-level design (in src/<ns>/designs/...): symbols are legal here.
 self.my_net = Net(self.a, name = "my_net")
 self.VCC = Net(self.power.Vp, name = "VCC", symbol = PowerSymbol())
 ```
@@ -133,12 +134,14 @@ from jitxlib.parts import Resistor, Capacitor, Inductor
 self.r_sense = Resistor(resistance=0.1)
 self.r_sense.insert(self.power.Vp, self.sense_out)
 
+# Power-rail caps use short_trace=True (see "short_trace=True is the default
+# for power-rail capacitors" below).
 self.c_bypass = Capacitor(capacitance=100e-9)
-self.c_bypass.insert(self.ic.VCC, self.ic.GND)
+self.c_bypass.insert(self.ic.VCC, self.ic.GND, short_trace=True)
 
 # With extra parameters
 self.c_bulk = Capacitor(capacitance=10e-6, rated_voltage=10.0, temperature_coefficient_code="X7R")
-self.c_bulk.insert(self.ic.VCC, self.ic.GND)
+self.c_bulk.insert(self.ic.VCC, self.ic.GND, short_trace=True)
 
 self.inductor = Inductor(inductance=4.7e-6, current_rating=3.0)
 ```
@@ -207,9 +210,10 @@ For all `@provide` / `@provide.one_of` / `@provide.subset_of` / `Provide()` / `r
 
 ### `net.symbol` — Net Symbols
 
-Another option to provide a symbol on a net (if not done at Net() creation definition) is to assign to the `.symbol` attribute, never use `insert()` or `+=`:
+Another option to provide a symbol on a net (if not done at Net() creation definition) is to assign to the `.symbol` attribute, never use `insert()` or `+=`. Same top-level restriction as above — only in `TOP_LEVEL_PATH` (default `designs/`):
 
 ```python
+# Top-level design only.
 self.GND = Net(name="GND")
 self.GND.symbol = GroundSymbol()  # attribute assignment, NOT insert()
 ```

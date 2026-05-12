@@ -75,7 +75,10 @@ self.nets.append(self.fb_div.out + self.buck.FB)
 
 ## Net Symbols
 
+`GroundSymbol()` / `PowerSymbol()` are **top-level only** — `scripts/grep_gates.sh` hard-fails them outside `TOP_LEVEL_PATH` (default `designs/`). The example below shows the pattern in a top-level design.
+
 ```python
+# Top-level design (in src/<ns>/designs/...) only.
 from jitx import Net
 from jitxlib.symbols.net_symbols import GroundSymbol, PowerSymbol
 

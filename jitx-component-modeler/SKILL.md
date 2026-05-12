@@ -202,7 +202,7 @@ Why default to the generator: JITX standard generators use datasheet mechanical 
 **Getting a .kicad_mod for non-standard packages** (in priority order):
 1. **User-provided** — ask if they have a `.kicad_mod` from their KiCad library or manufacturer download
 2. **Manufacturer KiCad library** — many vendors (Molex, TE, Amphenol) publish official KiCad footprints
-3. **LCSC/EasyEDA fallback (opt-in only)** — only if user explicitly approves this data source. Install `parts2jitx` if not already available, then use:
+3. **LCSC / EasyEDA footprint ingestion (requires explicit per-project approval)** — using EasyEDA-sourced `.kicad_mod` as the footprint data source needs user opt-in (terms of use). `parts2jitx-lcsc` *lookup/evidence* is implied when LCSC/JLCPCB is the named sourcing channel, but downloading and converting the footprint is the separate, opt-in path. Install `parts2jitx` if not already available, then use:
    ```bash
    pip install parts2jitx
    parts2jitx-lcsc C165948 --footprint -o kicad_footprints/fp.kicad_mod
@@ -504,44 +504,23 @@ Don't run parallel JITX builds against the same project — sequence them. See `
 
 ### Verification Report
 
-After generating code, provide:
-
-```
-## Verification Report
-
-### Pin Count
-- Datasheet: N pins
-- Generated: N ports
-- Status: ✓ MATCH / ✗ MISMATCH
-
-### Pad Count
-- Landpattern: N pads + M thermal
-- Ports requiring pads: N + M
-- Status: ✓ MATCH / ✗ MISMATCH
-
-### Dimensions
-| Parameter | Datasheet | Generated | Status |
-|-----------|-----------|-----------|--------|
-| Width     | 3.8-4.0mm | min_max(3.8, 4.0) | ✓ |
-
-### Issues Found
-- [List any discrepancies or assumptions made]
-```
+Emit the **task acceptance block** from `jitx/references/completion-blocks.md` "Task Acceptance Block". For a component task, the block's `Primary source` field cites the datasheet pages with the pinout and mechanical drawing; the `Footprint source` field names the JITX generator used (or KiCad import with reason); the `Checks run` field includes the Component checklist from `domain-checklists.md` with N/N items and any issues fixed (pin count vs datasheet, pad count vs landpattern, dimensions vs datasheet mechanical drawing). The acceptance block is the report; do not invent a parallel format.
 
 ## Step 5: Capture Application Circuit
 
-**In the project builder workflow, this step is MANDATORY — not optional.** The application circuit from the datasheet is the foundation for the circuit task. Always capture it.
+**In the project-builder (complete-board) workflow, this step is MANDATORY — not optional.** The application circuit from the datasheet is the foundation for the downstream circuit task; capture it now while the datasheet is open.
+
+In single-task tier (user invoked component-modeler standalone), this step is optional — ask the user.
 
 After generating component code, check the datasheet for "Typical Application", "Reference Design", or "Application Circuit" sections. These provide valuable circuit templates.
 
-**When to offer:**
-- Datasheet includes a schematic with the component
-- User is creating a power IC, amplifier, or other circuit-centric component
-- Application circuit shows passive values and connections
+**Process (complete-board):**
 
-**Process:**
+1. Capture the application circuit without asking. Extract the relevant datasheet figure (use `extract_pages.py`) and invoke `jitx-circuit-builder` to generate the circuit code.
 
-1. **Ask user** if they want to capture the application circuit:
+**Process (single-task):**
+
+1. **Ask user** whether to capture the application circuit:
    ```
    "The datasheet includes a Typical Application circuit (Figure X).
    Would you like me to also generate the application circuit code?"

@@ -249,15 +249,15 @@ Claude selects parts based on engineering requirements first. Data for each comp
 **Data sources (in priority order):**
 1. **User-provided** — datasheets, KiCad footprints, or specs the user supplies directly
 2. **JITX generators** — standard packages (QFN, SOIC, BGA, SOT, SON, QFP) with dimensions from datasheets
-3. **LCSC/EasyEDA** (opt-in only — ask user before using) — if user explicitly approves, install `parts2jitx` into the project venv:
+3. **LCSC / JLCPCB via `parts2jitx`** — split consent. **Lookup / evidence** (`parts2jitx-lcsc <C-number>`, `--pinout`) is implied when the user names LCSC/JLCPCB as the channel; the orchestrator may `pip install parts2jitx` automatically. **Footprint data ingestion** (`parts2jitx-lcsc --footprint`, `parts2jitx-kicad`) is a separate path that requires explicit per-project user approval because EasyEDA component data has its own terms of use.
    ```bash
    pip install parts2jitx
+   parts2jitx-lcsc <C-number>            # lookup / evidence (auto-OK with named channel)
+   parts2jitx-lcsc <C-number> --pinout   # lookup / evidence
+   parts2jitx-lcsc <C-number> --footprint -o ...   # footprint data — explicit approval required
+   parts2jitx-kicad <file.kicad_mod>     # footprint data — explicit approval required
    ```
-   Then use:
-   - **`parts2jitx-lcsc <LCSC_ID>`** — stock, pricing, datasheet URL, KiCad footprint download
-   - **`parts2jitx-kicad <file.kicad_mod>`** — deterministic KiCad-to-JITX footprint conversion
-   
-   Do not use LCSC/EasyEDA data without user approval. Commercial users may have licensing concerns.
+   See `references/parts-sourcing.md` "LCSC / JLCPCB via parts2jitx" for the full split-consent table.
 
 For non-standard packages (connectors, RF modules): convert from a `.kicad_mod` file (user-provided or downloaded). **NEVER hand-craft pad positions** — use the converter. Standard packages use built-in JITX generators. All symbols use `BoxSymbol`. Exception: mechanical / vendor-defined footprints (Tag-Connect, pogo-pin fixtures, castellations, fiducials) where no purchasable component exists — see `references/parts-sourcing.md` "Mechanical / Vendor-Defined Footprints".
 
