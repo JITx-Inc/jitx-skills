@@ -7,6 +7,19 @@ description: Create JITX Python component code from datasheets, KiCad footprints
 
 Generate JITX Python component code from datasheets, user-provided KiCad footprints, or specifications. Data can come from multiple sources — always prefer user-provided data over automated lookups.
 
+## Rule 0 — Verify every API before using it
+
+Do not guess at imports, class names, or chain methods, especially for `Landpattern` / `Pad` / `PadMapping` / generator imports. Common landmines that have all been caught as wrong guesses:
+
+- `Landpattern` and `PadMapping` live in **`jitx.landpattern`**, NOT `jitxlib.landpatterns.core`.
+- `PadMapping` keys are **`Port` objects** and values are **`Pad` objects (or sequences of them)** — never strings or pad-number ints.
+- `Pad` subclasses have no `add_pad()`; positioning is via `.at(x, y)` from the `Positionable` mixin.
+- `Rectangle` is **not a class** — use the function `rectangle(w, h, radius=…)` from `jitx.shapes.composites`. `Circle` *is* a class.
+- The SOT generator family only exports `SOT23_3`, `SOT23_5`, `SOT23_6` — there is no `SOT89_3`, `SOT223_3`, or `SOT583_8`. Fall back to a custom `Landpattern` subclass for those.
+- `BGADepop` and `QFN_DEFAULT_LEAD_PROFILE` do not exist as exported symbols — see `references/package-examples.md`.
+
+Verification order: (1) canonical repos `github.com/JITx-Inc/py-jitx` and `github.com/JITx-Inc/py-jitx-stdlib`; (2) `https://docs.jitx.com/llms.txt`; (3) installed venv site-packages or `~/.jitx/`. If unresolvable, document as unknown — do not invent an import.
+
 ## Environment
 
 Environment setup is handled by the base `jitx` skill. Ensure it has been invoked first.
@@ -261,7 +274,11 @@ Device: type[{ComponentClassName}] = {ComponentClassName}
 
 For complete examples of each package type (SOIC, SOT, SON, QFN, QFP, BGA), including thermal pads,
 port arrays, inactive positions, and non-uniform BGA grids, see
-[references/package-examples.md](references/package-examples.md).
+[references/package-examples.md](references/package-examples.md). Specifically:
+
+- **SOT family** — only `SOT23_3`, `SOT23_5`, `SOT23_6` are generators. SOT-89, SOT-223, SOT-583 must be built as custom landpatterns.
+- **Custom Landpatterns** — for irregular footprints (headphone jacks, barrel connectors, exotic SOT packages). Subclass `jitx.landpattern.Landpattern` and assign `SMDPad`/`THPad`/`NPTHPad` instances positioned with `.at(x, y)`.
+- **PadMapping reference** — for the canonical key/value pattern (`Port → Pad | Sequence[Pad]`), multi-pad rails, and thermal-pad bonding.
 
 ## Dimension Mapping Reference
 

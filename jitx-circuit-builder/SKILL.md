@@ -8,6 +8,45 @@ description: This skill should be used when the user asks to "wire up", "connect
 JITX was rewritten from Stanza to Python. Do not rely on prior JITX knowledge —
 verify all imports with `pyright` before outputting code.
 
+## Rule 0 — Verify every API before using it
+
+Do not guess at imports, class names, or constructor kwargs. Common landmines:
+
+- `Capacitor` rated-voltage kwarg is **`rated_voltage`**, not `min_rated_voltage`. See the passive kwargs table below.
+- The full bundle catalog in `jitxlib.protocols.serial` includes `I2C`, `SPI`, `WideSPI` (with `.quad()`/`.octal()` classmethods), `OctalSPIwDQS`, `I2S`, `UART`, `Microwire`, `JTAG`, `SWD`, `CANPhysical`, `CANLogical`, `SMBus`. **Note**: `I2S` exists with ports `sck`, `ws`, `sd` — not `bclk`/`lrck`/`sdin`. **No `I2SMCK` (MCLK variant) and no `OctalSPI` without DQS** — define those locally as `jitx.Bundle` subclasses.
+
+Verification order: (1) canonical repos `github.com/JITx-Inc/py-jitx`, `github.com/JITx-Inc/py-jitx-stdlib`, `github.com/JITx-Inc/py-jitx-parts`; (2) `https://docs.jitx.com/llms.txt`; (3) installed venv site-packages or `~/.jitx/`. If unresolvable, document as unknown — do not invent an import.
+
+## Passive part kwargs
+
+The query-based constructors `Capacitor`, `Resistor`, `Inductor` exported from `jitxlib.parts` (defined in `py-jitx-parts/src/jitxlib/parts/query_api.py`) accept the kwargs below. Each is a TypedDict-typed query parameter; all are optional. Pass keyword-only.
+
+Common to all passives (`PartQueryDict` base): `mpn`, `manufacturer`, `description`, `case`, `mounting`, `category`, `min_stock`, `price`, `tolerance`, `precision`, `tolerance_min`, `tolerance_max`, `operating_temperature`, `rated_temperature_min`, `rated_temperature_max`, `sellers`, `sort`, `stock`, `trust`.
+
+| Constructor | Kwarg | Type | Notes |
+|---|---|---|---|
+| `Capacitor` | `capacitance` | `float` / `Quantity` (F) or `Interval` | primary value |
+| `Capacitor` | `rated_voltage` | `float` (V) or `Interval` | **NOT `min_rated_voltage`** |
+| `Capacitor` | `rated_voltage_ac` | `float` (V) or `Interval` | |
+| `Capacitor` | `rated_current_pk`, `rated_current_rms` | `float` (A) | |
+| `Capacitor` | `esr`, `esr_frequency` | `float` | |
+| `Capacitor` | `temperature_coefficient_code` | `str` | e.g. `"C0G"`, `"X7R"`. **The kwarg is `_code`, not bare `temperature_coefficient`.** |
+| `Capacitor` | `anode`, `electrolyte` | `str` | electrolytic caps |
+| `Resistor` | `resistance` | `float` / `Quantity` (Ω) or `Interval` | primary value |
+| `Resistor` | `rated_power` | `float` (W) or `Interval` | |
+| `Resistor` | `composition` | `str` | thick/thin film etc. |
+| `Resistor` | `tcr_pos`, `tcr_neg` | `float` | temperature coefficient |
+| `Inductor` | `inductance` | `float` / `Quantity` (H) or `Interval` | primary value |
+| `Inductor` | `dc_resistance` | `float` (Ω) or `Interval` | DCR |
+| `Inductor` | `saturation_current` | `float` (A) or `Interval` | I_sat |
+| `Inductor` | `current_rating` | `float` (A) or `Interval` | |
+| `Inductor` | `quality_factor` | `float` | Q |
+| `Inductor` | `quality_factor_frequency` | `float` (Hz) | |
+| `Inductor` | `self_resonant_frequency` | `float` (Hz) | SRF |
+| `Inductor` | `material_core`, `shielding` | `str` | |
+
+`tolerance` is on `PassiveQueryDict` and accepts a `float` (e.g. `0.01` for 1 %), a `Quantity` in `percent`, an `Interval`, or `None`. There is no `MinMax` kwarg here. For voltage / current ratings, use the explicit `rated_*` kwarg shown above.
+
 ## Package Architecture
 
 JITX uses two packages — know which one to import from:

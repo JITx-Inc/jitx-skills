@@ -7,6 +7,16 @@ description: This skill should be used when the user asks to "create a substrate
 
 Generate complete JITX Python substrate definitions — stackups, materials, vias, routing structures, and fabrication constraints — all in a single file.
 
+## Rule 0 — Verify every API before using it
+
+Do not guess at imports, class names, or constructor kwargs. Common landmines that have been caught as wrong guesses:
+
+- Board outline: **there is no `RoundedRectangle` class.** Use the function `rectangle(width, height, *, radius=…)` from `jitx.shapes.composites`. Set the outline as `design.board.shape = rectangle(80.9, 50.0, radius=3.0)`.
+- `Design` exposes `.board: Board` and `Board` exposes `.shape: Shape` — set the shape attribute directly, not via a constructor kwarg.
+- `SampleDesign` ships a default `SampleBoard` whose shape is `rectangle(50, 50, radius=5)`; override `self.board.shape` (or subclass `Board`) to change it.
+
+Verification order: (1) canonical repos `github.com/JITx-Inc/py-jitx` and `github.com/JITx-Inc/py-jitx-stdlib`; (2) `https://docs.jitx.com/llms.txt`; (3) installed venv site-packages or `~/.jitx/`. If unresolvable, document as unknown — do not invent an import.
+
 ## Predefined Substrates (JLCPCB Only)
 
 If the user has confirmed they are targeting **JLCPCB** as their fabrication house, predefined substrates from `jitxlib.jlcpcb` are available. These are production-validated with correct materials, vias, fab rules, and impedance-matched routing structures:

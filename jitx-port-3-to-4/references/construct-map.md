@@ -24,6 +24,7 @@ syntax depth see the `lbstanza` skill; for Python API depth see the
 | Stanza 3.x | Python 4.x | Source citation |
 |---|---|---|
 | `set-current-design("name")` then `make-default-board(my-module, 4, Rectangle(25.0,10.0))` then `view-board()` / `export-cad()` at top-level | `class MyDesign(Design):` with `board=`, `substrate=`, `circuit=` attributes; built from CLI rather than top-level statements | Stanza: `jitpcb-by-example/Examples/first-design/first-design.stanza:13-21`; Python: [L811-817], [L867-872] |
+| `board-shape = RoundedRectangle(W, H, r)` on a Stanza board | `self.board.shape = rectangle(W, H, radius=r)` from `jitx.shapes.composites`. **There is no `RoundedRectangle` class** — `rectangle()` is a function and the `radius=` kwarg rounds corners. `Design.board: Board` and `Board.shape: Shape` (assign the shape attribute; no setter). `SampleDesign` ships a default `SampleBoard(shape=rectangle(50, 50, radius=5))` — override `self.board.shape` or subclass `Board`. | Python: `py-jitx/src/jitx/board.py`, `py-jitx/src/jitx/shapes/composites.py` (`rectangle`) |
 | `set-main-module(design)` (alternate form: marks the module as the design entry) | `Design` subclass discovered automatically by `python -m jitx find` | Stanza: `jitpcb-by-example/Examples/analyze/analyze.stanza:21`; Python: [L823-832] |
 | `jstanza` build via `stanza.proj` target | `python -m jitx build --port <PORT> motor_controller.main.StepperMotorController` | Python: [L834-840] |
 | `nightly_design_tests/config/designs.yaml` row: `targets: [{project_dir: "demo", stanza_file: "main.stanza", design_name: "DesignCon-demo"}]` | `jitx-test/.github/workflows/integration-testing.yml` runs `python -m jitx build-all` over a checked-out repo (entry resolved via `Design` subclass in `main.py`); a comparable matrix row is `{example-repo-name: essentials-examples, example-repo-url: "https://github.com/JITx-Inc/py-essentials-examples.git"}` | Stanza: `nightly_design_tests/config/designs.yaml:35-48`; Python: `jitx-test/.github/workflows/integration-testing.yml:100-119`, `jitx-test/scripts/jitx-build-design.bash:81` |
@@ -37,6 +38,7 @@ syntax depth see the `lbstanza` skill; for Python API depth see the
 | `inst many-rs : chip-resistor(100.0e3)[30]` (instance array) | `timers = [NE555() for _ in range(30)]` (list/dict/tuple OK; generator/set NOT) | Stanza: `jitpcb-by-example/Examples/first-design/first-design.stanza:11`; Python: [L367-382] |
 | `port p : pin[2]` (port array on module) | `p = [Port(), Port()]` or `PortArray(...)`. **Use a `dict` for non-contiguous indices** (depopulated MCU GPIO arrays, e.g. ESP32-S3 FN8 with GPIOs 0–14, 17–21, 33–38, 45, 46): `GPIO = {i: Port() for i in valid_indices}`. A dense list creates non-physical entries and fails with `port GPIO[15] is not mapped to a symbol pin`. Unpack into a symbol via `*GPIO.values()`. | Stanza: `tests/test-require.stanza:14`; Python: [L1361-1372], [L10887] (`class PortArray`) |
 | Implicit module-as-schematic-sheet | implicit `SchematicGroup` per `Circuit` (dot-notation labels e.g. `audio.amp.preamp`) | Python: [L441-449] |
+| Parametric `pcb-module my-mod (flag:True\|False) : if flag : ... else : ...` (one definition, two instantiations) | **No single direct mapping** — choose by what the parameter controls. See `side-by-side/02-circuit.md` "Parametric modules". Summary: (a) param affects wiring only → single `Circuit` with `__init__(*, variant=…)` and conditional body; (b) param changes port interface → two separate `Circuit` subclasses (Python class bodies cannot branch port declarations on instance kwargs); (c) variants share most wiring → `@classmethod` factory returning a configured instance. | (this skill, side-by-side/02-circuit.md) |
 
 ## 4. Components
 
@@ -130,7 +132,38 @@ location shown and use the **exact** field names. Verify with
 | `diff-pair()` | `DiffPair` | `from jitx.net import DiffPair` | `.p`, `.n` (lowercase). **Not** `.P` / `.N`. |
 | `i2c()` | `I2C` | `from jitxlib.protocols.serial import I2C` | `.sda`, `.scl` (optional `.intr`, etc. — read class def) |
 | `spi()` | `SPI` | `from jitxlib.protocols.serial import SPI` | `.sck`, `.mosi`, `.miso` (`.cs` only when constructed with `SPI(cs=True)`) |
-| (user-defined `pcb-bundle x : pin a; pin b`) | user-defined `Port` subclass | (in your project) | declare sub-`Port`s as class attrs |
+| `i2s()` 3-wire | `I2S` | `from jitxlib.protocols.serial import I2S` | `.sck`, `.ws`, `.sd`. **Note**: Stanza `bclk`/`lrck`/`sdin`/`sdmo` map to `sck`/`ws`/`sd` — rename when porting. |
+| `octal-spi()` with DQS | `OctalSPIwDQS` | `from jitxlib.protocols.serial import OctalSPIwDQS` | `.sck`, `.cs`, `.dqs`, `.data[0..7]` |
+| (wide / quad / octal SPI variants) | `WideSPI` | `from jitxlib.protocols.serial import WideSPI` | `WideSPI.quad()` / `WideSPI.octal()` classmethods; `.sck`, `.cs`, `.data[…]` |
+| `i2s-with-mck()` (4-wire ADC) | **define locally** | (no jitxlib export) | Subclass `jitx.Bundle` with `sck`, `ws`, `sd`, `mclk`. See "Bundles missing from jitxlib" below. |
+| `octal-spi()` without DQS (e.g. some PSRAM) | **define locally** | (no jitxlib export) | Subclass `jitx.Bundle` with `sck`, `cs`, `data[0..7]`. |
+| (user-defined `pcb-bundle x : pin a; pin b`) | user-defined `Bundle` subclass | (in your project) | declare sub-`Port`s as class attrs |
+
+### Bundles missing from jitxlib — define locally
+
+When a serial bundle isn't in `jitxlib.protocols.serial`, write a tiny `jitx.Bundle` subclass alongside the design. Example for `I2SMCK` (I²S + master clock for an ADC):
+
+```python
+import jitx
+from jitx.net import Port
+
+class I2SMCK(jitx.Bundle):
+    sck  = Port()   # bit clock (Stanza: bclk)
+    ws   = Port()   # word select / LRCK (Stanza: lrck)
+    sd   = Port()   # serial data (Stanza: sdin / sdmo)
+    mclk = Port()   # master clock (4th wire)
+```
+
+Equivalent shape for a bare `OctalSPI` (no DQS):
+
+```python
+class OctalSPI(jitx.Bundle):
+    sck  = Port()
+    cs   = Port()
+    data = [Port() for _ in range(8)]
+```
+
+The complete `jitxlib.protocols.serial` catalog at the time of writing is `I2C`, `SPI`, `WideSPI` (+ `.quad()` / `.octal()` classmethods), `OctalSPIwDQS`, `I2S`, `UART`, `Microwire`, `JTAG`, `SWD`, `CANPhysical`, `CANLogical`, `SMBus`. Always grep the current source before assuming an import path — bundle additions land in `py-jitx-stdlib`.
 
 Common porting bug: a mechanical Stanza-→-Python translation that writes `self.power.vdd`
 or `self.diff.P` will pass pyright (attribute exists implicitly on a `Port` because
@@ -160,7 +193,7 @@ class MyOptionalIC(jitx.Component):
     ...
 ```
 
-For passives, write a thin subclass:
+For passives, write a thin subclass. The query-based `Resistor` / `Capacitor` / `Inductor` exported from `jitxlib.parts` (defined in `py-jitx-parts/src/jitxlib/parts/query_api.py`) are real `jitx.Component` subclasses, so this multi-inheritance pattern is consistent with `NonPopulatedComponent`:
 
 ```python
 class DNPResistor(NonPopulatedComponent, Resistor):
@@ -168,6 +201,8 @@ class DNPResistor(NonPopulatedComponent, Resistor):
 
 self.r_cfg1 = DNPResistor(resistance=6.8e3)
 ```
+
+> Verify behaviour per-passive before depending on it for a large design. The MRO is well-defined (both bases are `jitx.Component` subclasses) but the part-DB query path on `Resistor`/`Capacitor`/`Inductor` does substantial work in `__init__`, and a few corners (e.g. `Inductor` in some 4.0.x builds) have hit unrelated runtime errors during the multi-inheritance dance. If `class DNPInductor(NonPopulatedComponent, Inductor)` raises at construction, fall back to a regular `Inductor` with explicit `in_bom = False; soldered = False` overrides — or document the part as a deferred DNP gap until upstream resolves it.
 
 | Stanza | Python 4.x |
 |---|---|

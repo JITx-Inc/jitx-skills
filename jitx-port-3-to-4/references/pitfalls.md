@@ -151,8 +151,34 @@ Prerequisites that aren't obvious from the API shape:
 - Conversely, a 3.x design that builds *cleanly* and a 4.x port that builds *cleanly* still need export comparison — equivalent component placement and routing isn't guaranteed by passing builds alone.
 - **`~/.jitx/current` symlink mismatch silently corrupts the build.** JITX reads runtime/config/plugin state via `~/.jitx/current/...` regardless of which versioned binary you launched. Repoint it to match the version you're invoking before each build (verified: a 4.x-pointing symlink while invoking a 3.x binary breaks Stanza export with `write-stable-id (False)` on every release tested 3.25.0 → 4.0.5).
 
+## Invented API names — the recurring failure mode
+
+These are real wrong guesses observed during porting passes. Every one of them follows the same anti-pattern: invent an import "by analogy" with another package, write a plausible-looking constructor, and don't verify against the source. Always confirm via the Rule 0 fallback chain in `../SKILL.md` before committing such code.
+
+| ❌ Wrong guess | ✅ Actual API | Where |
+|---|---|---|
+| `from jitxlib.landpatterns.core import Landpattern` | `from jitx.landpattern import Landpattern, PadMapping` | `py-jitx/src/jitx/landpattern.py` |
+| `BGADepop([(0,0)])` kwarg on `BGA(...)` | `.grid_planner(<GridPlanner subclass>)` — see `package-examples.md` Example 6 | `py-jitx-stdlib/src/jitxlib/landpatterns/grid_planner.py` |
+| `BGA(rows=5, cols=5, ...)` | `BGA(num_rows=5, num_cols=5, ball_diameter=..., pitch=...)` | `py-jitx-stdlib/src/jitxlib/landpatterns/generators/bga.py` |
+| `QFN_DEFAULT_LEAD_PROFILE` exported symbol | Build a `LeadProfile(span=..., pitch=..., type=QFNLead(...))` explicitly | `py-jitx-stdlib/src/jitxlib/landpatterns/generators/qfn.py` |
+| `.thermal_pad(width=4.0, height=4.0)` | `.thermal_pad(rectangle(4.0, 4.0))` — takes a `Shape`, not w/h kwargs | `py-jitx-stdlib/src/jitxlib/landpatterns/pads.py` (`thermal_pad`) |
+| `.body(...)` chain method on a generator | `.package_body(RectanglePackage(width=..., length=..., height=...))` | `py-jitx-stdlib/src/jitxlib/landpatterns/pads.py` (`PackageBodyMixin`) |
+| `SOT89_3()`, `SOT223_3()`, `SOT583_8()` generators | Only `SOT23_3`, `SOT23_5`, `SOT23_6` exist. Build a custom `Landpattern` subclass for SOT-89 / SOT-223 / SOT-583. | `py-jitx-stdlib/src/jitxlib/landpatterns/generators/sot.py` |
+| `landpattern.add_pad(SMDPad(index=1, shape=Rectangle(...), center=(0,0)))` | Declare `p1 = SMDPad(copper=rectangle(...)).at(x, y)` as a class attribute on the `Landpattern` subclass. No `add_pad()`, no `index=`, no `center=`. | `py-jitx-stdlib/src/jitxlib/landpatterns/pads.py` |
+| `Rectangle` as a class import | `Rectangle` is **not** a class. Use the function `rectangle(w, h, *, radius=None)` from `jitx.shapes.composites`. `Circle` *is* a class. | `py-jitx/src/jitx/shapes/composites.py` |
+| `PadMapping({"PVDD": [3, 4], "EP": "thermal_pad"})` (string keys, int / string values) | `PadMapping({self.PVDD: [lp.p[3], lp.p[4]], self.EP: [lp.thermal_pads[0]]})` — keys are `Port` objects, values are `Pad` or `Sequence[Pad]` | `py-jitx/src/jitx/landpattern.py:99-198` |
+| `Capacitor(min_rated_voltage=35.0)` | `Capacitor(rated_voltage=35.0)` | `py-jitx-parts/src/jitxlib/parts/query_api.py` (`CapacitorQueryDict`) |
+| `Capacitor(temperature_coefficient="C0G")` | `Capacitor(temperature_coefficient_code="C0G")` — kwarg is `_code` | same |
+| `RoundedRectangle(80.9, 50.0, 3.0)` | `rectangle(80.9, 50.0, radius=3.0)` from `jitx.shapes.composites`, assigned to `design.board.shape` | `py-jitx/src/jitx/board.py`, `shapes/composites.py` |
+| `from jitxlib.protocols.serial import I2S` with ports `bclk`/`lrck`/`sdin` | `I2S` exists but its ports are `sck`/`ws`/`sd` — rename when porting from Stanza `bclk`/`lrck`/`sdmo` | `py-jitx-stdlib/src/jitxlib/protocols/serial.py:227` |
+| `from jitxlib.protocols.serial import OctalSPI` | No bare `OctalSPI`. Use `OctalSPIwDQS` if your part has a DQS pin; otherwise define a local `jitx.Bundle` subclass. | `py-jitx-stdlib/src/jitxlib/protocols/serial.py:119` |
+| `from jitxlib.protocols.serial import I2SMCK` | No `I2SMCK`. Define a local `jitx.Bundle` subclass with `sck`, `ws`, `sd`, `mclk`. | n/a |
+
+> Every entry above was caught after the wrong code was already written, sometimes after it had silently compiled. **Verify before writing**, not after.
+
 ## Don't
 
 - ❌ Describe Stanza as JVM-compiled — it is natively compiled via C.
 - ❌ Mass-rename Stanza identifiers to Python style without re-running the build at each step. Identifier-rename mistakes cascade through the wiring.
 - ❌ Skip `pyright` because "the build worked." Type errors mask wiring bugs.
+- ❌ Invent an import path "by analogy" with another package. See "Invented API names" above.

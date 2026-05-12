@@ -99,3 +99,32 @@ Matrix row in `jitx-test/.github/workflows/integration-testing.yml`:
 - The driver moves from `nightly_design_tests/config/designs.yaml` to a GitHub Actions matrix in `jitx-test/.github/workflows/integration-testing.yml`. Each row points at a repo URL; the design is auto-discovered by `python -m jitx`. There is no per-target `stanza_file`/`design_name` pair to set.
 - `view-board()` / `view-schematic()` calls are dropped entirely on the Python side — view dispatch happens automatically when an interactive session is connected (the `jitx interactive` server).
 - `export-cad()` is the explicit CAD-export trigger on the Stanza side; the Python build pipeline writes the same artifacts as part of `python -m jitx build` without a separate call.
+
+## Board outline — `RoundedRectangle(...)` → `rectangle(..., radius=...)`
+
+Stanza:
+
+```stanza
+make-default-board(jitx-design, 2, RoundedRectangle(80.9, 50.0, 3.0))
+```
+
+Python:
+
+```python
+from jitx.sample import SampleDesign
+from jitx.shapes.composites import rectangle
+
+class jitx_design(SampleDesign):
+    circuit = MyCircuit()
+
+    def __init__(self):
+        super().__init__()
+        self.board.shape = rectangle(80.9, 50.0, radius=3.0)
+```
+
+Key facts:
+
+- **There is no `RoundedRectangle` class.** Use the function `rectangle(width, height, *, radius=None, chamfer=None, anchor=Anchor.C)` from `jitx.shapes.composites`. `radius=` rounds all four corners; pass a 4-tuple `(r1, r2, r3, r4)` to round per-corner.
+- `Design.board: Board` and `Board.shape: Shape` are plain attributes — assign the shape, no setter.
+- `SampleDesign` ships a default `SampleBoard(shape=rectangle(50, 50, radius=5))`. For any board with a different outline, override `self.board.shape` in `__init__` (as above), or subclass `Board` and assign `board = MyBoard()` on the design.
+- The board shape is independent of `substrate` / `stackup` — those govern the layer composition, not the outline.

@@ -19,6 +19,20 @@ Three facts drive the whole port:
 
 **Note on Stanza:** Stanza compiles natively (via a C backend). It has no JVM target. Never describe Stanza as JVM-compiled in any porting guidance.
 
+## Rule 0 — Verify every JITX 4 API before using it
+
+Do not guess at imports, class names, constructor kwargs, or chain methods. Before writing any `from jitx…` / `from jitxlib…` line, verify the symbol exists. Use this fallback chain, in order:
+
+1. **Canonical source repos on GitHub** (most authoritative — clone or browse via `gh`):
+   - `github.com/JITx-Inc/py-jitx` — core `jitx` package (`Component`, `Landpattern`, `PadMapping`, `Design`, `Board`, shapes, `NonPopulatedComponent`)
+   - `github.com/JITx-Inc/py-jitx-stdlib` — `jitxlib` stdlib (landpattern generators under `jitxlib.landpatterns`, protocols under `jitxlib.protocols`, geometry)
+   - `github.com/JITx-Inc/py-jitx-parts` — passive part dataclasses (`jitxlib.parts.Capacitor` / `Resistor` / `Inductor`)
+   - Examples to cross-reference: `github.com/JITx-Inc/py-essentials-examples`, `github.com/JITx-Inc/py-components`
+2. **Official API documentation**: `https://docs.jitx.com/llms.txt` (fetch with WebFetch) when source repos aren't checked out.
+3. **Installed artifacts on the local machine**: site-packages of an installed venv, or the official install layout under `~/.jitx/`. Acceptable as a last resort but may lag the canonical repos.
+
+If none of the above resolves the symbol, **document it as unknown** rather than inventing an import. Falling back to the custom-landpattern / local-`jitx.Bundle` / open-gap path documented elsewhere in this skill is correct; inventing an import path "by analogy" with another package is not. Many of the wrong guesses caught during a recent porting pass (e.g. `Landpattern` from `jitxlib.landpatterns.core` instead of `jitx.landpattern`, `PadMapping` with string keys instead of `Port` objects, `min_rated_voltage` instead of `rated_voltage`, `BGADepop` and `RoundedRectangle` classes that simply do not exist) followed the by-analogy pattern.
+
 ## ⚠️ CRITICAL: `~/.jitx/current` must match the version you're running
 
 **Only one JITX version can be active at a time, and `~/.jitx/current` selects which one.** JITX reads runtime, config, and plugin state via `~/.jitx/current/...` regardless of which versioned binary you launched. If the symlink points at a different version than the binary you invoke, wrong-version state silently leaks into the build pipeline and the design **will fail** — typically with the obscure `FATAL PLUGIN ERROR: No appropriate branch for arguments of type (False)` in `StableBoardSerializer/write-stable-id`, but other failure modes are possible.

@@ -10,6 +10,8 @@
 - [Example 6: BGA with Named Pins and NC Positions](#example-6-bga-with-named-pins-and-nc-positions)
 - [BGA-Specific Notes](#bga-specific-notes)
 - [Non-Uniform BGAs (CRITICAL)](#non-uniform-bgas-critical)
+- [Custom Landpatterns (irregular footprints)](#custom-landpatterns-irregular-footprints)
+- [PadMapping Reference](#padmapping-reference)
 
 ## Example 1: Simple SOIC-8 (NE555 Timer)
 
@@ -136,6 +138,7 @@ Device: type[LMV321] = LMV321
 - `SOTLeadProfile` defaults: `pitch=0.95`, `type=SOTLead()` (small gull-wing). Only `span` is typically required.
 - To customize lead dimensions: `SOTLeadProfile(span=..., type=SOTLead(length=..., width=...))`.
 - `SOT23_3` and `SOT23_6` follow the same pattern with different pad counts.
+- **The SOT family in `jitxlib.landpatterns.generators.sot` only exports `SOT23_3`, `SOT23_5`, `SOT23_6`.** There is **no `SOT89_3`, `SOT223_3`, or `SOT583_8` generator.** For SOT-89 (e.g. AS78L05), SOT-223 (e.g. TPS62933 with thermal tabs), or SOT-583 layouts, fall back to a custom `Landpattern` subclass — see the "Custom landpatterns" section below. Do not guess at an import path by analogy with `SOT23_5`.
 
 ## Example 3: SON-8 with Thermal Pad (LM1117)
 
@@ -614,6 +617,8 @@ Device: type[WirelessSoC] = WirelessSoC
 
 ## BGA-Specific Notes
 
+> ⚠️ **There is no `BGADepop` class and no `depop=` kwarg.** Depopulation is done via `.grid_planner(<GridPlanner subclass>)` as shown in Example 6 above. The `BGA` constructor takes **`num_rows` / `num_cols`** (not `rows` / `cols`), plus `ball_diameter` and `pitch`. Importing a non-existent `BGADepop` symbol is a recurring guess — verify against `github.com/JITx-Inc/py-jitx-stdlib/blob/main/src/jitxlib/landpatterns/generators/bga.py` before assuming the API.
+
 1. **Row naming convention**: BGA rows use letters A-Z (skipping I and O). For a 12-row BGA: A, B, C, D, E, F, G, H, J, K, L, M.
 
 2. **Grid planner**: Use `is_active()` returning `False` for depopulated positions, `None` to defer to default.
@@ -682,3 +687,118 @@ class CustomBGA(A1, AlphaDictNumbering, CustomBGA_Base):
 ```
 
 **Key:** Row 0 = TOP row (M in 12-row BGA), row 11 = BOTTOM (A).
+
+## Custom Landpatterns (irregular footprints)
+
+Use this path when a part's footprint is **not** a standard SOIC/QFN/SON/QFP/BGA layout — e.g. a 3.5mm headphone jack (PJ-614), a SOT-89/SOT-223/SOT-583 (none of which have generators in `jitxlib.landpatterns.generators.sot`), a barrel connector, or any vendor-specific irregular pad arrangement. The standard generator chain is insufficient; build the landpattern by hand.
+
+### Key facts (verify before writing code)
+
+- `Landpattern` lives in **`jitx.landpattern`**, *not* `jitxlib.landpatterns.core` or any other module.
+- Pad classes (`SMDPad`, `THPad`, `NPTHPad`) live in **`jitxlib.landpatterns.pads`**.
+- **There is no `add_pad()` method.** Pads are `Positionable` — set their position with `.at(x, y, on=Side.Top, rotate=0.0)`. Attach pads to the landpattern by declaring them as attributes on the `Landpattern` subclass (or by assigning them in `__init__`); the framework collects them.
+- **`Rectangle` is not a class.** Use the function `rectangle(w, h, *, radius=None, chamfer=None, anchor=Anchor.C)` from `jitx.shapes.composites`. `Circle(...)` *is* a class (from `jitx.shapes.primitive`).
+- Coordinates are millimetres, centered anchor by default. Top-side pads use `Side.Top` (the default); bottom-side pads pass `on=Side.Bottom`.
+
+### Worked example: PJ-614 headphone jack (7 irregular SMD pads)
+
+```python
+import jitx
+from jitx import PadMapping
+from jitx.landpattern import Landpattern
+from jitx.layerindex import Side
+from jitx.net import Port
+from jitx.shapes.composites import rectangle
+from jitxlib.landpatterns.pads import SMDPad
+
+
+class PJ614Landpattern(Landpattern):
+    # Each pad gets a name so PadMapping can reference it.
+    # Numbers below are illustrative — use the mechanical drawing.
+    p1 = SMDPad(copper=rectangle(2.0, 1.4)).at(0.0, 0.0)
+    p2 = SMDPad(copper=rectangle(2.0, 1.4)).at(2.5, 0.0)
+    p3 = SMDPad(copper=rectangle(2.0, 1.4)).at(5.0, 0.0)
+    p4 = SMDPad(copper=rectangle(2.0, 1.4)).at(7.5, 0.0)
+    p5 = SMDPad(copper=rectangle(1.6, 1.6)).at(0.0, -4.5)
+    p6 = SMDPad(copper=rectangle(1.6, 1.6)).at(7.5, -4.5)
+    shield = SMDPad(copper=rectangle(4.0, 1.2)).at(3.75, -4.5)
+
+
+class PJ614(jitx.Component):
+    mpn = "PJ-614"
+    reference_designator_prefix = "J"
+
+    TIP = Port()
+    RING = Port()
+    SLEEVE = Port()
+    SHIELD = Port()
+
+    landpattern = PJ614Landpattern()
+
+    def __init__(self):
+        lp = self.landpattern
+        self.mappings = [PadMapping({
+            self.TIP:    [lp.p1],
+            self.RING:   [lp.p2],
+            self.SLEEVE: [lp.p3, lp.p4],   # mechanically merged
+            self.SHIELD: [lp.p5, lp.p6, lp.shield],
+        })]
+```
+
+### Variations
+
+- **SOT-89 / SOT-223 with thermal tab**: the heat-spreader pad is just another `SMDPad` (typically larger). Map it to the same `Port` as the collector/drain via a multi-pad list (see PadMapping reference below).
+- **Through-hole pads**: use `THPad(copper=Circle(diameter=…), cutout=Circle(diameter=…))` from `jitxlib.landpatterns.pads`.
+- **Non-plated mounting holes**: `NPTHPad(cutout=Circle(diameter=…))`.
+
+If a stock generator might exist for your package (e.g. you're tempted to invent `SOT89_3()`), **grep the canonical repo first**: `gh search code --repo JITx-Inc/py-jitx-stdlib SOT89`. Inventing the import is the failure mode this section is here to prevent.
+
+## PadMapping Reference
+
+`PadMapping` is the bridge from a `Component`'s logical `Port`s to the physical `Pad`s of its landpattern.
+
+### Import path
+
+```python
+from jitx import PadMapping
+# (PadMapping is also reachable at jitx.landpattern.PadMapping)
+```
+
+### Signature
+
+```python
+PadMapping(entries: Mapping[Port, Pad | Sequence[Pad]])
+```
+
+**Keys are `Port` objects** (component attributes — `self.PVDD`, `self.GND[0]`). **Values are `Pad` objects** (landpattern attributes — `lp.p[3]`, `lp.thermal_pads[0]`) **or a sequence of them** when one logical port is bonded to multiple physical pads.
+
+> Common wrong guess: keys-as-strings (`"PVDD"`) and values-as-ints (`3`) or magic-string thermal-pad keys (`"thermal_pad"`). **None of these are valid.** Always pass the actual `Port` and `Pad` objects.
+
+### Single pad
+
+```python
+self.mappings = [PadMapping({
+    self.GND: [lp.p[2]],
+})]
+```
+
+### Multiple pads bonded to one rail
+
+```python
+self.mappings = [PadMapping({
+    self.PVDD: [lp.p[3], lp.p[4]],                 # one port, two power pads
+    self.PGND: [lp.p[25], lp.p[26], lp.p[31], lp.p[32]],   # bonded ground
+})]
+```
+
+### Exposed thermal pad
+
+The thermal pad is a real `Pad` object exposed via `lp.thermal_pads[i]`. Map it like any other pad:
+
+```python
+self.mappings = [PadMapping({
+    self.GND: [lp.p[1], lp.p[2], lp.thermal_pads[0]],
+})]
+```
+
+(For QFN / SON generators that chained `.thermal_pad(rectangle(...))`, the resulting pad is `lp.thermal_pads[0]`. For custom landpatterns you declared yourself, use the attribute name you gave it — `lp.tab`, `lp.ep`, etc.)
