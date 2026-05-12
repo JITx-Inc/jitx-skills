@@ -170,8 +170,8 @@ risking drift. Mitigations:
 
 These are the domain-heavy parts of the port. They typically arrive intact in the design but must be reformulated for the Python API:
 
-- **Stackup:** translate `pcb-stackup` to `Stackup` / `Symmetric` (uses `jitx-substrate-modeler`).
-- **Vias and routing structures:** `pcb-via` → `Via`; new in 4.x, formalize via `RoutingStructure`, `DifferentialRoutingStructure`, `NeckDown` where appropriate.
+- **Stackup:** translate `pcb-stackup` to `Stackup` / `Symmetric` (uses `jitx-substrate-modeler`). **If the design targets JLCPCB**, do not hand-roll the stackup — use one of `JLC04161H_1080`, `JLC04161H_7628`, `JLC06161H_7628` from `jitxlib.jlcpcb` (the closest analog to Stanza `jlcpcb-jlc2313` is `JLC04161H_1080`). There is no 2-layer JLCPCB class; build a custom `Substrate` for that case.
+- **Vias and routing structures:** `pcb-via` → `Via`; new in 4.x, formalize via `RoutingStructure`, `DifferentialRoutingStructure`, `NeckDown` (all in `jitx.si`; construct with the `symmetric_routing_layers({...})` helper) where appropriate. Stanza-side `structure ... = SingleEnded(...)` / `Differential(...)` declarations have **no class with those names** in 4.x — rename to `RoutingStructure` / `DifferentialRoutingStructure`.
 - **Signal constraints:** Stanza topology constraints → `Constrain`, `ConstrainDiffPair`, `TimingConstraint`, `InsertionLossConstraint`, `ReferencePlanes` (uses `jitx-interconnect-constraints`).
 - **Topology graph:** `>>` operator builds the routed graph; bridging/terminating pin models attach to nodes.
 

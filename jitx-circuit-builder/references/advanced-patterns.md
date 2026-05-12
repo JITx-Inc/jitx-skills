@@ -3,6 +3,7 @@
 ## Table of Contents
 
 - [Query Refinement](#query-refinement)
+- [Port Arrays](#port-arrays)
 - [Voltage Divider Solver](#voltage-divider-solver)
 - [Net Symbols](#net-symbols)
 - [Provider / Require Pattern](#provider--require-pattern) (→ jitx-pin-assignment skill)
@@ -44,6 +45,63 @@ with CapacitorQuery.refine(type="ceramic", case="0805"):
     self.c_hf = Capacitor(capacitance=100e-9)
     self.c_hf.insert(self.buck.VIN, self.buck.GND, short_trace=True)
 ```
+
+## Port Arrays
+
+Vector ports (`port amp_ctrl : pin[6]` in Stanza) are declared as class-level
+sequences of `Port()` instances. Pick the container by index shape:
+
+- **Contiguous 0..N-1** → `list[Port]` (`amp_ctrl = [Port() for _ in range(6)]`)
+- **Sparse / semantic indices** (MCU GPIOs with gaps, address-bus bits with holes)
+  → `dict[int, Port]`
+
+```python
+from jitx import Circuit, Net
+from jitx.net import Port
+from jitx.common import Power
+
+class FourAmpFanout(Circuit):
+    """One parent that fans out a 6-wire control bus to four amplifier children.
+
+    Demonstrates: class-level list-of-Port, parent ↔ child wiring with `+`,
+    and the dict-of-Port pattern for non-contiguous indices.
+    """
+
+    # Contiguous: a 6-bit control bus exposed to the parent.
+    amp_ctrl = [Port() for _ in range(6)]
+
+    # Non-contiguous: only GPIO 38, 45, 46 are wired up.
+    GPIO: dict[int, Port] = {i: Port() for i in (38, 45, 46)}
+
+    pwr = Power()
+
+    def __init__(self):
+        from .amp import Amplifier   # child Circuit with its own amp_ctrl[6]
+
+        self.amps = [Amplifier() for _ in range(4)]
+
+        # Parent-to-child wiring: every child sees the same control bus.
+        # The `+` operator returns a Net; storing it on self via += or attribute
+        # assignment is what keeps the connectivity alive in the netlist.
+        self.ctrl_nets = [
+            self.amp_ctrl[i] + sum(
+                (amp.amp_ctrl[i] for amp in self.amps), start=Net()
+            )
+            for i in range(6)
+        ]
+
+        # Or more explicit, one wire per child:
+        # for i in range(6):
+        #     for amp in self.amps:
+        #         self.amp_ctrl[i] + amp.amp_ctrl[i]
+
+        # Dict-indexed wiring stays semantic — GPIO[38] always means physical GPIO38.
+        self.gpio38_net = self.GPIO[38] + self.amps[0].enable
+```
+
+The same dict pattern applies to `Component` ports — see the
+`jitx-component-modeler` skill (§"Non-Contiguous Pin Index Sets") for the
+companion guidance.
 
 ## Voltage Divider Solver
 

@@ -117,6 +117,103 @@ A concrete row from each system (citations above already include path + line). S
 |---|---|---|
 | `- id: designcon2025` <br> `  repo: "git@github.com:JITx-Inc/designcon2025.git"` <br> `  targets:` <br> `    - project_dir: "demo"` <br> `      stanza_file: "main.stanza"` <br> `      design_name: "DesignCon-demo"` | `- example-repo-name: essentials-examples` <br> `  use-prerelease: true` <br> `  example-repo-url: "https://github.com/JITx-Inc/py-essentials-examples.git"` <br> `  jitx-env-var: JITX_ENV_PROD` <br> (build invoked via `python -m jitx build-all` against the cloned repo) | Stanza: `nightly_design_tests/config/designs.yaml:35-48`; Python: `jitx-test/.github/workflows/integration-testing.yml:100-105`, `jitx-test/scripts/jitx-build-design.bash:81` |
 
+## 11. Bundles / common ports
+
+Stanza `power-pin` / `diff-pair` bundle field names **do not** carry over verbatim — the
+Python 4.x class field names are different. Always import the bundle class from the
+location shown and use the **exact** field names. Verify with
+`grep -A 6 "^class Power\b" .venv/lib/python*/site-packages/jitx/common.py` if in doubt.
+
+| Stanza bundle | Python type | Import | Fields (exact names) |
+|---|---|---|---|
+| `power-pin()` | `Power` | `from jitx.common import Power` | `.Vp` (positive rail), `.Vn` (negative / ground rail). **Not** `.vdd` / `.gnd`. |
+| `diff-pair()` | `DiffPair` | `from jitx.net import DiffPair` | `.p`, `.n` (lowercase). **Not** `.P` / `.N`. |
+| `i2c()` | `I2C` | `from jitxlib.protocols.serial import I2C` | `.sda`, `.scl` (optional `.intr`, etc. — read class def) |
+| `spi()` | `SPI` | `from jitxlib.protocols.serial import SPI` | `.sck`, `.mosi`, `.miso` (`.cs` only when constructed with `SPI(cs=True)`) |
+| (user-defined `pcb-bundle x : pin a; pin b`) | user-defined `Port` subclass | (in your project) | declare sub-`Port`s as class attrs |
+
+Common porting bug: a mechanical Stanza-→-Python translation that writes `self.power.vdd`
+or `self.diff.P` will pass pyright (attribute exists implicitly on a `Port` because
+`Port` forwards unknown attrs) but produces a **silently disconnected net** at build
+time. There is no compile-time error. When in doubt, dump the bundle:
+`print(list(jitx.common.Power.__dict__))`.
+
+## 12. Common porting questions
+
+These are constructs that look like they should have a 1-to-1 mapping but don't.
+
+### Do-not-populate (DNP)
+
+There is no `dnp=True` kwarg on `Resistor` / `Capacitor` / `Component`. The two
+supported patterns are:
+
+```python
+# Pattern A — dedicated subclass (defined in jitx/component.py):
+from jitx import NonPopulatedComponent
+class CFG1Pulldown(NonPopulatedComponent):
+    ...
+
+# Pattern B — set in_bom / soldered on a regular Component subclass:
+class MyOptionalIC(jitx.Component):
+    in_bom = False
+    soldered = False
+    ...
+```
+
+For passives, write a thin subclass:
+
+```python
+class DNPResistor(NonPopulatedComponent, Resistor):
+    pass
+
+self.r_cfg1 = DNPResistor(resistance=6.8e3)
+```
+
+| Stanza | Python 4.x |
+|---|---|
+| `do-not-populate(r_cfg1)` | Subclass `NonPopulatedComponent`, or set `in_bom = False; soldered = False` on the `Component` class. **`Resistor(..., dnp=True)` is NOT a valid kwarg.** |
+
+### `database-part(...)` — looking up parts by MPN
+
+There is **no `jitx.database_part(...)` function** in 4.x. The 4.x query API is:
+
+```python
+# Passives — direct kwargs on Resistor/Capacitor/Inductor:
+from jitxlib.parts import Resistor, Capacitor, Inductor
+self.r1 = Resistor(mpn="RC0402FR-0710KL", manufacturer="Yageo")
+self.c1 = Capacitor(mpn="GRM155R71H103KA88D", manufacturer="Murata")
+
+# Non-passives (crystals, encoders, connectors, etc.) — write a custom Component
+# subclass from the datasheet. There is no MPN-lookup path for arbitrary parts.
+```
+
+| Stanza | Python 4.x |
+|---|---|
+| `database-part(["mpn" => "...", "manufacturer" => "..."])` on a passive | `Resistor(mpn=..., manufacturer=...)` (or `Capacitor`, `Inductor`) — see `jitxlib/parts/query_api.py` |
+| `database-part(["mpn" => "..."])` on a non-passive (crystal, connector) | Write a custom `Component` subclass from the datasheet — invoke the `jitx-component-modeler` skill |
+
+## 13. Stackup imports — JLCPCB predefined substrates
+
+| Stanza | Python | Layers | Prepreg |
+|---|---|---|---|
+| `jlcpcb-jlc2313` (closest analog) | `from jitxlib.jlcpcb import JLC04161H_1080` | 4 | 1080 |
+| — | `from jitxlib.jlcpcb import JLC04161H_7628` | 4 | 7628 |
+| — | `from jitxlib.jlcpcb import JLC06161H_7628` | 6 | 7628 |
+
+There is **no 2-layer JLCPCB class** in `jitxlib.jlcpcb` (as of jitx-4.0.5). For a
+2-layer board, build a custom `Substrate` — see the `jitx-substrate-modeler` skill.
+Each class above bundles a `Stackup` + via definitions + fab constraints + named
+`RoutingStructure`s (e.g. `RS_50`, `DRS_90`, `DRS_100`).
+
+## 14. Routing structures and SI constraints
+
+The Python 4.x classes are `RoutingStructure` and `DifferentialRoutingStructure`
+(both in `jitx.si`) — **not** `SingleEnded` / `Differential`. Construction uses the
+`symmetric_routing_layers({...})` helper. See row 106-108 above for table form, and
+the `jitx-substrate-modeler` skill (§"Routing structures") for full constructor
+examples, plus the `jitx-interconnect-constraints` skill for how to attach a
+structure to a topology via `Constrain(Topology(...)).structure(rs)`.
+
 ## Notes / gaps
 
 - The Stanza-side rows above point to real constructs from the JITX 3.x by-example reference and similar Stanza JITX example designs. Where the Stanza `lbstanza` reference covers only generic language syntax (not the JITX PCB DSL), citations target the JITX-specific example files (`tests/`, `jitpcb/src/`, `jitpcb-by-example/`) instead.

@@ -378,6 +378,51 @@ P0 = Port()          # What does P0 do?
 VDD1 = Port()        # Which power domain?
 ```
 
+## Non-Contiguous Pin Index Sets — Use `dict[int, Port]`
+
+When the device's pin index space is **non-contiguous** (e.g. ESP32-S3 GPIOs 0-14,
+17-21, 33-38, 45, 46 — gaps at 15, 16, 22-32, 39-44), a plain `list[Port]` will
+collide with the physical pin numbering. Use a `dict[int, Port]` so the index keys
+preserve the datasheet's semantic numbering:
+
+```python
+class ESP32_S3(jitx.Component):
+    # WRONG — list index 15 is unused but still exists, and GPIO38 would map to
+    # whatever the 22nd element happens to be:
+    # GPIO = [Port() for _ in range(40)]
+
+    # CORRECT — dict keys = datasheet GPIO numbers:
+    GPIO: dict[int, Port] = {
+        i: Port()
+        for i in list(range(15)) + list(range(17, 22)) + list(range(33, 39)) + [45, 46]
+    }
+    # Access: self.GPIO[38] always refers to physical GPIO38.
+```
+
+Unpack into a `BoxSymbol` `PinGroup` with `*GPIO.values()`. The same rule applies to
+`PadMapping` when the pad index set is non-contiguous. See the construct-map
+(`jitx-port-3-to-4` §3) for the parallel port-on-`Circuit` pattern.
+
+## Marking a Component as Do-Not-Populate (DNP)
+
+There is no `dnp=True` kwarg. Subclass `NonPopulatedComponent` (defined in
+`jitx/component.py`), or set `in_bom = False; soldered = False` on a regular
+`Component` subclass:
+
+```python
+from jitx import NonPopulatedComponent
+
+class CFG1Pulldown(NonPopulatedComponent, Resistor):
+    pass
+
+# Usage in the parent Circuit:
+self.r_cfg1 = CFG1Pulldown(resistance=6.8e3)
+```
+
+For ad-hoc DNP, set `in_bom`/`soldered` on the instance's class. There is no
+post-construction `.dnp = True` attribute on an *instance* — the flag lives on the
+class.
+
 ## Landpattern Constructor Signatures
 
 Do NOT invent constructor parameters — use only these documented signatures:
@@ -405,6 +450,13 @@ QFP(num_leads=48).lead_profile(LeadProfile(span=..., pitch=0.5, type=QFPLead(...
 BGA(num_rows=12, num_cols=12, pitch=0.45, ball_diameter=0.25)
 # then chain: .grid_planner(...).pad_config(SMDPadConfig()).package_body(...)
 ```
+
+> ⚠️ **`.pad_config(SMDPadConfig())` is mandatory on every BGA.** There is no
+> built-in default. Omitting the call produces a build error
+> `No pad configuration specified` (see Common Build Errors). For BGAs with
+> depopulated balls, also chain `.grid_planner(...)` — see
+> [references/package-examples.md](references/package-examples.md) Example 6 for the
+> `GridPlanner` subclass pattern, and §"Depopulated / non-uniform balls".
 
 ### `.narrow()` vs `.package_body()` for SOIC
 

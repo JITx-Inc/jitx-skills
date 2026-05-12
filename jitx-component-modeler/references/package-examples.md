@@ -467,6 +467,16 @@ Device: type[STM32F103C8] = STM32F103C8
 
 ## Example 6: BGA with Named Pins and NC Positions
 
+> ⚠️ **Every BGA landpattern must chain `.pad_config(SMDPadConfig())`.** This is
+> not an example-specific detail — there is no built-in default pad config for
+> BGAs, and omitting the call fails at build time with `No pad configuration
+> specified`. If the BGA has depopulated balls (e.g. an A1 keep-out or
+> asymmetric ball map), also chain `.grid_planner(<GridPlanner subclass>)` — see
+> the inline `InactivePositionsPlanner` below. `is_active(pos, num_rows,
+> num_cols)` returns `False` for inactive positions, `None` to defer to default;
+> `pos.row` / `pos.column` are zero-indexed (A1 = row 0, col 0).
+
+
 ```python
 """
 BGA component example based on a typical wireless SoC.

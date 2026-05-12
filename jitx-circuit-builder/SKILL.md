@@ -124,6 +124,64 @@ self.i2c_nets = [
 self.topology = self.driver.out >> self.trace >> self.receiver.inp
 ```
 
+## Net storage — `self.foo = Net()` vs local `foo = Net()`
+
+The JITX runtime discovers nets via the `+` connection operator at the time of
+connection, not by inspecting `self` attributes later. **Local-variable nets are
+preserved in the netlist** as long as some component port has been added to them
+with `+`.
+
+```python
+class MyCircuit(Circuit):
+    def __init__(self):
+        # OK — net is anonymous in the schematic but its connectivity is preserved
+        mid = self.r1.p2 + self.r2.p1
+
+        # OK and preferred when the net is meaningful — name appears in netlist
+        self.MID = Net(name="MID") + self.r3.p2 + self.r4.p1
+```
+
+Use `self.<name> = Net(...)` (or assign the `+`-result to `self.<name>`) when you
+need to:
+
+- name the net so it appears in the schematic / netlist
+- reference the net from another method or from a parent circuit
+- attach a `.symbol` (e.g. `self.GND.symbol = GroundSymbol()`) or apply a constraint
+
+Use a local variable only for short-lived internal connections where naming would
+just add noise.
+
+## Port arrays — `[Port() for _ in range(N)]` and `dict[int, Port]`
+
+Stanza modules with vector ports (`port amp_ctrl : pin[6]`) translate to either a
+list or dict of `Port` instances declared at **class level** (same scope as a single
+`Port()`):
+
+```python
+class AmpFanout(Circuit):
+    # Class-level: contiguous index 0..N-1 — list is idiomatic
+    amp_ctrl = [Port() for _ in range(6)]
+
+    # Class-level: non-contiguous semantic indices — use dict, NOT list
+    GPIO: dict[int, Port] = {
+        i: Port() for i in list(range(15)) + list(range(17, 22)) + [38, 45, 46]
+    }
+
+    def __init__(self):
+        # Instance-level wiring uses the declared port array directly
+        for i, gp in enumerate(self.mcu.gpio_list):
+            self.amp_ctrl[i] + gp
+
+        # Parent-to-child wiring: `parent.bus[i] + child.amp_ctrl[i]`
+        # (see `references/advanced-patterns.md` for a worked example)
+```
+
+The list form behaves like any indexable port (`self.amp_ctrl[3]`). The dict form
+is required when the index set has gaps — a list with `[None, None, ...]` padding
+will not work because every element must be a `Port`. Build-time error if you
+mismatch: `port GPIO[15] is not mapped to a symbol pin` from the `BoxSymbol` side.
+See `jitx-port-3-to-4/construct-map.md` §3 for the parallel guidance.
+
 ## Passives
 
 ```python

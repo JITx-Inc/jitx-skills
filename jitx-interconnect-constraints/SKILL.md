@@ -557,7 +557,15 @@ with ReferencePlanes(self.GND):
 - **Positioning** — Via structures support `.at(x, y, rotate=angle)` for placement.
 - **`DifferentialViaStructure`** — Same pattern but with `DiffPair` ports (`sig_in.p`, `sig_in.n`, etc.) and a `pitch` parameter for P/N spacing.
 
-For `RoutingStructure`, `DifferentialRoutingStructure`, and substrate via definitions, see the `jitx-substrate-modeler` skill.
+For `RoutingStructure`, `DifferentialRoutingStructure`, and substrate via definitions, see the `jitx-substrate-modeler` skill. **When porting from Stanza**, note that
+`structure foo = SingleEnded(...)` / `Differential(...)` declarations rename to
+`RoutingStructure(...)` / `DifferentialRoutingStructure(...)` — there are **no
+classes named `SingleEnded` or `Differential` in 4.x**. Construct with
+`symmetric_routing_layers({0: RoutingStructure.Layer(trace_width=..., clearance=...,
+velocity=..., insertion_loss=...)})`. Predefined JLCPCB substrates (`JLC04161H_1080`,
+`JLC04161H_7628`, `JLC06161H_7628`) already expose named instances `RS_50`,
+`DRS_90`, `DRS_100` — prefer those over hand-rolled structures when the design
+targets JLCPCB.
 
 ## Common Mistakes
 
