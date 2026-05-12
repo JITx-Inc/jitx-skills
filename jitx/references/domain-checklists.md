@@ -226,10 +226,10 @@ Apply for any connector or interface that exposes the board to the outside world
 
 ### ESD-or-Justification
 
-For every external or user-accessible signal pin, the row must say one of:
+For every external or user-accessible signal pin — not only connector pins, but also exposed switch contacts, jumpers, push-button terminals, exposed test points, edge-card fingers, exposed castellations, and any other user-touchable conductor — the row must say one of:
 
 - **TVS / ESD diode** specified, with capacitance compatible with the signaling speed (low-cap TVS for high-speed; standard for low-speed).
-- **Internal-only**: connector is not user-accessible (board-to-board internal link, sealed enclosure, controlled environment).
+- **Internal-only**: not user-accessible (board-to-board internal link, sealed enclosure, controlled environment).
 - **Omitted by design**: explicit reason (e.g., RF impedance budget, cost-constrained prototype, EMC-controlled fixture). User confirms.
 
 ### Protocol-Specific Sub-Checklists (load only when applicable)

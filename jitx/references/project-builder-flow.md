@@ -136,7 +136,7 @@ Please confirm data sources or provide alternatives (datasheets, footprints, spe
 
 ### Parallel Safety
 
-Phase 1 tasks are independent at the *design* level — each sub-agent writes its own component file with its own test design. **Builds are sequenced**: the orchestrator does not issue concurrent `python -m jitx build` calls against the project. Sub-agents return their code; the orchestrator runs each test build one at a time as part of the acceptance review (Part B Step 2 in task-execution.md). This preserves parallel design work without exposing the JITX backend to concurrent calls. See `jitx/SKILL.md` "Build Safety".
+Phase 1 tasks are independent at the *design* level — each sub-agent writes its own component file with its own test design. Parallel sub-agents each build their own test design; because each agent's design is distinct (different module paths, different component class names), concurrent builds against the same project are acceptable — the JITX backend serializes internally on the WebSocket. What is NOT safe is two agents building the same design at the same time; the orchestrator should never spawn two tasks targeting the same test design class. See `jitx/SKILL.md` "Build Safety".
 
 ### Exit Gate: Phase 1 → Phase 2
 

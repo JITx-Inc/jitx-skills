@@ -159,7 +159,7 @@ Rz values below are for the **matte/bonding side** (the side laminated to the di
 **Cannonball-Huray parameters** (for HFSS/EM simulation using the average HCPES+SCPES model):
 - Nodule radius: `a = 0.0573 × Rz` (µm)
 - Surface ratio: `Sr = 5.117` (constant, independent of foil type)
-- Use matte-side Rz for the bottom surface of a trace; drum-side Ra (≈ Rz/4) for the top surface.
+- Use matte-side roughness for the bottom surface of a trace; drum-side for the top. The matte side is the rougher of the two — typical Ra range 0.18–0.51 µm for standard foils; the drum side is much smoother — Ra ≈ Rz × 0.0573 (matches the Cannonball-Huray nodule-radius formula, ≈ 0.18 µm at Rz = 3.05 µm).
 
 | Copper Type | Representative Rz (µm) | Nodule radius a (µm) |
 |-------------|------------------------|----------------------|

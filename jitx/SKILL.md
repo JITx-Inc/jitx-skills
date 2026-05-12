@@ -107,7 +107,7 @@ python -m jitx build <module.path.DesignClass>
 python -m jitx build-all
 ```
 
-**Don't run parallel builds on the same design.** Concurrent JITX builds against the same project share cache state, build artifacts, and a WebSocket session, and there is currently no reliable way to operate on the same design in parallel. Sequence tasks that touch the same design instead. For genuinely independent work across different projects, parallel is fine.
+**Don't run parallel builds on the same design.** Concurrent JITX builds against the *same design* aren't reliable — cache state, build artifacts, and design-explorer output overlap. Sequence those. Parallel builds of *different designs* in the same project (different test designs, different module paths) share the WebSocket session but are generally safe — the JITX backend serializes internally, possibly with a wait. The skill orchestrator's Phase 1 runs sub-agents in parallel on different test designs; the parallelism is at the design-work level, and concurrent builds on distinct designs are an acceptable consequence.
 
 **Success output:** `status: ok`
 **Error output:** Python traceback or `status: error`
@@ -191,11 +191,11 @@ For ARCHITECTURE.md format: read `references/architecture-template.md`
 
 ### Build Safety — Don't Parallelize Same-Design Work
 
-Parallel builds against the same JITX project are not recommended. Cache state, build artifacts, and the WebSocket session are project-scoped, and there's currently no reliable way to operate on the same design in parallel.
+Concurrent builds of the *same JITX design* share cache state, build artifacts, and design-explorer output. Sequence them. Concurrent builds of *different designs* in the same project — for example, parallel sub-agents each building their own component test design — share the WebSocket session but are generally safe: the JITX backend serializes the work internally, possibly with a wait.
 
-For the project-builder workflow: sub-agents can *design* in parallel (writing component `.py` files is independent), but the orchestrator sequences the *test builds* — one build at a time per project. This preserves the parallelism win for the human/agent-time-bound work (writing code, reading datasheets) without exposing the JITX backend to concurrent calls. Phase 2/3/4 builds are inherently sequential anyway.
+For the project-builder workflow: Phase 1 sub-agents can run in parallel, each working on its own component file and its own test design. They are not running concurrent builds of the *same* design. Phase 2/3/4 builds are inherently sequential.
 
-For ad-hoc work outside the project-builder flow: just don't run two `python -m jitx build` calls at once against the same project.
+For ad-hoc work outside the project-builder flow: just don't run two `python -m jitx build` calls against the same design at once.
 
 ### Grep Gate Enforcement
 
