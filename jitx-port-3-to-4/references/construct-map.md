@@ -25,6 +25,7 @@ syntax depth see the `lbstanza` skill; for Python API depth see the
 |---|---|---|
 | `set-current-design("name")` then `make-default-board(my-module, 4, Rectangle(25.0,10.0))` then `view-board()` / `export-cad()` at top-level | `class MyDesign(Design):` with `board=`, `substrate=`, `circuit=` attributes; built from CLI rather than top-level statements | Stanza: `jitpcb-by-example/Examples/first-design/first-design.stanza:13-21`; Python: [L811-817], [L867-872] |
 | `board-shape = RoundedRectangle(W, H, r)` on a Stanza board | `self.board.shape = rectangle(W, H, radius=r)` from `jitx.shapes.composites`. **There is no `RoundedRectangle` class** — `rectangle()` is a function and the `radius=` kwarg rounds corners. `Design.board: Board` and `Board.shape: Shape` (assign the shape attribute; no setter). `SampleDesign` ships a default `SampleBoard(shape=rectangle(50, 50, radius=5))` — override `self.board.shape` or subclass `Board`. | Python: `py-jitx/src/jitx/board.py`, `py-jitx/src/jitx/shapes/composites.py` (`rectangle`) |
+| `pcb-board ... outline = ArcPolygon([...])` (Stanza arbitrary curved outline) | `from jitx.shapes.primitive import Arc, ArcPolygon, Polygon, Circle, Rectangle` — module is `jitx.shapes.primitive` (**singular**; `jitx.shapes.primitives` does not exist, nor does `from jitx.shapes import Arc`). Use `ArcPolygon` only when `rectangle(w, h, radius=…)` from `jitx.shapes.composites` can't express the shape (mixed curved/straight outlines, notched boards, etc.). See `side-by-side/03-design-entry.md` §"Board shapes beyond rectangles" for the full decision tree and a worked recipe. | Python: `py-jitx/src/jitx/shapes/primitive.py:36-228` (`Arc`, `ArcPolygon`, `Polygon`, `Circle`) |
 | `set-main-module(design)` (alternate form: marks the module as the design entry) | `Design` subclass discovered automatically by `python -m jitx find` | Stanza: `jitpcb-by-example/Examples/analyze/analyze.stanza:21`; Python: [L823-832] |
 | `jstanza` build via `stanza.proj` target | `python -m jitx build --port <PORT> motor_controller.main.StepperMotorController` | Python: [L834-840] |
 | `nightly_design_tests/config/designs.yaml` row: `targets: [{project_dir: "demo", stanza_file: "main.stanza", design_name: "DesignCon-demo"}]` | `jitx-test/.github/workflows/integration-testing.yml` runs `python -m jitx build-all` over a checked-out repo (entry resolved via `Design` subclass in `main.py`); a comparable matrix row is `{example-repo-name: essentials-examples, example-repo-url: "https://github.com/JITx-Inc/py-essentials-examples.git"}` | Stanza: `nightly_design_tests/config/designs.yaml:35-48`; Python: `jitx-test/.github/workflows/integration-testing.yml:100-119`, `jitx-test/scripts/jitx-build-design.bash:81` |
@@ -204,9 +205,23 @@ self.r_cfg1 = DNPResistor(resistance=6.8e3)
 
 > Verify behaviour per-passive before depending on it for a large design. The MRO is well-defined (both bases are `jitx.Component` subclasses) but the part-DB query path on `Resistor`/`Capacitor`/`Inductor` does substantial work in `__init__`, and a few corners (e.g. `Inductor` in some 4.0.x builds) have hit unrelated runtime errors during the multi-inheritance dance. If `class DNPInductor(NonPopulatedComponent, Inductor)` raises at construction, fall back to a regular `Inductor` with explicit `in_bom = False; soldered = False` overrides — or document the part as a deferred DNP gap until upstream resolves it.
 
+```python
+# Pattern C — set in_bom / soldered on the instance (lightest-weight, one-off DNP):
+c_usb_filter = Capacitor(capacitance=10.0e-12, case="0402")
+c_usb_filter.in_bom   = False
+c_usb_filter.soldered = False
+self.c_usb_filter = c_usb_filter  # store as self.* — see "Strap helpers" below
+```
+
+`in_bom` and `soldered` are real `Component` fields (`py-jitx/src/jitx/component.py:93,98`,
+typed `bool | None`, defaulting to `None`). Shadowing them at the instance level is
+normal Python attribute assignment, not an implementation accident — but Pattern A
+(subclass) is preferable when the same DNP component is reused, since the intent is
+declared once and stays with the class definition.
+
 | Stanza | Python 4.x |
 |---|---|
-| `do-not-populate(r_cfg1)` | Subclass `NonPopulatedComponent`, or set `in_bom = False; soldered = False` on the `Component` class. **`Resistor(..., dnp=True)` is NOT a valid kwarg.** |
+| `do-not-populate(r_cfg1)` | Three patterns: (A) subclass `NonPopulatedComponent`, (B) set `in_bom = False; soldered = False` as **class** attrs on a `Component` subclass, (C) set the same as **instance** attrs after construction. **`Resistor(..., dnp=True)` is NOT a valid kwarg.** |
 
 ### `database-part(...)` — looking up parts by MPN
 
@@ -248,6 +263,55 @@ The Python 4.x classes are `RoutingStructure` and `DifferentialRoutingStructure`
 the `jitx-substrate-modeler` skill (§"Routing structures") for full constructor
 examples, plus the `jitx-interconnect-constraints` skill for how to attach a
 structure to a topology via `Constrain(Topology(...)).structure(rs)`.
+
+## 15. Strap helpers (`bypass-cap-strap`, `cap-strap`, `res-strap`)
+
+The Stanza JITX library exposes one-line "strap" helpers that instantiate a passive
+and wire it between two nets in a single call. Python 4.x has **no equivalent
+helper** — expand the strap inline.
+
+| Stanza | Python 4.x |
+|---|---|
+| `bypass-cap-strap(a, b, value)` | `self.c_N = Capacitor(capacitance=value, case="0402"); a += self.c_N.p[0]; b += self.c_N.p[1]` |
+| `cap-strap(a, b, value)` | Same shape as above. |
+| `res-strap(a, b, value)` | `self.r_N = Resistor(resistance=value, case="0402"); a += self.r_N.p[0]; b += self.r_N.p[1]` |
+
+**Why the `self.` prefix matters**: store the passive instance as a `self.*`
+attribute on the enclosing `Circuit`. Bare local variables get garbage-collected at
+the end of `__init__`, and `jitx._structural.Structural.__del__` logs a warning
+*"Reference to structural object %s lost during instantiation, it likely needs to
+be assigned to an object."* (`py-jitx/src/jitx/_structural.py:609-636`). In a quiet
+log this is easy to miss, and the component disappears from the netlist.
+
+When porting a Stanza module that calls dozens of straps in a loop, a small
+project-local helper is often cleaner than copy-pasting the four-line idiom:
+
+```python
+def bypass(self, hi: Net, gnd: Net, value: float, *, case: str = "0402") -> Capacitor:
+    """In-place equivalent of Stanza bypass-cap-strap. Stores the cap as self._bypass_<n>."""
+    idx = getattr(self, "_bypass_idx", 0)
+    c = Capacitor(capacitance=value, case=case)
+    setattr(self, f"_bypass_{idx}", c)
+    self._bypass_idx = idx + 1
+    hi  += c.p[0]
+    gnd += c.p[1]
+    return c
+```
+
+Then in the circuit body:
+
+```python
+class PowerSection(Circuit):
+    def __init__(self):
+        super().__init__()
+        self.DVDD = Net(); self.GND = Net()
+        self.bypass(self.DVDD, self.GND, 100.0e-9)
+        self.bypass(self.DVDD, self.GND, 1.0e-6)
+```
+
+This pattern keeps every cap reachable through `self.*` (no GC warning), and the
+auto-numbered names show up in the BOM and schematic with stable identifiers across
+builds.
 
 ## Notes / gaps
 

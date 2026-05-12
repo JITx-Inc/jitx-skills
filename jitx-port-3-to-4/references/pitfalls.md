@@ -61,6 +61,14 @@ Things that bite during a port and aren't covered by the construct map.
 
 - Stanza `supports` / `require` and Python `@provide` / `@require` are *similar* but **not identical** in hierarchical composition. Cases that "just worked" in Stanza via implicit propagation may need an explicit `Provide(...)` declaration in Python.
 - `@provide.one_of`, `@provide.subset_of`, `@provide.all_of` are the Python idioms for the patterns Stanza expressed via free-form `supports` clauses with conditions. See `jitx-pin-assignment` for which to use.
+- **Silent failure — provide stub returning `[]`**: A `@provide.all_of(Bundle)` method
+  that returns `[]` (an unfinished stub) silently satisfies every `require(Bundle)`
+  call against it. The build prints `status: ok` even though the resulting bundle's
+  ports are all unconnected. The only signal is a *"module port(s) have no internal
+  connections"* warning in the build log. During a port, leave unimplemented
+  providers as `raise NotImplementedError("PORT-DEFERRED: …")` so the build fails
+  loudly until the stub is filled in. See `jitx-pin-assignment` §"Provide stub
+  danger" for the canonical pattern.
 
 ## Power topology / net naming (mandatory Phase 4 check)
 

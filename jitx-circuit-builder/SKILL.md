@@ -341,6 +341,71 @@ self.GND = Net(name="GND")
 self.GND.symbol = GroundSymbol()  # attribute assignment, NOT insert()
 ```
 
+## Copper pour layer indices
+
+`Pour(shape, layer=…, isolate=…, rank=…)` from `jitx.copper` takes an integer
+`layer`. The integer is interpreted by the design's `Substrate` / `Stackup`, with a
+consistent convention across stackups:
+
+| Layer | Index (top-down) | Index (negative / bottom-up) | Notes |
+|---|---|---|---|
+| Top copper | `0` | (same) | `Side.Top == 0` |
+| Inner 1 (from top) | `1` | `-(N-1)` | only on 4+ layer boards |
+| Inner 2 (from top) | `2` | `-(N-2)` | only on 6+ layer boards |
+| Bottom copper | `N - 1` | `-1` | `Side.Bottom == -1` |
+
+Both conventions reach the same physical layers — pick one and stay consistent
+within a design. The negative form pairs naturally with `symmetric_routing_layers`
+(which maps `k → -k - 1` internally; `py-jitx/src/jitx/si.py:984-1004`).
+
+**Examples by stackup**:
+
+```python
+# 2-layer board:
+self.GND += Pour(shape, layer=0,  isolate=0.1, rank=1)  # top
+self.GND += Pour(shape, layer=-1, isolate=0.1, rank=1)  # bottom (or layer=1)
+
+# 4-layer board (e.g. JLC04161H_1080) — all-positive form:
+self.GND += Pour(shape, layer=0, isolate=0.1, rank=1)   # top
+self.GND += Pour(shape, layer=1, isolate=0.1, rank=1)   # inner 1
+self.VCC += Pour(shape, layer=2, isolate=0.1, rank=1)   # inner 2 (power plane)
+self.GND += Pour(shape, layer=3, isolate=0.1, rank=1)   # bottom
+
+# 4-layer board — symmetric form (equivalent):
+self.GND += Pour(shape, layer=0,  isolate=0.1, rank=1)
+self.GND += Pour(shape, layer=1,  isolate=0.1, rank=1)
+self.VCC += Pour(shape, layer=-2, isolate=0.1, rank=1)
+self.GND += Pour(shape, layer=-1, isolate=0.1, rank=1)
+```
+
+Reference: `~/jitx/TEC-example/tec_example/main.py:145-148` uses the all-positive
+form on a JLCPCB 4-layer board.
+
+## DNP / do-not-populate
+
+There is no `dnp=True` kwarg on `Resistor` / `Capacitor` / `Component`. The
+authoritative fields are `in_bom: bool | None` and `soldered: bool | None` on
+`jitx.Component` (`py-jitx/src/jitx/component.py:93,98`). Three patterns are
+supported — see the construct-map's §"Do-not-populate (DNP)" entry for the full
+write-up. Quick summary:
+
+```python
+# Pattern A — built-in subclass (preferred when DNP is part of the design intent):
+from jitx import NonPopulatedComponent
+class CFG1Pulldown(NonPopulatedComponent):
+    ...
+
+# Pattern B — class-level override on any Component subclass:
+class MyOptionalIC(jitx.Component):
+    in_bom = False
+    soldered = False
+
+# Pattern C — instance-level override (one-off DNP on a query-API passive):
+self.c_filter = Capacitor(capacitance=10.0e-12, case="0402")
+self.c_filter.in_bom   = False
+self.c_filter.soldered = False
+```
+
 ## Verification Process
 
 ### Step 1: Type Check

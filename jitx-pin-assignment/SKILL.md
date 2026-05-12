@@ -594,6 +594,35 @@ def provide_dqs(self, dqs: DDR4DQS):
     ]
 ```
 
+## Provide stub danger — empty `[]` returns silently disconnect
+
+A `@provide.all_of(Bundle)` method that returns `[]` (or an empty list comprehension)
+**silently satisfies** every `require(Bundle)` call against it. The build reports
+`status: ok`, but the resulting bundle has every port unconnected. The only
+hint in the build log is a *"module port(s) have no internal connections"* warning,
+which does not escalate to an error.
+
+This is a common failure mode during a port: a stub gets left behind as a TODO and
+the design ships with disconnected control buses.
+
+```python
+# DANGEROUS — silent disconnection:
+@provide.all_of(I2SFull)
+def _provide_i2s(self) -> list:
+    return []   # build still succeeds; require(I2SFull) returns dangling ports
+
+# PREFERRED — fail loud and force resolution:
+@provide.all_of(I2SFull)
+def _provide_i2s(self) -> list:
+    raise NotImplementedError("PORT-DEFERRED: implement I2S pin mapping")
+```
+
+If you legitimately need a stub during incremental porting, raise
+`NotImplementedError` (or a project-specific `PortDeferred` exception) so that any
+`require()` call against the unimplemented provider fails the build immediately
+rather than producing a passing build with floating nets. When the design as a
+whole is ready, grep the codebase for `PORT-DEFERRED` and resolve each one.
+
 ## Verification
 
 ### Step 1: Type Check

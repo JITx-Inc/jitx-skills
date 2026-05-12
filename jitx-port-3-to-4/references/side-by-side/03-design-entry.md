@@ -128,3 +128,73 @@ Key facts:
 - `Design.board: Board` and `Board.shape: Shape` are plain attributes — assign the shape, no setter.
 - `SampleDesign` ships a default `SampleBoard(shape=rectangle(50, 50, radius=5))`. For any board with a different outline, override `self.board.shape` in `__init__` (as above), or subclass `Board` and assign `board = MyBoard()` on the design.
 - The board shape is independent of `substrate` / `stackup` — those govern the layer composition, not the outline.
+
+## Board shapes beyond rectangles — `ArcPolygon`, `Polygon`, `Circle`
+
+For board outlines that are not rounded rectangles (cutouts, mixed curved/straight
+boundaries, irregular polygons), use the primitive shape classes directly:
+
+```python
+from jitx.shapes.primitive import Arc, ArcPolygon, Polygon, Circle, Rectangle
+```
+
+**Import-path gotcha**: the module is `jitx.shapes.primitive` **singular**. Common
+wrong guesses that all fail at runtime:
+
+| Wrong | Error |
+|---|---|
+| `from jitx.shapes import Arc` | `ImportError: cannot import name 'Arc' from 'jitx.shapes'` |
+| `from jitx.shapes.primitives import Arc` (plural) | `ModuleNotFoundError: No module named 'jitx.shapes.primitives'` |
+| `from jitx import Arc` | `ImportError: cannot import name 'Arc' from 'jitx'` |
+
+### Decision tree for board outlines
+
+| Shape | Recommended construct |
+|---|---|
+| Plain rectangle | `rectangle(w, h)` from `jitx.shapes.composites` |
+| Rounded rectangle (uniform radius) | `rectangle(w, h, radius=r)` from `jitx.shapes.composites` |
+| Rounded rectangle (per-corner radii) | `rectangle(w, h, radius=(r1, r2, r3, r4))` |
+| Chamfered rectangle | `rectangle(w, h, chamfer=c)` |
+| Circle | `Circle(diameter=d)` |
+| Straight-sided polygon (with optional holes) | `Polygon([(x,y), …], holes=[[…]])` |
+| Arbitrary mix of arcs and straight edges | `ArcPolygon([Arc(...), (x,y), Arc(...), ...])` |
+
+### `Arc` constructor
+
+`Arc` has three overloads (see `jitx/shapes/primitive.py:36-126`):
+
+```python
+Arc(center, radius, start_angle_deg, sweep_deg)   # most common
+Arc(start_point, mid_point, end_point)            # through three points
+Arc(start_point, end_point, radius, clockwise=True, large=False)
+```
+
+Angles are in **degrees**, counter-clockwise positive. `start` must be in `[0, 360)`;
+`sweep` in `[-360, 360]`. Negative sweep = clockwise.
+
+### `ArcPolygon` recipe — when `rectangle()` isn't enough
+
+Stanza `RoundedRectangle(w, h, r)` maps to `rectangle(w, h, radius=r)` — use that
+first. The `ArcPolygon` recipe below is only needed for outlines that mix arcs and
+straight edges in a way that `rectangle()` can't express (e.g. a board with a
+rounded notch, a tear-drop coupon, a D-shaped form factor).
+
+```python
+from jitx.shapes.primitive import Arc, ArcPolygon
+
+# Rounded rectangle the long way around, for reference. Centered at origin.
+# Arc centres are inset from each corner by the corner radius r.
+def rounded_rect_arcpolygon(w: float, h: float, r: float) -> ArcPolygon:
+    hw, hh = w / 2.0, h / 2.0
+    cx, cy = hw - r, hh - r
+    return ArcPolygon([
+        Arc(( cx, -cy), r, 270, 90),  # bottom-right
+        Arc(( cx,  cy), r,   0, 90),  # top-right
+        Arc((-cx,  cy), r,  90, 90),  # top-left
+        Arc((-cx, -cy), r, 180, 90),  # bottom-left
+    ])
+```
+
+Points (bare `(x, y)` tuples) and `Arc`s can be intermixed in the element list — a
+bare point is a sharp corner connected to its neighbours by line segments. The
+polygon is closed automatically; do not repeat the first element at the end.
