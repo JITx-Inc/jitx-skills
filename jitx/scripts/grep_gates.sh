@@ -128,8 +128,11 @@ run_check "type(...) call — verify not used for runtime type construction" \
     '\btype\s*\(' \
     "no" "review"
 
-# I2C pull-ups outside designs/ — shared-bus components belong at top level
-run_check "I2C pull-up (r_sda/r_scl) outside ${TOP_LEVEL_PATH}/" \
+# I2C pull-ups outside designs/ — shared-bus components belong at the
+# bus-aggregation level (the circuit that composes master + slaves). Usually
+# the top-level design; hits here flag for review so the agent confirms the
+# pull-up sits at a bus-composition level, not local to a single participant.
+run_check "I2C pull-up (r_sda/r_scl) outside ${TOP_LEVEL_PATH}/ — review bus-aggregation level" \
     '\br_(sda|scl)\b' \
     "yes" "review"
 

@@ -97,7 +97,7 @@ Copy this into the project root and fill in task details. The orchestrator maint
 - **Type:** circuit
 - **Skill:** jitx-circuit-builder
 - **Dependencies:** [comp-01, comp-02, cst-01]
-- **Description:** Invoke `jitx-skills:jitx-circuit-builder` skill. Also invoke `jitx-skills:jitx-component-modeler` Step 5 to capture each IC's application circuit from the datasheet BEFORE writing code. [what it connects, passives needed, topology vs net, constraints to apply]. Expose bundle-typed ports (I2S, I2C, SPI, USB2, GPIO, Power) for upstream require(). Do NOT put I2C pull-ups or shared-bus termination here — those go at top level.
+- **Description:** Invoke `jitx-skills:jitx-circuit-builder` skill. Also invoke `jitx-skills:jitx-component-modeler` Step 5 to capture each IC's application circuit from the datasheet BEFORE writing code. [what it connects, passives needed, topology vs net, constraints to apply]. Expose bundle-typed ports (I2S, I2C, SPI, USB2, GPIO, Power) for upstream require(). Do NOT put I2C pull-ups or shared-bus termination here unless this circuit is the bus-aggregation level (encloses both master and slaves on a private bus). Pull-ups belong wherever the bus is composed across participants — usually the top-level design.
 - **Inputs:** [datasheet PDF for every IC in this circuit — download English version from manufacturer site, use extract_pages.py, read the application circuit]
 - **Checklist:** [Power Circuit / Interface Circuit] + Datasheet Compliance + General Gotcha Scrub
 - **Engineering questions** (orchestrator writes these per-circuit):

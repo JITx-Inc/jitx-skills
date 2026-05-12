@@ -215,11 +215,11 @@ The orchestrator (or a single sub-agent) assembles the top-level design.
    self += i2s.sd + self.amp.i2s.sd
    ```
    NEVER hardcode GPIO numbers. If a downstream circuit has individual ports instead of a bundle, wire the required bundle's sub-ports to them. Use `>>` topology for SI-constrained signals.
-6. Add shared-bus components at this level (NOT inside subcircuits):
-   - **I2C pull-ups** — one set per bus, to the correct voltage rail (usually 3.3V)
-   - **SPI pull-ups** on CS lines
-   - **CAN termination** resistors
-   - Any termination that spans multiple subcircuits
+6. Add shared-bus components at the **bus-aggregation level** — the level where the bus is composed across multiple participants (master + slaves). Most of the time that's the top-level design here, because typical buses span subcircuits (MCU subcircuit talks to amp + sensor subcircuits). But if a single subcircuit aggregates an entire bus internally (e.g. a sensor-hub subcircuit containing master + 4 sensors all on one private I2C), the pull-ups belong inside that subcircuit. The rule is bus scope, not file location.
+   - **I2C pull-ups** — one set per bus, placed at the level that composes the bus, to the correct voltage rail (usually 3.3V)
+   - **SPI pull-ups** on CS lines — same rule
+   - **CAN termination** resistors — same rule
+   - Any termination that spans multiple subcircuits goes at the top-level design that aggregates them
 7. Apply ALL SI constraints at this level within `ReferencePlanes(GND)` context. Example:
    ```python
    with ReferencePlanes(self.GND):

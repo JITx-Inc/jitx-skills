@@ -169,7 +169,7 @@ Do not re-run the entire checklist. Focus on the items most commonly missed for 
 | Component (footprint) | Pad positions plausible for package size, row spacing correct, pad dimensions match datasheet mechanical drawing — not fabricated from memory |
 | MCU/FPGA | All power domains present, programming interface complete, reset pin present |
 | Power circuit | Enable pin handling, PGOOD output type + pull-up, **feedback divider uses solver not manual values**, bootstrap cap present |
-| Interface circuit | **Exposes bundle-typed ports**, decoupling on every IC power pin, **no I2C pull-ups** (those go at top level) |
+| Interface circuit | **Exposes bundle-typed ports**, decoupling on every IC power pin, **I2C pull-ups only if this circuit is the bus-aggregation level** (encloses both ends of a private bus); otherwise pull-ups go at the level that composes the bus |
 | **Any circuit** | **Did the sub-agent read the datasheet?** Compare the circuit against the datasheet's application circuit. Count external components — are any missing (transistors, caps, resistors)? Check all pull-up voltage domains — nothing should pull to a high-voltage rail like VBUS. |
 | Substrate | All via types defined, ground plane continuity, impedance achievable |
 
