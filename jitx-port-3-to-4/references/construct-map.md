@@ -53,6 +53,7 @@ syntax depth see the `lbstanza` skill; for Python API depth see the
 | `pcb-symbol single-shape : ...` | `class MySymbol(Symbol): vcc_pin = Pin.up((0,2), length=1)` | Stanza: `jitpcb/src/jitpcb/harnesses/schematic-symbol-shape-design-harness.stanza:49`; Python: [L519-523], [L12696] (`class Symbol`), [L12755] (`class Pin`) |
 | `pin-properties : [pin:Ref \| pads:Ref \| side:Dir] [p[0] \| p[1] \| Left] ...` | `mapping = PadMapping({GND: [landpattern.p[9], landpattern.thermal_pad], VCC: landpattern.p[1]})`. **Multi-pad-per-port**: when a Stanza component shares one port across multiple physical pads (common on power-stage ICs), list every pad in the PadMapping value: `self.PVDD[0]: [lp.p[3], lp.p[4]]`, `self.PGND: [lp.p[25], lp.p[26], lp.p[31], lp.p[32]]`, `self.EP: [lp.thermal_pads[0]]`. Omitted pads stay unconnected at the landpattern level. | Stanza: `jitpcb/src/jitpcb/physical-design/pin-solver/tests/nested-no-restrict.stanza:85-90`; Python: [L732-743], [L10457] (`class PadMapping`) |
 | (Stanza pin-properties also handles symbol-pin mapping per row) | `SymbolMapping(entries)` for explicit Port -> Symbol Pin mapping | Python: [L12865] (`class SymbolMapping`) |
+| QFN / SON / DFN exposed (thermal) pad in `PadMapping` | `self.EP: [lp.thermal_pads[0]]` (note: `thermal_pads` plural, indexed). The exposed pad lives on a separate accessor from signal pads — `lp.p[N]` will not reach it. **Silent error**: omitting the EP from `PadMapping` produces no build warning, and the thermal/ground tab floats. Always map the EP for QFN/SON parts (typically to `GND`). | Python: `py-jitx-stdlib/src/jitxlib/landpatterns/generators/qfn.py:78`; example: `TEC-example/tec_example/components/texas_instruments_TAS5825MRHBR.py:156` |
 
 ## 5. Nets and connectivity
 
@@ -100,11 +101,14 @@ syntax depth see the `lbstanza` skill; for Python API depth see the
 
 | Stanza 3.x | Python 4.x | Source citation |
 |---|---|---|
-| `constrain-topology(...)` JSL helper plus routing-structure application | `Constrain(Topology(self.A.p, self.B.p)).structure(rs)` — chained call applies routing structure constraint | Stanza: `jitpcb-by-example/src/essentials/usage_patterns.md:161`; Python: [L3463], [L3621], [L11877-11898] |
+| `constrain-topology(...)` JSL helper plus routing-structure application (**single-ended**) | `Constrain(Topology(self.A.p, self.B.p)).structure(rs)` — chained call applies single-ended routing structure constraint. `Constrain.structure()` only accepts `RoutingStructure`, not `DifferentialRoutingStructure` — see row below. | Stanza: `jitpcb-by-example/src/essentials/usage_patterns.md:161`; Python: `py-jitx/src/jitx/si.py:325-357` (`class Constrain`) |
+| `structure(path, differential)` / `pcb-differential-routing-structure` applied to a pair of nets (**differential**) | `ConstrainDiffPair(Topology(dp_begin, dp_end)).structure(drs)` where endpoints are `DiffPair()` bundles with `.p`/`.n` sub-ports. **Do not** model a diff pair as two separate `Constrain(Topology(...)).structure(drs)` calls — `Constrain.structure` takes a `RoutingStructure`, not a `DifferentialRoutingStructure`, and using two single-ended constraints leaves P and N uncoupled. See pitfalls. | Python: `py-jitx/src/jitx/si.py:433-471` (`class ConstrainDiffPair`); example: `py-jitx/tests/test_smoke.py:646` |
 | (Stanza topology timing constraint via JSL/`si` helpers) | `Constrain(Topology(elem[0], elem[1])).timing(phase_delay)` where `phase_delay = Toleranced(1e-9, 10e-12)` | Python: [L3833-3838], [L11969] (`class TimingConstraint`) |
 | (Stanza diff-pair skew handled via JSL `diff-pair-constraint`) | `DiffPairConstraint(skew=Toleranced(0,1e-12), loss=12.0, structure=diff_100); cst.constrain(B1.MCU.LVDS, B2.MCU.LVDS)` | Python: [L3577-3585], [L11735] (`class DiffPairConstraint`), [L11948] (`class ConstrainDiffPair`) |
 | (no first-class equivalent — reference plane assignment is implicit/manual) | `ReferencePlanes({0: GND, 1: GND})` declared as class attr, or `with ReferencePlanes(self.GND1):` context manager inside `__init__` | Python: [L12276-12306] |
 | (3.x length matching) | `TimingDifferenceConstraint(min_delta, max_delta)` (skew between two topologies) | Python: [L12007-12024] |
+| `TimingDifferenceConstraint(lo, hi)` on a diff pair (intra-pair P/N skew budget) | `.timing_difference(lo, hi)` chained on `ConstrainDiffPair`. Also accepts a `Toleranced` window: `.timing_difference(Toleranced.min_max(-1e-12, 1e-12))`. **Only available on `ConstrainDiffPair` and `ConstrainReferenceDifference`** (`BaseConstrainPairwise`), not on plain `Constrain`. | Python: `py-jitx/src/jitx/si.py:381-400` (`def timing_difference`), `py-jitx/src/jitx/si.py:503-513` (`class TimingDifferenceConstraint`) |
+| `TimingDifferenceConstraint(lo, hi)` across a reference signal (bus length-matching) | `.timing_difference(lo, hi)` chained on `ConstrainReferenceDifference(guide, [topos...])`. The guide topology is the matched-to reference; each other topology is compared pairwise against it. | Python: `py-jitx/src/jitx/si.py:403-430` (`class ConstrainReferenceDifference`) |
 | (3.x insertion-loss specified by routing structure layer attrs only) | `InsertionLossConstraint(min_loss, max_loss)` first-class | Python: [L11988-12005] |
 | (3.x routing structures defined via JSL `pcb-routing-structure`) | `RoutingStructure(impedance=50*ohm, layers=symmetric_routing_layers({0: RoutingStructure.Layer(trace_width=0.12, clearance=0.2, velocity=vel, insertion_loss=0.018)}))` declared on `Substrate` | Python: [L907-916], [L3744-3766], [L12026-12056] |
 | (3.x differential routing structure via JSL) | `DifferentialRoutingStructure(impedance=100*ohm, layers=..., uncoupled_region=...)` | Python: [L912-916], [L3779-3811] |
@@ -241,6 +245,7 @@ self.c1 = Capacitor(mpn="GRM155R71H103KA88D", manufacturer="Murata")
 |---|---|
 | `database-part(["mpn" => "...", "manufacturer" => "..."])` on a passive | `Resistor(mpn=..., manufacturer=...)` (or `Capacitor`, `Inductor`) — see `jitxlib/parts/query_api.py` |
 | `database-part(["mpn" => "..."])` on a non-passive (crystal, connector) | Write a custom `Component` subclass from the datasheet — invoke the `jitx-component-modeler` skill |
+| `ceramic-cap(C, "C0G", "0402")` or `database-part(["dielectric" => "C0G", ...])` (dielectric / temperature coefficient filter) | `Capacitor(capacitance=C, temperature_coefficient_code="C0G", case="0402")`. Accepted codes follow the EIA classification: `"C0G"` / `"NP0"` (Class I, ±30ppm/°C), `"X7R"`, `"X5R"`, `"X8R"`, `"Y5V"`. **Use `C0G`/`NP0` for any capacitor whose value must be stable over temperature** — antenna matching networks, crystal load caps, RC filter time constants, oscillator timing. X7R (the implicit default for the part DB) has ±15% capacitance variation over the −55…+125°C range and silently detunes RF circuits. | Python: `py-jitx-parts/src/jitxlib/parts/query_api.py:179, 446` (kwarg `temperature_coefficient_code`) |
 
 ## 13. Stackup imports — JLCPCB predefined substrates
 
@@ -263,6 +268,12 @@ The Python 4.x classes are `RoutingStructure` and `DifferentialRoutingStructure`
 the `jitx-substrate-modeler` skill (§"Routing structures") for full constructor
 examples, plus the `jitx-interconnect-constraints` skill for how to attach a
 structure to a topology via `Constrain(Topology(...)).structure(rs)`.
+
+## 15a. Board utilities with no Python equivalent
+
+| Stanza 3.x | Python 4.x | Workaround |
+|---|---|---|
+| `add-mounting-holes(board-shape, "M3")` (auto-place M3 PTH holes at board corners) | No equivalent in `jitxlib-standard` 4.0.1. There is no `jitxlib.mechanical` module and no top-level `add_mounting_holes` helper (verified by grep over `py-jitx`, `py-jitx-stdlib` on jitx-4.0.5). | Define a PTH mounting-hole `Component` manually (e.g. drill 3.2 mm + annular ring 5.5 mm for M3 clearance), instantiate it 4× at explicit board-relative coordinates, and add a `PORT-DEFERRED.md` entry so the placement is revisited when an upstream `MountingHole` utility lands. Silent omission: the design builds without it and the fabbed board has no mounting points. |
 
 ## 15. Strap helpers (`bypass-cap-strap`, `cap-strap`, `res-strap`)
 

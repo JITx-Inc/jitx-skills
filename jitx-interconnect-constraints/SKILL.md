@@ -178,6 +178,8 @@ self.dp_cst = (
 )
 ```
 
+> **Silent error — never apply a `DifferentialRoutingStructure` via plain `Constrain`.** `Constrain.structure()` is typed to take a `RoutingStructure` only, but at runtime a `DifferentialRoutingStructure` is accepted and the build succeeds. The router then treats P and N as independent single-ended signals — coupling and intra-pair skew are **not** enforced. Always use `ConstrainDiffPair` with `DiffPair` bundle endpoints when applying a differential routing structure. `.timing_difference()` also only exists on `ConstrainDiffPair`/`ConstrainReferenceDifference` (the `BaseConstrainPairwise` subclasses), not on plain `Constrain`.
+
 ### DiffPairConstraint — reusable helper
 
 For applying the same constraint to multiple differential pairs:
