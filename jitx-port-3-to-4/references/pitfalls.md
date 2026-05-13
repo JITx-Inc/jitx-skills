@@ -53,6 +53,13 @@ self.VDD += self.esp.VDD3P3
 - **Stanza connects by name (string-typed nets)** when you write `net pwr (a.vcc, b.vcc)`. **Python connects by Port object identity** with the `+` operator: `self.nets = [a.vcc + b.vcc]`. There is no global string namespace for nets in Python.
 - **`+` is the net operator**, not topology. **`>>` is the topology (routed-graph) operator.** Mixing them produces type errors that pyright will catch — trust pyright here.
 - **Named nets** (e.g., labeling `gnd` so it shows up in the schematic with that name) require explicit Python helpers; do not assume the Python form picks up names automatically.
+- **`Net()` takes a single iterable of ports, not varargs.** A natural Stanza-style
+  translation of `net VDD (a b c d)` to `Net(self.a, self.b, self.c, self.d, name="VDD")`
+  raises `TypeError: Net.__init__() takes from 1 to 2 positional arguments but
+  N positional arguments (and 1 keyword-only argument) were given`. The signature
+  (`py-jitx/src/jitx/net.py:662-668`) is
+  `Net(ports: Iterable = (), *, name=None, symbol=None)` — wrap the ports in a list:
+  `Net([self.a, self.b, self.c, self.d], name="VDD")`.
 - **Circuit-level `Port` attributes are immutable** — `self.port += self.other` raises
   `NotImplementedError: Ports are immutable. Use + to create a new net instead of +=`.
   This trips up the natural Stanza-style translation of `net (a, b)` into
@@ -74,6 +81,46 @@ self.VDD += self.esp.VDD3P3
   `class SampleDesign(SampleDesign): ...` technically legal but confuses readers
   and static analysis tools. Pick something distinctive (`TecDesign`, `MyBoard`,
   `EthernetIODesign`).
+
+### Net naming across hierarchy
+
+A Stanza design happily declares `net GND (...)` in every `pcb-module`, and the
+merger collapses them all into the same top-level `GND` net. The natural Python
+port — `Net([...], name="GND")` in every nested `Circuit` — builds cleanly
+through instantiation and translation, then fails at the build step with:
+
+```
+status: error
+message: Public name GND already in use
+```
+
+The message names the colliding name but not the source locations. Multiple
+sibling circuits each declaring `Net(..., name="GND")` is the typical cause;
+the same applies to any rail name reused across modules (`VDD`, `P3V3`, …).
+
+**Rule: name nets at the top level only.** Sub-circuit nets that will be
+unified by the parent should be left anonymous (`Net([...])` with no `name=`);
+the top-level `name="GND"` carries through after unification.
+
+```python
+class PowerSupplies(Circuit):
+    def __init__(self):
+        self.GND = Net([...])                         # no name=
+
+class Amplifiers(Circuit):
+    def __init__(self):
+        self.GND = Net([...])                         # no name=
+
+class PdAudio(Circuit):
+    def __init__(self):
+        self.power = PowerSupplies()
+        self.amps = Amplifiers()
+        self.GND = Net([
+            self.power.GND, self.amps.GND, ...
+        ], name="GND")                                # name= only here
+```
+
+Cross-reference: construct-map.md §5 row "named net".
 
 ## Pins, ports, and direction
 
@@ -239,6 +286,11 @@ These are real wrong guesses observed during porting passes. Every one of them f
 | `BGADepop([(0,0)])` kwarg on `BGA(...)` | `.grid_planner(<GridPlanner subclass>)` — see `package-examples.md` Example 6 | `py-jitx-stdlib/src/jitxlib/landpatterns/grid_planner.py` |
 | `BGA(rows=5, cols=5, ...)` | `BGA(num_rows=5, num_cols=5, ball_diameter=..., pitch=...)` | `py-jitx-stdlib/src/jitxlib/landpatterns/generators/bga.py` |
 | `QFN_DEFAULT_LEAD_PROFILE` exported symbol | Build a `LeadProfile(span=..., pitch=..., type=QFNLead(...))` explicitly | `py-jitx-stdlib/src/jitxlib/landpatterns/generators/qfn.py` |
+| `LeadProfile(..., SMDLead(length, width))` for QFN | `LeadProfile(..., QFNLead(length, width))` — base `SMDLead` requires `lead_type` and raises `TypeError: SMDLead.__init__() missing 1 required positional argument: 'lead_type'`. `QFNLead` defaults `lead_type = QuadFlatNoLeads`. | `py-jitx-stdlib/src/jitxlib/landpatterns/generators/qfn.py:102` |
+| `from jitx.feature import Pour` (by analogy with `Silkscreen` / `Soldermask` / `Cutout`) | `from jitx import Pour` (re-exported from `jitx/__init__.py:54`) or `from jitx.copper import Pour`. **Not in `jitx.feature`.** | `py-jitx/src/jitx/copper.py:45` |
+| `Net(self.a, self.b, self.c, name="VDD")` (varargs) | `Net([self.a, self.b, self.c], name="VDD")` — `Net()` takes a single iterable. | `py-jitx/src/jitx/net.py:662-668` |
+| `from jitx import NonPopulatedComponent` | `from jitx.component import NonPopulatedComponent` — defined at `jitx/component.py:150` but NOT re-exported from `jitx/__init__.py` in 4.0.5. | `py-jitx/src/jitx/component.py:150` |
+| `Pad.at(x, y, theta)` (positional rotation) | `Pad.at(x, y, rotate=theta)` — rotation is keyword-only. | `py-jitx/src/jitx/placement.py:104-106` |
 | `.thermal_pad(width=4.0, height=4.0)` | `.thermal_pad(rectangle(4.0, 4.0))` — takes a `Shape`, not w/h kwargs | `py-jitx-stdlib/src/jitxlib/landpatterns/pads.py` (`thermal_pad`) |
 | `.body(...)` chain method on a generator | `.package_body(RectanglePackage(width=..., length=..., height=...))` | `py-jitx-stdlib/src/jitxlib/landpatterns/pads.py` (`PackageBodyMixin`) |
 | `SOT89_3()`, `SOT223_3()`, `SOT583_8()` generators | Only `SOT23_3`, `SOT23_5`, `SOT23_6` exist. Build a custom `Landpattern` subclass for SOT-89 / SOT-223 / SOT-583. | `py-jitx-stdlib/src/jitxlib/landpatterns/generators/sot.py` |

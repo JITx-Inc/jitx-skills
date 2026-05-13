@@ -424,10 +424,12 @@ Unpack into a `BoxSymbol` `PinGroup` with `*GPIO.values()`. The same rule applie
 
 There is no `dnp=True` kwarg. Subclass `NonPopulatedComponent` (defined in
 `jitx/component.py`), or set `in_bom = False; soldered = False` on a regular
-`Component` subclass:
+`Component` subclass. **Import from `jitx.component`** — on jitx 4.0.5 the class
+is defined at `jitx/component.py:150` but is NOT re-exported from
+`jitx/__init__.py`, so `from jitx import NonPopulatedComponent` raises ImportError:
 
 ```python
-from jitx import NonPopulatedComponent
+from jitx.component import NonPopulatedComponent
 
 class CFG1Pulldown(NonPopulatedComponent, Resistor):
     pass

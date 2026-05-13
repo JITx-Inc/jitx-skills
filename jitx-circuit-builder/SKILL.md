@@ -414,7 +414,10 @@ write-up. Quick summary:
 
 ```python
 # Pattern A — built-in subclass (preferred when DNP is part of the design intent):
-from jitx import NonPopulatedComponent
+# Import from `jitx.component` — `NonPopulatedComponent` is NOT re-exported from
+# `jitx/__init__.py` in 4.0.5, so `from jitx import NonPopulatedComponent` raises
+# ImportError. The class itself lives at jitx/component.py:150.
+from jitx.component import NonPopulatedComponent
 class CFG1Pulldown(NonPopulatedComponent):
     ...
 
