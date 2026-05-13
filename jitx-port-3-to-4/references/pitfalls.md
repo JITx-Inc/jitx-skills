@@ -7,6 +7,47 @@ Things that bite during a port and aren't covered by the construct map.
 - **Stanza modules return values** (a `pcb-module` body produces the module). **Python `Circuit` subclasses build via attribute assignment in `__init__`** — there is no "return" of the circuit. Don't try to write `return self` or paraphrase the Stanza expression-style body as a Python expression.
 - **Instance declarations** in Stanza (`inst foo : my-component`) become `self.foo = MyComponent()` in Python `__init__`. Order in `__init__` matters when later code references earlier instances.
 
+## Component lifecycle (GC trap) ⚠️ most common port failure
+
+Every `Resistor(...)`, `Capacitor(...)`, and `Inductor(...)` **must be assigned to a `self.*` attribute**. If you create a component and call `.insert()` without assigning it, Python's garbage collector destroys the component object before translation runs. The component's ports remain in nets (`.insert()` saves them via an `InsertContainer`), but the component itself is unreachable from the circuit's attribute tree — so `idmap.set_parent` is never called for it. Translation then fails with:
+
+```
+Unable to map local reference N, parent <Circuit> is not an ancestor of child <Port>
+```
+
+This error is cryptic — it names an internal reference number, not the passive you forgot to assign.
+
+**Always use the two-step form:**
+
+```python
+# WRONG — component is GCd before translation:
+Capacitor(capacitance=10e-6).insert(self.VDD, self.GND)
+
+# RIGHT — component survives until translation:
+self.c_bypass = Capacitor(capacitance=10e-6)
+self.c_bypass.insert(self.VDD, self.GND)
+```
+
+The same rule applies to `Resistor` and `Inductor`. The Stanza 3.x idiom of creating passives inline has no safe equivalent in Python 4.x.
+
+**Anonymous `port + port` expressions trigger the same error.** The `+` operator creates a `Net` object. If that object is not assigned to `self.*`, it is GCd and its ports lose their parent registration:
+
+```python
+# WRONG — Net is GCd:
+self.esp.XTAL_P + self.xtal.OSC1
+
+# RIGHT — Net survives:
+self.xtal_p_net = self.esp.XTAL_P + self.xtal.OSC1
+```
+
+When a port is already a member of a named `Net`, use `+=` instead of `+`:
+
+```python
+self.VDD = Net(name="VDD")
+self.VDD += self.buck.VIN      # safe: VDD is already on self
+self.VDD += self.esp.VDD3P3
+```
+
 ## Connectivity
 
 - **Stanza connects by name (string-typed nets)** when you write `net pwr (a.vcc, b.vcc)`. **Python connects by Port object identity** with the `+` operator: `self.nets = [a.vcc + b.vcc]`. There is no global string namespace for nets in Python.
@@ -56,6 +97,25 @@ Things that bite during a port and aren't covered by the construct map.
   # Symbol unpacking from a dict-port-array uses .values():
   symbol = BoxSymbol(rows=Row(right=PinGroup(*GPIO.values(), ...)))
   ```
+
+- **Do not use protocol bundle objects (e.g. `USB2()`, `I2C()`, `I2S()`) as class-level interface ports on `Circuit` subclasses.** Protocol bundles have nested sub-ports (e.g. `usb.data.p`, `usb.data.n`). These nested sub-ports do not function correctly as hierarchy boundary ports — wiring the parent-side bundle port to a child's internal net via `+=` silently fails or raises `NotImplementedError`. Use plain `Port()` instances instead:
+
+  ```python
+  # WRONG — USB2() nested sub-ports break at hierarchy boundary:
+  class PowerSupplies(Circuit):
+      usb = USB2()
+  # ... then in top-level:
+  self.power.usb.data.p += self.usb_conn.DP1  # fails
+
+  # RIGHT — plain Port() works at any boundary:
+  class PowerSupplies(Circuit):
+      usb_dp = Port()
+      usb_dn = Port()
+  # ... then in top-level:
+  self.dp_net = self.power.usb_dp + self.usb_conn.DP1
+  ```
+
+  Protocol bundles (`I2C`, `I2S`, `USB2`, etc.) are for **intra-circuit** wiring — connecting two ports within the same `Circuit.__init__`. They are not designed for cross-circuit hierarchy exposure.
 
 ## Provide / require
 

@@ -12,6 +12,38 @@
 - [Placement](#placement)
 - [Complete Application Circuit](#complete-application-circuit)
 
+## Passive component assignment rule ⚠️
+
+Every `Resistor(...)`, `Capacitor(...)`, and `Inductor(...)` **must be assigned to `self.*`**. A component created inline and immediately `.insert()`ed without assignment is garbage-collected before translation. The `.insert()` call only saves the component's net connections (via an `InsertContainer`), not the component object itself. The GCd component's ports remain in nets but are unregistered in the circuit tree, causing a cryptic translation error:
+
+```
+Unable to map local reference N, parent <Circuit> is not an ancestor of child <Port>
+```
+
+**Always use the two-step form — create then insert:**
+
+```python
+# WRONG:
+Capacitor(capacitance=10e-6).insert(self.VDD, self.GND)
+
+# RIGHT:
+self.c_bypass = Capacitor(capacitance=10e-6)
+self.c_bypass.insert(self.VDD, self.GND)
+```
+
+The same applies to anonymous `port + port` expressions — assign the resulting `Net` to `self.*` or the `Net` is GCd and its ports lose their parent:
+
+```python
+# WRONG:
+self.buck.SW + self.L.p1          # Net GCd immediately
+
+# RIGHT:
+self.sw_node = self.buck.SW + self.L.p1
+# or if SW_NODE Net already exists:
+self.SW_NODE += self.buck.SW
+self.SW_NODE += self.L.p1
+```
+
 ## Query Refinement
 
 ### Design-level defaults
