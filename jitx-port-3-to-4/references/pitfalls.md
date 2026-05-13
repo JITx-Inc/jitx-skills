@@ -312,3 +312,27 @@ These are real wrong guesses observed during porting passes. Every one of them f
 - ❌ Mass-rename Stanza identifiers to Python style without re-running the build at each step. Identifier-rename mistakes cascade through the wiring.
 - ❌ Skip `pyright` because "the build worked." Type errors mask wiring bugs.
 - ❌ Invent an import path "by analogy" with another package. See "Invented API names" above.
+
+## Plan-mode omission of Phase 0
+
+When an AI agent is asked to *plan* a port (rather than execute one), the
+skill description's execution-verb triggers may not match. The agent then
+writes a plan from memory of similar tasks and silently skips Phase 0 (the
+3.x pre-verify). The plan looks complete; execution begins; only when the
+4.x build fails does the question "is this the port, or was the 3.x source
+already broken at this commit?" surface — at which point there's no clean
+baseline to compare against and the answer is unknowable.
+
+**Symptom:** A port plan whose first execution step is "clone the design,
+create the port branch, port the components..." with no explicit Phase 0
+that builds the 3.x source first.
+
+**Fix:** Treat the five-item port plan checklist at the top of `SKILL.md`
+as a gating reviewer test. Run through it before declaring a plan done.
+
+**Real example:** a planning session for the `pd_audio` design (May 2026)
+wrote a plan that jumped directly from "clone + checkout commit + create
+branch" to "inventory the Stanza source" to "initialize Python skeleton",
+skipping Phase 0 entirely. The user caught it with a Socratic-style
+question; the plan was patched, but if the user hadn't noticed, the v4
+port would have proceeded against an unverified v3 baseline.

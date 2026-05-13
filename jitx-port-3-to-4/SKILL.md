@@ -1,6 +1,6 @@
 ---
 name: jitx-port-3-to-4
-description: This skill should be used when the user asks to port, migrate, or convert a JITX 3.x (LB Stanza) PCB design to JITX 4.x (Python) — including translating `pcb-module`/`pcb-component`/`defpackage` to Python `Circuit`/`Component`/modules, rewriting nets and topology, mapping `stanza.proj`/`main.stanza` build entry points to `pyproject.toml`/`python -m jitx build`, and updating `nightly_design_tests` style configs to `jitx-test` style integration. Triggers on phrases like "port to 4.x", "migrate from Stanza", "convert .stanza design to Python", "Stanza→Python", "rewrite this pcb-module in Python", or when the user has both `.stanza` source and a Python target.
+description: This skill should be used when the user asks to port, migrate, or convert a JITX 3.x (LB Stanza) PCB design to JITX 4.x (Python) — including translating `pcb-module`/`pcb-component`/`defpackage` to Python `Circuit`/`Component`/modules, rewriting nets and topology, mapping `stanza.proj`/`main.stanza` build entry points to `pyproject.toml`/`python -m jitx build`, and updating `nightly_design_tests` style configs to `jitx-test` style integration. Triggers on phrases like "port to 4.x", "migrate from Stanza", "convert .stanza design to Python", "Stanza→Python", "rewrite this pcb-module in Python", or when the user has both `.stanza` source and a Python target. Also activates when the user asks to **plan** a port rather than execute one — phrases like "plan a port", "plan to migrate", "make a plan to convert", "design a Stanza→Python migration", or any plan-mode request that names a `.stanza` design as the source.
 ---
 
 # JITX Port 3.x → 4.x Skill
@@ -8,6 +8,18 @@ description: This skill should be used when the user asks to port, migrate, or c
 Help port JITX 3.x (LB Stanza) PCB designs to JITX 4.x (Python).
 
 This skill is a **router**, not a full tutorial. It does not re-teach Stanza or the Python 4.x API — it points to the existing skills that do, and supplies the construct mappings, workflow, pitfalls, and verification recipe that are unique to the porting task.
+
+## Port plan checklist — every plan must include all five
+
+A port plan that omits any of these is incomplete, regardless of how thorough the porting steps look:
+
+1. **Phase 0 pre-verify** — build the 3.x source at the target commit with `~/.jitx/<3.x>/jitx run main.stanza` BEFORE creating the port branch. No pre-verify → a 4.x failure cannot be distinguished from a broken baseline.
+2. **`~/.jitx/current` alternation** — symlink repointed between every 3.x ↔ 4.x build (see ⚠️ CRITICAL section below).
+3. **Baseline capture** — 3.x exports (BOM, schematic, board) preserved outside the working tree so they survive `git clean -fdx` on the branch switch.
+4. **4.x build smoke** — `python -m jitx build <pkg>.<mod>.<DesignClass>` exits 0 AND `pyright` is clean.
+5. **Export compare** — six-section structured checklist from `references/verification.md` (not just `status: ok`).
+
+If you're writing a plan and any of these is missing, the plan is not done.
 
 ## Mental Model
 
@@ -109,6 +121,7 @@ Full recipe in `references/workflow.md`. Summary:
 - ❌ Re-explaining Stanza syntax inside this skill — defer to `lbstanza`.
 - ❌ Carrying over Stanza package paths verbatim. Python uses standard module paths from `pyproject.toml`.
 - ❌ Skipping the 3.x pre-verify build silently. The pre-verify is mandatory; if it fails, surface the error and get explicit user acknowledgement before proceeding (porting a broken source can mask the original bug as a porting bug — but the user gets to decide whether to continue).
+- ❌ Writing a port plan that does not name Phase 0 (3.x pre-verify) as an explicit step. Plan-time omission is the silent-failure surface — if Phase 0 isn't in the plan, it won't happen during execution. A plan that says "build the v3 source at the target commit first" satisfies this; a plan that begins with "create the port branch" does not.
 - ❌ Treating 4.x as a Stanza target. 4.x is Python-only; running a 3.x Stanza design under 4.x is unsupported and may break in non-obvious ways.
 - ❌ Describing Stanza as JVM-compiled. It is natively compiled via C.
 
