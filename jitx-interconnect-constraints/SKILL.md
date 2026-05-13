@@ -605,6 +605,8 @@ pyright path/to/circuit.py
 python -m jitx build <module.path.DesignClass>
 ```
 
+Don't run parallel JITX builds against the same project — sequence them. See `jitx/SKILL.md` "Build Safety".
+
 SI constraint violations appear in the Issues List under "Unsatisfied Signal Constraints" in the JITX UI.
 
 ## API Reference
