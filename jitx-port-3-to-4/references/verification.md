@@ -124,6 +124,14 @@ When proceeding under override, record the failure mode in a `BASELINE-FAILED.md
 
 Expected artifacts under `$OUT/` (varies by design): KiCad project + 3D STEP under `kicad/`, schematic, BOM, internal `stable.design` / `netlist.json`.
 
+### Known baseline blockers — do not waste time debugging
+
+Before treating a baseline failure as a real source-of-truth issue, check whether it matches one of these known incompatibilities. Each is a permanent upstream mismatch that re-running the build will not fix.
+
+- **`pad-island.stanza:72 : 'minus' applied to incompatible types`** — jsl ≥ 0.10.10 against jitx 4.0.5 (the current stable). `minus`'s type signature changed in jsl 0.10.10 in a way the 4.0.5 Stanza front-end rejects. Confirm with `grep 'pad-island.stanza:72' "$OUT/build.stderr"`. Mitigation: do **not** try to patch jsl. Either (a) pin `slm.toml` back to `jsl = "0.10.9"` if the design tolerates the older API surface, or (b) document the failure in `BASELINE-FAILED.md` and proceed without a clean baseline. The `nightly_design_tests` repo already skips all designs hitting this — see its `config/designs.yaml` `skip:` flags for the canonical list.
+
+When proceeding under a known baseline blocker, the Phase 7 export-comparison checklist (verification.md §"Compare exports") cannot be run automatically. Run each check manually against the **Stanza source** (not the failed build output): net inventory by reading `pcb-net` statements, connector pin assignment by reading the connector module, power topology by tracing `power` nets in source. Mark the check column "unverifiable — no 3.x baseline" rather than skipping it; an unverifiable check that is later proven correct by a co-reviewer is still useful, a skipped one is invisible.
+
 ## Post-port build (4.x)
 
 The 4.x build runs from a **project venv** that has the JITX Python toolchain pip-installed; the `~/.jitx/<4.x>/` install supplies the `jitx interactive` server (which the build connects to) and `jitx sign-in`, but does **not** provide a `jitx build` subcommand.

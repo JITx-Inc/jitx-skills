@@ -244,6 +244,29 @@ For all passive values, especially those that are calculated, use the eseries Py
 
 For decoupling capacitors, use the short_trace argument to a part query or use the ShortTrace(p1, p2) function to connect the ports of two components, see https://docs.jitx.com/en/latest/api/jitx.net.html#jitx.net.ShortTrace.
 
+### Relaxing query defaults for outsize parts — `with <Query>.refine(...)`
+
+`Design.capacitor_defaults` / `resistor_defaults` / `inductor_defaults` set **global** query constraints that apply to every `Capacitor()` / `Resistor()` / `Inductor()` call in the design. A common default is `CapacitorQuery(case=["0402","0603","0805"])`. Large bulk parts — 100µF+ ceramics, 330µF electrolytics for class-D amp PVDD, large film caps — are not manufactured in those case sizes, and the query returns no match. The build then fails with `no component satisfying CapacitorQuery(...)`.
+
+Use the `refine()` context manager to relax a constraint **only for the duration of a `with` block**. `PassiveQuery` inherits `jitx.context.Context` so the returned query is a real context manager; outside the block, the original `Design` defaults are restored:
+
+```python
+from jitxlib.parts import Capacitor, CapacitorQuery
+
+# Design has CapacitorQuery(case=["0402","0603","0805"]) as default.
+# 330µF electrolytic doesn't exist in those case codes — relax it:
+with CapacitorQuery.refine(case=None):
+    self.c_pvdd_a = Capacitor(capacitance=330e-6, rated_voltage=35.0)
+    self.c_pvdd_a.insert(self.PVDD, self.GND)
+    self.c_pvdd_b = Capacitor(capacitance=330e-6, rated_voltage=35.0)
+    self.c_pvdd_b.insert(self.PVDD, self.GND)
+
+# After the `with` block, c_bypass uses the original 0402/0603/0805 default:
+self.c_bypass = Capacitor(capacitance=100e-9)
+```
+
+`refine(case=None)` removes the case constraint entirely; `refine(case=["1210","2220"])` overrides it with different cases. The same pattern applies to `ResistorQuery.refine(...)` and `InductorQuery.refine(...)` for high-power resistors and large-current inductors. Verified: `py-jitx-parts/src/jitxlib/parts/query_api.py:522`; live use at `TEC-example/tec_example/circuits/amplifiers.py:117`.
+
 
 ## Advanced Patterns
 
