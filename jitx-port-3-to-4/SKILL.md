@@ -31,32 +31,31 @@ Three facts drive the whole port:
 
 **Note on Stanza:** Stanza compiles natively (via a C backend). It has no JVM target. Never describe Stanza as JVM-compiled in any porting guidance.
 
-## Rule 0 — Verify every JITX 4 API before using it
+## Cross-references for general JITX 4.x discipline
 
-Do not guess at imports, class names, constructor kwargs, or chain methods. Before writing any `from jitx…` / `from jitxlib…` line, verify the symbol exists. Use this fallback chain, in order:
+The general JITX 4.x rules a porter needs (API verification, symlink
+discipline, the common invented-API gallery, missing-Stanza-helper table)
+live in the top-level `jitx` skill rather than being duplicated here:
 
-1. **Canonical source repos on GitHub** (most authoritative — clone or browse via `gh`):
-   - `github.com/JITx-Inc/py-jitx` — core `jitx` package (`Component`, `Landpattern`, `PadMapping`, `Design`, `Board`, shapes, `NonPopulatedComponent`)
-   - `github.com/JITx-Inc/py-jitx-stdlib` — `jitxlib` stdlib (landpattern generators under `jitxlib.landpatterns`, protocols under `jitxlib.protocols`, geometry)
-   - `github.com/JITx-Inc/py-jitx-parts` — passive part dataclasses (`jitxlib.parts.Capacitor` / `Resistor` / `Inductor`)
-   - Examples to cross-reference: `github.com/JITx-Inc/py-essentials-examples`, `github.com/JITx-Inc/py-components`
-2. **Official API documentation**: `https://docs.jitx.com/llms.txt` (fetch with WebFetch) when source repos aren't checked out.
-3. **Installed artifacts on the local machine**: site-packages of an installed venv, or the official install layout under `~/.jitx/`. Acceptable as a last resort but may lag the canonical repos.
+- **Rule 0 — verify every API before writing it**: see
+  `jitx-skills:jitx/SKILL.md` §"Rule 0".
+- **`~/.jitx/current` symlink and parallel installs**: see
+  `jitx-skills:jitx/references/bootstrap.md` step (1) and §"Parallel
+  installs", plus `jitx-skills:jitx/SKILL.md` §"Parallel JITX installs".
+- **Common invented-API gallery** (`RoundedRectangle`, `BGADepop`,
+  `min_rated_voltage`, `from jitx import NonPopulatedComponent`, etc.):
+  see `jitx-skills:jitx/SKILL.md` §"Common API mistakes".
+- **Stanza helpers without a 4.x equivalent**
+  (`add-mounting-holes`, `add-open-drain-pullups`, `set-paper`, `view-*`):
+  see `jitx-skills:jitx/SKILL.md` §"Stanza helpers without a 4.x
+  equivalent".
 
-If none of the above resolves the symbol, **document it as unknown** rather than inventing an import. Falling back to the custom-landpattern / local-`jitx.Bundle` / open-gap path documented elsewhere in this skill is correct; inventing an import path "by analogy" with another package is not. Many of the wrong guesses caught during a recent porting pass (e.g. `Landpattern` from `jitxlib.landpatterns.core` instead of `jitx.landpattern`, `PadMapping` with string keys instead of `Port` objects, `min_rated_voltage` instead of `rated_voltage`, `BGADepop` and `RoundedRectangle` classes that simply do not exist) followed the by-analogy pattern.
-
-## ⚠️ CRITICAL: `~/.jitx/current` must match the version you're running
-
-**Only one JITX version can be active at a time, and `~/.jitx/current` selects which one.** JITX reads runtime, config, and plugin state via `~/.jitx/current/...` regardless of which versioned binary you launched. If the symlink points at a different version than the binary you invoke, wrong-version state silently leaks into the build pipeline and the design **will fail** — typically with the obscure `FATAL PLUGIN ERROR: No appropriate branch for arguments of type (False)` in `StableBoardSerializer/write-stable-id`, but other failure modes are possible.
-
-This skill's whole point is running 3.x and 4.x **alternately** (pre-port build vs post-port build). **Update the symlink between every test run:**
-
-```bash
-ln -sfn 3.36.1 ~/.jitx/current             # before any 3.x build
-ln -sfn 4.1.0 ~/.jitx/current              # before any 4.x build
-```
-
-(Substitute your installed version directories.) The pre/post commands in `references/verification.md` and `references/runnable-example/README.md` include this step explicitly. If a build crashes with `write-stable-id (False)`, **check the symlink before suspecting anything else** — every documented occurrence of that error has been a `~/.jitx/current` mismatch, not a JITX bug.
+The **porting-specific** twist on the symlink is that this skill's whole
+point is running 3.x and 4.x **alternately** — pre-port baseline build
+vs post-port build — so the symlink is updated between every test run.
+The pre/post snippets in `references/verification.md` and
+`references/runnable-example/README.md` include the `ln -sfn` step
+explicitly.
 
 ## When to Use This Skill
 
@@ -114,24 +113,30 @@ Full recipe in `references/workflow.md`. Summary:
 6. **Post-verify the 4.x design.** Project venv with `pip install jitx ...`, `pyright` clean, `~/.jitx/<4.x>/jitx interactive .` running in background, `JITX_SKIP_STABILIZE_CONFIRMATION=1 python -m jitx build <package>.<module>.<DesignClass>` succeeds. Capture to `/tmp/jitx-port/<design>/ported-4.x/`. The order-sensitive bootstrap recipe is canonical in [`jitx-skills:jitx/references/bootstrap.md`](../jitx/references/bootstrap.md); `references/verification.md` adds the port-specific concerns (artifact capture, baseline alternation, CI env-var pattern) on top.
 7. **Compare exports.** Walk the six-section structured checklist in `references/verification.md` §"Compare exports — structured checklist" (net inventory, connector pin assignment, power topology, component output pins, passive counts, control signals). `status: ok` is not evidence of correctness. The TEC-example pilot built cleanly with four distinct categories of silent netlist errors that this checklist catches.
 
-## Anti-patterns
+## Port-mode anti-patterns
 
-- ❌ Paraphrasing Stanza idioms 1:1 in Python. Python has its own idioms — `+` for nets, `>>` for topology, decorators (`@provide`/`@require`) for pin assignment, attribute assignment in `Circuit.__init__` instead of returned values.
-- ❌ Inventing Python APIs. Always verify symbols against `jitx-4-1-python-llms.txt` (the `jitx` skill bundles it) or `py-jitx/src/jitx/*.py`.
+(General JITX 4.x "don't"s — inventing APIs, skipping pyright, etc. — live
+in `jitx-skills:jitx/SKILL.md` §"Common API mistakes". The list below is
+porting-specific.)
+
+- ❌ Paraphrasing Stanza idioms 1:1 in Python. Python has its own
+  idioms — `+` for nets, `>>` for topology, decorators
+  (`@provide`/`@require`) for pin assignment, attribute assignment in
+  `Circuit.__init__` instead of returned values.
 - ❌ Re-explaining Stanza syntax inside this skill — defer to `lbstanza`.
-- ❌ Carrying over Stanza package paths verbatim. Python uses standard module paths from `pyproject.toml`.
-- ❌ Skipping the 3.x pre-verify build silently. The pre-verify is mandatory; if it fails, surface the error and get explicit user acknowledgement before proceeding (porting a broken source can mask the original bug as a porting bug — but the user gets to decide whether to continue).
-- ❌ Writing a port plan that does not name Phase 0 (3.x pre-verify) as an explicit step. Plan-time omission is the silent-failure surface — if Phase 0 isn't in the plan, it won't happen during execution. A plan that says "build the v3 source at the target commit first" satisfies this; a plan that begins with "create the port branch" does not.
-- ❌ Treating 4.x as a Stanza target. 4.x is Python-only; running a 3.x Stanza design under 4.x is unsupported and may break in non-obvious ways.
+- ❌ Carrying over Stanza package paths verbatim. Python uses standard
+  module paths from `pyproject.toml`.
+- ❌ Skipping the 3.x pre-verify build silently. The pre-verify is
+  mandatory; if it fails, surface the error and get explicit user
+  acknowledgement before proceeding (porting a broken source can mask
+  the original bug as a porting bug — but the user gets to decide
+  whether to continue).
+- ❌ Writing a port plan that does not name Phase 0 (3.x pre-verify) as
+  an explicit step. Plan-time omission is the silent-failure surface —
+  if Phase 0 isn't in the plan, it won't happen during execution. A plan
+  that says "build the v3 source at the target commit first" satisfies
+  this; a plan that begins with "create the port branch" does not.
+- ❌ Treating 4.x as a Stanza target. 4.x is Python-only; running a 3.x
+  Stanza design under 4.x is unsupported and may break in non-obvious
+  ways.
 - ❌ Describing Stanza as JVM-compiled. It is natively compiled via C.
-
-## Two Parallel JITX Installs
-
-JITX releases install per-version under `~/.jitx/<version>/` and both can coexist:
-
-- **3.x** under e.g. `~/.jitx/3.36.1/` — provides the `jitx` launcher (a thin wrapper around `jstanza`), the bundled Stanza compiler at `stanza/stanza`, the SLM package manager at `slm/slm`, and the bundled JITX/JITX3/ocdb stdlib under `slm/`.
-- **4.x** under e.g. `~/.jitx/4.1.0/` — provides the launcher's `interactive` server (the WebSocket the build connects to) and `sign-in`. The Python build toolchain itself (`python -m jitx build`) is installed per-project via `pip install jitx jitxlib-parts ...` from the JITX internal package index.
-
-The user substitutes their own installed version directories. Both lines share the binary name `jitx`, so invoke each by absolute path or use isolated subshells.
-
-Re-update `~/.jitx/current` between every alternation between the two installs — see the **⚠️ CRITICAL** section near the top of this file. `references/verification.md` includes the `ln -sfn` step in the pre/post build snippets.

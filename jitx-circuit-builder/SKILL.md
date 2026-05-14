@@ -143,6 +143,59 @@ Nets can be named in the design when the net is defined. It is good practice to 
 self.my_net = Net(self.a, name = "my_net")
 self.VCC = Net(self.power.Vp, name = "VCC", symbol = PowerSymbol())
 ```
+
+> ⚠️ **Name nets at the top level only.** A `Net(..., name="GND")` declared
+> in every sub-`Circuit` builds cleanly through translation, then fails
+> with `status: error / message: Public name GND already in use`. The
+> message names the colliding name but not the source locations. Leave
+> sub-circuit nets that will be unified by the parent **anonymous**
+> (`Net([...])` with no `name=`); apply `name="GND"` only on the unified
+> net at the top level:
+>
+> ```python
+> class PowerSupplies(Circuit):
+>     def __init__(self):
+>         self.GND = Net([...])                     # no name=
+>
+> class Top(Circuit):
+>     def __init__(self):
+>         self.power = PowerSupplies()
+>         self.GND = Net([self.power.GND, ...], name="GND")   # name= only here
+> ```
+
+> ⚠️ **`Net()` takes a single iterable of ports, not varargs.** A natural
+> translation of "net VDD (a, b, c)" to `Net(self.a, self.b, self.c,
+> name="VDD")` raises `TypeError: Net.__init__() takes from 1 to 2
+> positional arguments…`. The signature is `Net(ports: Iterable = (), *,
+> name=None, symbol=None)` — wrap the ports in a list:
+> `Net([self.a, self.b, self.c], name="VDD")`.
+
+### Power-rail naming — VCC vs VDD
+
+JITX has no built-in voltage-domain consistency check, and rail-naming
+inversions produce **clean builds with the wrong voltage on PVDD / I²C
+pullups / copper pours**. Pick the names with discipline:
+
+- `VCC` (or `V_BAT`, `V_IN`, etc.) — the **raw external supply** (from
+  the connector or input header).
+- `VDD` (or `V3P3`, `V1P8`, etc.) — the **regulated output** (from a
+  buck/LDO).
+
+The natural Python instinct is to use `VCC` for the most prominent rail
+in the design — which is often the regulated 3.3 V, not the raw input.
+That inversion is the most-inverted check in real designs. Write down
+the mapping explicitly before naming nets:
+
+| Net | Source | Type | Wired to (example) |
+|---|---|---|---|
+| `VCC` | `conn.p[1]` | raw input | regulator VIN, amp PVDD, motor driver VBAT |
+| `VDD` | `vreg.VOUT` | regulated | MCU DVDD, sensor VCC, I²C pullups |
+
+High-current / output-stage components (class-D amps, motor drivers,
+high-side LED drivers) typically connect their power supply to the **raw
+external** rail. MCU / sensor / digital-side DVDD / AVDD connects to the
+**regulated** rail. The `jitx/references/export-verification.md` §C
+("Power topology") checklist is the audit pass that catches inversions.
 ## Net Wiring
 
 Every `a + b` expression creates a Net — it **must** be stored or the connection is lost.
@@ -221,6 +274,54 @@ will not work because every element must be a `Port`. Build-time error if you
 mismatch: `port GPIO[15] is not mapped to a symbol pin` from the `BoxSymbol` side.
 See `jitx-port-3-to-4/construct-map.md` §3 for the parallel guidance.
 
+## Board outline / shapes
+
+The board outline is set as the `shape` attribute of the design's `Board`,
+**not** via a `RoundedRectangle` class (there is no such class):
+
+```python
+from jitx.shapes.composites import rectangle
+
+class MyDesign(Design):
+    def __init__(self):
+        super().__init__()
+        self.board.shape = rectangle(80.9, 50.0, radius=3.0)
+```
+
+`rectangle(w, h, *, radius=None)` is a **function** in
+`jitx.shapes.composites`, not a class — the `radius=` kwarg rounds the
+corners. `SampleDesign` ships a default `SampleBoard(shape=rectangle(50,
+50, radius=5))`; override `self.board.shape` to change it, or subclass
+`Board`.
+
+For arbitrary curved outlines (notched boards, mixed-curve perimeters),
+use `ArcPolygon` from `jitx.shapes.primitive` (**singular** —
+`jitx.shapes.primitives` does not exist, nor does `from jitx.shapes
+import Arc`):
+
+```python
+from jitx.shapes.primitive import Arc, ArcPolygon, Polygon, Circle
+```
+
+Use `ArcPolygon` only when `rectangle(w, h, radius=...)` can't express
+the shape.
+
+## Pour import path
+
+`Pour` is in `jitx` (top-level) or `jitx.copper` — **NOT** in
+`jitx.feature` (despite living alongside `Silkscreen` / `Soldermask` /
+`Cutout` in the surface-feature family):
+
+```python
+from jitx import Pour              # preferred
+# OR
+from jitx.copper import Pour       # also fine
+```
+
+`from jitx.feature import Pour` raises `ImportError`. See the copper pour
+layer-indices section below for the `Pour(shape, layer=..., ...)`
+signature.
+
 ## Passives
 
 ```python
@@ -244,6 +345,98 @@ For all passive values, especially those that are calculated, use the eseries Py
 
 For decoupling capacitors, use the short_trace argument to a part query or use the ShortTrace(p1, p2) function to connect the ports of two components, see https://docs.jitx.com/en/latest/api/jitx.net.html#jitx.net.ShortTrace.
 
+### Snap computed values to a standard E-series
+
+There is no JITX-side helper that snaps a computed passive value to the
+nearest E12/E24 standard value. The JITX parts DB only stocks standard
+values, and an off-series request raises
+`ValueError: No components meeting requirements: {'category': 'capacitor',
+'capacitance': 1.375e-08}` — the error names the requested value but does
+not suggest snapping. Snap **before** constructing the part. The `eseries`
+Python package handles this; a tiny inline helper also works for one-off
+use:
+
+```python
+import math
+
+_E12 = (10, 12, 15, 18, 22, 27, 33, 39, 47, 56, 68, 82)
+
+def _round_e12(value: float) -> float:
+    if value <= 0:
+        return value
+    decade = 10 ** math.floor(math.log10(value))
+    norm = value / decade
+    for v in _E12:
+        if v / 10 >= norm:
+            return v / 10 * decade
+    return _E12[0] * decade * 10
+
+# Soft-start cap for a TPS62933 — formula yields 1.375e-8, not a stocked value:
+css = _round_e12(2.0e-3 * 5.5e-6 / 0.8)        # 1.5e-8, in DB
+self.c_ss = Capacitor(capacitance=css)
+self.c_ss.insert(self.buck.SS, self.GND)
+```
+
+### Strap-helper expansion
+
+JITX 4.x has no `bypass-cap-strap`, `cap-strap`, or `res-strap` helper.
+Expand inline — instantiate the passive on `self.*` and wire both ports:
+
+```python
+# Equivalent of Stanza bypass-cap-strap(VDD, GND, 100e-9):
+self.c_bypass = Capacitor(capacitance=100e-9, case="0402")
+self.c_bypass.insert(self.VDD, self.GND)
+
+# Equivalent of res-strap(net_a, net_b, value):
+self.r_pullup = Resistor(resistance=10e3, case="0402")
+self.r_pullup.insert(self.net_a, self.net_b)
+```
+
+The `self.` prefix is **mandatory** — local-variable passives get
+garbage-collected at the end of `__init__` and the component drops out
+of the netlist (see Key Rule 1 above).
+
+For circuits that need many straps in a loop, a small project-local
+helper is cleaner than copy-pasting the four-line idiom. Auto-number the
+attribute names so each cap is reachable through `self.*`:
+
+```python
+def bypass(self, hi, gnd, value: float, *, case: str = "0402"):
+    """In-line bypass cap. Stores the cap as self._bypass_<n>."""
+    idx = getattr(self, "_bypass_idx", 0)
+    c = Capacitor(capacitance=value, case=case)
+    setattr(self, f"_bypass_{idx}", c)
+    self._bypass_idx = idx + 1
+    c.insert(hi, gnd)
+    return c
+
+class PowerSection(Circuit):
+    def __init__(self):
+        self.VDD = Net(name="VDD"); self.GND = Net(name="GND")
+        self.bypass(self.VDD, self.GND, 100e-9)
+        self.bypass(self.VDD, self.GND, 1e-6)
+```
+
+### Mounting holes — no jitxlib helper
+
+`add-mounting-holes` from Stanza has **no Python equivalent** —
+`jitxlib.mechanical` does not exist. Define a PTH mounting-hole
+`Component` manually and instantiate it at explicit board-relative
+coordinates. **Silent omission**: the design builds without it and the
+fabbed board has no mounting points. Common dimensions:
+
+| Screw | Drill | Annular ring (pad) | Notes |
+|---|---|---|---|
+| M2 | 2.2 mm | 4.0 mm | clearance fit |
+| M2.5 | 2.7 mm | 4.5 mm | clearance fit |
+| M3 | 3.2 mm | 5.5 mm | clearance fit |
+| M4 | 4.3 mm | 7.0 mm | clearance fit |
+| #4-40 | 2.95 mm | 5.0 mm | imperial |
+
+Model the hole as a `Component` with a single `Port()`, a custom
+`Landpattern` containing a `THPad` of the right size and a hole, then
+instantiate at corners of the board outline.
+
 ### Relaxing query defaults for outsize parts — `with <Query>.refine(...)`
 
 `Design.capacitor_defaults` / `resistor_defaults` / `inductor_defaults` set **global** query constraints that apply to every `Capacitor()` / `Resistor()` / `Inductor()` call in the design. A common default is `CapacitorQuery(case=["0402","0603","0805"])`. Large bulk parts — 100µF+ ceramics, 330µF electrolytics for class-D amp PVDD, large film caps — are not manufactured in those case sizes, and the query returns no match. The build then fails with `no component satisfying CapacitorQuery(...)`.
@@ -266,6 +459,31 @@ self.c_bypass = Capacitor(capacitance=100e-9)
 ```
 
 `refine(case=None)` removes the case constraint entirely; `refine(case=["1210","2220"])` overrides it with different cases. The same pattern applies to `ResistorQuery.refine(...)` and `InductorQuery.refine(...)` for high-power resistors and large-current inductors. Verified: `py-jitx-parts/src/jitxlib/parts/query_api.py:522`; live use at `TEC-example/tec_example/circuits/amplifiers.py:117`.
+
+> ⚠️ **Polymer/electrolytic cap crash on `C ≳ 100µF` + `V ≥ 25V`.** A
+> `Capacitor(capacitance=C, rated_voltage=V)` query in that range may
+> resolve to a part whose symbol is a `PolarizedCapacitorSymbol`, and the
+> jitxlib build pipeline then crashes during `build_two_pin_mappings`:
+>
+> ```
+> File ".../jitxlib/parts/_build.py", line 434, in build_two_pin_mappings
+>     sym_map = {component.p1: symbol.p[1], component.p2: symbol.p[2]}
+>                              ^^^^^^^^
+> AttributeError: 'PolarizedCapacitorSymbol' object has no attribute 'p'
+> ```
+>
+> This is an upstream jitxlib bug (`jitxlib-parts 1.1.0a0`, jitx 4.1.0a7),
+> not a user error — `build_two_pin_mappings` assumes `symbol.p[i]` is
+> always present. Same crash with `Capacitor(mpn="UCD1V331MNL1GS")`
+> (Nichicon 330µF/35V polymer) and similar.
+>
+> Workaround until upstream lands a fix: derate to MLCC territory, or pin
+> a specific non-polarized MPN.
+>
+> ```python
+> # Stays in MLCC territory (≤22µF), avoids the polarized symbol path:
+> self.c_bulk = Capacitor(capacitance=22e-6, rated_voltage=35.0)
+> ```
 
 
 ## Advanced Patterns
@@ -480,6 +698,23 @@ If the build fails:
    grep -n "def method_name\|class ClassName" .venv/lib/python*/site-packages/jitx*/**/*.py
    ```
 3. Fix the code, re-run pyright, then re-run the build. Repeat until it passes.
+
+### Step 4: Audit for silent wiring errors
+
+A `status: ok` build does not catch wiring errors where every port is in
+*some* net but the wrong net. After the build passes, walk the six-section
+checklist in `jitx-skills:jitx/references/export-verification.md`:
+
+- A. Net inventory — every named net you intended exists
+- B. Connector pin assignment — connector port order matches datasheet
+- C. Power topology — VCC = raw input, VDD = regulated; rail inversion
+  is silent and produces wrong voltages on PVDD / I²C pullups
+- D. Component output pins — no floating `OUT_*` / `BST_*` / `SW`
+- E. Passive count sanity — counts roughly match datasheet's "Typical
+  Application" schematic; large discrepancies indicate a missing
+  application-circuit wrapper
+- F. Control-signal completeness — distinguish MCU-driven from tie-off
+  nets; forgotten GPIO wiring looks identical to intentional tie-off
 
 ## Formatting
 

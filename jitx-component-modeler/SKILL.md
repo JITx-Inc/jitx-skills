@@ -171,6 +171,11 @@ Use this decision tree to select the appropriate generator:
 ```
 Is it a 2-sided package?
 ├── Yes, ≤6 pins → SOT23_3, SOT23_5, or SOT23_6
+├── Yes, SOT-89 / SOT-223 (asymmetric, wide thermal-tab middle pad)
+│       → Custom Landpattern — no jitxlib generator. Do NOT substitute
+│         SOT23_3, pad 2 is a wide thermal tab and SOT-23 will produce
+│         wrong pad dimensions. See references/package-examples.md
+│         §"Custom Landpatterns".
 ├── Yes, >6 pins with gull-wing leads → SOIC
 ├── Yes, >6 pins with flat leads (no-lead) → SON
 └── No (4-sided or array)
@@ -182,6 +187,12 @@ Is it a 2-sided package?
           parts2jitx-kicad fp.kicad_mod --class-name MyPart
           NEVER hand-craft pad positions for non-standard packages.
 ```
+
+The SOT generator family (`jitxlib.landpatterns.generators.sot`) only
+exports `SOT23_3`, `SOT23_5`, `SOT23_6`. **There is no `SOT89`,
+`SOT223`, `SOT583` generator.** For thermal-tab packages, place pads
+manually at the manufacturer's recommended-footprint coordinates from
+the datasheet.
 
 **Getting a .kicad_mod for non-standard packages** (in priority order):
 1. **User-provided** — ask if they have a `.kicad_mod` from their KiCad library or manufacturer download
@@ -322,6 +333,73 @@ Toleranced(5.0, 0.1)                    # Nominal ± tolerance
 Toleranced.min_typ_max(0.13, 0.18, 0.23)  # Asymmetric
 Toleranced.exact(7.0)                   # BSC = Basic
 ```
+
+### Capacitor dielectric temperature codes
+
+For `Capacitor` parts, the `temperature_coefficient_code` kwarg (note:
+`_code` suffix — `temperature_coefficient` alone is wrong) controls the
+EIA dielectric class:
+
+| Code | Class | Variation over −55…+125°C | Use case |
+|---|---|---|---|
+| `"C0G"` / `"NP0"` | Class I | ±30 ppm/°C (negligible) | RC filter time constants, oscillator timing, antenna matching, crystal load caps — anything where capacitance must be stable |
+| `"X5R"` | Class II | ±15% over −55…+85°C | General decoupling, less temperature-sensitive |
+| `"X7R"` | Class II | ±15% over −55…+125°C | **Implicit default** for the parts DB. Standard bulk decoupling. |
+| `"X8R"` | Class II | ±15% over −55…+150°C | High-temp automotive / industrial |
+| `"Y5V"` | Class II | +22% / −82% over −30…+85°C | Avoid for analog — silently detunes RF / timing circuits |
+
+For RF, timing, oscillator load caps, and any analog circuit whose value
+must be stable over temperature, explicitly request `"C0G"`:
+
+```python
+self.c_match = Capacitor(
+    capacitance=2.2e-12,
+    temperature_coefficient_code="C0G",
+    case="0402",
+)
+```
+
+Without the explicit kwarg, the parts DB defaults to X7R, and a 2.2 pF
+RF matching cap may resolve to a part that drifts ±15% over temperature —
+detuning antennas, filters, and oscillators with no build-time warning.
+
+### Querying a passive by MPN
+
+For `Resistor` / `Capacitor` / `Inductor`, pass `mpn` and `manufacturer`
+as kwargs (the 3.x `database-part(...)` function does not exist in 4.x):
+
+```python
+self.r1 = Resistor(mpn="RC0402FR-0710KL", manufacturer="Yageo")
+self.c1 = Capacitor(mpn="GRM155R71H103KA88D", manufacturer="Murata")
+```
+
+The 4.x parts DB does **not** have 1-to-1 coverage of the 3.x OCDB. An
+MPN that resolved fine in Stanza can return zero hits in 4.x:
+
+```
+ValueError: No components meeting requirements:
+  {'category': 'inductor', 'mpn': 'IHLP2525CZER4R7M11',
+   'manufacturer': 'Vishay'}
+```
+
+There is no user-visible pattern to which MPNs resolve and which don't.
+**Fallback for non-critical parts**: drop the MPN and query by value
+instead — the DB usually has *some* matching part:
+
+```python
+self.L = Inductor(inductance=4.7e-6)   # part DB picks any matching SKU
+```
+
+For non-passives (crystals, encoders, connectors, mechanical parts),
+**there is no MPN-lookup path**. Write a custom `Component` subclass
+from the datasheet — the OCDB connector / mechanical library has no
+Python equivalent (`jitxlib.connectors` / `jitx.ocdb` do not exist).
+Many OCDB part names map to a real MPN (e.g.
+`korean-hroparts-elec/TYPE-C-31-M-12` → an actual Type-C connector MPN),
+so pull the manufacturer datasheet and model from there. For irregular
+pad arrangements (USB-C receptacles, audio jacks, edge connectors), use
+the custom `Landpattern` + `Pad.at()` pattern in
+`references/package-examples.md` §"Custom Landpatterns".
 
 ### Thermal Pad with Paste Subdivision
 
@@ -476,6 +554,51 @@ BGA(num_rows=12, num_cols=12, pitch=0.45, ball_diameter=0.25)
 > depopulated balls, also chain `.grid_planner(...)` — see
 > [references/package-examples.md](references/package-examples.md) Example 6 for the
 > `GridPlanner` subclass pattern, and §"Depopulated / non-uniform balls".
+
+### Symbol pin direction — `.up()` / `.down()` / `.right()` / `.left()` are method calls
+
+`Pin.up`, `Pin.down`, `Pin.right`, `Pin.left` look like enum values but
+are **method calls** that return configured `Pin` instances:
+
+```python
+# WRONG — treats .up as an enum:
+GND = Pin(direction=Pin.down, position=(0, -2), length=1)
+# AttributeError or silent miswiring
+
+# RIGHT — call the method:
+GND = Pin.down((0, -2), length=1)
+VCC = Pin.up((0, 2), length=1)
+```
+
+Easy to mistype when porting from any source that treats direction as a
+property rather than a constructor.
+
+### Port at hierarchy boundaries — use plain `Port()`, not protocol bundles
+
+When a `Component` or `Circuit` exposes a port to its **parent** (i.e. a
+boundary that crosses the hierarchy, not an intra-circuit wire), declare
+it as a plain `Port()`, not as a protocol bundle (`USB2()`, `I2C()`,
+`I2S()`, etc.):
+
+```python
+# WRONG — nested sub-ports of a protocol bundle break at the boundary:
+class PowerSupplies(Circuit):
+    usb = USB2()
+# Parent wiring:
+self.power.usb.data.p += self.usb_conn.DP1   # silently fails or raises NotImplementedError
+
+# RIGHT — plain Port() works at any boundary:
+class PowerSupplies(Circuit):
+    usb_dp = Port()
+    usb_dn = Port()
+# Parent wiring:
+self.dp_net = self.power.usb_dp + self.usb_conn.DP1
+```
+
+Protocol bundles are for **intra-circuit** wiring — connecting two ports
+within the same `Circuit.__init__`. For cross-hierarchy interface ports,
+use plain `Port()` and bind into bundles via `provide`/`require` in
+the calling circuit (see `jitx-pin-assignment`).
 
 ### Pad rotation — `at(x, y, rotate=θ)`, keyword-only
 

@@ -621,6 +621,64 @@ self.rule2 = design_constraint(RFSignalTag(), RFSignalTag()).clearance(1.05)
 self.rule3 = design_constraint(RFSignalTag(), GNDTag()).clearance(0.15)
 ```
 
+### Thermal vias via `design_constraint(...).stitch_via(...)`
+
+There is **no `add_thermal_vias(net, shape)` helper** in JITX 4.x. To
+place a grid of vias under a thermal pad (or any high-current / heat-sink
+copper region), use a `design_constraint` with `.stitch_via(...)`:
+
+```python
+from jitx.constraints import design_constraint, Tag
+from jitx.constraints import SquareViaStitchGrid
+
+class GNDThermalTag(Tag): pass
+
+# In the calling Circuit's __init__:
+self.GND_tag = GNDThermalTag()
+self.GND += self.GND_tag                              # tag the net
+
+self.thermal_via_rule = design_constraint(
+    self.GND_tag,
+).stitch_via(
+    MySubstrate.THVia,                                # which via class to place
+    SquareViaStitchGrid(pitch=1.2, inset=0.3),        # grid pattern (mm)
+)
+```
+
+**Prerequisites that aren't obvious from the API shape — both must be
+true or the constraint silently does nothing:**
+
+1. The target net **must have a `Tag`**, applied via
+   `net += MyTag()`. Without the tag, `design_constraint(...)` has
+   nothing to attach to.
+2. A copper **`Pour` must already cover the area** where vias should
+   be stitched (typically the thermal-pad copper). `stitch_via` populates
+   an existing pour with vias; it does not create copper. If the pour is
+   missing, the router has nothing to stitch and the constraint produces
+   zero vias.
+
+Common pattern with a class-D amp / QFN thermal pad:
+
+```python
+# Pour copper under the thermal pad on layer 0 (top) and layer -1 (bottom)
+self.GND += Pour(rectangle(8.0, 8.0), layer=0,  isolate=0.1, rank=2)
+self.GND += Pour(rectangle(8.0, 8.0), layer=-1, isolate=0.1, rank=2)
+
+# Tag the GND net so the constraint can reference it
+self.GND += GNDThermalTag()
+
+# Stitch vias through the thermal-pad area
+self.therm_rule = design_constraint(GNDThermalTag()).stitch_via(
+    MySubstrate.THVia,
+    SquareViaStitchGrid(pitch=1.0, inset=0.5),
+)
+```
+
+This is a **layout-quality concern** (thermal performance), not a
+connectivity concern — a Phase 6 / DRC build will pass without thermal
+vias even when they should be there. If thermal vias must wait, leave a
+visible TODO so they get added before fab.
+
 ## Via Mixin Pattern
 
 Reuse via definitions across substrates:

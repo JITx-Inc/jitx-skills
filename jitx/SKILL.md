@@ -7,6 +7,90 @@ description: Base skill for JITX hardware design workflow. Use for JITX Python p
 
 Base skill for JITX hardware design automation. JITX is a Python framework for programmatic PCB design.
 
+## Rule 0 — Verify every JITX API before using it
+
+Do not guess at imports, class names, constructor kwargs, or chain methods.
+Before writing any `from jitx…` / `from jitxlib…` line, verify the symbol
+exists. Use this fallback chain, in order:
+
+1. **Canonical source repos on GitHub** (most authoritative — clone or
+   browse via `gh`):
+   - `github.com/JITx-Inc/py-jitx` — core `jitx` package (`Component`,
+     `Landpattern`, `PadMapping`, `Design`, `Board`, shapes,
+     `NonPopulatedComponent`)
+   - `github.com/JITx-Inc/py-jitx-stdlib` — `jitxlib` stdlib (landpattern
+     generators under `jitxlib.landpatterns`, protocols under
+     `jitxlib.protocols`, geometry)
+   - `github.com/JITx-Inc/py-jitx-parts` — passive part dataclasses
+     (`jitxlib.parts.Capacitor` / `Resistor` / `Inductor`)
+   - Examples to cross-reference:
+     `github.com/JITx-Inc/py-essentials-examples`,
+     `github.com/JITx-Inc/py-components`
+2. **Official API documentation**: `https://docs.jitx.com/llms.txt` (fetch
+   with WebFetch) when source repos aren't checked out.
+3. **Installed artifacts on the local machine**: site-packages of an
+   installed venv, or the official install layout under `~/.jitx/`.
+   Acceptable as a last resort but may lag the canonical repos.
+
+If none of the above resolves the symbol, **document it as unknown** rather
+than inventing an import. Falling back to a custom landpattern, a local
+`jitx.Bundle` subclass, or an open gap is correct; inventing an import path
+"by analogy" with another package is not.
+
+Subskill "Rule 0" sections point back here for the canonical chain — domain
+skills (`jitx-circuit-builder`, `jitx-component-modeler`, etc.) list only
+the domain-specific landmines.
+
+### Common API mistakes (recurring failure mode)
+
+These are real wrong guesses observed during actual JITX 4.x work. Every
+one of them follows the same anti-pattern: invent an import "by analogy"
+with another package, write a plausible-looking constructor, and don't
+verify against the source. Verify before writing, not after.
+
+| ❌ Wrong guess | ✅ Actual API | Source |
+|---|---|---|
+| `from jitxlib.landpatterns.core import Landpattern` | `from jitx.landpattern import Landpattern, PadMapping` | `py-jitx/src/jitx/landpattern.py` |
+| `BGADepop([(0,0)])` kwarg on `BGA(...)` | `.grid_planner(<GridPlanner subclass>)` | `py-jitx-stdlib/src/jitxlib/landpatterns/grid_planner.py` |
+| `BGA(rows=5, cols=5, ...)` | `BGA(num_rows=5, num_cols=5, ball_diameter=..., pitch=...)` | `py-jitx-stdlib/src/jitxlib/landpatterns/generators/bga.py` |
+| `QFN_DEFAULT_LEAD_PROFILE` exported symbol | Build a `LeadProfile(span=..., pitch=..., type=QFNLead(...))` explicitly | `py-jitx-stdlib/src/jitxlib/landpatterns/generators/qfn.py` |
+| `LeadProfile(..., SMDLead(length, width))` for QFN | `LeadProfile(..., QFNLead(length, width))` — base `SMDLead` requires `lead_type` | same |
+| `from jitx.feature import Pour` | `from jitx import Pour` or `from jitx.copper import Pour` — **not** in `jitx.feature` | `py-jitx/src/jitx/copper.py:45` |
+| `Net(self.a, self.b, self.c, name="VDD")` (varargs) | `Net([self.a, self.b, self.c], name="VDD")` — single iterable | `py-jitx/src/jitx/net.py:662-668` |
+| `from jitx import NonPopulatedComponent` | `from jitx.component import NonPopulatedComponent` — not re-exported from `jitx/__init__.py` in 4.0.5 | `py-jitx/src/jitx/component.py:150` |
+| `Pad.at(x, y, theta)` (positional rotation) | `Pad.at(x, y, rotate=theta)` — keyword-only | `py-jitx/src/jitx/placement.py:104-106` |
+| `Rectangle` as a class import | `Rectangle` is not a class — use the function `rectangle(w, h, *, radius=None)` from `jitx.shapes.composites`. `Circle` *is* a class. | `py-jitx/src/jitx/shapes/composites.py` |
+| `RoundedRectangle(W, H, r)` for board outline | `rectangle(W, H, radius=r)` from `jitx.shapes.composites`, assigned to `design.board.shape` | `py-jitx/src/jitx/board.py`, `shapes/composites.py` |
+| `PadMapping({"PVDD": [3, 4], ...})` (string keys) | `PadMapping({self.PVDD: [lp.p[3], lp.p[4]], ...})` — keys are `Port` objects, values are `Pad` or `Sequence[Pad]` | `py-jitx/src/jitx/landpattern.py:99-198` |
+| `Capacitor(min_rated_voltage=35.0)` | `Capacitor(rated_voltage=35.0)` | `py-jitx-parts/src/jitxlib/parts/query_api.py` |
+| `Capacitor(temperature_coefficient="C0G")` | `Capacitor(temperature_coefficient_code="C0G")` — kwarg is `_code` | same |
+| `SOT89_3()`, `SOT223_3()`, `SOT583_8()` generators | Only `SOT23_3`, `SOT23_5`, `SOT23_6` exist. Build a custom `Landpattern` for the others. | `py-jitx-stdlib/src/jitxlib/landpatterns/generators/sot.py` |
+| `from jitxlib.protocols.serial import I2SMCK` / bare `OctalSPI` | Not in jitxlib — define locally as a `jitx.Bundle` subclass | n/a |
+| `Power.vdd` / `Power.gnd` / `DiffPair.P` / `DiffPair.N` | `Power.Vp` / `Power.Vn` / `DiffPair.p` / `DiffPair.n` — case-sensitive | `py-jitx/src/jitx/common.py`, `net.py` |
+| `landpattern.add_pad(SMDPad(index=1, ...))` | Declare `p1 = SMDPad(...).at(x, y)` as a class attribute on the `Landpattern` subclass | `py-jitx-stdlib/src/jitxlib/landpatterns/pads.py` |
+
+### Stanza helpers without a 4.x equivalent
+
+Some convenience helpers from the Stanza-era JITX library have no direct
+Python analog. Most fail **silently** — the build succeeds without the
+helper, and the missing feature surfaces only at fab time. If you find
+yourself looking for one of these in 4.x, the table below tells you what to
+do instead.
+
+| Stanza helper | Python 4.x | Workaround |
+|---|---|---|
+| `add-mounting-holes(board-shape, "M3")` | No `jitxlib.mechanical`, no helper | Define a PTH mounting-hole `Component` manually (e.g. 3.2 mm drill + 5.5 mm annular ring for M3 clearance), instantiate 4× at explicit coordinates. |
+| `add-open-drain-pullups(net_or_port, rail)` | No helper | Expand inline — one explicit `Resistor` per pin. For an `i2c` bundle: `self.r_sda = Resistor(resistance=4.7e3); self.r_sda.insert(i2c.sda, vdd); …` |
+| `add-xtal-caps(xtal, gnd)` | No helper | Two `Capacitor` instances per crystal, both `self.*`-assigned; size from the crystal's load-capacitance datasheet figure. |
+| `setup-design(name, board, rules=..., vendors=..., quantity=...)` | Decomposed into `Design` class attributes | `class MyDesign(Design): board = MyBoard(); substrate = MySubstrate()`. Vendor / quantity / BOM metadata is not generally surfaced at `Design` level today. |
+| `set-paper(ANSI-A)` | Class attribute | `class MyDesign(Design): paper = Paper.ANSI_A` from `jitx.paper`. Default is ANSI A. |
+| `set-export-backend(`kicad)` | No-op | KiCad is the only export today; `python -m jitx build` emits KiCad artefacts implicitly. Drop the call. |
+| `view-board()` / `view-schematic()` / `view-bom()` | No-op in headless build | Viewers live in the `jitx interactive` server / IDE plugin, not as top-level design entries. Drop the calls. |
+
+Silent omission is the failure mode — a missing `add-mounting-holes`
+equivalent produces a clean build and a fabbed board with no mounting
+points, with no warning anywhere in the pipeline.
+
 ## Environment Setup
 
 Before any JITX work, check and fix the environment automatically:
@@ -33,6 +117,36 @@ python -c "import jitx; print('JITX ready')"
 ```
 
 Only install deps on first run (venv creation). Skip `pip install` on subsequent runs — it's slow and noisy. Don't ask user to do manual setup.
+
+### Parallel JITX installs and the `~/.jitx/current` symlink
+
+JITX releases install per-version under `~/.jitx/<version>/` (e.g.
+`~/.jitx/3.36.1/`, `~/.jitx/4.0.5/`, `~/.jitx/4.1.0/`) and multiple versions
+can coexist. The active version is selected by the `~/.jitx/current`
+symlink — JITX reads runtime, config, and plugin state via
+`~/.jitx/current/...` regardless of which versioned binary you launched.
+
+Symlink mismatch silently corrupts builds. The classic symptom is
+
+```
+FATAL PLUGIN ERROR: No appropriate branch for arguments of type (False)
+```
+
+in `StableBoardSerializer/write-stable-id`. Update the symlink before
+invoking a different version:
+
+```bash
+ln -sfn 4.1.0 ~/.jitx/current
+```
+
+Note: the 3.x line is Stanza-only; only 4.x is the Python-Python target.
+Both lines share the binary name `jitx`, so when both are installed,
+invoke each by absolute path or use isolated subshells.
+
+The order-sensitive bootstrap recipe (symlink → sign-in → `jitx interactive`
+→ `.socket.jitx` wait → `pip install` → version check → build) is the
+**canonical bootstrap** for any 4.x design and lives in
+[`references/bootstrap.md`](references/bootstrap.md).
 
 ## Python Linting Setup (Recommended)
 
@@ -100,6 +214,25 @@ JITX_SKIP_STABILIZE_CONFIRMATION=1 python -m jitx build-all
 ```
 
 **Success output:** `status: ok` &nbsp;&nbsp;**Error output:** Python traceback or `status: error`
+
+`status: ok` is **necessary but not sufficient** — it catches type errors,
+missing pin mappings, and unconnected `require()` providers, but it does
+not catch wiring errors where every port is in *some* net but the wrong
+net. After every build, walk the export-verification checklist at
+[`references/export-verification.md`](references/export-verification.md)
+to audit for silent wiring errors (net inventory, connector pins, power
+topology, component output pins, passive counts, control signals).
+
+**Build invocation gotchas:**
+
+- `--port <PORT>` on `python -m jitx build` is the **TCP UI port for the
+  `jitx interactive` server**, not a PCB port. Easy to confuse mid-design.
+- The build target is `<module.path>.<DesignClass>`, not a file path. A
+  mismatch fails with `no design found`, not a Python `ImportError`.
+- Two installs (3.x + 4.x) in the same shell cross-contaminate `PATH` and
+  Conan envs because both ship a binary named `jitx`. Use absolute paths
+  or subshells; see the Parallel JITX installs section under Environment
+  Setup.
 
 **Output files** (in `designs/<design_name>/`):
 - `cache/netlist.json` — JSON netlist for verification
@@ -239,6 +372,24 @@ For domain checklists: read `references/domain-checklists.md`
 | 3b → 4 | **Design-level analysis passed**: voltage domains correct, no bus contention, no missing components, SI constraints functional. All blocking issues fixed via loopback. |
 
 Do NOT proceed past a gate if any task has unresolved failures. Fix upstream before moving downstream.
+
+### Working on large designs — context budget
+
+Designs with **≥3 interconnected circuits** routinely exhaust a single
+session's context window. The risks are re-synthesis of skill content from
+summaries, drift across circuits that should be consistent, and silent
+forgetting of design-level invariants (rail naming, bundle conventions).
+Mitigations:
+
+- **Checkpoint one circuit per session**; commit a green build before
+  starting the next. Make `python -m jitx build` part of the
+  checkpoint — `pyright` clean is not enough.
+- **Keep the relevant source files open simultaneously** when wiring a
+  circuit that references another circuit's ports — don't rely on memory
+  of the other class's port names or bundle fields.
+- **For 3+ circuit designs, prefer a long-context model** (e.g. Claude
+  Opus 4.5 / 4.7 in 1M-context mode). The cost difference is small
+  compared to a re-synthesis pass.
 
 ### Parts Data and Footprint Conversion
 

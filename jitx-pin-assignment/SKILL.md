@@ -64,6 +64,62 @@ Use pin assignment when a component's physical pins can validly serve more than 
 - The component datasheet specifies a single valid pin function
 - A deterministic connection is needed regardless of layout
 
+### Hardware-analysis gate — pin-assignment vs fixed wiring
+
+A `Port` returned by `Component()` does not by itself tell you whether the
+mapping is flexible — both "MCU GPIO with 30 muxable pins" and "single
+SDMO output that must connect to one specific pin" look like `Port()` at
+the call site. The decision driver is the **datasheet**, not JITX
+syntax. Apply this gate before reaching for `@provide`/`require`:
+
+| Datasheet shows | Conclusion | 4.x translation |
+|---|---|---|
+| Multiple valid pin assignments — e.g. MCU GPIO bank where any pin can drive any peripheral, PCIe lanes that can be reversed, DDR bytes that can be swapped | **Real layout flexibility** — pin-assignment is the right model | `@provide` / `require()` |
+| Single valid pin assignment — e.g. crystal pins, dedicated SDMO output, ADC input on a specific channel, BOOT/RESET strap pins | **Fixed hardware path** — no flexibility to model | Plain `Net` wiring; do not use provide/require |
+| Datasheet not yet read | Unknown | Stub as TODO with "check datasheet before invoking pin-assignment" — do **not** default to provide/require |
+
+Most `require`-shaped constructs in real designs are **fixed wiring**,
+not pin-mux. A bundle-typed port like `i2s_in = I2S()` on a `Circuit` is
+a typed interface for intra-circuit wiring — it does not imply pin
+assignment by itself. Reaching for `@provide` just because the source
+material used a `require` clause is a common over-translation.
+
+### Port arrays at the circuit boundary — `dict[int, Port]` for non-contiguous indices
+
+Bundle sub-ports that bind to a component's port array need that array
+keyed correctly. MCU packages with **depopulated pins** (e.g. ESP32-S3
+FN8 has GPIOs 0-14, 17-21, 33-38, 45, 46 — gaps at 15, 16, 22-32,
+39-44) must use `dict[int, Port]`, not a dense `list`. A list with
+`[None, None, ...]` padding fails because every element must be a
+`Port`; a dense list without padding silently re-indexes (datasheet
+GPIO38 becomes Python `GPIO[22]`):
+
+```python
+class ESP32_S3(jitx.Component):
+    # CORRECT — dict keys = datasheet GPIO numbers:
+    GPIO: dict[int, Port] = {
+        i: Port()
+        for i in list(range(15)) + list(range(17, 22)) + list(range(33, 39)) + [45, 46]
+    }
+```
+
+The pin-mapping side then references real datasheet indices:
+
+```python
+@provide.one_of(I2C)
+def provide_i2c(self, i2c: I2C):
+    return [
+        {i2c.sda: self.mcu.GPIO[18], i2c.scl: self.mcu.GPIO[19]},   # Option A
+        {i2c.sda: self.mcu.GPIO[33], i2c.scl: self.mcu.GPIO[34]},   # Option B
+    ]
+```
+
+Build-time error from a list mismatch:
+`port GPIO[15] is not mapped to a symbol pin`. Symbol unpacking uses
+`*GPIO.values()` when the array is a dict. The same rule applies on the
+component side — see `jitx-component-modeler` §"Non-Contiguous Pin Index
+Sets".
+
 ## Bundles: The Language of Provide/Require
 
 A **bundle** is a Port subclass that groups related signals. Bundles are the type parameter for `@provide` and `require()` — they define what interface is being offered and consumed.
@@ -72,14 +128,102 @@ A **bundle** is a Port subclass that groups related signals. Bundles are the typ
 
 Discover sub-ports by reading the class source: `grep -A 10 "class BundleName" .venv/lib/python*/site-packages/jitx*/`
 
+Field names are **case-sensitive**. The natural guesses `.vdd` / `.gnd`
+(for `Power`) or `.P` / `.N` (for `DiffPair`) pass pyright — `Port`
+forwards unknown attributes — and produce a **silently disconnected net**
+at build time. There is no compile-time error. Verify the exact field
+names below or grep the class source.
+
 | Bundle | Import | Sub-ports | Notes |
 |--------|--------|-----------|-------|
 | `GPIO` | `jitx.common` | `.gpio` | Single pin |
-| `Power` | `jitx.common` | `.Vp`, `.Vn` | Power/ground pair |
-| `DiffPair` | `jitx.net` | `.p`, `.n` | Positive/negative pair |
+| `Power` | `jitx.common` | `.Vp`, `.Vn` | Power/ground pair. **Not `.vdd`/`.gnd`** |
+| `DiffPair` | `jitx.net` | `.p`, `.n` | Positive/negative pair. **Lowercase, not `.P`/`.N`** |
 | `I2C` | `jitxlib.protocols.serial` | `.sda`, `.scl` | Always present |
 | `SPI` | `jitxlib.protocols.serial` | `.sck`, `.copi`, `.cipo`, `.cs` | `cs`, `copi`, `cipo` are optional: `SPI(cs=True)` |
+| `I2S` | `jitxlib.protocols.serial` | `.sck`, `.ws`, `.sd` | **Not `.bclk`/`.lrck`/`.sdin`** (which is what some external naming conventions use) |
+| `OctalSPIwDQS` | `jitxlib.protocols.serial` | `.sck`, `.cs`, `.dqs`, `.data[0..7]` | The DQS-equipped variant. |
+| `WideSPI` | `jitxlib.protocols.serial` | `.sck`, `.cs`, `.data[…]` | Classmethods: `WideSPI.quad()`, `WideSPI.octal()` |
 | `UART` | `jitxlib.protocols.serial` | `.tx`, `.rx`, `.cts`, `.rts`, ... | `tx`/`rx` default on; flow control optional: `UART(cts=True, rts=True)` |
+
+The complete `jitxlib.protocols.serial` catalog at the time of writing
+is `I2C`, `SPI`, `WideSPI` (+ `.quad()`/`.octal()`), `OctalSPIwDQS`,
+`I2S`, `UART`, `Microwire`, `JTAG`, `SWD`, `CANPhysical`, `CANLogical`,
+`SMBus`. Always grep the current source before assuming an import path —
+bundle additions land in `py-jitx-stdlib`.
+
+### Bundles missing from jitxlib — define locally
+
+Some common protocol bundles aren't in `jitxlib.protocols.serial`.
+Subclass `jitx.Bundle` next to the design rather than reaching for an
+import path that doesn't exist. Three observed gaps:
+
+```python
+import jitx
+from jitx.net import Port
+
+# 4-wire I²S (I²S + master clock for an ADC) — no jitxlib export
+class I2SMCK(jitx.Bundle):
+    sck  = Port()   # bit clock
+    ws   = Port()   # word select / LRCK
+    sd   = Port()   # serial data
+    mclk = Port()   # master clock (4th wire)
+
+# 5-wire full-duplex I²S (MCK + separate SDIN/SDOUT) — no jitxlib export
+class I2SFullDuplex(jitx.Bundle):
+    sck    = Port()
+    ws     = Port()
+    sd_out = Port()
+    sd_in  = Port()
+    mclk   = Port()
+
+# Bare OctalSPI without DQS (some PSRAM) — no jitxlib export
+class OctalSPI(jitx.Bundle):
+    sck  = Port()
+    cs   = Port()
+    data = [Port() for _ in range(8)]
+```
+
+**Silent omission risk** for the full-duplex I²S case: if you collapse a
+5-wire full-duplex bundle back to the 3-wire `I2S` (as is natural when
+no template exists), the receive direction is wired only via `sd` and
+the transmit/receive split is lost — the consumer cannot route a
+separate ADC return path. Define the bundle properly the first time.
+
+### Protocol bundles at hierarchy boundaries — use plain `Port()` instead
+
+Protocol bundles (`I2C`, `I2S`, `USB2`, `SPI`, etc.) are designed for
+**intra-circuit** wiring — connecting two ports within the same
+`Circuit.__init__`. They do **not** work correctly as class-level
+interface ports that cross the hierarchy:
+
+```python
+# WRONG — nested sub-ports break at the hierarchy boundary:
+class PowerSupplies(Circuit):
+    usb = USB2()         # class-level "interface port" using a bundle
+
+class Top(Circuit):
+    def __init__(self):
+        self.power = PowerSupplies()
+        # Wiring across the boundary fails silently or raises NotImplementedError:
+        self.power.usb.data.p += self.usb_conn.DP1
+
+# RIGHT — declare plain Port()s at the boundary, bind to bundles via require:
+class PowerSupplies(Circuit):
+    usb_dp = Port()
+    usb_dn = Port()
+
+class Top(Circuit):
+    def __init__(self):
+        self.power = PowerSupplies()
+        self.dp_net = self.power.usb_dp + self.usb_conn.DP1
+        self.dn_net = self.power.usb_dn + self.usb_conn.DP2
+```
+
+For circuits that *do* offer protocol-typed interfaces to a parent,
+expose plain `Port()`s as the class-level ports and bind them into a
+protocol bundle inside `@provide` (see Provider Patterns below) — the
+parent then calls `require(USB2)` to get a usable bundle instance.
 
 ### Defining Custom Bundles
 

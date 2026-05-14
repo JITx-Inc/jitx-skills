@@ -167,19 +167,17 @@ Bottom-up: leaf circuits before parents. For each:
 ### Hardware-analysis gate for `require` / `supports`
 
 Stanza syntax alone does not tell you whether a `require` reflects real
-layout-engine flexibility. Apply this gate before deciding how to translate it:
+layout-engine flexibility. The decision tree (real mux flexibility →
+`@provide`/`require()`; fixed hardware path → plain `Net`; unknown →
+TODO + read the datasheet) is general to JITX 4.x and lives in
+[`jitx-skills:jitx-pin-assignment`](../../jitx-pin-assignment/SKILL.md)
+§"Hardware-analysis gate — pin-assignment vs fixed wiring". Apply it
+verbatim during the port.
 
-| Stanza construct | Hardware check | 4.x translation |
-|---|---|---|
-| `require X from Y` where Y has N interchangeable pins (MCU GPIO, PCIe lanes, FPGA banks) | Component has **true mux flexibility** — datasheet shows multiple valid configurations | `@provide` / `require()` via `jitx-pin-assignment` |
-| `require X from Y` where Y has one fixed hardware path (SDMO output, crystal pins, dedicated comm port) | Datasheet shows a **single valid config**, often firmware-pinned | Plain `Net` wiring; no provide/require needed |
-| `require X from Y` — datasheet not yet read | Unknown | Stub as TODO with the note *"check datasheet before invoking jitx-pin-assignment"* — do **not** assume it's pin-assignment by default |
-
-Bundle types (e.g. `jitxlib.protocols.serial.I2S` with sub-ports `sck`, `ws`,
-`sd`) can be used as typed circuit ports (`i2s_in = I2S()`) without any
-provide/require involvement. That's the right pattern for an I2S input on a
-fixed-wired circuit — don't reach for pin-assignment just because the
-Stanza source used a `require` clause.
+Porter twist: a Stanza `require` clause does **not** imply the Python
+translation needs pin-assignment. Most Stanza `require`s in real designs
+are fixed wiring — reaching for `@provide` by default is the most
+common over-translation.
 
 ### Phase 4 exit criteria (do not skip)
 
@@ -220,17 +218,13 @@ table and rationale.
 
 ### Context budget
 
-Phase 4 is the most context-intensive step in the port. Designs with **≥3
-interconnected circuits** routinely exhaust a single session's context
-window, forcing a re-synthesis of the skill content from summaries and
-risking drift. Mitigations:
-
-- Checkpoint **one circuit per session**; commit a green build before
-  starting the next.
-- Keep the Stanza source for the in-progress circuit and the corresponding
-  Python file open simultaneously — do not rely on memory of either.
-- For three-circuit designs, prefer a long-context model (e.g. Claude
-  Opus 4.5 / 4.7 in 1M-context mode).
+Phase 4 is the most context-intensive step in the port. The general
+guidance on managing context for ≥3-circuit designs (checkpoint per
+circuit, keep both source files open, use a long-context model) lives in
+[`jitx-skills:jitx/SKILL.md`](../../jitx/SKILL.md) §"Working on large
+designs — context budget". The porter-specific consequence: keep the
+Stanza source for the in-progress circuit and the corresponding Python
+file open simultaneously, since each circuit's port involves both ends.
 
 ## Phase 5 — Substrate, constraints, topology, pin assignment
 
@@ -255,21 +249,25 @@ These are the domain-heavy parts of the port. They typically arrive intact in th
 
 ## Phase 7 — Compare exports
 
-Manual today, automatable later. Walk the six-section comparison checklist
-in `verification.md` §"Compare exports — structured checklist":
+Manual today, automatable later. Two layers of checks:
 
-- A. Net inventory (every Stanza `net <Name>` appears in Python netlist.json)
-- B. Connector pin assignment (Python is 0-based; Stanza is 1-based)
-- C. Power topology (raw input vs regulated rails wired correctly)
-- D. Component output pins (no floating `OUT_*` / `BST_*` / `SW`)
-- E. Passive count sanity (large discrepancies indicate a missed module wrapper)
-- F. Control-signal completeness (every Stanza ctrl net mapped)
+1. **General six-section export verification** (applies to any 4.x
+   design, not just ports) — see
+   [`jitx-skills:jitx/references/export-verification.md`](../../jitx/references/export-verification.md):
+   A. Net inventory, B. Connector pin assignment, C. Power topology,
+   D. Component output pins, E. Passive count sanity, F. Control-signal
+   completeness.
+2. **Port-only checks** — see `verification.md` §"Compare exports —
+   port-mode wrapper": B′ connector pin-index translation (Stanza
+   1-based ↔ Python 0-based), E′ passive-count delta between Stanza
+   and Python (catches missing application-circuit wrappers).
 
-`status: ok` is not evidence of correctness — the TEC-example pilot built
-cleanly with four categories of silent netlist errors. Treat Phase 7 as
-mandatory, not optional. The `verification.md` doc names a future
-`scripts/compare-exports.py` slot; until that exists, attach the two export
-directories to the PR / report and complete the checklist by hand.
+`status: ok` is not evidence of correctness — the TEC-example pilot
+built cleanly with four categories of silent netlist errors. Treat
+Phase 7 as mandatory, not optional. Until the planned
+`scripts/compare-exports.py` automation lands, attach the two export
+directories (`baseline-3.x/` and `ported-4.x/`) to the PR / report and
+complete the checklist by hand.
 
 ## Heuristic: what to port first when stuck
 

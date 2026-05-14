@@ -150,18 +150,29 @@ Three distinct causes, in roughly decreasing frequency:
 ## Parallel installs
 
 JITX releases install per-version under `~/.jitx/<version>/` and multiple
-versions can coexist. The 3.x line (Stanza) and 4.x line (Python) share
-the binary name `jitx`, so invoke each by absolute path or use isolated
-subshells with only one version's `bin/` on `PATH`.
+versions can coexist. Each install is self-contained — its own binaries,
+libraries, runtime.
+
+| Line | Path (example) | Provides |
+|---|---|---|
+| 3.x (Stanza) | `~/.jitx/3.36.1/` | `jitx` launcher (wraps `jstanza`); bundled Stanza compiler at `stanza/stanza`; `slm/slm` package manager; bundled JITX/JITX3/ocdb stdlib |
+| 4.x (Python) | `~/.jitx/4.1.0/` | `jitx` launcher with `interactive` (build server) + `sign-in`. The Python build toolchain itself is installed per-project via `pip install jitx`. |
+
+The 3.x line is Stanza-only; only 4.x is the Python target. Both share the
+binary name `jitx`, so when both are installed, invoke each by absolute
+path or use isolated subshells with only one version's `bin/` on `PATH`.
 
 `~/.jitx/current` is the active-version selector — JITX reads runtime,
 config, and plugin state via `~/.jitx/current/...` regardless of which
 versioned binary you launched. Repoint it (step 1) whenever you alternate
-between installs.
+between installs. **Auto-discovery picks the newest `~/.jitx/` subfolder by
+mtime, not by `~/.jitx/current`**, so for tools that auto-discover (e.g.
+`nightly_design_tests`'s harness), pin the install explicitly via
+`JITX_INSTALL` if a newer version is present alongside the one you want.
 
 The `jitx-port-3-to-4` skill's `references/verification.md` covers the
-parallel-install patterns in more depth (pre-port 3.x baseline vs
-post-port 4.x build, etc.).
+parallel-install patterns in more depth for the specific case of pre-port
+3.x baseline vs post-port 4.x build.
 
 ## Output files
 
