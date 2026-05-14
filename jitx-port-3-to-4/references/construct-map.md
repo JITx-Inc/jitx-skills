@@ -130,6 +130,29 @@ A concrete row from each system (citations above already include path + line). S
 |---|---|---|
 | `- id: designcon2025` <br> `  repo: "git@github.com:JITx-Inc/designcon2025.git"` <br> `  targets:` <br> `    - project_dir: "demo"` <br> `      stanza_file: "main.stanza"` <br> `      design_name: "DesignCon-demo"` | `- example-repo-name: essentials-examples` <br> `  use-prerelease: true` <br> `  example-repo-url: "https://github.com/JITx-Inc/py-essentials-examples.git"` <br> `  jitx-env-var: JITX_ENV_PROD` <br> (build invoked via `python -m jitx build-all` against the cloned repo) | Stanza: `nightly_design_tests/config/designs.yaml:35-48`; Python: `jitx-test/.github/workflows/integration-testing.yml:100-105`, `jitx-test/scripts/jitx-build-design.bash:81` |
 
+### Transitional shape — `nightly_design_tests` row for a Python-ported design
+
+While the harness in `nightly_design_tests` still drives Stanza builds, Python-ported designs share the same YAML schema with a `python_module` field replacing `stanza_file` + `design_name`. The corresponding row for `pd_audio_py4` (the Python port of `pd_audio`) is:
+
+```yaml
+- id: pd_audio_py4
+  repo: "git@github.com:JITx-Inc/PD-audio.git"
+  branch: jitx4opus2
+  skip: true                         # current Stanza-only harness can't build Python designs yet
+  skip_reason: "JITX 4.x Python port — needs 4.x-capable harness"
+  exportable: false
+  timeout_build: 1200
+  targets:
+    - project_dir: "."
+      python_module: "pd_audio.main.PdAudioDesign"
+  checks:
+    pcb: [pour_rank]
+    bom: [bom_validity]
+    odb: [upload_odb, check_layers]
+```
+
+The `python_module` value is a dotted path: `<pyproject [project].name>.<module>.<Design subclass>`. All three components must match — the package name in `pyproject.toml`, the actual `.py` file inside the package, and the `class XDesign(Design)` declaration that file exports. A mismatch produces `python -m jitx build` "no design found", not a Python import error.
+
 ## 11. Bundles / common ports
 
 Stanza `power-pin` / `diff-pair` bundle field names **do not** carry over verbatim — the
@@ -233,6 +256,52 @@ normal Python attribute assignment, not an implementation accident — but Patte
 (subclass) is preferable when the same DNP component is reused, since the intent is
 declared once and stays with the class definition.
 
+> ⚠️ **DNP subclasses (Pattern A or Pattern B) MUST be declared at module scope.**
+>
+> The natural translation of "I need one DNP capacitor here" puts the
+> subclass next to the single use site inside `Circuit.__init__`. **That
+> fails** with:
+>
+> ```
+> TypeError: Creating new JITX classes dynamically during instantiation
+> is not supported, please create new classes separately.
+> ```
+>
+> The rule comes from the `jitx` skill's "Don'ts": no JITX-class
+> subclassing inside functions or methods. The error fires at build
+> time, not class-load time, so `pyright` doesn't catch it.
+>
+> **Recommended pattern** — define a `<pkg>/dnp.py` module once, reuse
+> from any circuit:
+>
+> ```python
+> # pd_audio/dnp.py
+> from jitxlib.parts import Capacitor, Inductor, Resistor
+>
+> class DnpResistor(Resistor):
+>     in_bom = False
+>     soldered = False
+>
+> class DnpCapacitor(Capacitor):
+>     in_bom = False
+>     soldered = False
+>
+> class DnpInductor(Inductor):
+>     in_bom = False
+>     soldered = False
+> ```
+>
+> ```python
+> # pd_audio/circuits/power_supplies.py
+> from pd_audio.dnp import DnpResistor
+>
+> class PowerSupplies(Circuit):
+>     def __init__(self):
+>         ...
+>         self.r_cfg1 = DnpResistor(resistance=6.8e3)   # at instance level, fine
+>         self.r_cfg1.insert(self.pd.CFG1, self.GND)
+> ```
+
 | Stanza | Python 4.x |
 |---|---|
 | `do-not-populate(r_cfg1)` | Three patterns: (A) subclass `NonPopulatedComponent`, (B) set `in_bom = False; soldered = False` as **class** attrs on a `Component` subclass, (C) set the same as **instance** attrs after construction. **`Resistor(..., dnp=True)` is NOT a valid kwarg.** |
@@ -293,11 +362,24 @@ the `jitx-substrate-modeler` skill (§"Routing structures") for full constructor
 examples, plus the `jitx-interconnect-constraints` skill for how to attach a
 structure to a topology via `Constrain(Topology(...)).structure(rs)`.
 
-## 15a. Board utilities with no Python equivalent
+## 15a. Stanza helpers with no Python equivalent
+
+The Stanza JITX library exposes a number of one-line helpers — some
+mechanical, some schematic / runtime — that have no 1-to-1 Python
+analog. Most fail silently if the porter just drops the call (the
+build succeeds, but a feature is missing). Surface each one as a
+`PORT-DEFERRED.md` entry when it can't be replaced inline.
 
 | Stanza 3.x | Python 4.x | Workaround |
 |---|---|---|
 | `add-mounting-holes(board-shape, "M3")` (auto-place M3 PTH holes at board corners) | No equivalent in `jitxlib-standard` 4.0.1. There is no `jitxlib.mechanical` module and no top-level `add_mounting_holes` helper (verified by grep over `py-jitx`, `py-jitx-stdlib` on jitx-4.0.5). | Define a PTH mounting-hole `Component` manually (e.g. drill 3.2 mm + annular ring 5.5 mm for M3 clearance), instantiate it 4× at explicit board-relative coordinates, and add a `PORT-DEFERRED.md` entry so the placement is revisited when an upstream `MountingHole` utility lands. Silent omission: the design builds without it and the fabbed board has no mounting points. |
+| `add-open-drain-pullups(net_or_port, rail)` (ocdb helper — for each pin on `net_or_port`, instantiate a pull-up `Resistor` from the pin to `rail`) | No equivalent helper. | Expand inline — one explicit `Resistor` per pin. For an `i2c` bundle: `self.r_sda = Resistor(resistance=4.7e3); self.r_sda.insert(i2c.sda, vdd); self.r_scl = ...`. For a `gpio[N]` array: `self.r_pu = [Resistor(resistance=10e3) for _ in range(N)]; for i in range(N): self.r_pu[i].insert(gpio_array[i], vdd)`. Silent omission: the bus floats high inconsistently and the design may appear to work then fail under load. |
+| `add-xtal-caps(xtal, gnd)` (places two load caps from crystal pins to ground, sized from the crystal's `crystal-resonator` property) | No equivalent. | Two `Capacitor` instances per crystal, both `self.*`-assigned; value comes from the crystal's load-capacitance datasheet figure (typically 12 pF → 18 pF caps after accounting for board stray). |
+| `setup-design(name, board, rules=..., vendors=..., quantity=...)` (Stanza top-level: sets the design name, board, rules, BOM vendors, quantity in one call) | Decomposed into class attributes on the `Design` subclass: `board = MyBoard()`, `substrate = MySubstrate()` (rules folded into the substrate). Vendors / quantity / BOM metadata is not generally surfaced at `Design` level today; treat as `PORT-DEFERRED` if the build target requires it. | Set `board` and `substrate` as class attributes on the `Design` subclass; document the vendor / quantity gap separately. |
+| `set-paper(ANSI-A)` | `Design` subclass: `paper = Paper.ANSI_A` from `jitx.paper`. Default is ANSI A; usually omittable. | Set via class attribute on the `Design`. |
+| `set-export-backend(\`kicad)` (Stanza-side selects the CAD export target) | No-op in 4.x — KiCad is the only export today. The `python -m jitx build` command emits KiCad-compatible artefacts implicitly. | Drop the call entirely. |
+| `set-use-layout-groups()` (enables hierarchical schematic-sheet grouping in Stanza) | No-op — 4.x has implicit `SchematicGroup` per `Circuit`. | Drop the call entirely. |
+| `view-board()` / `view-schematic()` / `view-bom()` (Stanza top-level commands that open viewer panes) | No-op in headless `python -m jitx build`. Viewers in 4.x live in the `jitx interactive` server / IDE plugin, not as top-level design entries. | Drop the calls entirely. |
 
 ## 15. Strap helpers (`bypass-cap-strap`, `cap-strap`, `res-strap`)
 

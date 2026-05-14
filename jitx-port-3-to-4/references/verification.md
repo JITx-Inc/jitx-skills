@@ -195,6 +195,16 @@ below for every port — they catch errors that the build will not.
 3. Any Stanza net with no Python counterpart is a potential missing
    connection — investigate before signing off.
 
+> **Tip for readable diffs**: prefer
+> `self.NAME = Net(name="NAME") + a + b` over anonymous
+> `self.foo = a + b` for any net that corresponds to a named Stanza net.
+> Anonymous `self.<attr> = port + port` results DO survive in
+> `netlist.json` (connectivity is preserved) but get synthesized names
+> like `circuit.member.sub_port` (e.g. `amps.bass_sck_net.sck`,
+> `r_term_p.p2`) that don't text-match the Stanza names. In a real
+> port (`pd_audio` jitx4opus2: 80 nets), ~15 had synthesized names —
+> enough to make the §A diff substantially noisier than necessary.
+
 ### B. Connector pin assignment
 
 1. Read every `inst <conn> : pin-header(N)` and `net (<conn>.p[i] <name>)`

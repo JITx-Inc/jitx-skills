@@ -145,6 +145,20 @@ Cross-reference: construct-map.md §5 row "named net".
   symbol = BoxSymbol(rows=Row(right=PinGroup(*GPIO.values(), ...)))
   ```
 
+  **Class-body vs instance access asymmetry.** The `*GPIO.values()` form
+  works at class-body scope (inside `BoxSymbol` declarations and
+  `PadMapping` literals). It does NOT work for instance-side
+  introspection — `MyComponent().GPIO[15]` returns an
+  `InstantiableAttribute` proxy, not a `Port`, because JITX components
+  are lazily realized (a fully built instance exists only inside a
+  `Design`). Two consequences:
+  - `len(my_component.GPIO)` or `list(my_component.GPIO.keys())` from
+    the REPL raises `TypeError: 'Instantiable' object is not iterable`.
+  - For small fixed enums (3-5 pins like `CFG[1..3]` on a USB-PD sink),
+    prefer flat attribute names (`CFG1`, `CFG2`, `CFG3`) over the dict
+    form — the access asymmetry adds friction with no benefit for
+    such small arrays.
+
 - **Do not use protocol bundle objects (e.g. `USB2()`, `I2C()`, `I2S()`) as class-level interface ports on `Circuit` subclasses.** Protocol bundles have nested sub-ports (e.g. `usb.data.p`, `usb.data.n`). These nested sub-ports do not function correctly as hierarchy boundary ports — wiring the parent-side bundle port to a child's internal net via `+=` silently fails or raises `NotImplementedError`. Use plain `Port()` instances instead:
 
   ```python
@@ -248,6 +262,26 @@ Prerequisites that aren't obvious from the API shape:
 ## Passive queries
 
 - **Global passive defaults silently break large parts.** `Design.capacitor_defaults = CapacitorQuery(case=["0402","0603","0805"])` is a typical setting and applies to every `Capacitor()` call in the design. Bulk electrolytics (≥47µF), large film caps, and high-current inductors are not stocked in those cases — the build fails with `no component satisfying CapacitorQuery(...)`. The fix is `with CapacitorQuery.refine(case=None):` (a context manager — `PassiveQuery` extends `jitx.context.Context`) around just the outsize part, leaving the global default intact for everything else. Same pattern for `ResistorQuery.refine` / `InductorQuery.refine`. Documented under `jitx-circuit-builder/SKILL.md` §"Relaxing query defaults".
+- **Polymer/electrolytic capacitor queries trigger a `jitxlib` build-time crash.** Any `Capacitor(capacitance=C, rated_voltage=V)` call with `C ≳ 100µF` and `V ≥ 25V` may resolve to a part whose symbol is a `PolarizedCapacitorSymbol`. `jitxlib.parts._build.build_two_pin_mappings` then crashes during the build with:
+
+  ```
+  File ".../jitxlib/parts/_build.py", line 434, in build_two_pin_mappings
+      sym_map = {component.p1: symbol.p[1], component.p2: symbol.p[2]}
+                               ^^^^^^^^
+  AttributeError: 'PolarizedCapacitorSymbol' object has no attribute 'p'
+  ```
+
+  Same crash with `Capacitor(mpn="UCD1V331MNL1GS")` (Nichicon 330µF/35V polymer) and similar parts. This is a real jitxlib bug (`jitxlib-parts 1.1.0a0`, jitx 4.1.0a7), not a porter error — the build pipeline assumes `symbol.p[i]` is always available, which doesn't hold for polarized caps.
+
+  Workaround until upstream lands a fix:
+
+  ```python
+  # Derate the part to a ceramic-range value the query won't promote
+  # to a polarized symbol. Capacitance below ~22µF stays in MLCC territory:
+  self.c_bulk = Capacitor(capacitance=22e-6, rated_voltage=35.0)
+  ```
+
+  Or pin a specific non-polarized MPN (ceramic / film) if a precise bulk reservoir is required. Record any derate in `PORT-DEFERRED.md` — the dropped bulk capacitance can matter for amp PVDD reservoirs and similar bulk-storage applications, and should be restored when jitxlib fixes `PolarizedCapacitorSymbol.p[i]`.
 
 ## Board utilities
 

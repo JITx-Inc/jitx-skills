@@ -477,6 +477,29 @@ BGA(num_rows=12, num_cols=12, pitch=0.45, ball_diameter=0.25)
 > [references/package-examples.md](references/package-examples.md) Example 6 for the
 > `GridPlanner` subclass pattern, and §"Depopulated / non-uniform balls".
 
+### Pad rotation — `at(x, y, rotate=θ)`, keyword-only
+
+Stanza pad-placement (`pad p[1] : my-pad at loc(x, y, θ)`) is common in
+hand-coded `pcb-landpattern` blocks and OCDB-generated component files.
+The Python `Pad.at` signature is `at(self, x, y, /, *, rotate=0, on=Side.Top)`
+— **`rotate` is keyword-only**. Two natural mis-translations to avoid:
+
+```python
+class _LP(Landpattern):
+    p1 = _RectPad(0.28, 0.68).at(0.640, -0.750, 90.0)   # FAILS
+    # TypeError: Positionable.at() takes from 2 to 3 positional arguments but 4 were given
+
+    p2 = _RectPad(0.28, 0.68).at(0.640, -0.250).rotate(90.0)   # FAILS
+    # AttributeError: 'Pad' has no attribute 'rotate'
+    # (pyright catches this one before runtime)
+
+    p3 = _RectPad(0.28, 0.68).at(0.640, 0.250, rotate=90.0)   # CORRECT
+```
+
+There is no `Pad.rotate(...)` method. The only rotation form is the
+keyword arg on `.at()`. See `jitx-port-3-to-4/SKILL_GAPS_20260512f.md`
+GAP-68 for the original report of this mis-translation.
+
 ### `.narrow()` vs `.package_body()` for SOIC
 
 SOIC provides a convenience method `.narrow(length)` that sets the package body to the standard SOIC narrow width (3.9mm) with a given length:

@@ -142,6 +142,41 @@ Do NOT skip the planning phase for complete board designs. Do not start explorin
 
 For net wiring, passives, and circuit patterns, invoke the `jitx-circuit-builder` subskill.
 
+### Sanity-checking a new Circuit / Component
+
+`MyCircuit()` or `MyComponent()` at the REPL **does not give you a
+fully-realized object** — JITX uses lazy instantiation. Instances are
+fully realized only when wrapped in a `Design` and exercised through
+`python -m jitx build`. Until then, attribute access returns
+`InstantiableAttribute` proxies:
+
+```python
+>>> c = MyCircuit()
+>>> len(c.providers)
+TypeError: object of type 'InstantiableAttribute' has no len()
+>>> isinstance(c.items, list)
+False
+```
+
+Use direct instantiation only to catch import / syntax / missing-attribute
+errors that pyright should have caught. For runtime validation of wiring,
+pin maps, or `@provide` options, write a `SampleDesign` test harness
+(`jitx-component-modeler/SKILL.md` §"Test Harness" or
+`jitx-circuit-builder/SKILL.md` §"Build Test"):
+
+```python
+from jitx.container import inline
+from jitx.sample import SampleDesign
+
+class TestDesign(SampleDesign):
+    @inline
+    class circuit(MyCircuit):
+        pass
+```
+
+Then `python -m jitx build my_module.TestDesign`. That's the only way to
+exercise `__init__` end-to-end on a Circuit / Component.
+
 ## Project Builder Workflow
 
 For building complete JITX designs from requirements — multiple components, substrate, circuits, and constraints assembled into a working board. Use this when the design involves 3+ components with a substrate and interconnected circuits.

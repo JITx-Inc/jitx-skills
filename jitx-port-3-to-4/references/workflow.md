@@ -17,6 +17,51 @@ A phased recipe. Verification phases (0 and 6) bracket the port and are mandator
 
    Record the user's acknowledgement in the porting notes (e.g. add a `BASELINE-FAILED.md` to the project root listing the 3.x error) so reviewers know the comparison was waived.
 
+### Sibling path dependencies in `slm.toml`
+
+`slm.toml` files commonly declare deps with `path = "../<name>"`, expecting
+that sibling repo to be cloned next to the design under one parent directory.
+A fresh-clone porting workflow rarely has that already, so `slm fetch` fails
+with `Failed to Resolve Path ../<dep>/stanza.proj. Double check path
+dependencies and confirm expected git repos in '.slm/deps'`.
+
+Pre-clone every sibling path-dep before `slm fetch`. **Version pinning
+matters** — some sibling deps have known-broken HEAD revisions that the
+3.x compiler rejects. For `jsl`, pin to `v0.10.9` to avoid the
+`pad-island.stanza:72 'minus' type error` introduced in 0.10.10/0.10.11
+(documented in `nightly_design_tests/CLAUDE.md`).
+
+```bash
+WORK=$HOME/tmp/<design-name>_port
+cd "$WORK"
+git clone git@github.com:JITx-Inc/PD-audio.git && (cd PD-audio && git checkout <commit>)
+git clone git@github.com:JITx-Inc/jsl.git      && (cd jsl && git checkout v0.10.9)
+# now slm fetch resolves cleanly:
+cd PD-audio
+SLM_ROOT=~/.jitx/<3.x>/slm PATH=~/.jitx/<3.x>/stanza:$PATH ~/.jitx/<3.x>/slm/slm fetch
+```
+
+### Triage protocol when the 3.x build fails
+
+When step 4 fails, run **at most one probe** before deciding to revert and
+record `BASELINE-FAILED.md`. Acceptable probes:
+
+1. Look for a commented-out `import` line in the failing file that looks
+   related to the missing symbol (e.g. `; import ocdb/utils/bundles` when
+   the error is `Could not resolve 'usb-2-data'`). Uncomment and re-build.
+2. Try a different jsl tag pin (jsl-related errors specifically — e.g.
+   `pad-island.stanza:72` → pin `v0.10.9`).
+
+If the single probe doesn't expose a clean path to `exit 0`, **revert** to
+the original source verbatim and record the failure in
+`BASELINE-FAILED.md`. Multi-step debugging of the 3.x source is out of
+scope for the porting workflow; the port can use `main.stanza` itself as
+the source-of-truth even without a clean baseline. Real example from the
+`pd_audio` port: three layered import / namespace conflicts at commit
+`78b6709` — uncommenting one import exposed an ambiguous-reference error,
+removing another import exposed a third symbol that's jsl-only. The
+right call was to revert and document, not to keep digging.
+
 ## Phase 1 — Inventory the Stanza design
 
 Read the source tree and list:
@@ -31,6 +76,27 @@ Read the source tree and list:
 - The `stanza.proj` and `defpackage` graph (informs Python module layout).
 
 This inventory drives the rest of the port. Save it to a scratch file so it can be checked off as work progresses.
+
+### Finding hidden Stanza stdlib symbols
+
+Some bundle / helper symbols are not present in any text-grep-able
+`.stanza` file — they live in compiled stdlib packages at
+`~/.jitx/<3.x>/pkgs/*.pkg`. The shim files
+(e.g. `ocdb/utils/bundles.stanza`) only do `forward
+jitx/parts/legacy-ocdb-misc`, with no `pcb-bundle` declarations to grep.
+
+If `grep -rn <symbol> ~/.jitx/<3.x>/slm/` finds nothing, search the
+compiled packages with `strings(1)`:
+
+```bash
+strings ~/.jitx/<3.x>/pkgs/jitx\$parts\$legacy-ocdb-misc.pkg | grep <symbol>
+```
+
+Common offenders that cause "where is this defined?" rabbit-holes during
+inventory: `usb-2-data`, `I2S-MCK`, `I2S-SDMI`, `SPI-DQS`, `octal-spi`,
+the legacy `power` bundle. Knowing where these live also tells you which
+import combination is required in the porting target (vs which can be
+satisfied by jsl or another sibling lib).
 
 ## Phase 2 — Bootstrap the Python project
 
