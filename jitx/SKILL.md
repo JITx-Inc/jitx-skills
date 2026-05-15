@@ -112,9 +112,35 @@ else
   source .venv/bin/activate
 fi
 
-# Verify (don't check __version__ — not present in all JITX versions)
-python -c "import jitx; print('JITX ready')"
+# Verify core imports (don't check __version__ — not present in all JITX versions).
+# Fail loud if any import is missing; do not work around with substitutions.
+python - <<'PY'
+import sys
+required = [
+    "jitx",
+    "jitxlib",
+    "jitxlib.parts",
+    "jitxlib.symbols.box",
+    "jitxlib.voltage_divider",
+]
+missing = []
+for mod in required:
+    try:
+        __import__(mod)
+    except Exception as e:
+        missing.append(f"{mod}: {e}")
+if missing:
+    print("ERROR: missing required JITX modules:")
+    for m in missing:
+        print(f"  - {m}")
+    sys.exit(1)
+print("JITX core ready")
+PY
 ```
+
+Also probe the target substrate package if known (e.g., `python -c "import jitxlib.jlcpcb"` when the user has chosen JLCPCB). For complete-board tier, the Phase 0 → 1 gate requires this probe.
+
+**Missing-dependency rule:** if any required import fails, stop and surface it to the user as a blocker. Do NOT remove or substitute design requirements as a workaround (e.g. dropping controlled-impedance routing because `jitxlib` didn't import). See `references/project-builder-flow.md` Recovery Procedures → "Missing dependency escalation".
 
 Only install deps on first run (venv creation). Skip `pip install` on subsequent runs — it's slow and noisy. Don't ask user to do manual setup.
 
@@ -214,6 +240,8 @@ JITX_SKIP_STABILIZE_CONFIRMATION=1 \
 JITX_SKIP_STABILIZE_CONFIRMATION=1 python -m jitx build-all
 ```
 
+**Don't run parallel builds on the same design.** Concurrent JITX builds against the *same design* aren't reliable — cache state, build artifacts, and design-explorer output overlap. Sequence those. Parallel builds of *different designs* in the same project (different test designs, different module paths) share the WebSocket session but are generally safe — the JITX backend serializes internally, possibly with a wait. The skill orchestrator's Phase 1 runs sub-agents in parallel on different test designs; the parallelism is at the design-work level, and concurrent builds on distinct designs are an acceptable consequence.
+
 **Success output:** `status: ok` &nbsp;&nbsp;**Error output:** Python traceback or `status: error`
 
 `status: ok` is **necessary but not sufficient** — it catches type errors,
@@ -257,14 +285,30 @@ project/
 └── .venv/                  # Virtual environment
 ```
 
-## First: Decide the Workflow
+## First: Pick the Workflow Tier
 
-After environment setup, decide which workflow to use:
+> **STOP. Classify first. Before any architecture proposal, parts research, design prose, code, or `Skill(...)` invocation other than environment probes, your first observable action must be a chat line of the form:**
+>
+> > **Workflow tier: `single-task` | `complete-board` — because `<one-sentence reason>`**
+>
+> **For `complete-board`, the *next* observable action must be writing `PLAN.md` (and `ARCHITECTURE.md`).** Verbal architecture proposals, parts-list bullets, "here's what I'll build" prose, or `Write(...)` of code before `PLAN.md` exists are explicitly invalid work for a complete-board project — they must be backed out before the workflow can continue.
+>
+> If you find yourself already typing "Big design — here's my proposed architecture..." or "I'll set up the skeleton and start filling in components", you have skipped Phase 0. Stop, classify, and create `PLAN.md` first.
+>
+> This callout exists because the prior failure mode was exactly this: the agent jumped from request to architecture prose to component files without classifying, never entered Phase 0, and bypassed every Pass 1–5 enforcement.
 
-- **Building a complete board** (multiple components, circuits, substrate) → Use the **Project Builder Workflow** below. Start with Phase 0: create PLAN.md and ARCHITECTURE.md before writing any code.
-- **Single task** (one component, one circuit, one substrate) → Invoke the appropriate subskill directly.
+After environment setup, classify the work into one of two tiers. The tier names which output blocks are required and whether the formal Phase 0 → Phase 4 chain applies. Every tier requires a **task acceptance block** for each unit of work — no exceptions.
 
-Do NOT skip the planning phase for complete board designs. Do not start exploring libraries or writing code until PLAN.md exists.
+| Tier | When | Required output | Path |
+|------|------|-----------------|------|
+| **single-task** | One subskill against one artifact: a component, a circuit, a substrate, a constraint set, a pin-assignment wrapper. No top-level assembly. | Task acceptance block in chat | Invoke the subskill directly |
+| **complete-board** | Anything beyond a single isolated artifact — anything that produces a buildable board, no matter how few components. | Task acceptance block per task + phase exit gate blocks + Phase 3b audit + Phase 4 verification | Full Project Builder Workflow below |
+
+If you're tempted to call something "small" or "trivial" to avoid the workflow, classify it as complete-board. The Phase 0–4 ceremony is cheap on a small board (a few extra block emissions); the cost of skipping it on a real board is shipping with required features missing. The original failure mode of this skill was exactly the "looks small, skip the workflow" escape hatch.
+
+For tier definitions, the task acceptance block, phase exit gate blocks, the Phase 3b design audit block, and the Phase 4 verification block: read `references/completion-blocks.md`.
+
+Do NOT skip the planning phase for complete-board designs. Do not start exploring libraries or writing code until PLAN.md exists.
 
 ## Core Concepts
 
@@ -331,15 +375,23 @@ For how to decompose requirements into tasks: read `references/decomposition-gui
 For PLAN.md format: read `references/plan-template.md`
 For ARCHITECTURE.md format: read `references/architecture-template.md`
 
-### Parallel Build Safety
+### Build Safety — Don't Parallelize Same-Design Work
 
-JITX uses a single WebSocket backend — concurrent builds collide. When running parallel sub-agents, use the build lock wrapper:
+Concurrent builds of the *same JITX design* share cache state, build artifacts, and design-explorer output. Sequence them. Concurrent builds of *different designs* in the same project — for example, parallel sub-agents each building their own component test design — share the WebSocket session but are generally safe: the JITX backend serializes the work internally, possibly with a wait.
+
+For the project-builder workflow: Phase 1 sub-agents can run in parallel, each working on its own component file and its own test design. They are not running concurrent builds of the *same* design. Phase 2/3/4 builds are inherently sequential.
+
+For ad-hoc work outside the project-builder flow: just don't run two `python -m jitx build` calls against the same design at once.
+
+### Grep Gate Enforcement
+
+Copy `scripts/grep_gates.sh` from this skill into the project's `scripts/` directory. Sub-agents (and the orchestrator at every phase exit gate) run it against `src/<ns>/` to enforce JITX code conventions and top-level-only rules:
 
 ```bash
-python runner/build_lock.py <module.path.DesignClass>
+bash scripts/grep_gates.sh src/<ns>/
 ```
 
-Copy `scripts/build_lock.py` from this skill into the project's `runner/` directory. Sub-agents call this instead of `jitx build` directly. The lock serializes builds via `fcntl.flock`; parallel agents wait their turn.
+The script reports hard-fail hits (which block task acceptance and gate transitions) and review-required hits (which need a disposition in the task acceptance block). Pattern set and disposition rules: `references/completion-blocks.md` "Grep Gate Patterns".
 
 ### Two-Tier Quality System
 
@@ -347,19 +399,21 @@ Sub-agent work goes through TWO quality checks before being accepted:
 
 **1. Sub-Agent Self-Validation ("Think Twice")**
 
-After initial implementation, sub-agents MUST stop and run the domain-specific checklist against the datasheet before returning. This forced second pass typically catches 3-5 missed details (floating enable pins, missing thermal pads, wrong output types, forgotten decoupling). Sub-agents return a self-evaluation report documenting what they checked and fixed.
+After initial implementation, sub-agents MUST stop and run the domain-specific checklist against the datasheet before returning. This forced second pass typically catches 3-5 missed details (floating enable pins, missing thermal pads, wrong output types, forgotten decoupling). Sub-agents return a **task acceptance block** documenting what they checked and fixed — the block is mandatory; "build clean" is not a substitute. See `references/completion-blocks.md` for the template.
 
 **2. Orchestrator Acceptance Review**
 
-The orchestrator does NOT blindly trust self-evaluation. For each returned task:
+The orchestrator does NOT blindly trust the self-validation block. For each returned task:
 - Read the generated code for obvious issues
+- Verify the build claim (re-run `python -m jitx build` for critical tasks)
 - Spot-check high-risk checklist items independently
 - Verify interface compatibility with downstream tasks
-- Issue verdict: **accept** / **rework** (send back with specific issues) / **reject** (replan)
+- Append the acceptance verdict to the same block: **accept** / **rework** (send back with specific issues) / **reject** (replan)
 
-Phase gates only open when ALL tasks in the phase are `accepted` by the orchestrator.
+A task without an acceptance block is `in-progress`, not done. Phase gates only open when ALL tasks in the phase have `Verdict (acceptance): accept` blocks.
 
 For the full protocol: read `references/task-execution.md`
+For block templates: read `references/completion-blocks.md`
 For domain checklists: read `references/domain-checklists.md`
 
 ### Exit Gates
@@ -399,17 +453,17 @@ Claude selects parts based on engineering requirements first. Data for each comp
 **Data sources (in priority order):**
 1. **User-provided** — datasheets, KiCad footprints, or specs the user supplies directly
 2. **JITX generators** — standard packages (QFN, SOIC, BGA, SOT, SON, QFP) with dimensions from datasheets
-3. **LCSC/EasyEDA** (opt-in only — ask user before using) — if user explicitly approves, install `parts2jitx` into the project venv:
+3. **LCSC / JLCPCB via `parts2jitx`** — split consent. **Lookup / evidence** (`parts2jitx-lcsc <C-number>`, `--pinout`) is implied when the user names LCSC/JLCPCB as the channel; the orchestrator may `pip install parts2jitx` automatically. **Footprint data ingestion** (`parts2jitx-lcsc --footprint`, `parts2jitx-kicad`) is a separate path that requires explicit per-project user approval because EasyEDA component data has its own terms of use.
    ```bash
    pip install parts2jitx
+   parts2jitx-lcsc <C-number>            # lookup / evidence (auto-OK with named channel)
+   parts2jitx-lcsc <C-number> --pinout   # lookup / evidence
+   parts2jitx-lcsc <C-number> --footprint -o ...   # footprint data — explicit approval required
+   parts2jitx-kicad <file.kicad_mod>     # footprint data — explicit approval required
    ```
-   Then use:
-   - **`parts2jitx-lcsc <LCSC_ID>`** — stock, pricing, datasheet URL, KiCad footprint download
-   - **`parts2jitx-kicad <file.kicad_mod>`** — deterministic KiCad-to-JITX footprint conversion
-   
-   Do not use LCSC/EasyEDA data without user approval. Commercial users may have licensing concerns.
+   See `references/parts-sourcing.md` "LCSC / JLCPCB via parts2jitx" for the full split-consent table.
 
-For non-standard packages (connectors, RF modules): convert from a `.kicad_mod` file (user-provided or downloaded). **NEVER hand-craft pad positions** — use the converter. Standard packages use built-in JITX generators. All symbols use `BoxSymbol`.
+For non-standard packages (connectors, RF modules): convert from a `.kicad_mod` file (user-provided or downloaded). **NEVER hand-craft pad positions** — use the converter. Standard packages use built-in JITX generators. All symbols use `BoxSymbol`. Exception: mechanical / vendor-defined footprints (Tag-Connect, pogo-pin fixtures, castellations, fiducials) where no purchasable component exists — see `references/parts-sourcing.md` "Mechanical / Vendor-Defined Footprints".
 
 For details: read `references/parts-sourcing.md`
 
@@ -579,5 +633,5 @@ ruff format path/to/file.py
 
 | Task | Command/Pattern |
 |------|-----------------|
-| Build design | `python -m jitx build module.Design` |
+| Build design | `python -m jitx build module.Design` (sequence calls — see "Build Safety") |
 | Format code | `ruff format path/to/file.py` |

@@ -137,9 +137,10 @@ Device = MyCircuit
 
 ## Net Definitions
 
-Nets can be named in the design when the net is defined. It is good practice to name the net so that the schematic and layout construction are easy to follow. For power and ground nets, it is also useful to provide a symbol definition (i.e. PowerSymbol() or GroundSymbol()).
+Nets can be named in the design when the net is defined. It is good practice to name the net so that the schematic and layout construction are easy to follow. For power and ground nets, it is also useful to provide a symbol definition (i.e. PowerSymbol() or GroundSymbol()) — **at the top-level design only**. `PowerSymbol()` / `GroundSymbol()` outside `TOP_LEVEL_PATH` (default `designs/`) is a hard-fail under `scripts/grep_gates.sh`; the example below shows the *top-level* pattern.
 
 ```python
+# Top-level design (in src/<ns>/designs/...): symbols are legal here.
 self.my_net = Net(self.a, name = "my_net")
 self.VCC = Net(self.power.Vp, name = "VCC", symbol = PowerSymbol())
 ```
@@ -370,19 +371,44 @@ from jitxlib.parts import Resistor, Capacitor, Inductor
 self.r_sense = Resistor(resistance=0.1)
 self.r_sense.insert(self.power.Vp, self.sense_out)
 
+# Power-rail caps use short_trace=True (see "short_trace=True is the default
+# for power-rail capacitors" below).
 self.c_bypass = Capacitor(capacitance=100e-9)
-self.c_bypass.insert(self.ic.VCC, self.ic.GND)
+self.c_bypass.insert(self.ic.VCC, self.ic.GND, short_trace=True)
 
 # With extra parameters
 self.c_bulk = Capacitor(capacitance=10e-6, rated_voltage=10.0, temperature_coefficient_code="X7R")
-self.c_bulk.insert(self.ic.VCC, self.ic.GND)
+self.c_bulk.insert(self.ic.VCC, self.ic.GND, short_trace=True)
 
 self.inductor = Inductor(inductance=4.7e-6, current_rating=3.0)
 ```
 
 For all passive values, especially those that are calculated, use the eseries Python package to ensure that the value is legal. If not otherwise specified use the E96 range of values.
 
-For decoupling capacitors, use the short_trace argument to a part query or use the ShortTrace(p1, p2) function to connect the ports of two components, see https://docs.jitx.com/en/latest/api/jitx.net.html#jitx.net.ShortTrace.
+### `short_trace=True` is the default for power-rail capacitors
+
+Every capacitor `.insert(...)` call on a power rail — decoupling, bypass, bulk, output filter — **must** pass `short_trace=True`. The router uses this to minimize the trace length between the cap and its connected ports, which is what makes the cap actually decouple. Without it, the router may place a 0402 100 nF cap 20 mm from the IC and route through vias, defeating the purpose.
+
+```python
+# DEFAULT — every power-rail cap
+self.c_bulk = Capacitor(capacitance=10e-6, rated_voltage=10.0)
+self.c_bulk.insert(self.ic.VCC, self.GND, short_trace=True)
+
+self.c_hf = Capacitor(capacitance=100e-9, rated_voltage=10.0)
+self.c_hf.insert(self.ic.VCC, self.GND, short_trace=True)
+```
+
+**Exceptions** (caps where `short_trace=True` is NOT used — placement is part of the design):
+
+- AC coupling caps in signal paths (e.g., audio out, USB SS data) — placement is symmetric to the trace topology
+- RC time-constant caps (reset RC, soft-start, debounce) — value determines behavior, placement isn't the constraint
+- Compensation network caps in switching regulator feedback loops — datasheet defines layout near the FB pin
+- RF matching, coupling, or shunt caps (LNA input network, antenna feed) — placement is bookend-specific per the impedance budget
+- Crystal load caps — placed per the crystal datasheet, not as decoupling
+
+The `short_trace=True` rule is gated at the Phase 2 → Phase 3 exit. `bash scripts/grep_gates.sh src/<ns>/` flags every `.insert(...)` call missing `short_trace=` as review-required; the agent dispositions each: fix (add `short_trace=True`) for power-rail caps, accept-with-rationale (`exception: AC coupling`, `exception: RC time constant`, etc.) for non-power-rail caps, or N/A (`not a capacitor — resistor insert`).
+
+The skill also documents `ShortTrace(p1, p2)` as an alternative connect-with-short-trace primitive — see https://docs.jitx.com/en/latest/api/jitx.net.html#jitx.net.ShortTrace.
 
 ### Snap computed values to a standard E-series
 
@@ -649,8 +675,14 @@ This is one of the most common errors when porting Stanza-style wiring.
 A `Net` symbol can be attached two equivalent ways. Prefer the
 constructor kwarg when the symbol is known at net-creation time —
 it keeps the symbol declaration adjacent to the net definition.
+Same top-level restriction as Net naming above — `PowerSymbol()` /
+`GroundSymbol()` only in `TOP_LEVEL_PATH` (default `designs/`); under
+`scripts/grep_gates.sh` this is a hard-fail outside the top-level
+design path.
 
 ```python
+# Top-level design only.
+
 # Pattern A — constructor kwarg (preferred):
 self.GND = Net(
     [self.power.GND_out, self.amps.gnd, self.controller.gnd],
@@ -780,6 +812,8 @@ class TestDesign(SampleDesign):
 ```bash
 python -m jitx build <module>.design.TestDesign
 ```
+
+Don't run parallel JITX builds against the same project — sequence them. See `jitx/SKILL.md` "Build Safety".
 
 **If a `build_test` helper is available** (e.g., in the skill_eval package), use it instead:
 ```bash

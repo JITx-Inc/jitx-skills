@@ -20,6 +20,22 @@ Do not guess at imports, class names, or chain methods, especially for `Landpatt
 
 Verification order: (1) canonical repos `github.com/JITx-Inc/py-jitx` and `github.com/JITx-Inc/py-jitx-stdlib`; (2) `https://docs.jitx.com/llms.txt`; (3) installed venv site-packages or `~/.jitx/`. If unresolvable, document as unknown — do not invent an import.
 
+## No fabrication — source authority for geometry and pinout
+
+> **Do not write dimensions, pin labels, or pad assignments from memory.**
+>
+> If you find yourself writing **"typical dimensions"**, **"reasonable defaults"**, **"user can refine specific values later"**, **"approximate"**, **"will adjust later"**, or any synonym for guessed / default / placeholder geometry on a component that has a real MPN, **stop**. This skill is not a pattern catalog you can skim and walk away from — it is the rule that you don't ship a landpattern from memory.
+>
+> For every named component (anything with an MPN, distributor part number, or user-supplied datasheet), before writing landpattern dimensions or pin labels, work down this ladder until you have a source:
+>
+> 1. **Manufacturer's current datasheet** — open the mechanical drawing page (use `extract_pages.py` to pull only those pages — do not read the full PDF). Cite the page/figure where you got each dimension.
+> 2. **Sourcing-channel lookup** — if the user has named LCSC/JLCPCB, `parts2jitx-lcsc <C-number>` (stock, lifecycle, datasheet URL) and `parts2jitx-lcsc <C-number> --pinout` (pin labels). Use it as channel evidence and as a pin-label cross-check. Datasheet remains higher authority where they disagree; document the conflict.
+> 3. **Ask the user** — for an LCSC C-number, a user-supplied `.kicad_mod`, or the datasheet itself.
+>
+> If none of the three produce a source, the component is **blocked**. Do not proceed by estimating. The only way out is for the user to explicitly authorize a non-MPN generic component (e.g. "use a typical 0.4 mm pitch QFN-56, this is a placeholder"). Record that authorization in the task acceptance block under `Notes`.
+>
+> This callout exists because a test session of this skill loaded this very file, said "I have the patterns, I'll proceed without invoking the modeler skill further — writing each component directly with reasonable typical dimensions" — and then fabricated nine components. That is the failure this rule forbids.
+
 ## Environment
 
 Environment setup is handled by the base `jitx` skill. Ensure it has been invoked first.
@@ -57,7 +73,7 @@ This ensures:
 
 **AVOID REDUNDANT WEB SEARCHES**
 
-Once the datasheet PDF is available, extract pinout, package dimensions, and pin descriptions from it using Step 0. Do NOT search for info that's already in the datasheet.
+Once the datasheet PDF is available, extract pinout, package dimensions, and pin descriptions from it using Step 0. Do NOT search for info that's already in the datasheet. **Also: do NOT write dimensions or pin labels from memory or "typical values" when the datasheet is available.** See "No fabrication — source authority for geometry and pinout" at the top of this file.
 
 **When additional searches ARE appropriate:**
 - Datasheet lacks package mechanical drawings (common for simple parts)
@@ -136,6 +152,8 @@ Then read only the extracted PDF.
 
 ### Step 1: Extract Key Information
 
+**Before generating from scratch:** for a reusable IC family or common package pattern, search existing references first — see `jitx/references/parts-sourcing.md` "Reference Search Order for Component Modeling". User libraries → `jitxexamples.components` → vendor reference design → generate. Document `searched: found <path>` or `searched: no analog` in the task acceptance block.
+
 **IMPORTANT: Multiple Packages/Variants**
 
 If the datasheet covers multiple package options or component variants, ask the user which one to model:
@@ -186,18 +204,42 @@ Is it a 2-sided package?
         → Convert from a KiCad footprint (.kicad_mod):
           parts2jitx-kicad fp.kicad_mod --class-name MyPart
           NEVER hand-craft pad positions for non-standard packages.
+
+    Exception: mechanical / vendor-defined footprints (Tag-Connect TC2050,
+    pogo-pin fixtures, castellated edges, fiducials, board-edge contacts).
+    No purchasable component model exists; vendor mechanical drawing is
+    the source of truth. See parts-sourcing.md "Mechanical / Vendor-Defined
+    Footprints" for the workflow and verification checklist.
 ```
 
-The SOT generator family (`jitxlib.landpatterns.generators.sot`) only
-exports `SOT23_3`, `SOT23_5`, `SOT23_6`. **There is no `SOT89`,
-`SOT223`, `SOT583` generator.** For thermal-tab packages, place pads
-manually at the manufacturer's recommended-footprint coordinates from
-the datasheet.
+### Standard-Package Decision Rule (parts2jitx + LCSC workflows)
+
+When using `parts2jitx-lcsc` for a part whose package is in the standard set (`QFN`, `SON`, `DFN`, `SOIC`, `SOT-23`, `SOT-223`, `QFP`, `BGA`), use `parts2jitx-lcsc` for stock / pricing / pinout evidence and **default to the JITX generator** for the landpattern, with dimensions from the datasheet's mechanical drawing.
+
+| LCSC package | Use parts2jitx for | Default landpattern |
+|--------------|--------------------|---------------------|
+| QFN-* | Stock, pinout, datasheet URL | `QFN(...)` |
+| SON-* / DFN-* | Stock, pinout, datasheet URL | `SON(...)` |
+| SOIC-* | Stock, pinout, datasheet URL | `SOIC(...)` |
+| SOT-23 / SOT-223 | Stock, pinout, datasheet URL | jitxlib standard library |
+| QFP-* | Stock, pinout, datasheet URL | `QFP(...)` |
+| BGA-* | Stock, pinout, datasheet URL | `BGA(...)` |
+| Non-standard (connectors, RF modules, irregular pads) | Stock, pinout, footprint download | KiCad import via `parts2jitx-kicad` |
+
+Why default to the generator: JITX standard generators use datasheet mechanical dimensions and produce reviewable, parameterized code. KiCad-imported footprints carry the importer's quirks, may use non-standard pad shapes, and are harder to audit against the datasheet.
+
+The SOT generator family (`jitxlib.landpatterns.generators.sot`) only exports `SOT23_3`, `SOT23_5`, `SOT23_6`. **There is no `SOT89`, `SOT223`, `SOT583` generator.** For SOT-223 and other thermal-tab packages without a generator, place pads manually at the manufacturer's recommended-footprint coordinates from the datasheet, or import via `parts2jitx-kicad` as below.
+
+**Fall back to KiCad import when the generator can't represent the package.** Some "QFN-like" parts (especially regulators from TI, Micrel, Microchip) have specialty paddle geometry — split paddles, non-standard thermal pad dimensions, asymmetric layouts — that the generic `QFN(...)` / `SON(...)` generator can't express cleanly. When this happens:
+
+1. Try the generator first against the datasheet mechanical drawing.
+2. If the generator can't represent the paddle (or the lead layout), import the KiCad footprint via `parts2jitx-kicad` and verify pad-by-pad against the datasheet.
+3. Document the reason for falling back in the task acceptance block under `Notes` (e.g. "TPS62903 split thermal paddle not expressible in QFN generator — imported from KiCad and verified against figure 9-1 page 18").
 
 **Getting a .kicad_mod for non-standard packages** (in priority order):
 1. **User-provided** — ask if they have a `.kicad_mod` from their KiCad library or manufacturer download
 2. **Manufacturer KiCad library** — many vendors (Molex, TE, Amphenol) publish official KiCad footprints
-3. **LCSC/EasyEDA fallback (opt-in only)** — only if user explicitly approves this data source. Install `parts2jitx` if not already available, then use:
+3. **LCSC / EasyEDA footprint ingestion (requires explicit per-project approval)** — using EasyEDA-sourced `.kicad_mod` as the footprint data source needs user opt-in (terms of use). `parts2jitx-lcsc` *lookup/evidence* is implied when LCSC/JLCPCB is the named sourcing channel, but downloading and converting the footprint is the separate, opt-in path. Install `parts2jitx` if not already available, then use:
    ```bash
    pip install parts2jitx
    parts2jitx-lcsc C165948 --footprint -o kicad_footprints/fp.kicad_mod
@@ -865,6 +907,8 @@ Always use the available virtual environment. If one is not present, stop and as
 python -m jitx build <module>.TestDesign
 ```
 
+Don't run parallel JITX builds against the same project — sequence them. See `jitx/SKILL.md` "Build Safety".
+
 **Success:** `status: ok`
 **Failure:** Python traceback or `status: error`
 
@@ -882,44 +926,23 @@ python -m jitx build <module>.TestDesign
 
 ### Verification Report
 
-After generating code, provide:
-
-```
-## Verification Report
-
-### Pin Count
-- Datasheet: N pins
-- Generated: N ports
-- Status: ✓ MATCH / ✗ MISMATCH
-
-### Pad Count
-- Landpattern: N pads + M thermal
-- Ports requiring pads: N + M
-- Status: ✓ MATCH / ✗ MISMATCH
-
-### Dimensions
-| Parameter | Datasheet | Generated | Status |
-|-----------|-----------|-----------|--------|
-| Width     | 3.8-4.0mm | min_max(3.8, 4.0) | ✓ |
-
-### Issues Found
-- [List any discrepancies or assumptions made]
-```
+Emit the **task acceptance block** from `jitx/references/completion-blocks.md` "Task Acceptance Block". For a component task, the block's `Primary source` field cites the datasheet pages with the pinout and mechanical drawing; the `Footprint source` field names the JITX generator used (or KiCad import with reason); the `Checks run` field includes the Component checklist from `domain-checklists.md` with N/N items and any issues fixed (pin count vs datasheet, pad count vs landpattern, dimensions vs datasheet mechanical drawing). The acceptance block is the report; do not invent a parallel format.
 
 ## Step 5: Capture Application Circuit
 
-**In the project builder workflow, this step is MANDATORY — not optional.** The application circuit from the datasheet is the foundation for the circuit task. Always capture it.
+**In the project-builder (complete-board) workflow, this step is MANDATORY — not optional.** The application circuit from the datasheet is the foundation for the downstream circuit task; capture it now while the datasheet is open.
+
+In single-task tier (user invoked component-modeler standalone), this step is optional — ask the user.
 
 After generating component code, check the datasheet for "Typical Application", "Reference Design", or "Application Circuit" sections. These provide valuable circuit templates.
 
-**When to offer:**
-- Datasheet includes a schematic with the component
-- User is creating a power IC, amplifier, or other circuit-centric component
-- Application circuit shows passive values and connections
+**Process (complete-board):**
 
-**Process:**
+1. Capture the application circuit without asking. Extract the relevant datasheet figure (use `extract_pages.py`) and invoke `jitx-circuit-builder` to generate the circuit code.
 
-1. **Ask user** if they want to capture the application circuit:
+**Process (single-task):**
+
+1. **Ask user** whether to capture the application circuit:
    ```
    "The datasheet includes a Typical Application circuit (Figure X).
    Would you like me to also generate the application circuit code?"

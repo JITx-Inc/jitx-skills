@@ -10,7 +10,7 @@ Sub-agents MUST run the relevant checklist after initial implementation and BEFO
 4. If you find an issue, FIX IT before continuing.
 5. If an item does not apply, note why (do not silently skip).
 6. Rebuild after fixes and verify `status: ok`.
-7. Include checklist results in your self-evaluation report.
+7. Include checklist results in your task acceptance block (see `references/completion-blocks.md`).
 
 Your initial implementation likely missed something. This is expected and normal. The purpose of this checklist is to catch those misses. Approach it as a critical reviewer, not a rubber stamp.
 
@@ -192,7 +192,7 @@ Run the base Component checklist above FIRST, then verify these:
 ### Decoupling — CRITICAL (commonly missed)
 - [ ] 100nF bypass cap on EVERY power pin of EVERY active IC in the circuit
 - [ ] Bulk capacitor (10uF) per power domain
-- [ ] Decoupling caps placed physically close (use `short_trace=True` where supported)
+- [ ] **Every power-rail cap `.insert(...)` uses `short_trace=True`** — decoupling, bypass, bulk, output filter. Exceptions (AC coupling, RC time constants, RF, crystal load) are dispositioned in the task acceptance block. Gated at Phase 2 → 3.
 - [ ] Ferrite bead or filter on analog supply pins if mixed-signal
 
 ### Protocol-Specific Checks
@@ -209,6 +209,67 @@ Apply the relevant protocol check:
 **PCIe**: AC coupling on TX (required by spec for different ground references between endpoints — but verify for your specific link configuration), 100 ohm differential, REFCLK distribution to all endpoints on same clock domain, PERST# handling, WAKE# pull-up
 
 **SPI**: clock polarity (CPOL) and phase (CPHA) mode verified, chip select unique per device
+
+---
+
+## External Connector / Hot-Plug Interface
+
+Apply for any connector or interface that exposes the board to the outside world: USB (any flavor), Ethernet, audio jacks, power input (barrel, terminal, USB-PD, PoE), debug headers if user-accessible, expansion connectors, antenna connectors (U.FL, SMA, board-edge contacts). PCB antenna geometry itself belongs to the substrate / RF net-class rules — not this checklist.
+
+### Per-Connector Decision
+
+- [ ] **Connector orientation / pin mirroring**: USB-C is symmetric (CC1/CC2 mirror); standard USB-A/B is not. Verify pin map matches the chosen orientation.
+- [ ] **Shield / chassis strategy**: connected to chassis ground via short trace, ferrite bead, capacitor, or hard-tied — picked deliberately, not by default.
+- [ ] **Current rating**: connector ampacity exceeds the worst-case load with margin.
+- [ ] **Polarity / hot-plug protection**: reverse-voltage, surge, inrush handled per the source class (USB-PD differs from barrel jack differs from PoE).
+- [ ] **Mechanical retention**: through-hole tabs, screw mount, locking mechanism, or none — matched to expected use.
+
+### ESD-or-Justification
+
+For every external or user-accessible signal pin — not only connector pins, but also exposed switch contacts, jumpers, push-button terminals, exposed test points, edge-card fingers, exposed castellations, and any other user-touchable conductor — the row must say one of:
+
+- **TVS / ESD diode** specified, with capacitance compatible with the signaling speed (low-cap TVS for high-speed; standard for low-speed).
+- **Internal-only**: not user-accessible (board-to-board internal link, sealed enclosure, controlled environment).
+- **Omitted by design**: explicit reason (e.g., RF impedance budget, cost-constrained prototype, EMC-controlled fixture). User confirms.
+
+### Protocol-Specific Sub-Checklists (load only when applicable)
+
+These are examples, not required coverage. Pick the ones that apply to the design.
+
+**USB-C / USB-PD**: CC1/CC2 pull-down or PD configuration resistors per the role (sink/source/DRP); CC capacitance limits; VBUS protection rated for negotiated voltages (5V/9V/15V/20V); D+/D- ESD low-cap; configuration-trap pins per the controller datasheet.
+
+**Ethernet (RJ45)**: magnetics/transformer or LAN module; MDI/MDIX termination; Bob Smith terminations; shield bond strategy; chassis-to-circuit-ground bond per EMC plan.
+
+**Audio (3.5mm TRS / TRRS)**: switching contacts on TRS detect insertion; AC coupling on signal lines (or DC-coupled with explicit reason); ESD on tip/ring; ground-loop strategy for line-out.
+
+**Antenna connector / feed (U.FL, SMA, board-edge contact)**: 50Ω routing structure to the connector; return-plane keepout under the feed (see Net Class Taxonomy → RF below); connector type matched to frequency and connector-mate strategy.
+
+**Debug headers (if user-accessible)**: ESD on signals; protection if user can short pins; pin keying or marking to prevent reverse insertion. (Internal-only debug headers in sealed enclosures may justify omitting ESD — note explicitly.)
+
+---
+
+## Net Class Taxonomy (Per-Design Table)
+
+Some nets need non-default physical rules — width, clearance, impedance, keepout, return path, shield. The class catalog isn't fixed; each design enumerates the net classes that apply. Generate this table during Phase 3 and apply rules via `design_constraint(<NetClassTag>(), priority=N).<rule>(...)`.
+
+**Generate one row per applicable class. Skip rows that don't apply. If no nets in this design need non-default rules, record "no non-default net classes" with one-line rationale.**
+
+| Net class | Why it matters | Width / clearance / keepout / impedance / return path | JITX expression |
+|-----------|---------------|-------------------------------------------------------|-----------------|
+| Switch node (buck/boost) | Hot loop EMI, dV/dt | Width sized for current; tight loop area; pour pulled back from node | `design_constraint(SwTag(), ...).clearance(...)` |
+| RF / antenna feed | Impedance, return current, EMI | 50Ω routing structure; return-plane keepout under antenna | Routing structure + `design_constraint(RFTag(), ...)` |
+| High-speed differential (USB, Ethernet, PCIe, etc.) | Impedance, skew, EMI | 90/100Ω diff; via stitching; reference-plane continuity | SI constraint + routing structure |
+| DDR / LPDDR | Per-byte-lane timing | Per-class width/clearance; length matching | Diff and length-matching constraints |
+| Sensitive analog | Coupling, ground loops | Guard rings, shield, separate return | Net class with clearance |
+| High-voltage / mains | Creepage, isolation | Class-dependent clearance, no-pour zones | Clearance constraint, layer assignment |
+| High-current | I²R, thermal, EMI | Wide trace or pour, multiple vias | Width and via-count constraint |
+| Gate drive | dV/dt, ringing | Tight return loop, gate resistor placement | Net class + placement constraint |
+| Kelvin sense | Accuracy | Separate trace from current path | Routing rule |
+| Isolated domain | Galvanic isolation | Creepage / clearance / barrier | No-pour zone, clearance |
+
+The list is not exhaustive — add new classes as a design demands them (e.g., low-leakage thermocouple inputs, guard rings, motor phase windings).
+
+The Phase 3 → 3b transition confirms the table exists if the design has any non-default net classes; if not, it confirms the explicit "no non-default net classes" statement.
 
 ---
 
@@ -258,7 +319,7 @@ After the domain-specific checklist, verify these universal items:
 - [ ] `PowerSymbol` on every power rail — applied at top-level design only
 - [ ] SI constraints (`Constrain`, `ConstrainDiffPair`, `ConstrainReferenceDifference`) — applied at top-level within `ReferencePlanes(GND)` context, not inside subcircuits
 - [ ] Ground pours on ground plane layers — applied at top-level design only
-- [ ] **I2C pull-ups** — applied at top-level, not inside individual circuits (shared bus)
+- [ ] **I2C pull-ups** — placed at the bus-aggregation level (the circuit that composes master + slaves on the bus). Usually the top-level design because most buses span subcircuits; but if one subcircuit fully encloses both ends of a private bus, the pull-ups belong inside that subcircuit. Never local to a single bus participant.
 - [ ] **Shared bus termination** (I2C, SPI, CAN) — pull-ups/termination at top-level only, never duplicated in subcircuits
 
 ### Datasheet Compliance (CRITICAL for circuit tasks)

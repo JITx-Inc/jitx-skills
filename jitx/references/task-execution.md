@@ -10,6 +10,8 @@ Two-tier quality system: sub-agents validate their own work, then the orchestrat
 
 When Claude builds something complex in hardware, they tend to miss key details on the first pass — floating enable pins, missing thermal pads, wrong output types, forgotten decoupling. But when prompted to look harder at the same data, they catch what was missed. This protocol formalizes that second look.
 
+The output of Part A is a **task acceptance block** (template in `references/completion-blocks.md`) — a structured artifact, not a prose summary. The orchestrator in Part B reviews the block, not free-form text.
+
 ### The Protocol
 
 #### Step 1: Receive Task
@@ -23,7 +25,7 @@ Read your task definition from PLAN.md. Note:
 
 #### Step 2: Invoke Sub-Skill, Read the Datasheet, and Implement
 
-**You MUST invoke the sub-skill and read the actual datasheet.** Do NOT design circuits from memory. The datasheet's application circuit is the ground truth.
+**You MUST invoke the sub-skill and read the actual datasheet.** Do NOT design circuits from memory. The datasheet's application circuit is the ground truth — see `references/parts-sourcing.md` "Evidence Hierarchy and Conflict Resolution" for source ranking when sources disagree (datasheet > errata > app notes > vendor reference design > user-supplied known-good > prior internal project > community).
 
 | Task Type | Skill | Datasheet Requirement |
 |-----------|-------|-----------------------|
@@ -45,7 +47,7 @@ Read your task definition from PLAN.md. Note:
 6. Invoke the component modeler skill (Step 5: Capture Application Circuit) for the IC — this is NOT optional in the project builder workflow
 7. Invoke the circuit builder skill for the wiring patterns
 
-**Parts not in jitxlib:** If a passive or simple component (LED, TVS diode, ferrite bead) is not available from jitxlib queries, check if the user provided a KiCad footprint or ask them for one. If the user has approved LCSC/EasyEDA as a data source (see Phase 0 data audit), install `parts2jitx` (`pip install parts2jitx`) and use `parts2jitx-lcsc` to find it on LCSC and convert with `parts2jitx-kicad`. Do not use LCSC data without user approval. Do not give up on a component because it's not in the standard library.
+**Parts not in jitxlib:** If a passive or simple component (LED, TVS diode, ferrite bead) is not available from jitxlib queries, check if the user provided a KiCad footprint or ask them for one. If the user has named LCSC/JLCPCB as the sourcing channel, `parts2jitx-lcsc` *lookup/evidence* (stock, lifecycle, datasheet URL, pinout) is implied — install `parts2jitx` and run it. **Footprint data ingestion** via `parts2jitx-lcsc --footprint` + `parts2jitx-kicad` still requires explicit per-project approval (EasyEDA terms-of-use). See `references/parts-sourcing.md` "LCSC / JLCPCB via parts2jitx" for the split-consent table. Do not give up on a component because it's not in the standard library.
 
 **Common mistakes from not reading the datasheet:**
 - Missing external transistors (e.g., PMOS for power switching on PD controllers)
@@ -67,15 +69,17 @@ This ensures reproducibility across sessions and avoids repeated downloads.
 
 #### Step 3: Initial Build Test
 
-Build using the lock wrapper to avoid collisions with parallel agents:
+Run the test build:
 
 ```bash
-python <project>/runner/build_lock.py <module.path.TestDesign>
+python -m jitx build <module.path.TestDesign>
 ```
+
+Don't run a concurrent build of the same design in parallel — see `jitx/SKILL.md` "Build Safety".
 
 If it fails, fix errors and rebuild until `status: ok`. Do not proceed to Step 4 with a broken build.
 
-#### Step 4: Domain Checklist Review (CRITICAL)
+#### Step 4: Domain Checklist Review + Grep Gates (CRITICAL)
 
 **STOP. Do not return yet.**
 
@@ -97,58 +101,48 @@ This step typically catches 3-5 issues. Common misses by domain:
 
 **Substrate**: missing via definition for a needed layer transition, routing structure velocity in wrong units
 
-#### Step 5: Fix and Rebuild
-
-If Step 4 found issues (it usually does), fix them all and rebuild:
+After the domain checklist, run the grep gates:
 
 ```bash
-python <project>/runner/build_lock.py <module.path.TestDesign>
+bash <project>/scripts/grep_gates.sh src/<ns>/
 ```
 
-Verify `status: ok`.
+The script reports hard-fail and review-required hits. Hard-fail hits must be fixed before proceeding. Review-required hits get a disposition (`fixed`, `accepted with rationale: <why>`, or `deferred to <named follow-up>`) when reported in the task acceptance block in Step 6.
 
-#### Step 6: Self-Evaluation Report
+For the full pattern set and copy-paste templates: read `references/completion-blocks.md` "Grep Gate Patterns" section.
 
-Write a report in this format:
+#### Step 5: Fix and Rebuild
 
+If Step 4 found issues (it usually does — checklist or grep), fix them all and rebuild:
+
+```bash
+python -m jitx build <module.path.TestDesign>
 ```
-## Task: [task-id] [Task Name]
-## Status: PASS | FAIL
 
-### Implementation
-[1-2 sentences: what was built, key decisions made]
+Verify `status: ok`. Re-run `bash <project>/scripts/grep_gates.sh src/<ns>/` if any code changed; the hard-fail set must now show 0 hits.
 
-### Build Result
-status: ok
-[or: status: error — with the error details]
+#### Step 6: Emit the Task Acceptance Block
 
-### Checklist Review
-Checklist(s) used: [Component + MCU/FPGA, Power Circuit, etc.]
-Items checked: N/N
-Issues found and fixed:
-  - [issue 1]: [what was wrong] → [what was fixed]
-  - [issue 2]: [what was wrong] → [what was fixed]
-Items not applicable:
-  - [item]: [why it doesn't apply]
+Emit the **task acceptance block** verbatim using the template in `references/completion-blocks.md`. The block is the report — prose summaries are not a substitute. Required fields include `Primary source`, `Secondary references`, `Footprint source`, `Checks run` (domain checklist + General Gotcha Scrub + `ruff check` + `ruff format` + `pyright`), `Interface notes`, and `Verdict (self): ready-for-review`.
 
-### Interface Notes
-Ports exposed: [list of ports that downstream tasks will connect to]
-Power requirements: [voltage and current needs for upstream power tree]
-Constraints needed: [any SI constraints that should be applied at top level]
+Rules (full set in `completion-blocks.md`):
 
-### Known Limitations
-[Anything that could not be resolved, or assumptions made]
-```
+- **No block, not done.** A task without the block is `in-progress` regardless of build state.
+- **`N/A` requires a reason.** Bare `N/A` in any field is rejected on review.
+- **Primary source must be ground truth.** Datasheet, manufacturer reference design, vendor mechanical drawing, or protocol spec — not a prior project. Prior projects belong only under `Secondary references`.
+- **Static checks** (`ruff check`, `ruff format`) are required where Python was touched. `pyright`: `clean | issues | not available (<reason>)`.
 
 #### Step 7: Return
 
-Return the self-evaluation report. Do NOT return without completing Steps 4-6.
+Return the task acceptance block. Do NOT return without completing Steps 4-6.
 
 ---
 
 ## Part B: Orchestrator Acceptance Review
 
-After a sub-agent returns, the orchestrator performs an independent review. The orchestrator does NOT trust the self-evaluation at face value.
+After a sub-agent returns, the orchestrator performs an independent review of the **task acceptance block** the sub-agent emitted. The orchestrator does NOT trust the block claims at face value — it verifies them against the code, the build, and the checklist.
+
+A returned task without an acceptance block is automatically `rework` with the reason "missing acceptance block". The block is the contract.
 
 ### Review Steps
 
@@ -161,10 +155,10 @@ Open each file the sub-agent created or modified. Scan for:
 
 #### 2. Verify the Build Claim
 
-If the sub-agent claims `status: ok`, confirm by checking for the test harness file and that the code structure is plausible. For critical tasks, re-run the build:
+If the sub-agent's block says `status: ok`, confirm by checking for the test harness file and that the code structure is plausible. For critical tasks, re-run the build:
 
 ```bash
-python <project>/runner/build_lock.py <module.path.TestDesign>
+python -m jitx build <module.path.TestDesign>
 ```
 
 #### 3. Spot-Check High-Risk Checklist Items
@@ -177,7 +171,7 @@ Do not re-run the entire checklist. Focus on the items most commonly missed for 
 | Component (footprint) | Pad positions plausible for package size, row spacing correct, pad dimensions match datasheet mechanical drawing — not fabricated from memory |
 | MCU/FPGA | All power domains present, programming interface complete, reset pin present |
 | Power circuit | Enable pin handling, PGOOD output type + pull-up, **feedback divider uses solver not manual values**, bootstrap cap present |
-| Interface circuit | **Exposes bundle-typed ports**, decoupling on every IC power pin, **no I2C pull-ups** (those go at top level) |
+| Interface circuit | **Exposes bundle-typed ports**, decoupling on every IC power pin, **I2C pull-ups only if this circuit is the bus-aggregation level** (encloses both ends of a private bus); otherwise pull-ups go at the level that composes the bus |
 | **Any circuit** | **Did the sub-agent read the datasheet?** Compare the circuit against the datasheet's application circuit. Count external components — are any missing (transistors, caps, resistors)? Check all pull-up voltage domains — nothing should pull to a high-voltage rail like VBUS. |
 | Substrate | All via types defined, ground plane continuity, impedance achievable |
 
@@ -191,15 +185,26 @@ Verify that the task output is compatible with downstream tasks:
 
 #### 5. Issue Verdict
 
-**Accept** — Task passes. Update PLAN.md status to `accepted`.
+For **complete-board** tasks in the outside-voice trigger list (MCU/FPGA, RF, power converter, safety-critical, high-speed digital / controlled-impedance, battery charging / protection), **run an outside-voice (codex) pass before issuing `accept`**. The trigger list does not apply to single-task tier; for single-task, the block's `Outside-voice review` field is `not applicable: single-task tier`. See `references/outside-voice-review.md` for trigger rules, prompt shape, invocation, and the combined-verdict rule. Append the outside-voice result as a field in the task acceptance block; CRITICAL/WARNING findings block `accept` until fixed, downgraded with rationale, or user-approved.
 
-**Rework** — Specific issues found. Respawn the same sub-agent with:
+Append the acceptance verdict to the same task acceptance block the sub-agent emitted:
+
+```markdown
+**Verdict (acceptance):** accept | rework | reject
+**Notes:** <if rework or reject: specific issues with file:line references>
+```
+
+**Accept** — Task passes. Update PLAN.md status `review` → `accepted`.
+
+**Rework** — Specific issues found. Status `review` → `rework`. Respawn the same sub-agent with:
 - The original task definition
 - The specific issues found (code references, line numbers)
 - Instruction to fix only the identified issues and re-run checklist
 - The sub-agent retains its prior context; this is a continuation, not a restart
 
-**Reject** — Fundamental approach is wrong. Options:
+On respawn, status moves `rework` → `in-progress`.
+
+**Reject** — Fundamental approach is wrong. Status → `rejected`. Options:
 - Rewrite the task definition in PLAN.md with better guidance
 - Escalate to the user for clarification
 - Reassign to a different task decomposition
@@ -219,10 +224,10 @@ Action required:
 - Fix the issues listed above
 - Re-run the domain checklist (focus on the categories where issues were found)
 - Rebuild and verify status: ok
-- Return an updated self-evaluation report
+- Return an updated task acceptance block
 ```
 
-The sub-agent fixes only the identified issues, re-checks, rebuilds, and returns an updated report. The orchestrator reviews again. Maximum 2 rework cycles before escalating to reject.
+The sub-agent fixes only the identified issues, re-checks, rebuilds, and returns an updated task acceptance block. The orchestrator reviews again. Maximum 2 rework cycles before escalating to reject.
 
 ---
 

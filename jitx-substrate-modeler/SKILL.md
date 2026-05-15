@@ -181,7 +181,7 @@ Rz values below are for the **matte/bonding side** (the side laminated to the di
 **Cannonball-Huray parameters** (for HFSS/EM simulation using the average HCPES+SCPES model):
 - Nodule radius: `a = 0.0573 × Rz` (µm)
 - Surface ratio: `Sr = 5.117` (constant, independent of foil type)
-- Use matte-side Rz for the bottom surface of a trace; drum-side Ra (≈ Rz/4) for the top surface.
+- Use matte-side roughness for the bottom surface of a trace; drum-side for the top. The matte side is the rougher of the two — typical Ra range 0.18–0.51 µm for standard foils; the drum side is much smoother — Ra ≈ Rz × 0.0573 (matches the Cannonball-Huray nodule-radius formula, ≈ 0.18 µm at Rz = 3.05 µm).
 
 | Copper Type | Representative Rz (µm) | Nodule radius a (µm) |
 |-------------|------------------------|----------------------|
@@ -655,6 +655,10 @@ self.rule2 = design_constraint(RFSignalTag(), RFSignalTag()).clearance(1.05)
 self.rule3 = design_constraint(RFSignalTag(), GNDTag()).clearance(0.15)
 ```
 
+**Board-wide defaults belong on the Design class, not the substrate.** The four canonical defaults — trace width, copper clearance, thermal relief, wider power/ground — go in `self.rules` on the top-level Design via `UnaryDesignConstraint(IsTrace)` / `BinaryDesignConstraint(IsCopper, IsCopper)` / `UnaryDesignConstraint(IsPad)` / `UnaryDesignConstraint(PowerTag() | GroundTag(), priority=1)`. See `jitx/references/project-builder-flow.md` "Default design rules" for the full pattern. The substrate's `FabricationConstraints` are the fab-minimum floor; the Design rules are the production-friendly defaults that sit above the floor.
+
+`design_constraint(...)` and `UnaryDesignConstraint(...)` / `BinaryDesignConstraint(...)` are equivalent — the lowercase form is a factory that returns the right subtype based on arity. Use either.
+
 ### Thermal vias via `design_constraint(...).stitch_via(...)`
 
 There is **no `add_thermal_vias(net, shape)` helper** in JITX 4.x. To
@@ -748,7 +752,7 @@ class SubstrateB(Substrate, MyVias):
 5. **Define vias** — all via types needed (through, micro, stacked, blind, buried, backdrilled)
 6. **Add routing structures** — `RoutingStructure` and `DifferentialRoutingStructure` for each impedance target
 7. **Add design rules** — Tags and `design_constraint()` for clearances if needed
-8. **Verify** — `pyright` type check, then `python -m jitx build` with a test design
+8. **Verify** — `pyright` type check, then `python -m jitx build` with a test design (sequence builds — don't parallelize against the same project; see `jitx/SKILL.md` "Build Safety")
 
 ## API Reference
 
