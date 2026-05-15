@@ -170,6 +170,44 @@ For each component used by the design:
       the module wrapper's contents go in Phase 4 inside the appropriate
       Circuit.
 
+#### When the Stanza module computes values from kwargs (parametric formula)
+
+A Stanza module signature like
+
+```stanza
+public pcb-module module (-- output-voltage:Double = 3.3
+                             input-voltage:Double = 25.0
+                             output-current:Double = 3.0
+                             ripple:Double = 30.0e-3
+                             placed:True|False = false) :
+```
+
+is **parametric**: the body computes inductor value, feedback divider
+ratio, output-cap count, soft-start cap, etc. from those kwargs. The
+worked example is in
+[`references/side-by-side/05-parametric-module.md`](side-by-side/05-parametric-module.md).
+
+The Python port must **port the formula**, not pick the value the
+formula produces at one example call site. Concrete signals to look
+for in the Stanza body:
+
+- `closest-std-val(...)` — value computed and snapped to a standard
+  E-series. Port using `jitx-skills:jitx-circuit-builder` §"Snap
+  computed values to a standard E-series".
+- `for i in 0 to <computed-int> seq : bypass-cap-strap(...)` —
+  output-cap count derived from a derating formula. Port the count
+  computation as well as the per-cap parameters.
+- `inst feedback : ocdb/modules/passive-circuits/voltage-divider(...)` —
+  the generator solves for two resistor values from a target
+  ratio + divider current. Port the divider math; do **not** hardcode
+  the two resistor MPNs picked at one example call.
+- `val css = soft-start * 5.5e-6 / 0.8` — closed-form RC sizing.
+
+Branching on a specific kwarg value (`if abs(output_voltage - 3.3) <
+0.01: r_hi = 31.6e3 else ...`) on the Python side is a code smell
+that flags this trap: it's the symptom of picking values from one
+example instantiation instead of porting the formula.
+
 ## Phase 4 — Port circuits / modules
 
 Bottom-up: leaf circuits before parents. For each:
@@ -225,6 +263,36 @@ three states:
 > connections` are a **signal that Phase 4 is incomplete**, not a cosmetic
 > artifact. Treat them as Phase 4 errors and resolve before Phase 5.
 
+### Phase 4 leakage check — top-level-only constructs in subcircuits
+
+A subtle Phase 4 failure mode: a faithful structural port of a Stanza
+module places its symbols / pull-ups / pours where the Stanza module
+had them — which on the Stanza side was the consumer subcircuit, and
+on the Python side should be the top-level `Design`. The build still
+passes, but the schematic shows duplicate ground symbols, I²C pull-ups
+attach to the wrong rail copy, and copper pours land in the wrong
+frame. See
+[`jitx-skills:jitx-circuit-builder`](../../jitx-circuit-builder/SKILL.md)
+§"Top-level-only constructs" for the full list and rationale.
+
+Before advancing to Phase 5, grep the **ported circuits** (everything
+not in `designs/` or the top-level `Design` class) for these tokens:
+
+```bash
+grep -rn "GroundSymbol\|PowerSymbol"            <python-pkg>/circuits/
+grep -rn "Pour("                                <python-pkg>/circuits/
+grep -rn "ReferencePlanes"                      <python-pkg>/circuits/
+grep -rn "Constrain\|ConstrainDiffPair"         <python-pkg>/circuits/
+# Shared-bus pull-ups — grep for the consumer-side rail attach pattern
+grep -rEn "Resistor\(.*\)\.insert.*VDD3V3|3V3"  <python-pkg>/circuits/
+```
+
+Each hit needs to be either moved to the top-level `Design` / `designs/`
+module, or justified inline (e.g. a chip-local rail like CH224K's
+internal VDD legitimately stays inside the cir-01 subcircuit because
+the rail itself does not leave the subcircuit). I²C / FAULT / PG
+pull-ups to a board-wide rail (`+3V3`) always move up.
+
 ### Power topology check (mandatory)
 
 Stanza power-net names invert easily during porting. Before naming any net
@@ -252,6 +320,41 @@ These are the domain-heavy parts of the port. They typically arrive intact in th
 - **Vias and routing structures:** `pcb-via` → `Via`; new in 4.x, formalize via `RoutingStructure`, `DifferentialRoutingStructure`, `NeckDown` (all in `jitx.si`; construct with the `symmetric_routing_layers({...})` helper) where appropriate. Stanza-side `structure ... = SingleEnded(...)` / `Differential(...)` declarations have **no class with those names** in 4.x — rename to `RoutingStructure` / `DifferentialRoutingStructure`.
 - **Signal constraints:** Stanza topology constraints → `Constrain`, `ConstrainDiffPair`, `TimingConstraint`, `InsertionLossConstraint`, `ReferencePlanes` (uses `jitx-interconnect-constraints`).
 - **Topology graph:** `>>` operator builds the routed graph; bridging/terminating pin models attach to nodes.
+
+### Phase 5 exit criteria — Stanza-source constraint inventory
+
+Before advancing to Phase 6, grep the **entire Stanza source tree** for
+the four constraint patterns below and locate the Python equivalent for
+each hit. Missing any one is a Phase 5 blocker, not a Phase 6 follow-up
+or a `# TODO` comment.
+
+```bash
+grep -rn "topology-segment"        <stanza-root>   # → a >> b
+grep -rn "structure(.*)\s*="       <stanza-root>   # → Constrain(...).structure(...) OR Tag + design_constraint(...).routing_structure(...)
+grep -rn "timing-difference"       <stanza-root>   # → .timing_difference(lo, hi) on ConstrainDiffPair / ConstrainReferenceDifference
+grep -rn "property(.*\.net-class)" <stanza-root>   # → Tag + design_constraint(tag).routing_structure(...)
+```
+
+For each hit, locate the corresponding Python construct. Reusable Stanza
+helpers like `defn differential-constraint (in1, out1, in2, out2) :`
+that bundle several constraints should be ported as **Python functions
+returning `ConstrainDiffPair`** rather than inline-transcribed at every
+call site — see
+[`references/side-by-side/04-pin-assignment.md`](side-by-side/04-pin-assignment.md)
+§"The `differential-constraint` helper recipe".
+
+Common loss modes from real ports (these are the bugs this gate is
+designed to catch):
+
+- USB diff pair has resistors and named D+/D- nets but no `>>` topology,
+  no `ConstrainDiffPair`, no routing structure — diff-pair routing
+  rule never attaches.
+- RF / antenna nets have a `property(... net-class)` clause on the
+  Stanza side but no `Tag` + `design_constraint(...).routing_structure(...)`
+  on the Python side — CBCPW / 50 Ω structure never attaches.
+- `timing-difference(...) = TimingDifferenceConstraint(-1ps, 1ps)` on
+  the Stanza side has no `.timing_difference(...)` call on the
+  Python side — skew budget is silently relaxed to "unconstrained".
 
 ## Phase 6 — Post-verify the 4.x design
 

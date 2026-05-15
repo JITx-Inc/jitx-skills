@@ -38,6 +38,7 @@ syntax depth see the `lbstanza` skill; for Python API depth see the
 | `inst r : chip-resistor(1.0e3)` (instantiate inside module) | `r = ChipResistor(1.0e3)` declarative class attribute, or `self.r = ChipResistor(1.0e3)` in `__init__` | Stanza: `jitpcb-by-example/Examples/first-design/first-design.stanza:10`; Python: [L343-353], [L394-400] |
 | `inst many-rs : chip-resistor(100.0e3)[30]` (instance array) | `timers = [NE555() for _ in range(30)]` (list/dict/tuple OK; generator/set NOT) | Stanza: `jitpcb-by-example/Examples/first-design/first-design.stanza:11`; Python: [L367-382] |
 | `port p : pin[2]` (port array on module) | `p = [Port(), Port()]` or `PortArray(...)`. For non-contiguous indices (depopulated MCU GPIO), use `dict[int, Port]` — see `jitx-skills:jitx-pin-assignment` §"Port arrays at the circuit boundary" or `jitx-skills:jitx-circuit-builder` §"Port arrays" for the rule and rationale. | Stanza: `tests/test-require.stanza:14`; Python: [L1361-1372], [L10887] |
+| `port name : <bundle>` — e.g. `port mcu-power : power`, `port i2s-in : i2s()`, `port dp : diff-pair`, `port usb : usb-2-data` | `name = <Bundle>()` — e.g. `mcu_power = Power()`, `i2s_in = I2S()`, `dp = DiffPair()`, `usb = USB2()`. **Do not collapse bundle ports to bare `Port()`** — consumers wire `.Vp` / `.Vn`, `.sck` / `.ws` / `.sd`, `.p` / `.n`, `.data.p` / `.data.n` against the bundle's sub-ports, and the type system catches swapped wirings. Bundle sub-port names are case-sensitive (`Power.Vp` not `.vdd`; `DiffPair.p` not `.P`). | Stanza: `pd-audio/main.stanza:46-48,92`; Python: `jitx.common.Power`, `jitxlib.protocols.serial.I2S`, `jitx.net.DiffPair`, `jitxlib.protocols.usb.USB2`; sub-port catalog in `jitx-skills:jitx-pin-assignment` §"Built-in Bundles and Their Sub-Ports" |
 | Implicit module-as-schematic-sheet | implicit `SchematicGroup` per `Circuit` (dot-notation labels e.g. `audio.amp.preamp`) | Python: [L441-449] |
 | Parametric `pcb-module my-mod (flag:True\|False) : if flag : ... else : ...` (one definition, two instantiations) | **No single direct mapping** — choose by what the parameter controls. See `side-by-side/02-circuit.md` "Parametric modules". Summary: (a) param affects wiring only → single `Circuit` with `__init__(*, variant=…)` and conditional body; (b) param changes port interface → two separate `Circuit` subclasses (Python class bodies cannot branch port declarations on instance kwargs); (c) variants share most wiring → `@classmethod` factory returning a configured instance. | (this skill, side-by-side/02-circuit.md) |
 
@@ -81,6 +82,34 @@ syntax depth see the `lbstanza` skill; for Python API depth see the
 
 ## 7. Provide / require
 
+### Decision flow for `supports` clauses
+
+Run the **hardware-analysis gate** from
+[`jitx-skills:jitx-pin-assignment`](../../jitx-pin-assignment/SKILL.md)
+§"Hardware-analysis gate" *before* picking a translation row from the
+table below. Most Stanza `require` constructs in real designs are
+**fixed wiring**, not pin-mux — reaching for `@provide` by default is
+the most common over-translation in either direction.
+
+The complementary mistake is **silently dropping the `supports` graph**:
+hardcoding specific pins (`mcu.GPIO[8]`, `mcu.GPIO[9]`, …) on the
+consumer side erases every routing degree of freedom the component
+author granted. The build still passes; the resulting board may not
+be routable. Both directions of audit matter: each `supports` in the
+Stanza source must reach either a `@provide` in Python or a justified
+fixed-wiring decision in the port notes.
+
+The four common Stanza shapes and their idiomatic Python forms are
+worked out in
+[`references/side-by-side/04-pin-assignment.md`](side-by-side/04-pin-assignment.md):
+
+| Stanza shape | When you'll see it | Python form |
+|---|---|---|
+| Single `supports proto : map` | Single fixed peripheral on dedicated pins | `@provide.one_of(Proto)` returning a one-element list |
+| `supports proto :` with multiple `option :` blocks | Polarity / lane swap on one connector | `@provide.one_of(Proto)` returning N mappings |
+| `for p in pins(...) do : supports gpio : ...` | MCU GPIO bank — one independent provider per pin | `@provide(GPIO)` returning one mapping per pin |
+| `for i in 0 to N do : supports proto : option ...` | Per-instance flexibility (e.g. N speaker terminals each with polarity swap) | `@provide(Proto)` with flattened options across instances |
+
 | Stanza 3.x | Python 4.x | Source citation |
 |---|---|---|
 | `supports gpio : gpio.gpio => p[0]` (declares a provider mapping inside `pcb-module`/`pcb-component`) | `@provide(GPIO)` decorator on a method returning a list of `{bundle_port: pin}` mappings; or `@provide.all_of(...)` | Stanza: `tests/test-require.stanza:15-18`; Python: [L1395-1406], [L1482-1495] |
@@ -121,6 +150,7 @@ syntax depth see the `lbstanza` skill; for Python API depth see the
 | (3.x neckdown by parameter) | `RoutingStructure.NeckDown(trace_width=0.09, clearance=0.075)` nested in a `Layer` | Python: [L3759-3765], [L3788-3793] |
 | Stanza tags / `design-rule`-style fab constraints | `Tag` subclasses + `design_constraint(condition, effect)` returning `UnaryDesignConstraint` / `BinaryDesignConstraint` (e.g. `trace_width`, `clearance`, `thermal_relief`, `stitch_via`, `fence_via`) | Python: [L2561-2756], [L8970] (`class Tag`), [L9237] (`class DesignConstraint`) |
 | `add-thermal-vias(net, shape)` (places via grid under a thermal pad) | **No direct function equivalent.** Use `design_constraint(net_tag).stitch_via(...)` — see `jitx-skills:jitx-substrate-modeler` §"Thermal vias via design_constraint" for the full pattern and prerequisites (tag the net, ensure a `Pour` exists). | Python: `jitx.constraints.design_constraint`, `SquareViaStitchGrid` |
+| Stanza reusable constraint helper — `public defn differential-constraint (in1, out1, in2, out2) : inside pcb-module : net ... topology-segment ... structure ... = differential ; timing-difference ...` | Plain Python function (or `@classmethod`) that returns a `ConstrainDiffPair`. Don't inline-transcribe the helper body at every call site. Worked example in `references/side-by-side/04-pin-assignment.md` §"The differential-constraint helper recipe". | Python: `py-jitx/src/jitx/si.py:433-471` (`ConstrainDiffPair`) |
 
 ## 10. Build invocation (CI matrix row shape)
 

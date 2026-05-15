@@ -355,6 +355,47 @@ class TestDesign(SampleDesign):
 Then `python -m jitx build my_module.TestDesign`. That's the only way to
 exercise `__init__` end-to-end on a Circuit / Component.
 
+### Per-leaf `TestDesign` is project hygiene, not a debug-only crutch
+
+Every Circuit and every non-trivial Component file should end with a
+`TestDesign(SampleDesign)` at module scope, even if the top-level
+`Design` is the only thing the CI builds. The leaf TestDesigns make the
+**file individually buildable**, which is what turns a "design build
+fails somewhere" report into "cir-04 builds, cir-06 fails — start with
+cir-06".
+
+```python
+# at the bottom of encore/circuits/audio/amp.py (or any leaf file):
+from jitx.container import inline
+from jitx.sample import SampleDesign
+
+class TestDesign(SampleDesign):
+    resistor_defaults  = ResistorQuery(case=["0402", "0603"])
+    capacitor_defaults = CapacitorQuery(case=["0402", "0603", "0805", "1206"],
+                                        temperature_coefficient_code="X7R")
+
+    @inline
+    class circuit(jitx.Circuit):
+        def __init__(self) -> None:
+            self.dut = AudioAmplifierPBTL()
+            # Provide externally-driven endpoints for every exposed Port /
+            # bundle on the DUT so the build engine has a complete graph:
+            self.VDD3V3 = Net(name="VDD3V3")
+            self.GND    = Net(name="GND")
+            self.VDD3V3 += self.dut.v3v3.Vp
+            self.GND    += self.dut.v3v3.Vn + self.dut.gnd
+            # ... plus one of each require()'d provider on the DUT.
+```
+
+Then `python -m jitx build <pkg>.circuits.audio.amp.TestDesign` works
+for the leaf alone. The pattern scales — see the test harnesses at the
+bottom of every file in `encore/circuits/` and `encore/components/`.
+
+In the port workflow (`jitx-skills:jitx-port-3-to-4`) the leaf
+TestDesign is part of Phase 4's exit criteria, not a Phase 6 nicety.
+Without one, a Phase 4 build failure can come from any of the ported
+Circuits and the bisect step has no isolation gradient.
+
 ## Project Builder Workflow
 
 For building complete JITX designs from requirements — multiple components, substrate, circuits, and constraints assembled into a working board. Use this when the design involves 3+ components with a substrate and interconnected circuits.

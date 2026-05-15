@@ -10,6 +10,66 @@ cross-reference table in `construct-map.md` §11–15 and
 `jitx-skills:jitx/SKILL.md` §"Common API mistakes". This file is the
 **porter-only** pitfall list.
 
+The pitfalls are listed approximately in **decreasing damage order**.
+The first two — silent loss of the `supports`/`require` graph and
+parametric module formulas — produce builds that pass cleanly while
+the design loses pin-routing flexibility or scales incorrectly with
+kwargs. Both have eaten real porting sessions; both have escaped
+Phase 6 type-check and Phase 7 export-compare. Read these first.
+
+## Pitfall #1 — Silent loss of the `supports` / `require` graph
+
+The Stanza source advertises peripheral flexibility via `supports`
+clauses on the component side and consumes it via `require ... from
+<inst>` on the consumer side. A faithful structural port of the
+consumer often hardcodes specific pins (`mcu.GPIO[8]`, `mcu.GPIO[9]`,
+…) and never ports the `supports` declarations. The build passes; the
+layout engine loses every degree of freedom the component author
+granted; the resulting board may not be routable.
+
+**Symptom.** The Stanza source has `require i2c : i2c from mcu.esp`
+and `supports i2c : require io : gpio[2] ; i2c.sda => io[0].gpio ; …`
+on the component side. The Python port has `self.i2c_sda_net =
+self.mcu.GPIO[1] + self.i2c_sda` (hardcoded pins, no `@provide`).
+
+**Detection.** `grep -rn supports <stanza-root>` produces a list of
+Stanza clauses; cross-reference each one against `grep -rn '@provide'
+<python-pkg>`. Every hit on the Stanza side must reach either a
+`@provide` on the Python side or a documented "fixed wiring" decision
+(hardware-analysis gate; see `workflow.md` Phase 4).
+
+**Fix.** Walk `side-by-side/04-pin-assignment.md` for the four common
+shapes (single fixed mapping; multi-option polarity swap; per-pin GPIO
+bank; per-instance flexibility). Choose the matching shape per Stanza
+clause; port the consumer-side `require()` call at the same time.
+
+## Pitfall #2 — Hardcoding parametric module values from one example call
+
+Stanza application-circuit modules like `pcb-module module (-- output-
+voltage:Double = 3.3, ...)` compute component values from kwargs via
+closed-form formulas (`closest-std-val(...)`, `for i in 0 to <computed>
+: bypass-cap-strap(...)`). A naive Python port expands the module body
+for one example call site and hardcodes the values that fall out.
+
+**Symptom.** The Python `__init__` has `self.L =
+Inductor(inductance=4.7e-6)` and `r_hi_value = 31.6e3 if
+abs(output_voltage - 3.3) < 0.01 else …`. Both are smoke: the
+inductor was picked from one example call and the `if abs(...) <
+eps` branch is the leftover scaffolding from picking a second
+example value. The whole point of the parametric module is that the
+kwargs vary — neither pattern survives a non-default call.
+
+**Detection.** Compare Stanza module signatures with `(-- kw1 = ...,
+kw2 = ...)` parameters against the Python `__init__` body. If the
+Python body has hardcoded magic numbers that depend on the kwargs,
+they almost certainly should be formula-derived.
+
+**Fix.** Port the formula. Worked example in
+`side-by-side/05-parametric-module.md` (TPS62933 buck regulator).
+Helper for `closest-std-val(...)` is in
+`jitx-skills:jitx-circuit-builder` §"Snap computed values to a
+standard E-series".
+
 ## Object construction model
 
 - **Stanza modules return values** (a `pcb-module` body produces the

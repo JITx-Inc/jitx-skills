@@ -821,6 +821,63 @@ pin-number trap" in `jitx-port-3-to-4/references/construct-map.md`),
 declaring it. Let the parent Circuit handle case grounding manually
 if needed.
 
+### Multi-domain grounds — do not consolidate DGND / AGND / PGND / EP
+
+When the datasheet pin table names **distinct ground domains** (DGND,
+AGND, PGND, GND_SUB, GND_AUX, etc.), expose them as **separate ports**
+on the `Component`. Do not collapse them into a single `GND` port even
+though they are board-tied at the top level.
+
+```python
+# ✓ Separate ports — each ground domain gets its own bypass-cap return path.
+class TAS5825M(jitx.Component):
+    DGND = Port()
+    AGND = Port()
+    PGND = [Port() for _ in range(4)]   # four power-stage grounds
+    EP = Port()                         # exposed pad
+    # ... mapped distinctly in PadMapping
+```
+
+```python
+# ❌ Consolidated GND — every bypass cap routes through the same node,
+#    defeating the chip's star-ground topology and producing audible
+#    crosstalk on class-D outputs.
+class TAS5825M(jitx.Component):
+    GND = Port()
+```
+
+**Rationale.** Per-domain bypass caps return current through the
+corresponding ground pin, which controls EMI and audio noise. The chip
+designer chose distinct DGND / AGND / PGND pins specifically so the
+high-current power-stage return current does not mix with the
+analog-reference return current inside the package. Consolidating at
+the Component level forces every bypass cap to wire through the same
+global GND, defeating that topology before it reaches the board.
+
+**Signal in the Stanza source.** A Stanza `pin-properties` table with
+separate rows for `[DGND | ...]`, `[AGND | ...]`, `[PGND | ...]` is
+the explicit cue — preserve the separation. The decision is the same
+when the Stanza source consolidates (some legacy 3.x sources do): the
+datasheet pin table is authoritative, not the Stanza model.
+
+The consumer `Circuit` ties everything to the board GND at the top
+level (`encore/circuits/audio/amp.py`):
+
+```python
+self.GND += (
+    self.gnd
+    + self.amp.DGND
+    + self.amp.AGND
+    + self.amp.PGND[0] + self.amp.PGND[1]
+    + self.amp.PGND[2] + self.amp.PGND[3]
+    + self.amp.EP
+)
+# But per-domain bypass caps wire to the matching domain, not the merged GND:
+self.c_mid_pvdd.insert(self.amp.PVDD[0], self.amp.PGND[0], short_trace=True)
+self.c_avdd_hf.insert(self.amp.AVDD,    self.amp.AGND,    short_trace=True)
+self.c_dvdd_hf.insert(self.amp.DVDD,    self.amp.DGND,    short_trace=True)
+```
+
 ### PadMapping value side — Landpattern attribute-name conventions
 
 The **value** side of a `PadMapping` entry uses whichever attribute

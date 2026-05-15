@@ -99,6 +99,8 @@ All bundled docs live in `references/`. Use grep + a small `Read` window — do 
 | "What gotchas should I expect?" | `references/pitfalls.md` |
 | "How do I run the 3.x baseline + 4.x port?" | `references/verification.md` |
 | "Show me a real example port." | `references/side-by-side/01-component.md`, `02-circuit.md`, `03-design-entry.md` (construct mappings, fragments) |
+| "Show me `supports` → `@provide` translation." | `references/side-by-side/04-pin-assignment.md` (four common shapes: single, multi-option, per-pin GPIO, per-instance) |
+| "Show me a parametric module with formulas." | `references/side-by-side/05-parametric-module.md` (TPS62933 with closed-form L / Cout / Css / divider math) |
 | "Show me a runnable end-to-end port pair." | `references/runnable-example/` (small two-resistor design that builds in both versions) |
 
 ## Porting Workflow (7 Steps)

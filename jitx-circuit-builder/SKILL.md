@@ -197,6 +197,51 @@ high-side LED drivers) typically connect their power supply to the **raw
 external** rail. MCU / sensor / digital-side DVDD / AVDD connects to the
 **regulated** rail. The `jitx/references/export-verification.md` §C
 ("Power topology") checklist is the audit pass that catches inversions.
+
+### Net construction — canonical recipes
+
+The four-row table below covers every legitimate net-construction shape
+in 4.x. The footguns it averts (Net GC after `__init__`, `Port += Port`
+errors, name collisions across subcircuits, missing schematic symbols)
+are scattered through this skill's other subsections; this table is the
+quick-reference index.
+
+| Goal | Recipe | Why |
+|---|---|---|
+| Top-level rail (named, schematic symbol) | `self.X = Net(name="X")` then `self.X += a + b`. Symbol attach: `self.X.symbol = PowerSymbol()` (or `GroundSymbol()`). | `name=` and `symbol=` only legal in `designs/`; `self.X` keeps the Net alive across `__init__`. |
+| Intra-circuit net (anonymous) | `self.x = a + b` | `+`-chain returns a Net; `self.` assignment prevents GC. The name doesn't reach the schematic, which is fine inside a subcircuit. |
+| Adding a port to an existing net | `self.X += new_port` | `+=` mutates the Net in place. The result of `Port + Port` is a Net, so `self.X += a + b` also works. |
+| ❌ Don't | `a + b` (no `self.`) | The Net is GC'd after `__init__` returns. Build logs `WARNING:jitx._structural: Reference to structural object Net() lost during instantiation` — the symbol and name are lost even if the connectivity survives. |
+| ❌ Don't | `self.a += b` where `a` is a `Port`, not a `Net` | Ports are immutable. See §"Port immutability" below. Wrap the LHS in `Net(...)` first. |
+| ❌ Don't | `Net(self.a, self.b, self.c, name=...)` (varargs) | Signature is `Net(ports: Iterable = (), *, name=None, symbol=None)`. Wrap the ports in a list: `Net([self.a, self.b, self.c], name=...)`. |
+
+## Top-level-only constructs — what belongs at the design layer
+
+Five JITX 4.x constructs are conventionally placed **only** in the
+`Design` class (or `designs/<board>.py` per project convention). Putting
+them in a subcircuit produces a build-clean design with hidden wiring or
+silent rule conflicts.
+
+| Construct | Why top-level only |
+|---|---|
+| `GroundSymbol()` / `PowerSymbol()` on `Net.symbol` | Schematic symbols on rails are a property of the unified board-wide net. A subcircuit's local "GND" gets merged into the top-level GND; if both carry a symbol, you get duplicate symbols on the schematic. |
+| `Pour(shape, layer=...)` copper pours | Pours bind to the **whole board** geometry, not a subcircuit's frame. Subcircuit pours land at the wrong absolute coordinates if the parent is placed off-origin. |
+| `ReferencePlanes({0: GND, ...})` | Reference planes are board-level routing rules. A subcircuit-local declaration doesn't propagate up. |
+| `Constrain(...)`, `ConstrainDiffPair(...)`, `ConstrainReferenceDifference(...)` | These need the merged-net view from the top level. The subcircuit's local DP / DN ports are not yet joined to their consumer-side endpoints. |
+| **Shared-bus pull-ups** (I²C SDA/SCL, FAULT open-drain, PG open-drain) | The pull-up's "other end" is the top-level rail (`+3V3`, etc.). The pull-up logically belongs at the bus aggregation level — usually the design layer — because it serves every consumer on the bus equally, not the one consumer whose subcircuit instantiates it. |
+
+Projects that enforce this discipline ship a `scripts/grep_gates.sh`
+(or equivalent) that hard-fails the build when the tokens above appear
+outside `designs/`. Even without the script, follow the convention:
+keep every consumer subcircuit free of these tokens, and place them
+explicitly in the top-level `Design`'s `Circuit`.
+
+Worked example: the `pd-audio/encore` reference puts all five of these
+in `encore/designs/board.py`; the consumer circuits
+(`encore/circuits/audio/amp.py`, `encore/circuits/mcu/esp32_subsystem.py`)
+contain none of them. The grep gate at
+`encore/scripts/grep_gates.sh` enforces the rule on every commit.
+
 ## Net Wiring
 
 Every `a + b` expression creates a Net — it **must** be stored or the connection is lost.

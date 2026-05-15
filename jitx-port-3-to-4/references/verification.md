@@ -245,6 +245,60 @@ wrapper (bypass caps, output filters, thermal vias) was not. The
 general check D (Component output pins) catches the symptom; this
 delta catches the cause.
 
+### Phase 7 fallback — Stanza source as the reference
+
+When the Phase 0 build failed and `BASELINE-FAILED.md` exists, there
+is no `baseline-3.x/` artifact for the export diff to consume. Phase 7
+must fall back to a **static source-to-source diff** with the Stanza
+source as the only reference.
+
+This is manual today and produces a `PORT-DIFF.md` artifact attached
+to the PR. Six steps, in order:
+
+1. **Module / Circuit count.** Number of `pcb-module` blocks in the
+   Stanza source = number of `Circuit` subclasses in the Python port
+   (including the top-level `TopCircuit` / `<Name>Top` and any
+   parametric variants that became separate Python classes — see
+   `side-by-side/02-circuit.md` §"Parametric modules"). Mismatch is a
+   Phase 7 blocker.
+
+2. **Per-module instance count.** For each `pcb-module`, count `inst`
+   declarations on the Stanza side and `self.x = X()` lines in the
+   matching Python `__init__`. 1:1 match required.
+
+3. **Per-module net inventory.** For each `pcb-module`, list every
+   `net (...)` declaration on the Stanza side; cross-reference each
+   to a Python `Net(...)` or `+`-chain. Top-level rail names must
+   survive (`VBUS` Stanza → `VBUS` Python, etc.); intra-circuit
+   anonymous nets need a matching anonymous Net in Python.
+
+4. **`supports` / `require` graph.** For each Stanza `supports`
+   clause, locate the Python `@provide` (or document why it became
+   fixed wiring; see `workflow.md` Phase 4 hardware-analysis gate).
+   For each Stanza `require X : <bundle> from <inst>`, locate the
+   matching `self.<inst>.require(<Bundle>)` in Python. See
+   `references/side-by-side/04-pin-assignment.md` for the four
+   shapes and their idiomatic Python forms.
+
+5. **Constraints.** Apply the Phase 5 constraint-inventory gate from
+   `workflow.md` §"Phase 5 exit criteria — Stanza-source constraint
+   inventory" — grep `topology-segment`, `structure(...) =`,
+   `timing-difference`, `property(... net-class)` in the Stanza
+   source; locate the Python equivalent for each. This is the same
+   four-pattern check; the difference here is that Phase 7 enforces
+   it by **listing each hit in `PORT-DIFF.md`** with a Python
+   citation, not just running it as a Phase 5 self-check.
+
+6. **Parametric module formulas.** For each `pcb-module module (-- kw1
+   = ..., ...)` parametric call site in the Stanza source, verify the
+   Python equivalent **ports the formula**, not one example's snapped
+   values. See `side-by-side/05-parametric-module.md` for the audit
+   checklist.
+
+This is a manual diff — not a substitute for the export-level diff —
+but it catches the six structural-loss categories that an
+unavailable-baseline port is most exposed to.
+
 ### Future automation
 
 A future automated comparator at `scripts/compare-exports.py` (not yet
