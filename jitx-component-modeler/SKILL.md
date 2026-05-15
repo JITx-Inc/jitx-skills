@@ -391,15 +391,118 @@ self.L = Inductor(inductance=4.7e-6)   # part DB picks any matching SKU
 ```
 
 For non-passives (crystals, encoders, connectors, mechanical parts),
-**there is no MPN-lookup path**. Write a custom `Component` subclass
-from the datasheet — the OCDB connector / mechanical library has no
-Python equivalent (`jitxlib.connectors` / `jitx.ocdb` do not exist).
-Many OCDB part names map to a real MPN (e.g.
-`korean-hroparts-elec/TYPE-C-31-M-12` → an actual Type-C connector MPN),
-so pull the manufacturer datasheet and model from there. For irregular
-pad arrangements (USB-C receptacles, audio jacks, edge connectors), use
-the custom `Landpattern` + `Pad.at()` pattern in
+**there is no MPN-lookup path** *for the OCDB connector / mechanical
+library* — `jitxlib.connectors` / `jitx.ocdb` do not exist. But the
+generic `Part(mpn=…)` lookup against the parts DB **does** resolve
+many connector / IC MPNs; see the caveats below before using it.
+For irregular pad arrangements (USB-C receptacles, audio jacks, edge
+connectors), use the custom `Landpattern` + `Pad.at()` pattern in
 `references/package-examples.md` §"Custom Landpatterns".
+
+#### Parts DB caveats (jitxlib-parts 1.1.0a0, as of 2026-05-14)
+
+**Some MPNs hit resolver bugs even though they're in the DB.** Known
+examples:
+
+| MPN | Manufacturer | Error |
+|---|---|---|
+| `UCD1V331MNL1GS` | Nichicon (polymer cap) | `'CapacitorSymbol' object has no attribute 'a'` |
+| `LQG15WZ2N0C02D` | Murata (RF inductor) | `KeyError: 'max_current'` in `build_two_pin_mappings` |
+| `WPN4020H6R8MT` | Sunlord (inductor) | `KeyError: 'max_current'` (same) |
+
+Workaround: drop the MPN and query by value — `Capacitor(capacitance=22e-6)`,
+`Inductor(inductance=2.0e-9, case="0402")`. If the design requires a
+specific MPN for compliance, file a `jitxlib-parts` bug rather than
+working around it in user code.
+
+**Cross-ref**: for value-side issues — computed values that don't
+match an E-series step, or sub-nH RF inductors that fail the default
+case constraint — see
+`jitx-skills:jitx-circuit-builder` §"Snap computed values to a
+standard E-series" and §"Relaxing query defaults for outsize parts".
+
+**Don't pass redundant value kwargs alongside `mpn=`.** The Python
+parts DB treats every kwarg as an AND filter — unlike Stanza, where
+`database-part(["mpn" => …])` is keyed only on MPN and ignores other
+fields. If you pass `Inductor(mpn="WPN4020H6R8MT", inductance=l_value)`
+with a computed `l_value` that doesn't match the part's actual 6.8 µH,
+the query fails with "No components meeting requirements" and no
+hint that the `inductance` kwarg is the conflicting field. **Rule**:
+when using `mpn=` on `Resistor` / `Capacitor` / `Inductor`, omit the
+`value` / `capacitance` / `inductance` / `resistance` argument. The
+MPN is the unique key.
+
+**`manufacturer=` is fuzzy-matched** (case-insensitive substring).
+`Part(mpn="AS78L05RTR-E1", manufacturer="Diodes Inc.")` resolves
+cleanly even though the stored manufacturer is `"DIODES INCORPORATED"`.
+The query succeeds; the resolved metadata reads the canonical name.
+Don't assume exact-match semantics when comparing the input string
+to the resolved part's manufacturer field.
+
+#### Port access on parts-DB-resolved components
+
+Port-access convention depends on **how the part was sourced**, not
+on what kind of part it is. Three distinct conventions:
+
+| Component source | Port access |
+|---|---|
+| `Resistor(resistance=…)` / `Capacitor(capacitance=…)` / `Inductor(inductance=…)` from `jitxlib.parts` | `.p1`, `.p2` |
+| `Part(mpn="…")` whose physical layout is a generic SMD package (speaker terminal, pushbutton, generic 2-pin) | `.p[1]`, `.p[2]`, … (port array, 1-indexed) |
+| `Part(mpn="…")` whose pin-properties names pads (connectors, ICs, encoders) | flat names — `.SDA`, `.VBUS0`, `.GND0`, etc. |
+
+Examples:
+
+```python
+# (a) jitxlib.parts.Capacitor — .p1 / .p2
+self.c = Capacitor(capacitance=100e-9, case="0402")
+self.net_a = self.ic.VCC + self.c.p1
+self.net_b = self.ic.GND + self.c.p2
+
+# (b) Part(mpn=…) generic 2-pin / 4-pin — .p[N]
+self.spk = Part(mpn="DB128L-5.08-2P-BK-S", manufacturer="DIBO")
+self.spk_p = self.stereo.out_a_p + self.spk.p[1]
+self.btn = Part(mpn="SKRPADE010", manufacturer="ALPSALPINE")
+self.net_a = self.btn.p[1] + self.btn.p[3]   # pushbutton across-pole
+
+# (c) Part(mpn=…) with named pins — flat attribute names
+self.usbc = Part(mpn="TYPE-C-31-M-12")
+self.usb_dn = self.usbc.DN1 + self.usbc.DN2 + my_usb2.data.n
+self.usb_dp = self.usbc.DP1 + self.usbc.DP2 + my_usb2.data.p
+self.vbus  = self.usbc.VBUS0 + self.usbc.VBUS1 + self.usbc.VBUS2 + self.usbc.VBUS3
+self.gnd   = self.usbc.GND0  + self.usbc.GND1  + self.usbc.GND2  + self.usbc.GND3
+```
+
+`Part(mpn=…).p1` raises `AttributeError`; use `.p[1]`. The structural
+bundle types (`USB_C_Connector`, etc.) are for **user-defined**
+`Component` classes that *choose* to expose a bundle interface — not
+for parts-DB-sourced connectors. To net a parts-DB Type-C to a
+`USB_2()` bundle elsewhere, wire per-pad as shown.
+
+#### pyright caveat on `Part(mpn=…).<port>`
+
+Every `Part(mpn=…).<port>` access raises
+`reportAttributeAccessIssue` ("Cannot access attribute "<NAME>" for
+class "Part""). This is **inherent** — port names come from the
+parts DB at runtime, so pyright has no way to know what ports the
+resolved class will expose. The pd_audio porting session
+encountered 54 such errors out of 58 total pyright errors after the
+first build smoke-test; this is the dominant class of pyright noise
+on any design that uses parts-DB connectors / encoders / ICs.
+
+Two correct ways forward:
+
+1. **Accept the errors and filter when triaging real type errors:**
+   ```bash
+   pyright src/ 2>&1 | grep -E 'error:' | grep -v 'for class "Part"'
+   ```
+
+2. **Wrap the part in a custom `Component` subclass** with declared
+   `Port`s and explicit `PadMapping`. More work, but yields pyright-
+   clean access. Choose this when the design requires CI gating on
+   pyright errors.
+
+The `jitx-port-3-to-4` workflow's "treat any pyright error as
+blocking" rule **does not apply** to this class of error.
 
 ### Thermal Pad with Paste Subdivision
 
@@ -651,6 +754,91 @@ Use `.narrow()` for standard narrow-body SOICs. Use `.package_body()` for wide-b
   - Ports declared out of pin order
   - Multiple ports map to same pad
   - Pin 1 is not the first declared port
+
+### Every Port must appear in a PadMapping
+
+When you declare an explicit `PadMapping`, **every `Port` on the
+`Component` subclass must appear as a key** — even if it's a
+no-connect. `.no_connect()` does **not** satisfy this requirement:
+no-connect is for ports that ARE wired to pads but should be
+reported as unconnected on the netlist. Calling `.no_connect()` on
+a Port that has no pad in the mapping still produces:
+
+```
+translation failed:
+  <package.Component>'s port <NAME> is not mapped to a pad
+```
+
+If a Stanza `pin-properties` entry refers to a pad index that the
+4.x landpattern doesn't expose (e.g. a center "case" pad on a
+generator that doesn't expose it, or the Stanza-style "pad 0" /
+"pad N+1" entry for a thermal pad — see the §"Stanza-pin-number
+trap" in `jitx-port-3-to-4/references/pitfalls.md` and §"Stanza-
+pin-number trap" in `jitx-port-3-to-4/references/construct-map.md`),
+**delete the `Port` from the Component definition** rather than
+declaring it. Let the parent Circuit handle case grounding manually
+if needed.
+
+### PadMapping value side — Landpattern attribute-name conventions
+
+The **value** side of a `PadMapping` entry uses whichever attribute
+convention the landpattern source dictates — not a free choice:
+
+| Landpattern source | Pad reference |
+|---|---|
+| `SOIC` / `SON` / `QFN` / `SOT` / `BGA` (jitxlib generators) | `lp.p[N]` array, **1-indexed** |
+| BGA with alpha-row naming | `lp.A[1]`, `lp.B[2]`, … |
+| Custom `Landpattern` subclass with attribute-named pads (e.g. `p1 = SMDPad(...)`) | `lp.p1`, `lp.p2`, `lp.<your_name>` |
+| Thermal pad on any generator | `lp.thermal_pads[N]`, **zero-indexed** |
+
+Mixing conventions within the same `Component` is fine — they're
+different namespaces — but **the natural Stanza-style translation
+`p1 = SMDPad(...)` only works for custom Landpatterns**. On a
+generator-derived Landpattern (`SOIC(num_leads=10)...`),
+`lp.p1` raises `AttributeError: 'SOIC' object has no attribute 'p1'`.
+Use `lp.p[1]` there.
+
+See `references/package-examples.md` §"Custom Landpatterns" for the
+attribute-named-pads pattern; the SOIC/QFN examples in §"Package-
+Specific Examples" above show the `lp.p[N]` form.
+
+### No `PadType` enum in 4.x
+
+Stanza pads carry an explicit `type = SMD` directive:
+
+```stanza
+pcb-pad rectangle-smd-pad :
+  name = "rectangle-smd-pad"
+  type = SMD                          ; ← Stanza form
+  shape = Rectangle(0.280, 0.680)
+  layer(SolderMask(Top)) = Rectangle(0.382, 0.782)
+  layer(Paste(Top)) = Rectangle(0.280, 0.680)
+```
+
+There is **no `PadType` enum in 4.x**. A `Pad` subclass is SMD by
+default; if it contains a `jitx.feature.Cutout` instance, the build
+reclassifies it as through-hole. Don't transcribe `type = SMD`
+verbatim — `jitx.PadType` does not exist and the import fails with
+`AttributeError`.
+
+Solder-mask and paste-stencil overrides translate to attribute
+declarations on the `Pad` subclass instance, not class-level
+`layer(...)` calls:
+
+```python
+from jitx.landpattern import Pad, SMDPad, Soldermask, Paste
+from jitx.shapes.composites import rectangle
+
+class _RectangleSMDPad(Pad):
+    shape = rectangle(0.280, 0.680)
+    def __init__(self) -> None:
+        self.soldermask = Soldermask(rectangle(0.382, 0.782))
+        self.paste = Paste(rectangle(0.280, 0.680))
+```
+
+If the Stanza source only declares mask/paste overrides that are
+within the default expansion ratio, you can drop them entirely and
+rely on the default — review with the design owner before doing so.
 
 ## Verification Process
 

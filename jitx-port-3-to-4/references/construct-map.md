@@ -56,7 +56,7 @@ syntax depth see the `lbstanza` skill; for Python API depth see the
 | `pcb-symbol single-shape : ...` | `class MySymbol(Symbol): vcc_pin = Pin.up((0,2), length=1)` | Stanza: `jitpcb/src/jitpcb/harnesses/schematic-symbol-shape-design-harness.stanza:49`; Python: [L519-523], [L12696] (`class Symbol`), [L12755] (`class Pin`) |
 | `pin-properties : [pin:Ref \| pads:Ref \| side:Dir] [p[0] \| p[1] \| Left] ...` | `mapping = PadMapping({GND: [landpattern.p[9], landpattern.thermal_pad], VCC: landpattern.p[1]})`. **Multi-pad-per-port**: when a Stanza component shares one port across multiple physical pads (common on power-stage ICs), list every pad in the PadMapping value: `self.PVDD[0]: [lp.p[3], lp.p[4]]`, `self.PGND: [lp.p[25], lp.p[26], lp.p[31], lp.p[32]]`, `self.EP: [lp.thermal_pads[0]]`. Omitted pads stay unconnected at the landpattern level. | Stanza: `jitpcb/src/jitpcb/physical-design/pin-solver/tests/nested-no-restrict.stanza:85-90`; Python: [L732-743], [L10457] (`class PadMapping`) |
 | (Stanza pin-properties also handles symbol-pin mapping per row) | `SymbolMapping(entries)` for explicit Port -> Symbol Pin mapping | Python: [L12865] (`class SymbolMapping`) |
-| QFN / SON / DFN exposed (thermal) pad in `PadMapping` | `self.EP: [lp.thermal_pads[0]]` — see `jitx-skills:jitx-component-modeler` for the full pattern. **Stanza-pin-number trap**: Stanza `pin-properties` tables often list the thermal pad as one past the last lead (e.g. pin 33 on a 32-lead QFN). In 4.x there is no `lp.p[N+1]` — that pin **is** `lp.thermal_pads[0]`. A literal `lp.p[57]` raises `KeyError: 57`. | Python: `py-jitx-stdlib/src/jitxlib/landpatterns/generators/qfn.py:78` |
+| QFN / SON / DFN exposed (thermal) pad in `PadMapping` | `self.EP: [lp.thermal_pads[0]]` — see `jitx-skills:jitx-component-modeler` for the full pattern. **Stanza-pin-number trap (case A — thermal-pad-as-extra-pin)**: Stanza `pin-properties` tables often list the thermal pad as one past the last lead (e.g. pin 33 on a 32-lead QFN). In 4.x there is no `lp.p[N+1]` — that pin **is** `lp.thermal_pads[0]`. A literal `lp.p[57]` raises `KeyError: 57`. **Stanza-pin-number trap (case B — N+1 lead distinct from thermal pad)**: when Stanza pin-properties lists a `[NAME \| N+1 \| ...]` row separate from the thermal pad and N+1 is not exposed by the 4.x generator (which only exposes leads 1..N + `lp.thermal_pads[0]`), map the port to `lp.thermal_pads[0]` alone. The Stanza source is almost always referring to the same physical exposed pad — the duplicate row is a quirk of how Stanza-side pin-properties account for the EP pad. Confirm against the package mechanical drawing: a 56-lead QFN has 56 leads, not 57. Example: ESP32-S3 FN8 lists `[GND \| 57 \| Left \| Power]` plus a thermal pad declaration; map the `GND` Port to `lp.thermal_pads[0]` and **omit** the phantom pad-57 row. | Python: `py-jitx-stdlib/src/jitxlib/landpatterns/generators/qfn.py:78` |
 | QFN landpattern lead profile (`make-qfn-landpattern` in Stanza) | `QFNLead(length, width)` from `jitxlib.landpatterns.generators.qfn`, **not** base `SMDLead` — see `jitx-skills:jitx-component-modeler` Landpattern Constructor Signatures. | Python: `py-jitx-stdlib/src/jitxlib/landpatterns/generators/qfn.py:102` |
 | Stanza `make-bga-landpattern(rows, cols, pitch, ball_dia, body_w, body_l, depop)` | `BGA` from `jitxlib.landpatterns.generators.bga` — see `jitx-skills:jitx-component-modeler` Landpattern Constructor Signatures + `references/package-examples.md` for the full chain (`BGA(num_rows=..., num_cols=...).grid_planner(...).pad_config(SMDPadConfig()).package_body(...)`). Pad addressing is AlphaDict (`lp.A[1]`, `lp.B[2]`), maps almost 1:1 from a Stanza `B[2]` ref. | Python: `py-jitx-stdlib/src/jitxlib/landpatterns/generators/bga.py:16-74` |
 
@@ -181,6 +181,31 @@ cross-references are:
 
 The construct map keeps only the **mapping shape** (Stanza side ↔ Python
 side). For *how* to use the Python target, follow the cross-refs above.
+
+### Port-access conventions on parts-DB-resolved components
+
+Port-access depends on **how the part was sourced**, not on what it
+is. Three conventions exist; mixing them in the same Circuit is
+fine but you have to pick the right one per source:
+
+| Component source | Port access | Example |
+|---|---|---|
+| `Resistor(resistance=…)` / `Capacitor(capacitance=…)` / `Inductor(inductance=…)` from `jitxlib.parts` | `.p1`, `.p2` | `self.c.p1 + self.ic.VCC` |
+| `Part(mpn="…")` for a generic SMD package (speaker terminal, pushbutton, generic 2-pin) | `.p[1]`, `.p[2]`, … (port array, **1-indexed**) | `self.spk.p[1] + self.amp_out` |
+| `Part(mpn="…")` whose pin-properties names pads (connectors, ICs, encoders, crystals) | flat attribute names — `.SDA`, `.VBUS0`, `.GND0`, etc. | `self.usbc.VBUS0 + self.usbc.VBUS1 + self.P5V0` |
+
+Caveats:
+
+- `Part(mpn="…").p1` raises `AttributeError: 'Part' object has no
+  attribute 'p1'` — use `.p[1]`.
+- The structural-bundle types (`USB_C_Connector`, `AudioJack`, etc.)
+  are for **user-defined** `Component` classes that *choose* to expose
+  a bundle interface. They are NOT what parts-DB lookups return.
+- To bridge a parts-DB connector to a structural bundle, wire per-pad
+  (e.g. for USB-2 data: `self.usbc.DN1 + self.usbc.DN2 + my_usb2.data.n`).
+
+See `jitx-skills:jitx-component-modeler` §"Port access on parts-DB-
+resolved components" for the full pattern.
 
 ## Notes / gaps
 

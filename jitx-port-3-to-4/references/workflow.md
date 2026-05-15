@@ -62,6 +62,24 @@ the source-of-truth even without a clean baseline. Real example from the
 removing another import exposed a third symbol that's jsl-only. The
 right call was to revert and document, not to keep digging.
 
+**3.x stdlib bundle-symbol drift.** Symbols can drop out of the
+3.x stdlib between point releases (real example: `SPI-DQS` is absent
+from `~/.jitx/3.36.1/pkgs/*.pkg` even though it was a documented
+bundle augmentation symbol in earlier releases). When pre-verify
+fails with `Could not resolve '<SYMBOL>'` for a bundle augmentation
+symbol — `SPI-DQS`, `usb-2-data`, `I2S-MCK`, etc. — confirm with:
+
+```bash
+strings ~/.jitx/<3.x-version>/pkgs/*.pkg | grep -c '^<SYMBOL>$'
+```
+
+A zero count means the symbol was dropped from that release. This is
+not a port-side issue: a commit that built cleanly on `3.x.<old>` may
+legitimately fail on `3.x.<new>`. In that case either pin to the older
+release where the symbol exists, or accept the static Stanza source
+as the only Phase 8 comparison reference and document the failure in
+`BASELINE-FAILED.md`.
+
 ## Phase 1 — Inventory the Stanza design
 
 Read the source tree and list:
@@ -241,8 +259,8 @@ These are the domain-heavy parts of the port. They typically arrive intact in th
 
 1. Confirm an active sign-in (same as Phase 0). The 4.x build connects to the part database too — without sign-in it fails with `You are not authenticated`.
 2. Repoint `~/.jitx/current` to the 4.x install (`ln -sfn <4.x version> ~/.jitx/current`). The same symlink rule applies — a stale 3.x target will break the 4.x pipeline.
-3. Set up a project venv: `python -m venv .venv && source .venv/bin/activate && pip install --pre .` (or `uv sync --active --prerelease=allow`). The `jitx` Python package lives on the JITX internal index, not public PyPI.
-4. `pyright` must be clean (the `jitx` skill covers the venv + pyright config). Treat any `pyright` error as blocking — type errors in JITX 4.x commonly mask wiring bugs.
+3. Set up a project venv: `python -m venv .venv && source .venv/bin/activate && pip install --pre -e .` (or `uv sync --active --prerelease=allow`). The `jitx` Python package lives on the JITX internal index, not public PyPI. **Use `-e` (editable)** during the port — non-editable installs silently break VSCode and any environment that doesn't set `PYTHONPATH` once you add new files. See [`jitx-skills:jitx/references/bootstrap.md`](../../jitx/references/bootstrap.md) step (5) for the rationale.
+4. `pyright` must be clean (the `jitx` skill covers the venv + pyright config). Treat any `pyright` error as blocking — type errors in JITX 4.x commonly mask wiring bugs. **Exception**: errors of the form `Cannot access attribute "<NAME>" for class "Part"` on `Part(mpn=…).<port>` accesses are unavoidable — port names come from the parts DB at runtime, so pyright cannot know them. See `jitx-skills:jitx-component-modeler` §"pyright caveat on `Part(mpn=…).<port>`" for the recommended pyright filter and the wrap-in-Component alternative.
 5. Start `~/.jitx/<4.x>/jitx interactive "$PWD" &` in the background — it writes `.socket.jitx`, which `python -m jitx build` discovers automatically by walking up from cwd.
 6. Run `python -m jitx build <package>.<module>.<DesignClass>` from the project root (with `PYTHONPATH=$PWD` if the project isn't installed). See `verification.md` for the exact invocation.
 7. Capture the export to `/tmp/jitx-port/<design>/ported-4.x/`.

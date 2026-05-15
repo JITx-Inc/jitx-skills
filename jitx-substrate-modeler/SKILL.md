@@ -42,6 +42,18 @@ substrate = JLC04161H_1080()
 
 **When to create custom (use the rest of this skill):** User has not confirmed JLCPCB, non-FR-4 materials (Rogers, Megtron), unusual layer count, non-standard impedance, or additional routing structures needed. **This is the default path** — always create a custom substrate unless the user opts in to a predefined one.
 
+⚠ **`jitxlib.jlcpcb` may be missing in pre-release jitx wheels.** The
+4.1.0a7 pre-release does not ship `jitxlib.jlcpcb`:
+`from jitxlib.jlcpcb import JLC04161H_1080` raises `ModuleNotFoundError`,
+and `find ~/.venvs/<proj>/lib/python*/site-packages/jitxlib -name 'jlcpcb*'`
+returns no matches. If a port's Stanza source uses a JLCPCB stackup
+(e.g. `jlcpcb-jlc2313`) but the installed jitx wheel doesn't ship
+`jitxlib.jlcpcb`, copy the canonical 4-layer FR4 template from
+[`references/templates/four_layer_fr4.py`](references/templates/four_layer_fr4.py)
+into the project and specialise the dielectric thicknesses to match
+your fab. See §"Hand-rolled 4-layer FR4 substrate" below for the
+template walkthrough.
+
 ## Environment
 
 Environment setup is handled by the base `jitx` skill. Ensure it has been invoked first.
@@ -227,6 +239,28 @@ class MySubstrate(Substrate):
         inner = CopperHalfOz()
         core = FR4_Core(thickness=1.265)
 ```
+
+### Hand-rolled 4-layer FR4 substrate
+
+When `jitxlib.jlcpcb` isn't installed (e.g. on jitx 4.1.0a7 pre-
+releases) but the design needs a 4-layer FR4 stackup with reasonable
+50/100 ohm routing, use the canonical template at
+[`references/templates/four_layer_fr4.py`](references/templates/four_layer_fr4.py).
+Copy-paste into the project's `substrate.py`, rename the class to
+match your design, and adjust dielectric thicknesses to match your
+fab. The template provides:
+
+- `FourLayerFR4Stackup` — Symmetric 4-layer FR4 (1080 prepreg, 1 oz copper)
+- `FourLayerFR4Substrate(Substrate)` — wraps the stackup with
+  fabrication constraints, mechanical-drill via, and 50 ohm
+  single-ended + 100 ohm differential routing structures
+- `JitxRules` — sensible default `FabricationConstraints`
+
+The same shape works for non-JLCPCB targets — just edit the
+dielectric thicknesses and Cu thickness fields to match the fab's
+spec sheet. Use the routing-structure block as a starting point and
+hand-tune impedance using `phase_velocity(...)` (covered in §"Routing
+Structures").
 
 ## Via Types
 

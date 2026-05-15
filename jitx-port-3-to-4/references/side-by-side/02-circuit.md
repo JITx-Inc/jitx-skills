@@ -108,7 +108,8 @@ When the parameter changes the *number* or *type* of external ports, write two s
 
 ```python
 class AmpModuleStereo(Circuit):
-    out = [DiffPair(), DiffPair()]
+    out_a = DiffPair()
+    out_b = DiffPair()
     # ... stereo wiring
 
 class AmpModuleSub(Circuit):
@@ -117,6 +118,22 @@ class AmpModuleSub(Circuit):
 ```
 
 This is the safest port for any Stanza module whose `if flag : port out : diff-pair else : port out : diff-pair[2]` shape changes the external interface. Most TAS5825M-class amplifier ports use this pattern.
+
+⚠ **Don't expose multiple diff-pairs as a class-level `list[DiffPair]`.**
+The natural transcription of Stanza `port out : diff-pair[2]` is
+`out = [DiffPair(), DiffPair()]`, but pyright refuses every downstream
+`self.stereo.out[0].p` access:
+
+```
+error: "__getitem__" method not defined on type "DiffPair"
+error: Cannot access attribute "p" for class "list[DiffPair]"
+```
+
+The build path works at runtime, but the static type lookup fails on
+the class-attribute list form. **Expose each output as a separate
+`DiffPair` attribute** (`out_a`, `out_b`) — that's the only form that
+survives pyright. Loses the array indexing, but parent circuits
+typically address the outputs by speaker channel anyway.
 
 ### (c) Variants share most wiring — `@classmethod` factory
 

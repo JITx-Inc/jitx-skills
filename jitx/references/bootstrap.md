@@ -43,10 +43,19 @@ The steps below are **order-sensitive**. Do not change the order.
    few seconds to write `.socket.jitx` into the project directory. Use a
    real wait, not a fixed `sleep`:
    `until [ -e .socket.jitx ]; do sleep 1; done`.
-5. **Install the project**: `pip install --pre .` inside a venv. The
-   server must already be up — some `pip install` paths exercise jitx
-   imports that need the server. (Some projects use
+5. **Install the project — editable**: `pip install --pre -e .` inside a
+   venv. The server must already be up — some `pip install` paths
+   exercise jitx imports that need the server. (Some projects use
    `uv sync --active --prerelease=allow` instead.)
+   ⚠ Use `-e` (editable) for any project where files will be added or
+   modified after install — every active port, every dev session. The
+   non-editable form is only correct for one-shot CI builds where the
+   source tree is immutable. Symptom of getting this wrong:
+   `ModuleNotFoundError` on sibling modules added after `pip install`,
+   visible only when `PYTHONPATH` isn't set (notably the JITX VSCode
+   extension, which doesn't set `PYTHONPATH`). The CLI build keeps
+   working because the canonical recipe sets `PYTHONPATH="$PWD"`,
+   silently papering over a stale non-editable install.
 6. **Verify version match**:
    `python -c 'import jitx; print(jitx.__version__)'` should match
    `readlink ~/.jitx/current`. Mismatches may work but cause subtle API
@@ -82,7 +91,7 @@ ln -sfn "$JITX_VER" ~/.jitx/current
   # (5) Project venv with the jitx Python toolchain.
   python -m venv .venv
   source .venv/bin/activate
-  pip install --pre .
+  pip install --pre -e .
 
   # (6) Sanity-check that the pip-installed jitx matches ~/.jitx/current.
   python -c 'import jitx; print(jitx.__version__)'
@@ -108,6 +117,7 @@ ln -sfn "$JITX_VER" ~/.jitx/current
 | `FATAL PLUGIN ERROR: No appropriate branch for arguments of type (False)` in `write-stable-id` | `~/.jitx/current` symlink mismatch — see step (1) |
 | `pip install` errors importing jitx mid-install | `jitx interactive` not yet up, or version mismatch between symlink and installed wheel |
 | `ModuleNotFoundError: No module named 'jitx'` | See §"`ModuleNotFoundError: No module named 'jitx'`" below — most common causes are the wrong venv being active or `pip install` ran without `--pre` against a pre-release-only project |
+| `Do you want to continue? [Y/n]` followed by `status: error` / `message: EOF when reading a line` | Stale design cache after a sub-circuit / component class rename, instance addition, or instance removal. **Not covered by `JITX_SKIP_STABILIZE_CONFIRMATION=1`** — that env var only suppresses the end-of-build "save stable design?" prompt, not the start-of-build deletion-confirmation prompt. Fix: `rm -rf designs/<package>.<module>.<DesignClass>/` and rebuild. See §"Iterative-porting recipe" below. |
 
 ### `ModuleNotFoundError: No module named 'jitx'`
 
@@ -146,6 +156,29 @@ Three distinct causes, in roughly decreasing frequency:
    `ERROR` / `Could not find a version`. The common subcase is
    `jitx interactive` not yet up when an `pip install` hook tries to
    import jitx — start the server first (step 3) and re-install.
+
+## Iterative-porting recipe
+
+During an active port (or any session that changes the
+component/circuit roster), the design cache invalidates on every
+structural change. The "delete instances?" prompt then fires at the
+start of each build, and because stdin is unattended in CI / scripted
+runs the build fails immediately with `EOF when reading a line`.
+
+`JITX_SKIP_STABILIZE_CONFIRMATION=1` does **not** cover this prompt;
+no `--yes` flag exists in `python -m jitx build` as of 4.1.0a7. The
+working pattern is to clear the cache directory before every build:
+
+```bash
+rm -rf designs/ && JITX_SKIP_STABILIZE_CONFIRMATION=1 \
+    PYTHONPATH="$PWD" python -m jitx build <pkg.mod.DesignClass>
+```
+
+The cache only persists meaningfully across builds when the design
+class hierarchy is stable (i.e. between content edits, not between
+roster edits), so during a port the `rm -rf designs/` is effectively
+mandatory on every rebuild. Bake it into a Makefile target or shell
+alias rather than typing it each time.
 
 ## Parallel installs
 

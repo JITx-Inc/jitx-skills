@@ -243,6 +243,45 @@ need to:
 Use a local variable only for short-lived internal connections where naming would
 just add noise.
 
+### `Circuit.__dict__` is read-only
+
+The `Circuit` / `Component` metaclass exposes attributes through
+`types.MappingProxyType`, so `self.__dict__[name] = value` and
+`self.__dict__.setdefault(name, default)` both raise (pyright also
+flags them — `Cannot access attribute "setdefault" for class
+"MappingProxyType[str, Any]"`).
+
+```python
+# ❌ Pythonic on plain classes, fails on Circuit / Component:
+self.__dict__.setdefault("_pullups", []).append(r)
+
+# ✅ Declare the accumulator on self in __init__, then mutate the list:
+def __init__(self) -> None:
+    self._pullups: list[Resistor] = []
+    ...
+```
+
+For helper functions that need to accumulate sub-instances, **pass
+the accumulator list as an argument** rather than reaching into
+`self.__dict__`:
+
+```python
+def _i2c_pullups(container: list, bus: I2C, vdd: Port | Net) -> None:
+    container.append(Resistor(resistance=10e3).insert(bus.scl, vdd))
+    container.append(Resistor(resistance=10e3).insert(bus.sda, vdd))
+
+class MyCircuit(Circuit):
+    def __init__(self) -> None:
+        self._pullups: list = []
+        self.esp = ESP32_S3()
+        _i2c_pullups(self._pullups, self.esp.i2c, self.VDD3V3)
+```
+
+The general rule: always set instance attributes via `self.<name> = …`.
+Never use `setattr` / `self.__dict__[...] = ...` / `self.__dict__.setdefault(...)`
+(see `jitx-skills:jitx/SKILL.md` §"Don'ts" for the broader rule and the
+cryptic translation-time failure that violation produces).
+
 ## Port arrays — `[Port() for _ in range(N)]` and `dict[int, Port]`
 
 Stanza modules with vector ports (`port amp_ctrl : pin[6]`) translate to either a
@@ -396,26 +435,47 @@ The `self.` prefix is **mandatory** — local-variable passives get
 garbage-collected at the end of `__init__` and the component drops out
 of the netlist (see Key Rule 1 above).
 
-For circuits that need many straps in a loop, a small project-local
-helper is cleaner than copy-pasting the four-line idiom. Auto-number the
-attribute names so each cap is reachable through `self.*`:
+For circuits that need many straps, **write them out explicitly** —
+one `self.<name> = Capacitor(...)` line per cap. The natural Python
+shortcut of stamping caps in a loop with `setattr(self, f"_bypass_{i}", c)`
+**violates the No-setattr rule** in `jitx-skills:jitx/SKILL.md`
+§"Don'ts" and triggers a cryptic translation-time failure
+(`Unable to map local reference N, parent <Circuit> is not an
+ancestor of child <Port>`, with the misleading "child" pointer at
+`jitx/__init__.py:32`). Three real pd_audio sessions hit this same
+trap on bypass-cap loops; the only working pattern is explicit
+assignment:
 
 ```python
-def bypass(self, hi, gnd, value: float, *, case: str = "0402"):
-    """In-line bypass cap. Stores the cap as self._bypass_<n>."""
-    idx = getattr(self, "_bypass_idx", 0)
-    c = Capacitor(capacitance=value, case=case)
-    setattr(self, f"_bypass_{idx}", c)
-    self._bypass_idx = idx + 1
-    c.insert(hi, gnd)
-    return c
-
-class PowerSection(Circuit):
-    def __init__(self):
-        self.VDD = Net(name="VDD"); self.GND = Net(name="GND")
-        self.bypass(self.VDD, self.GND, 100e-9)
-        self.bypass(self.VDD, self.GND, 1e-6)
+# ✅ One self.<name> = ... per cap. Boring is correct.
+self.c_pwr_10u = Capacitor(capacitance=10e-6, case="0805")
+self.c_pwr_10u.insert(self.mcu_power_p, self.mcu_power_n)
+self.c_pwr_1u = Capacitor(capacitance=1e-6, case="0402")
+self.c_pwr_1u.insert(self.mcu_power_p, self.mcu_power_n)
+self.c_vdda = Capacitor(capacitance=1e-6, case="0402")
+self.c_vdda.insert(self.vdda_p, self.vdda_n)
 ```
+
+If the explicit list is long enough to itch (≥ 5 caps between the
+same two rails), the right factoring is a small helper `Circuit`
+subclass with named attributes — **not** a loop that stamps
+`self.*` via `setattr`:
+
+```python
+class _PowerDecoupling(Circuit):
+    """N caps between the same two rails. Add caps as named attrs."""
+    p = Port()
+    n = Port()
+    def __init__(self) -> None:
+        self.c_10u = Capacitor(capacitance=10e-6, case="0805")
+        self.c_10u.insert(self.p, self.n)
+        self.c_1u  = Capacitor(capacitance=1e-6, case="0402")
+        self.c_1u.insert(self.p, self.n)
+        self.c_100n = Capacitor(capacitance=100e-9, case="0402")
+        self.c_100n.insert(self.p, self.n)
+```
+
+then `self.decoupling = _PowerDecoupling(); self.decoupling.p + ...`.
 
 ### Mounting holes — no jitxlib helper
 
@@ -459,6 +519,17 @@ self.c_bypass = Capacitor(capacitance=100e-9)
 ```
 
 `refine(case=None)` removes the case constraint entirely; `refine(case=["1210","2220"])` overrides it with different cases. The same pattern applies to `ResistorQuery.refine(...)` and `InductorQuery.refine(...)` for high-power resistors and large-current inductors. Verified: `py-jitx-parts/src/jitxlib/parts/query_api.py:522`; live use at `TEC-example/tec_example/circuits/amplifiers.py:117`.
+
+⚠ **Inductor query defaults over-constrain RF / sub-nH values.** A
+top-level `inductor_defaults = InductorQuery(mounting="smd")` is fine
+for most designs, but small RF inductors (≤ 10 nH 0402 / 0201) often
+don't satisfy the implicit case constraint that comes with the
+default query. When `Inductor(inductance=…)` fails with "No
+components meeting requirements" on a sub-10-nH value, the first
+probe is `Inductor(inductance=2.0e-9, case="0402")` (explicit case)
+or — for one-shot relaxation — `with InductorQuery.refine(case=None):`.
+The error message names the requested inductance but does **not**
+name the implicit case set, so the cause is opaque without this hint.
 
 > ⚠️ **Polymer/electrolytic cap crash on `C ≳ 100µF` + `V ≥ 25V`.** A
 > `Capacitor(capacitance=C, rated_voltage=V)` query in that range may
@@ -575,12 +646,38 @@ This is one of the most common errors when porting Stanza-style wiring.
 
 ### `net.symbol` — Net Symbols
 
-Another option to provide a symbol on a net (if not done at Net() creation definition) is to assign to the `.symbol` attribute, never use `insert()` or `+=`:
+A `Net` symbol can be attached two equivalent ways. Prefer the
+constructor kwarg when the symbol is known at net-creation time —
+it keeps the symbol declaration adjacent to the net definition.
 
 ```python
+# Pattern A — constructor kwarg (preferred):
+self.GND = Net(
+    [self.power.GND_out, self.amps.gnd, self.controller.gnd],
+    name="GND",
+    symbol=GroundSymbol(),
+)
+
+# Pattern B — attribute assignment (use when ports are added later):
 self.GND = Net(name="GND")
-self.GND.symbol = GroundSymbol()  # attribute assignment, NOT insert()
+self.GND.symbol = GroundSymbol()    # attribute assignment, NOT insert()
 ```
+
+Full signature: `Net(ports: Iterable = (), *, name=None, symbol=None)`.
+Both `name` and `symbol` are keyword-only.
+
+`+=` on a `Net` that already has a `symbol` attached **preserves the
+symbol** while attaching new geometry / ports — the two forms
+compose:
+
+```python
+self.GND = Net([...], name="GND", symbol=GroundSymbol())
+self.GND += Pour(shape, layer=0, isolate=0.1, rank=1)   # symbol survives
+self.GND += Pour(shape, layer=1, isolate=0.1, rank=1)
+```
+
+⚠ `+=` is forbidden on bare `Port` attributes (see §"Port
+immutability" above); the rule above is `+=` on a `Net`, which is fine.
 
 ## Copper pour layer indices
 

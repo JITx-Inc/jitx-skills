@@ -173,6 +173,7 @@ Durable rules for JITX Python user code. The first three don'ts protect JITX's i
 ### Don'ts
 
 - **No `setattr` / `getattr`.** They exist for very narrow scenarios; JITX user code is not one of them. Use lists/dicts when you need to store a programmatic collection on `self`.
+  **Symptom of violation:** at build time, `python -m jitx build` fails at the translation stage with `jitx.error.InstantiationException: Failed to instantiate <Circuit> at <file>:<line> — Unable to map local reference N, parent <Circuit> is not an ancestor of child <Port>`, and a misleading "child" file pointer to `jitx/__init__.py:32` (the canonical `Circuit` import site, NOT the actual offender). The actual line is the `setattr(self, …, x)` in your code. Replace with explicit `self.name1 = x1; self.name2 = x2; …` declarations; for repeated patterns prefer a helper `Circuit` subclass over a stamping loop. The most common trigger is auto-numbered bypass-cap loops — see `jitx-circuit-builder` §"Passives" for the canonical form.
 - **No dynamic types at runtime.** Do not call `type(...)` to construct a new class on the fly. This breaks JITX's internal instantiation tracking. Express the same intent with parameterized classes — instantiate, don't synthesize.
 - **No subclassing JITX classes inside functions or methods.** Same instantiation-tracking failure mode. Declare jitx-class subclasses at module scope (nested at class-body scope is fine).
 - **No `type()` for type checks.** Use `isinstance` so subclasses are handled correctly.
@@ -205,7 +206,7 @@ ln -sfn "$JITX_VER" ~/.jitx/current                  # (1) symlink
 ~/.jitx/$JITX_VER/jitx sign-in -email "$EMAIL"       # (2) sign in
 ~/.jitx/$JITX_VER/jitx interactive $(pwd) &          # (3) server
 until [ -e .socket.jitx ]; do sleep 1; done          # (4) wait
-pip install --pre .                                  # (5) install (in venv)
+pip install --pre -e .                               # (5) editable install (in venv)
 python -c 'import jitx; print(jitx.__version__)'     # (6) version check
 JITX_SKIP_STABILIZE_CONFIRMATION=1 \
     python -m jitx build <module.path.DesignClass>   # (7) build
