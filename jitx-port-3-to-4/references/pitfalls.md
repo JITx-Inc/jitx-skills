@@ -162,9 +162,10 @@ discipline.
   `strings ~/.jitx/<ver>/pkgs/*.pkg | grep -c '^<SYMBOL>$'`. If the
   count is zero the symbol was dropped from that release; either pin
   to the older release that defines the symbol, or accept the static
-  Stanza source as the Phase 8 reference. See
-  `jitx-port-3-to-4/references/workflow.md` §"Triage protocol when
-  the 3.x build fails".
+  Stanza source as the Phase 7 fallback reference (see
+  `references/verification.md` §"Phase 7 fallback — Stanza source as
+  the reference"). See `jitx-port-3-to-4/references/workflow.md`
+  §"Triage protocol when the 3.x build fails".
 - **E-series snap on computed parts values.** Translating Stanza
   `cap-strap` / `res-strap` calls with a *computed* value (e.g. soft-
   start cap value from a formula) requires an E-series snap on the

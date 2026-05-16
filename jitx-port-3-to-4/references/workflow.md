@@ -82,8 +82,9 @@ A zero count means the symbol was dropped from that release. This is
 not a port-side issue: a commit that built cleanly on `3.x.<old>` may
 legitimately fail on `3.x.<new>`. In that case either pin to the older
 release where the symbol exists, or accept the static Stanza source
-as the only Phase 8 comparison reference and document the failure in
-`BASELINE-FAILED.md`.
+as the only Phase 7 fallback comparison reference (see
+`references/verification.md` §"Phase 7 fallback — Stanza source as the
+reference") and document the failure in `BASELINE-FAILED.md`.
 
 ## Phase 1 — Inventory the Stanza design
 

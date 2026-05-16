@@ -386,7 +386,7 @@ EIA dielectric class:
 |---|---|---|---|
 | `"C0G"` / `"NP0"` | Class I | ±30 ppm/°C (negligible) | RC filter time constants, oscillator timing, antenna matching, crystal load caps — anything where capacitance must be stable |
 | `"X5R"` | Class II | ±15% over −55…+85°C | General decoupling, less temperature-sensitive |
-| `"X7R"` | Class II | ±15% over −55…+125°C | **Implicit default** for the parts DB. Standard bulk decoupling. |
+| `"X7R"` | Class II | ±15% over −55…+125°C | Standard bulk decoupling. **Specify explicitly** — `CapacitorQuery.temperature_coefficient_code` defaults to `None` (unconstrained); without a code the resolver may pick X5R, Y5V, or any class. Verified: `py-jitx-parts/src/jitxlib/parts/query_api.py:446`. |
 | `"X8R"` | Class II | ±15% over −55…+150°C | High-temp automotive / industrial |
 | `"Y5V"` | Class II | +22% / −82% over −30…+85°C | Avoid for analog — silently detunes RF / timing circuits |
 
@@ -401,9 +401,11 @@ self.c_match = Capacitor(
 )
 ```
 
-Without the explicit kwarg, the parts DB defaults to X7R, and a 2.2 pF
-RF matching cap may resolve to a part that drifts ±15% over temperature —
-detuning antennas, filters, and oscillators with no build-time warning.
+Without the explicit kwarg, `CapacitorQuery.temperature_coefficient_code`
+is `None` (unconstrained), and a 2.2 pF RF matching cap may resolve to
+*any* dielectric class — including Y5V (+22% / −82% drift). Antennas,
+filters, and oscillators silently detune at temperature with no
+build-time warning.
 
 ### Querying a passive by MPN
 
