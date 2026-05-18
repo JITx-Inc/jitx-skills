@@ -155,22 +155,23 @@ bundle additions land in `py-jitx-stdlib`.
 ### Bundles missing from jitxlib — define locally
 
 Some common protocol bundles aren't in `jitxlib.protocols.serial`.
-Subclass `jitx.Bundle` next to the design rather than reaching for an
-import path that doesn't exist. Three observed gaps:
+Subclass `Port` next to the design rather than reaching for an
+import path that doesn't exist. There is **no `jitx.Bundle` class** in
+4.x (`Bundle` is not in `jitx.__all__`); a "bundle" is just a `Port`
+subclass with sub-`Port` attributes. Three observed gaps:
 
 ```python
-import jitx
 from jitx.net import Port
 
 # 4-wire I²S (I²S + master clock for an ADC) — no jitxlib export
-class I2SMCK(jitx.Bundle):
+class I2SMCK(Port):
     sck  = Port()   # bit clock
     ws   = Port()   # word select / LRCK
     sd   = Port()   # serial data
     mclk = Port()   # master clock (4th wire)
 
 # 5-wire full-duplex I²S (MCK + separate SDIN/SDOUT) — no jitxlib export
-class I2SFullDuplex(jitx.Bundle):
+class I2SFullDuplex(Port):
     sck    = Port()
     ws     = Port()
     sd_out = Port()
@@ -178,7 +179,7 @@ class I2SFullDuplex(jitx.Bundle):
     mclk   = Port()
 
 # Bare OctalSPI without DQS (some PSRAM) — no jitxlib export
-class OctalSPI(jitx.Bundle):
+class OctalSPI(Port):
     sck  = Port()
     cs   = Port()
     data = [Port() for _ in range(8)]
