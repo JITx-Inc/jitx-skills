@@ -36,16 +36,26 @@ from jitxlib.physics import phase_velocity
 
 # 1080-prepreg dielectric constants — JLC-PCB published values.
 # Adjust if your fab publishes different numbers.
-Er_1080 = 3.91
-Dk_1080 = 0.0178
+#
+# Naming convention: Dk (dielectric constant / relative permittivity Er) is
+# dimensionless; Df (dissipation factor / loss tangent tan δ) is dimensionless.
+# These are *material* properties, distinct from the trace-level insertion
+# loss (dB/mm) used by RoutingStructure.Layer.insertion_loss below.
+Dk_1080 = 3.91     # dielectric constant (Er)
+Df_1080 = 0.0178   # loss tangent (Df)
+
+# Per-mm insertion loss for a 50-ohm microstrip on this stack. Order of
+# magnitude only — replace with a field-solver number for high-speed work.
+# Units: dB / mm.
+insertion_loss_db_per_mm = 0.018
 
 
 class FR4_1080(Dielectric):
     """FR4 Prepreg 1080. Tune dielectric_coefficient / loss_tangent
     to your fab's published values."""
 
-    dielectric_coefficient = Er_1080  # @ 1 GHz
-    loss_tangent = Dk_1080  # @ 1 GHz
+    dielectric_coefficient = Dk_1080  # @ 1 GHz
+    loss_tangent = Df_1080  # @ 1 GHz
 
 
 class FR4_Core(Dielectric):
@@ -63,7 +73,7 @@ cu_halfoz = Conductor(thickness=0.0175)
 # Effective mid-stack velocity for 50 ohm single-ended traces on outer layer.
 # This approximation uses (Er + 1) / 2 — adequate for non-critical designs.
 # For high-speed work, use full-wave field-solver output.
-med_velocity = phase_velocity((Er_1080 + 1) / 2)
+med_velocity = phase_velocity((Dk_1080 + 1) / 2)
 
 
 # ----- Fabrication constraints -----------------------------------------
@@ -143,7 +153,7 @@ class FourLayerFR4Substrate(Substrate):
                     trace_width=0.1176,
                     clearance=0.2,
                     velocity=med_velocity,
-                    insertion_loss=Dk_1080,
+                    insertion_loss=insertion_loss_db_per_mm,
                 )
             }
         ),
@@ -159,7 +169,7 @@ class FourLayerFR4Substrate(Substrate):
                     pair_spacing=0.137,
                     clearance=0.2,
                     velocity=med_velocity,
-                    insertion_loss=Dk_1080,
+                    insertion_loss=insertion_loss_db_per_mm,
                 )
             }
         ),
@@ -172,7 +182,7 @@ class FourLayerFR4Substrate(Substrate):
                         trace_width=0.09,
                         clearance=0.2,
                         velocity=med_velocity,
-                        insertion_loss=Dk_1080,
+                        insertion_loss=insertion_loss_db_per_mm,
                     )
                 }
             ),
