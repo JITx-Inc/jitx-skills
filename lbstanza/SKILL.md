@@ -48,6 +48,10 @@ All bundled docs live in `references/` next to this file. Use grep/Read on these
 | Tests (`deftest`, tags, runners) | `references/test-framework.md` | — |
 | LoStanza / FFI to C | `references/by-example.md` (final chapter) | `references/reference-manual.md` |
 
+Upstream provenance for each reference file (which are verbatim copies of
+Patrick Li's LB Stanza docs and which are skill-team-derived indices) is
+recorded in `references/NOTICE.md`.
+
 ## How to Use the References
 
 The reference docs are large (`reference-manual.md` ~5,300 lines, `by-example.md` ~12,400 lines). Pick the smallest tool for the question:
