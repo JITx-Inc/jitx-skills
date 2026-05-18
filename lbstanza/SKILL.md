@@ -38,9 +38,12 @@ Do NOT activate for:
 
 All bundled docs live in `references/` next to this file. Use grep/Read on these — do NOT load whole files into context unless necessary.
 
+**Most porters need only `porter-cheatsheet.md` (~400 lines).** It's the minimum Stanza surface for reading a 3.x JITX design and translating to 4.x Python, with cross-links to the Python equivalents. Reach for the big files only when the cheatsheet doesn't cover what you hit.
+
 | Question type | First file | Backup |
 |---|---|---|
-| Surface syntax (types, declarations, expressions) | `references/cheatsheet.md` | `references/reference-manual.md` (Ch. 1 Core Macros) |
+| **Porting context — "what does this Stanza syntax mean and where is the 4.x equivalent?"** | **`references/porter-cheatsheet.md`** | `references/cheatsheet.md` / `reference-manual.md` |
+| Surface syntax (general, not port-specific) | `references/cheatsheet.md` | `references/reference-manual.md` (Ch. 1 Core Macros) |
 | Idiomatic patterns / "how should I write this" | `references/idioms.md` | `references/by-example.md` |
 | Stdlib API lookup (Core/Math/Collections/Reader/Macro Utils) | `references/reference-manual.md` (Ch. 2–6) | — |
 | Worked tutorial examples | `references/by-example.md` | — |
@@ -63,7 +66,7 @@ The reference docs are large (`reference-manual.md` ~5,300 lines, `by-example.md
    ```
    Then `Read` the matched lines with a small offset/limit window.
 
-2. **Routine syntax questions** — read `cheatsheet.md` (it's short by design); only descend into `reference-manual.md` if the cheatsheet doesn't cover it.
+2. **Routine syntax questions in a porting context** — read `porter-cheatsheet.md` (short, port-focused, cross-links to Python equivalents). For Stanza language questions outside a port, `cheatsheet.md` is the broader reference; only descend into `reference-manual.md` if neither cheatsheet covers it.
 
 3. **"How should I write X idiomatically"** — read the relevant section of `idioms.md` first; consult `by-example.md` only if you need a longer worked example.
 

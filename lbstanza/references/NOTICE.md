@@ -22,6 +22,7 @@ that apply to the docs.
 | `test-framework.md` | Upstream LB Stanza test-framework documentation. | Verbatim copy. |
 | `cheatsheet.md` | **Skill-team derived.** Surface-syntax cheatsheet distilled from the reference manual and by-example. | Internal index. Verify edge cases against the upstream reference manual. |
 | `idioms.md` | **Skill-team derived.** Idiomatic patterns extracted from "Stanza By Example." | Internal index. Verify edge cases against the upstream source. |
+| `porter-cheatsheet.md` | **Skill-team derived.** Minimum Stanza surface for porters reading 3.x JITX designs, with cross-links to 4.x Python equivalents. | Internal index. First row of the SKILL.md reference table; `cheatsheet.md` remains the broader (language-general) backup. |
 
 ## Snapshot date
 
