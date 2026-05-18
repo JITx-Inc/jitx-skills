@@ -13,7 +13,7 @@ verify all imports with `pyright` before outputting code.
 Do not guess at imports, class names, or constructor kwargs. Common landmines:
 
 - `Capacitor` rated-voltage kwarg is **`rated_voltage`**, not `min_rated_voltage`. See the passive kwargs table below.
-- The full bundle catalog in `jitxlib.protocols.serial` includes `I2C`, `SPI`, `WideSPI` (with `.quad()`/`.octal()` classmethods), `OctalSPIwDQS`, `I2S`, `UART`, `Microwire`, `JTAG`, `SWD`, `CANPhysical`, `CANLogical`, `SMBus`. **Note**: `I2S` exists with ports `sck`, `ws`, `sd` — not `bclk`/`lrck`/`sdin`. **No `I2SMCK` (MCLK variant) and no `OctalSPI` without DQS** — define those locally as `jitx.Bundle` subclasses.
+- The full bundle catalog in `jitxlib.protocols.serial` includes `I2C`, `SPI`, `WideSPI` (with `.quad()`/`.octal()` classmethods), `OctalSPIwDQS`, `I2S`, `UART`, `Microwire`, `JTAG`, `SWD`, `CANPhysical`, `CANLogical`, `SMBus`. **Note**: `I2S` exists with ports `sck`, `ws`, `sd` — not `bclk`/`lrck`/`sdin`. **No `I2SMCK` (MCLK variant) and no `OctalSPI` without DQS** — define those locally as `Port` subclasses (there is no `jitx.Bundle` class; a bundle is just a `Port` subclass with sub-`Port` attributes — see `jitx-pin-assignment` §"Bundles missing from jitxlib — define locally").
 
 Verification order: (1) canonical repos `github.com/JITx-Inc/py-jitx`, `github.com/JITx-Inc/py-jitx-stdlib`, `github.com/JITx-Inc/py-jitx-parts`; (2) `https://docs.jitx.com/llms.txt`; (3) installed venv site-packages or `~/.jitx/`. If unresolvable, document as unknown — do not invent an import.
 
@@ -262,32 +262,55 @@ self.i2c_nets = [
 self.topology = self.driver.out >> self.trace >> self.receiver.inp
 ```
 
-## Net storage — `self.foo = Net()` vs local `foo = Net()`
+## Net storage — always root `+`-chain results on `self`
 
-The JITX runtime discovers nets via the `+` connection operator at the time of
-connection, not by inspecting `self` attributes later. **Local-variable nets are
-preserved in the netlist** as long as some component port has been added to them
-with `+`.
+A `+` chain between `Port`s returns a `Net`. The connectivity it expresses is
+discovered when the operator runs, but the `Net` object itself is a structural
+object that JITX expects to find rooted on the `Circuit`. If you bind the
+result to a Python local, the `Net` is GC'd after `__init__` returns and the
+build logs:
+
+```
+WARNING:jitx._structural:Reference to structural object Net() at <file>:<line>
+lost during instantiation, it likely needs to be assigned to an object.
+```
+
+Connectivity may still appear in the netlist via the merge that the operator
+performed, but the `Net`'s metadata (its name, its symbol, any constraint
+attached to it) is lost — silently. **Always assign every `+`-chain result to
+`self.<name>` or accumulate it in a list / `self.nets`.**
 
 ```python
 class MyCircuit(Circuit):
     def __init__(self):
-        # OK — net is anonymous in the schematic but its connectivity is preserved
-        mid = self.r1.p2 + self.r2.p1
+        # ✅ Anonymous-but-rooted — no schematic name, but the Net survives.
+        self.mid = self.r1.p2 + self.r2.p1
 
-        # OK and preferred when the net is meaningful — name appears in netlist
+        # ✅ Named, preferred when the net is meaningful (appears in netlist).
         self.MID = Net(name="MID") + self.r3.p2 + self.r4.p1
+
+        # ✅ Accumulated in a list also roots them.
+        self.nets = [
+            self.r5.p2 + self.r6.p1,
+            self.r7.p2 + self.r8.p1,
+        ]
+
+        # ❌ Bare local — Net is GC'd, WARNING logged, name/symbol lost.
+        mid = self.r1.p2 + self.r2.p1
 ```
 
-Use `self.<name> = Net(...)` (or assign the `+`-result to `self.<name>`) when you
-need to:
+Use `self.<name> = Net(...)` (or assign the `+`-result to `self.<name>`) when
+you need to:
 
 - name the net so it appears in the schematic / netlist
 - reference the net from another method or from a parent circuit
 - attach a `.symbol` (e.g. `self.GND.symbol = GroundSymbol()`) or apply a constraint
 
-Use a local variable only for short-lived internal connections where naming would
-just add noise.
+For short-lived internal connections that don't need a name, root them on
+`self` anyway — pick a descriptive attribute name (`self.mid`,
+`self.fb_div_out`) or accumulate in `self.nets`. The "bare local" form is
+never the right shape; see `jitx-port-3-to-4/references/pitfalls.md`
+§"Don't bind a Net to a Python local" for the porter-side rule.
 
 ### `Circuit.__dict__` is read-only
 
@@ -357,7 +380,7 @@ The list form behaves like any indexable port (`self.amp_ctrl[3]`). The dict for
 is required when the index set has gaps — a list with `[None, None, ...]` padding
 will not work because every element must be a `Port`. Build-time error if you
 mismatch: `port GPIO[15] is not mapped to a symbol pin` from the `BoxSymbol` side.
-See `jitx-port-3-to-4/construct-map.md` §3 for the parallel guidance.
+See `jitx-port-3-to-4/references/construct-map.md` §3 for the parallel guidance.
 
 ## Board outline / shapes
 

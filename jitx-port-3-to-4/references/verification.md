@@ -221,11 +221,21 @@ require both `baseline-3.x/` and `ported-4.x/` artifacts on disk:
 
 1. Read every `inst <conn> : pin-header(N)` and `net (<conn>.p[i] <name>)`
    in the Stanza source.
-2. Verify the Python connector uses matching assignments. **Stanza pin
-   indices are 1-based; Python is 0-based** — `conn.p[1]` in Stanza is
-   `conn.p[0]` in Python. A mechanical 1:1 transcription off-by-ones
-   every connector pin and produces a build that passes every general
-   check while the entire connector is shifted by one position.
+2. Verify the Python connector uses matching assignments. **Index base
+   depends on the Python component's source**, not on a global rule:
+   - `Resistor`/`Capacitor`/`Inductor` from `jitxlib.parts` use named
+     attributes `.p1`, `.p2` (not indexed).
+   - `Part(mpn="…")` for a generic 2-pin SMD package uses `.p[1]`,
+     `.p[2]` — **1-based, matches Stanza directly**.
+   - `Part(mpn="…")` for a pin-named package (connectors, ICs,
+     encoders) uses flat attribute names (`.SDA`, `.VBUS0`, …).
+   - Custom `Component` subclasses use whatever the author declared —
+     read the class definition.
+
+   See `construct-map.md` §"Port-access conventions on parts-DB-
+   resolved components" for the catalog. Don't assume a global index
+   shift — verify against the actual Python component before flagging
+   a delta.
 3. Confirm every connector pin's net name matches (`VCC`, `GND`, `EN`,
    `SCL`, `SDA`, etc.).
 

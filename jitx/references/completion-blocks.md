@@ -181,7 +181,7 @@ The criteria mirror the exit-gate bullet lists in `references/project-builder-fl
 ```markdown
 ## Gate: Phase 0 → Phase 1
 
-**Environment probe:** all of `jitx`, `jitxlib`, `jitxlib.parts`, `jitxlib.symbols.box`, `jitxlib.voltage_divider` import; target substrate package imports (e.g. `jitxlib.jlcpcb` for JLCPCB). See `jitx/SKILL.md` "Environment Setup".
+**Environment probe:** all of `jitx`, `jitxlib`, `jitxlib.parts`, `jitxlib.symbols.box` import; target substrate package imports (e.g. `jitxlib.jlcpcb` for JLCPCB). `jitxlib.voltage_divider` is probed at use site only (version-gated). See `jitx/SKILL.md` §"Environment Probe".
 **Requirements lock complete:** yes — see `decomposition-guide.md` "Requirements Lock" — programming path, UI count, rails, assembly-cost target, RF/module policy, connector UX, fab house all answered in PLAN.md
 **PLAN.md exists:** yes — `<path>` (referenced)
 **ARCHITECTURE.md exists:** yes — `<path>` (power tree, interface map, voltage domains, board)

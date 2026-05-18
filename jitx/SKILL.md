@@ -34,8 +34,9 @@ exists. Use this fallback chain, in order:
 
 If none of the above resolves the symbol, **document it as unknown** rather
 than inventing an import. Falling back to a custom landpattern, a local
-`jitx.Bundle` subclass, or an open gap is correct; inventing an import path
-"by analogy" with another package is not.
+`Port` subclass (acting as a bundle — there is no `jitx.Bundle` class), or
+an open gap is correct; inventing an import path "by analogy" with another
+package is not.
 
 Subskill "Rule 0" sections point back here for the canonical chain — domain
 skills (`jitx-circuit-builder`, `jitx-component-modeler`, etc.) list only
@@ -65,7 +66,7 @@ verify against the source. Verify before writing, not after.
 | `Capacitor(min_rated_voltage=35.0)` | `Capacitor(rated_voltage=35.0)` | `py-jitx-parts/src/jitxlib/parts/query_api.py` |
 | `Capacitor(temperature_coefficient="C0G")` | `Capacitor(temperature_coefficient_code="C0G")` — kwarg is `_code` | same |
 | `SOT89_3()`, `SOT223_3()`, `SOT583_8()` generators | Only `SOT23_3`, `SOT23_5`, `SOT23_6` exist. Build a custom `Landpattern` for the others. | `py-jitx-stdlib/src/jitxlib/landpatterns/generators/sot.py` |
-| `from jitxlib.protocols.serial import I2SMCK` / bare `OctalSPI` | Not in jitxlib — define locally as a `jitx.Bundle` subclass | n/a |
+| `from jitxlib.protocols.serial import I2SMCK` / bare `OctalSPI` | Not in jitxlib — define locally as a `Port` subclass (there is no `jitx.Bundle` class) | n/a |
 | `Power.vdd` / `Power.gnd` / `DiffPair.P` / `DiffPair.N` | `Power.Vp` / `Power.Vn` / `DiffPair.p` / `DiffPair.n` — case-sensitive | `py-jitx/src/jitx/common.py`, `net.py` |
 | `landpattern.add_pad(SMDPad(index=1, ...))` | Declare `p1 = SMDPad(...).at(x, y)` as a class attribute on the `Landpattern` subclass | `py-jitx-stdlib/src/jitxlib/landpatterns/pads.py` |
 
@@ -91,29 +92,27 @@ Silent omission is the failure mode — a missing `add-mounting-holes`
 equivalent produces a clean build and a fabbed board with no mounting
 points, with no warning anywhere in the pipeline.
 
-## Environment Setup
+## Environment Probe
 
-Before any JITX work, check and fix the environment automatically:
+The canonical install / venv / `jitx interactive` / build sequence lives in
+[`references/bootstrap.md`](references/bootstrap.md). Follow that recipe
+end-to-end **before** running the import probe below — getting the order
+wrong (especially running `pip install` before `jitx interactive` has
+started) produces opaque mid-install failures catalogued in bootstrap.md.
+
+After the bootstrap is complete, verify the JITX-specific modules your
+design needs are actually importable. This is a JITX-user-code concern
+(fail loud on a half-installed venv) and stays in this skill:
 
 ```bash
-# Check for JITX project
+# Confirm this is a JITX project.
 if [ ! -f pyproject.toml ] || ! grep -q "jitx" pyproject.toml; then
   echo "ERROR: Not a JITX project (no pyproject.toml with jitx dependency)"
   exit 1
 fi
 
-# Create venv if missing, install deps
-if [ ! -d .venv ]; then
-  python3 -m venv .venv
-  source .venv/bin/activate
-  pip install -e . --quiet 2>&1 | tail -1
-  pip install ruff --quiet 2>&1 | tail -1
-else
-  source .venv/bin/activate
-fi
-
-# Verify core imports (don't check __version__ — not present in all JITX versions).
-# Fail loud if any import is missing; do not work around with substitutions.
+# Verify core imports. Fail loud if any are missing; do not work around
+# with substitutions. (Version check is in bootstrap.md step 6.)
 python - <<'PY'
 import sys
 required = [
@@ -121,8 +120,10 @@ required = [
     "jitxlib",
     "jitxlib.parts",
     "jitxlib.symbols.box",
-    "jitxlib.voltage_divider",
 ]
+# Note: jitxlib.voltage_divider is intentionally NOT in `required`. It is
+# version-gated (absent from jitx-4.0.5; introduced later) and any skill that
+# uses it probes at use site. See jitx-circuit-builder §"Voltage Divider".
 missing = []
 for mod in required:
     try:
@@ -142,7 +143,7 @@ Also probe the target substrate package if known (e.g., `python -c "import jitxl
 
 **Missing-dependency rule:** if any required import fails, stop and surface it to the user as a blocker. Do NOT remove or substitute design requirements as a workaround (e.g. dropping controlled-impedance routing because `jitxlib` didn't import). See `references/project-builder-flow.md` Recovery Procedures → "Missing dependency escalation".
 
-Only install deps on first run (venv creation). Skip `pip install` on subsequent runs — it's slow and noisy. Don't ask user to do manual setup.
+**Linter:** if `ruff` is not present in the venv, `pip install ruff` after the canonical bootstrap completes. It is not part of the JITX wheel set.
 
 ### Parallel JITX installs and the `~/.jitx/current` symlink
 
@@ -209,7 +210,7 @@ Durable rules for JITX Python user code. The first three don'ts protect JITX's i
 ### Dos
 
 - **Run pyright** for type checking and language-server diagnostics.
-- **Run `ruff check`** for common-mistake analysis (the `ruff` package is already installed by the environment-setup step).
+- **Run `ruff check`** for common-mistake analysis (`pip install ruff` once per venv if not present — see §"Environment Probe").
 - **Run `ruff format`** for style consistency.
 
 ## Running JITX Designs
@@ -233,7 +234,7 @@ ln -sfn "$JITX_VER" ~/.jitx/current                  # (1) symlink
 ~/.jitx/$JITX_VER/jitx interactive $(pwd) &          # (3) server
 until [ -e .socket.jitx ]; do sleep 1; done          # (4) wait
 pip install --pre -e .                               # (5) editable install (in venv)
-python -c 'import jitx; print(jitx.__version__)'     # (6) version check
+python -c 'from importlib.metadata import version; print(version("jitx"))'  # (6) version check
 JITX_SKIP_STABILIZE_CONFIRMATION=1 \
     python -m jitx build <module.path.DesignClass>   # (7) build
 # Or build every Design subclass in the project:

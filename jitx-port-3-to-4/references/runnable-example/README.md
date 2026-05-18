@@ -66,19 +66,34 @@ ln -sfn "$(basename "$JITX_4X")" ~/.jitx/current
 cp -r 4.x /tmp/jitx-port/runnable-example/ported-src
 cd /tmp/jitx-port/runnable-example/ported-src
 
-# Project venv with the JITX Python toolchain
-python -m venv .venv
-source .venv/bin/activate
-pip install --pre .             # `--pre` allows pre-release jitx wheels
+# The canonical bootstrap is at `jitx-skills:jitx/references/bootstrap.md`
+# — symlink → sign-in → interactive (FIRST) → socket wait → pip install
+# → version check → headless build. The recipe below follows it. If you
+# diverge, you'll hit one of the failures catalogued at the bottom of
+# bootstrap.md.
 
-# The build needs a local websocket server. `jitx interactive` writes
-# .socket.jitx in the project dir; the build auto-discovers it.
+# Start the interactive websocket server BEFORE pip install. The server
+# writes .socket.jitx in the project dir; the build auto-discovers it.
 "$JITX_4X/jitx" interactive "$PWD" > .jitx-interactive.log 2>&1 &
 INT_PID=$!
-sleep 2
 
-# Build. The fully-qualified design name = <package>.<module>.<class>.
-PYTHONPATH="$PWD" python -m jitx build runnable_example.main.runnable_example
+# Wait for the socket file rather than a fixed sleep — startup time varies.
+until [ -e .socket.jitx ]; do sleep 1; done
+
+# Project venv with the JITX Python toolchain. Use `-e` (editable) so
+# new files added during iteration are visible without reinstall.
+python -m venv .venv
+source .venv/bin/activate
+pip install --pre -e .          # `--pre` allows pre-release jitx wheels
+
+# Version sanity-check: the pip-installed jitx should match ~/.jitx/current.
+python -c 'import jitx; print(jitx.__version__)'
+readlink ~/.jitx/current
+
+# Build headless. JITX_SKIP_STABILIZE_CONFIRMATION=1 suppresses the
+# interactive "save stable design?" prompt that hangs unattended runs.
+JITX_SKIP_STABILIZE_CONFIRMATION=1 \
+    PYTHONPATH="$PWD" python -m jitx build runnable_example.main.runnable_example
 
 kill $INT_PID 2>/dev/null
 ```

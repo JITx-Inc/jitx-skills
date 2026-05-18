@@ -3,10 +3,14 @@ version = "0.1.0"
 
 [dependencies]
 # JITX, JITX3, ocdb ship bundled with the install at ~/.jitx/<ver>/slm/.
-# Stanza is JITX 3.x — adjust the path to your installed 3.x version.
-JITX = { path = "/home/claude/.jitx/3.36.1/slm/JITX" }
-JITX3 = { path = "/home/claude/.jitx/3.36.1/slm/JITX3" }
-ocdb = { path = "/home/claude/.jitx/3.36.1/slm/ocdb" }
+# This file is a TEMPLATE — before `slm fetch`, replace ${JITX_3X_HOME}
+# below with the absolute path to your installed 3.x release (e.g.
+# `/home/<user>/.jitx/3.36.1`). The hardcoded `/home/claude/...` paths in
+# earlier drafts of this file were not portable; see
+# `../README.md` §"Build the 3.x baseline" for the sed/envsubst recipe.
+JITX = { path = "${JITX_3X_HOME}/slm/JITX" }
+JITX3 = { path = "${JITX_3X_HOME}/slm/JITX3" }
+ocdb = { path = "${JITX_3X_HOME}/slm/ocdb" }
 
 # jsl is fetched from GitHub by `slm fetch`. Use the version JITX3 in your
 # installed 3.x release pins (e.g. 3.36.1 pins 0.10.11).

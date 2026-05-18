@@ -57,9 +57,11 @@ The steps below are **order-sensitive**. Do not change the order.
    working because the canonical recipe sets `PYTHONPATH="$PWD"`,
    silently papering over a stale non-editable install.
 6. **Verify version match**:
-   `python -c 'import jitx; print(jitx.__version__)'` should match
-   `readlink ~/.jitx/current`. Mismatches may work but cause subtle API
-   drift; flag them.
+   `python -c 'from importlib.metadata import version; print(version("jitx"))'`
+   should match `readlink ~/.jitx/current`. (`jitx.__version__` is not
+   present in all JITX versions — prefer `importlib.metadata.version`,
+   which works on every installed wheel.) Mismatches may work but cause
+   subtle API drift; flag them.
 7. **Build headless**: prefix with `JITX_SKIP_STABILIZE_CONFIRMATION=1`.
    Without this env var, `python -m jitx build` pauses interactively
    asking "save stable design?" and hangs any CI / unattended run.
@@ -94,7 +96,7 @@ ln -sfn "$JITX_VER" ~/.jitx/current
   pip install --pre -e .
 
   # (6) Sanity-check that the pip-installed jitx matches ~/.jitx/current.
-  python -c 'import jitx; print(jitx.__version__)'
+  python -c 'from importlib.metadata import version; print(version("jitx"))'
   readlink ~/.jitx/current
 
   # (7) Build headless. JITX_SKIP_STABILIZE_CONFIRMATION=1 suppresses the

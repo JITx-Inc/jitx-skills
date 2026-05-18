@@ -661,9 +661,23 @@ class CFG1Pulldown(NonPopulatedComponent, Resistor):
 self.r_cfg1 = CFG1Pulldown(resistance=6.8e3)
 ```
 
-For ad-hoc DNP, set `in_bom`/`soldered` on the instance's class. There is no
-post-construction `.dnp = True` attribute on an *instance* — the flag lives on the
-class.
+For ad-hoc, one-off DNP on a query-API passive, set `in_bom` / `soldered`
+directly on the instance:
+
+```python
+self.c_filter = Capacitor(capacitance=10.0e-12, case="0402")
+self.c_filter.in_bom   = False
+self.c_filter.soldered = False
+```
+
+There is no convenience `.dnp = True` flag — the authoritative fields are
+`in_bom: bool | None` and `soldered: bool | None` on `jitx.Component`
+(`py-jitx/src/jitx/component.py:93,98`). When the DNP intent is reusable
+(same DNP-marked part used in several places), prefer the
+`NonPopulatedComponent` subclass or class-level `in_bom = False;
+soldered = False` over instance-level override. See
+`jitx-circuit-builder/SKILL.md` §"DNP / do-not-populate" for the three
+patterns side-by-side.
 
 ## Landpattern Constructor Signatures
 
@@ -765,8 +779,7 @@ class _LP(Landpattern):
 ```
 
 There is no `Pad.rotate(...)` method. The only rotation form is the
-keyword arg on `.at()`. See `jitx-port-3-to-4/SKILL_GAPS_20260512f.md`
-GAP-68 for the original report of this mis-translation.
+keyword arg on `.at()`.
 
 ### `.narrow()` vs `.package_body()` for SOIC
 

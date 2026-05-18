@@ -25,19 +25,24 @@ A fresh-clone porting workflow rarely has that already, so `slm fetch` fails
 with `Failed to Resolve Path ../<dep>/stanza.proj. Double check path
 dependencies and confirm expected git repos in '.slm/deps'`.
 
-Pre-clone every sibling path-dep before `slm fetch`. **Version pinning
-matters** — some sibling deps have known-broken HEAD revisions that the
-3.x compiler rejects. For `jsl`, pin to `v0.10.9` to avoid the
-`pad-island.stanza:72 'minus' type error` introduced in 0.10.10/0.10.11
-(documented in `nightly_design_tests/CLAUDE.md`).
+Pre-clone every sibling path-dep before `slm fetch`. **Preserve each
+source repo's pinned deps** — every design committed against 3.x is
+already pinned to a sibling revision that worked at the time, and that
+revision is the right starting point for the port. Use the design's
+`slm.toml` versions verbatim unless one of the known baseline blockers
+fires (see `verification.md` §"Known baseline blockers — do not waste
+time debugging"). The catalogued `pad-island.stanza:72 'minus' type
+error` from `jsl ≥ 0.10.10` against `jitx 4.0.5` is one such case —
+pinning `jsl` back to `v0.10.9` is the documented mitigation for that
+specific blocker, not a general rule.
 
 ```bash
 WORK=$HOME/tmp/<design-name>_port
 cd "$WORK"
-git clone git@github.com:JITx-Inc/PD-audio.git && (cd PD-audio && git checkout <commit>)
-git clone git@github.com:JITx-Inc/jsl.git      && (cd jsl && git checkout v0.10.9)
+git clone git@github.com:JITx-Inc/<design>.git && (cd <design> && git checkout <commit>)
+git clone git@github.com:JITx-Inc/jsl.git      && (cd jsl && git checkout <version-from-design-slm.toml>)
 # now slm fetch resolves cleanly:
-cd PD-audio
+cd <design>
 SLM_ROOT=~/.jitx/<3.x>/slm PATH=~/.jitx/<3.x>/stanza:$PATH ~/.jitx/<3.x>/slm/slm fetch
 ```
 
@@ -157,7 +162,7 @@ In Stanza, a `pcb-component` is the bare IC. A companion `pcb-module` in
 bootstrap caps, thermal vias, and exposes higher-level ports. Skipping
 these wrappers is the most common silent-failure mode — the bare component
 ports cleanly, the design builds `status: ok`, and entire output sections
-are missing from the netlist (see SKILL_GAPS GAP-18).
+are missing from the netlist.
 
 For each component used by the design:
 
@@ -316,7 +321,7 @@ file open simultaneously, since each circuit's port involves both ends.
 
 These are the domain-heavy parts of the port. They typically arrive intact in the design but must be reformulated for the Python API:
 
-- **Stackup:** translate `pcb-stackup` to `Stackup` / `Symmetric` (uses `jitx-substrate-modeler`). **If the design targets JLCPCB**, do not hand-roll the stackup — use one of `JLC04161H_1080`, `JLC04161H_7628`, `JLC06161H_7628` from `jitxlib.jlcpcb` (the closest analog to Stanza `jlcpcb-jlc2313` is `JLC04161H_1080`). There is no 2-layer JLCPCB class; build a custom `Substrate` for that case.
+- **Stackup:** translate `pcb-stackup` to `Stackup` / `Symmetric` (uses `jitx-substrate-modeler`). **If the design targets JLCPCB**, prefer the predefined substrates from `jitxlib.jlcpcb` — `JLC04161H_1080` (closest analog to Stanza `jlcpcb-jlc2313`), `JLC04161H_7628`, or `JLC06161H_7628`. **If `jitxlib.jlcpcb` is not importable** in the installed version, fall back to the `four_layer_fr4.py` template under `jitx-substrate-modeler/references/templates/` rather than hand-rolling from scratch. There is no 2-layer JLCPCB class; build a custom `Substrate` for that case regardless.
 - **Vias and routing structures:** `pcb-via` → `Via`; new in 4.x, formalize via `RoutingStructure`, `DifferentialRoutingStructure`, `NeckDown` (all in `jitx.si`; construct with the `symmetric_routing_layers({...})` helper) where appropriate. Stanza-side `structure ... = SingleEnded(...)` / `Differential(...)` declarations have **no class with those names** in 4.x — rename to `RoutingStructure` / `DifferentialRoutingStructure`.
 - **Signal constraints:** Stanza topology constraints → `Constrain`, `ConstrainDiffPair`, `TimingConstraint`, `InsertionLossConstraint`, `ReferencePlanes` (uses `jitx-interconnect-constraints`).
 - **Topology graph:** `>>` operator builds the routed graph; bridging/terminating pin models attach to nodes.
