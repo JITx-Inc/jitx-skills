@@ -181,7 +181,7 @@ Rz values below are for the **matte/bonding side** (the side laminated to the di
 **Cannonball-Huray parameters** (for HFSS/EM simulation using the average HCPES+SCPES model):
 - Nodule radius: `a = 0.0573 × Rz` (µm)
 - Surface ratio: `Sr = 5.117` (constant, independent of foil type)
-- Use matte-side roughness for the bottom surface of a trace; drum-side for the top. The matte side is the rougher of the two — typical Ra range 0.18–0.51 µm for standard foils; the drum side is much smoother — Ra ≈ Rz × 0.0573 (matches the Cannonball-Huray nodule-radius formula, ≈ 0.18 µm at Rz = 3.05 µm).
+- Use matte-side roughness for the bottom surface of a trace; drum-side for the top. The matte side is the rougher of the two — typical Ra range 0.18–0.51 µm for standard foils; the drum side is much smoother. The Ra/Rz ratio depends on the foil profile (commonly ~0.1–0.25 for matte side); if you need an exact Ra, take it from the foil datasheet rather than computing it from Rz with a single constant. The `0.0573 × Rz` factor in the row above is the Cannonball-Huray *nodule radius*, not Ra.
 
 | Copper Type | Representative Rz (µm) | Nodule radius a (µm) |
 |-------------|------------------------|----------------------|
@@ -315,8 +315,8 @@ class THVia(Via):
 ```python
 class THViaFilled(Via):
     type = ViaType.MechanicalDrill
-    start_layer = Side.Top
-    stop_layer = Side.Bottom
+    start_layer = 0         # Side.Top also works
+    stop_layer = -1         # Side.Bottom also works
     diameter = 0.45
     hole_diameter = 0.3
     tented = True
