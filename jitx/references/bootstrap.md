@@ -119,7 +119,7 @@ ln -sfn "$JITX_VER" ~/.jitx/current
 | `FATAL PLUGIN ERROR: No appropriate branch for arguments of type (False)` in `write-stable-id` | `~/.jitx/current` symlink mismatch — see step (1) |
 | `pip install` errors importing jitx mid-install | `jitx interactive` not yet up, or version mismatch between symlink and installed wheel |
 | `ModuleNotFoundError: No module named 'jitx'` | See §"`ModuleNotFoundError: No module named 'jitx'`" below — most common causes are the wrong venv being active or `pip install` ran without `--pre` against a pre-release-only project |
-| `Do you want to continue? [Y/n]` followed by `status: error` / `message: EOF when reading a line` | Stale design cache after a sub-circuit / component class rename, instance addition, or instance removal. **Not covered by `JITX_SKIP_STABILIZE_CONFIRMATION=1`** — that env var only suppresses the end-of-build "save stable design?" prompt, not the start-of-build deletion-confirmation prompt. Fix: `rm -rf designs/<package>.<module>.<DesignClass>/` and rebuild. See §"Iterative-porting recipe" below. |
+| `Do you want to continue? [Y/n]` followed by `status: error` / `message: EOF when reading a line` | Stale design cache after a sub-circuit / component class rename, instance addition, or instance removal. **Not covered by `JITX_SKIP_STABILIZE_CONFIRMATION=1`** — that env var only suppresses the end-of-build "save stable design?" prompt, not the start-of-build deletion-confirmation prompt. Fix: clear the cache before rebuilding — see §"Cache-clear scope" below for surgical vs broad variants. |
 
 ### `ModuleNotFoundError: No module named 'jitx'`
 
@@ -159,6 +159,28 @@ Three distinct causes, in roughly decreasing frequency:
    `jitx interactive` not yet up when an `pip install` hook tries to
    import jitx — start the server first (step 3) and re-install.
 
+## Cache-clear scope
+
+Two cache-clear forms exist; pick by whether the **class roster** has
+changed since the last successful build. "Roster" means the set of
+`Circuit` / `Component` class definitions, their instances on `self`,
+and the hierarchy that connects them. Edits to the *body* of an
+existing method (changing a resistor value, renaming a local
+variable, adjusting a constraint number) don't change the roster;
+adding `self.r2 = Resistor(...)` to a Circuit, renaming a class,
+removing an instance, or rewiring the parent/child hierarchy does.
+
+| When | Form | Why |
+|---|---|---|
+| **Steady-state development** — content edits to one design, class roster stable | `rm -rf designs/<package>.<module>.<DesignClass>/` | Surgical; preserves sibling design caches (per-leaf `TestDesign`s, other top-level designs). Faster across the project. |
+| **Active port, or any roster-churn session** — instance add/remove, class rename, hierarchy change, or "I don't remember whether I changed the roster" | `rm -rf designs/` | Broad; required because multiple cached designs share roster references and a stale sibling cache will re-trigger the prompt even if the rebuilt design is clean. |
+
+If unsure, prefer the broad form — the cost is a single fresh rebuild
+of unrelated designs, which is bounded and observable. The cost of
+applying the surgical form when you needed the broad form is hitting
+the deletion-confirmation prompt again on a sibling design and
+debugging "but I already cleared the cache" for several minutes.
+
 ## Iterative-porting recipe
 
 During an active port (or any session that changes the
@@ -168,19 +190,19 @@ start of each build, and because stdin is unattended in CI / scripted
 runs the build fails immediately with `EOF when reading a line`.
 
 `JITX_SKIP_STABILIZE_CONFIRMATION=1` does **not** cover this prompt;
-no `--yes` flag exists in `python -m jitx build` as of 4.1.0a7. The
-working pattern is to clear the cache directory before every build:
+no `--yes` flag exists in `python -m jitx build` as of 4.1.0a7. Use
+the **broad** cache-clear form (see §"Cache-clear scope" above) on
+every iteration — every port iteration changes the roster, so the
+surgical form would still hit the prompt on at least one sibling
+cache:
 
 ```bash
 rm -rf designs/ && JITX_SKIP_STABILIZE_CONFIRMATION=1 \
     PYTHONPATH="$PWD" python -m jitx build <pkg.mod.DesignClass>
 ```
 
-The cache only persists meaningfully across builds when the design
-class hierarchy is stable (i.e. between content edits, not between
-roster edits), so during a port the `rm -rf designs/` is effectively
-mandatory on every rebuild. Bake it into a Makefile target or shell
-alias rather than typing it each time.
+Bake it into a Makefile target or shell alias rather than typing it
+each time.
 
 ## Parallel installs
 
