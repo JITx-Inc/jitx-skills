@@ -7,6 +7,8 @@ description: This skill should be used when the user asks to port, migrate, or c
 
 Help port JITX 3.x (LB Stanza) PCB designs to JITX 4.x (Python).
 
+**User workflow this skill supports:** the user has an existing JITX 3.x design tree (`.stanza` sources, `stanza.proj`, often a `nightly_design_tests` config) that builds against `~/.jitx/<3.x>/`, and wants a Python 4.x port that builds against `~/.jitx/<4.x>/` and produces an export the user can verify matches the 3.x baseline. The skill covers both **planning** a port (alongside `ExitPlanMode`) and **executing** one end-to-end through the Phase 0–7 verified-port workflow in `references/`.
+
 This skill is a **router**, not a full tutorial. It does not re-teach Stanza or the Python 4.x API — it points to the existing skills that do, and supplies the construct mappings, workflow, pitfalls, and verification recipe that are unique to the porting task.
 
 ## Port plan checklist — every plan must include all five
@@ -29,7 +31,7 @@ Three facts drive the whole port:
 2. **The languages differ but the JITX object model is similar.** A Stanza `pcb-module` is a Python `Circuit` subclass; a Stanza `pcb-component` is a Python `Component` subclass; `pcb-stackup` is `Stackup`; nets connect via `+`; topology connects via `>>`. Most ports are mechanical at the structural level once the mapping is internalized.
 3. **The build/CI shell differs.** Stanza designs are launched from `main.stanza` + `design_name` (per `nightly_design_tests/config/designs.yaml`). Python designs use `python -m jitx build <package>.<module>.<DesignClass>` against a `jitx interactive` server (per `jitx-test/.github/workflows/integration-testing.yml`). The CI matrix shape changes accordingly.
 
-**Note on Stanza:** Stanza compiles natively (via a C backend). It has no JVM target. Never describe Stanza as JVM-compiled in any porting guidance.
+**Note on Stanza:** Stanza is AOT-compiled to native code. It has no JVM target. Never describe Stanza as JVM-compiled in any porting guidance.
 
 ## Cross-references for general JITX 4.x discipline
 

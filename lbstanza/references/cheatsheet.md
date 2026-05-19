@@ -1,6 +1,6 @@
 # LB Stanza Syntax Cheatsheet
 
-Surface-syntax reference for LB Stanza. Stanza compiles natively via a C backend.
+Surface-syntax reference for LB Stanza. Stanza is AOT-compiled to native code (no JVM).
 Verified against Patrick Li's reference-manual.md and by-example.md.
 
 ---

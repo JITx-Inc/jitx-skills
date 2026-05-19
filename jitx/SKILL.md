@@ -564,6 +564,17 @@ For provide/require pin assignment patterns, use `jitx-pin-assignment` instead.
 
 Import: `from jitxlib.jlcpcb import JLC04161H_1080`. These include stackup, fab rules, 11 via definitions, and routing structures.
 
+⚠ `jitxlib.jlcpcb` is **not** shipped by every wheel — notably the
+jitx-4.1.0a7 pre-release omits it. Probe before recommending the
+import:
+
+```bash
+python -c "import jitxlib.jlcpcb"   # ModuleNotFoundError = not installed
+```
+
+If the probe fails, fall back to the hand-rolled 4-layer FR4 template
+documented in `jitx-substrate-modeler` (`references/templates/four_layer_fr4.py`).
+
 **Invoke this subskill** to create a custom substrate (the default path unless user opts into a predefined one):
 - User has not confirmed JLCPCB as fab house
 - Non-FR-4 materials (Rogers, Megtron)

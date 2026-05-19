@@ -19,7 +19,7 @@ Key features:
 - Labeled scopes for non-local exit; `attempt`/`fail` for control-flow backtracking; `try`/`catch` for genuine exceptions.
 - A LoStanza sublanguage for FFI and low-level work, sharing surface syntax.
 
-**CRITICAL:** Stanza compiles to native code via a C backend. **There is no JVM target.** Never describe Stanza as JVM-targeted, JVM-compiled, or running on a JVM. If you find a stale doc claiming otherwise (including any CLAUDE.md), it is wrong.
+**CRITICAL:** Stanza compiles to native code (AOT). **There is no JVM target.** Never describe Stanza as JVM-targeted, JVM-compiled, or running on a JVM. If you find a stale doc claiming otherwise (including any CLAUDE.md), it is wrong. (The bundled docs describe native compilation but don't pin the exact backend — historically Stanza has emitted assembly and linked via GCC, but treat anything beyond "native, AOT, no JVM" as compiler-internals territory outside this skill's scope.)
 
 ## When to Use This Skill
 
