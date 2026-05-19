@@ -10,8 +10,9 @@ filter section missing, mis-wired control signals).
 
 Walk this six-section checklist on any design before declaring it ready.
 Sections A–F apply to any greenfield 4.x design; the porting workflow layers
-two additional comparison checks (B 1-based↔0-based connector indexing and
-E passive-count delta) on top — see
+two additional comparison checks (B′ connector pin-index translation —
+index base depends on the Python component's source, not a global
+1↔0 shift — and E′ passive-count delta) on top — see
 `jitx-skills:jitx-port-3-to-4/references/verification.md` for those.
 
 ## Inputs

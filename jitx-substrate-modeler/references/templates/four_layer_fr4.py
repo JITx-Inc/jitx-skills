@@ -12,8 +12,12 @@ Use this when:
 - the target fab is not JLCPCB.
 
 The values below match a typical 4-layer 1.6mm board with 1080 prepreg
-and 1 oz outer / 0.5 oz inner copper. Override `prepreg_thickness`,
-`core_thickness`, etc. on a copy if your fab differs.
+and 1 oz outer / 0.5 oz inner copper. To match a different fab, edit
+the `thickness=…` arguments inside `class stackup` — e.g.
+`FR4_1080(thickness=…)` for the prepreg, `FR4_Core(thickness=…)` for
+the core. (There are no top-level `prepreg_thickness` / `core_thickness`
+variables to override — the dimensions live on the dielectric instances
+inside the nested stackup class.)
 
 Verified against jitx 4.1.0a7 / launcher 4.1.0-develop.15 (2026-05-14).
 """

@@ -1042,7 +1042,18 @@ from jitx import Circuit, Net
 from jitx.toleranced import Toleranced
 from jitx.common import Power
 from jitxlib.parts import Capacitor, CapacitorQuery, Resistor, Inductor, ResistorQuery
-from jitxlib.voltage_divider import VoltageDividerConstraints, voltage_divider_from_constraints
+
+# `jitxlib.voltage_divider` is version-gated (missing in jitx-4.0.5).
+# Probe before importing so the example is portable; fall back to a hand-
+# rolled R-divider when the helper is unavailable.
+try:
+    from jitxlib.voltage_divider import (
+        VoltageDividerConstraints,
+        voltage_divider_from_constraints,
+    )
+    HAVE_VDIV = True
+except ImportError:
+    HAVE_VDIV = False
 
 from .texas_instruments_TPS62933DRLR import TPS62933DRLR
 
@@ -1073,18 +1084,29 @@ class TPS62933DRLRCircuit(Circuit):
             self.c_in2 = Capacitor(capacitance=10e-6, rated_voltage=50.0)
             self.c_in2.insert(self.buck.VIN, self.GND, short_trace=True)
 
-        # Feedback voltage divider
-        vdiv_cons = VoltageDividerConstraints(
-            v_in=Toleranced.exact(output_voltage),
-            v_out=Toleranced.percent(0.8, 3.0),  # MUST have tolerance window
-            current=0.8 / 10e3,
-            prec_series=[1.00, 0.10],             # REQUIRED
-            base_query=ResistorQuery(case=["0402"]),
-        )
-        self.fb_div = voltage_divider_from_constraints(vdiv_cons, name="feedback")
-        self.VOUT += self.fb_div.hi + self.vout.Vp
-        self.GND += self.fb_div.lo
-        self.nets = [self.fb_div.out + self.buck.FB]
+        # Feedback voltage divider — prefer the jitxlib helper when
+        # available, fall back to a hand-rolled divider on jitx-4.0.5.
+        if HAVE_VDIV:
+            vdiv_cons = VoltageDividerConstraints(
+                v_in=Toleranced.exact(output_voltage),
+                v_out=Toleranced.percent(0.8, 3.0),   # MUST have tolerance window
+                current=0.8 / 10e3,
+                prec_series=[1.00, 0.10],              # REQUIRED
+                base_query=ResistorQuery(case=["0402"]),
+            )
+            self.fb_div = voltage_divider_from_constraints(vdiv_cons, name="feedback")
+            self.VOUT += self.fb_div.hi + self.vout.Vp
+            self.GND += self.fb_div.lo
+            self.nets = [self.fb_div.out + self.buck.FB]
+        else:
+            # Hand-rolled fallback. Values chosen for v_ref = 0.8V, v_out = 3.3V:
+            # R_top = 31.25 kΩ (E96: 31.6 k), R_bot = 10 kΩ.
+            with ResistorQuery.refine(case="0402"):
+                self.r_fb_top = Resistor(resistance=31.6e3)
+                self.r_fb_bot = Resistor(resistance=10e3)
+            self.r_fb_top.insert(self.VOUT, self.buck.FB)
+            self.r_fb_bot.insert(self.buck.FB, self.GND)
+            self.VOUT += self.vout.Vp
 
         # Output inductor and capacitors
         self.L = Inductor(inductance=4.7e-6, current_rating=3.9)
@@ -1107,4 +1129,6 @@ When generating a component, provide:
 2. Verification report (using format above)
 3. Any assumptions or decisions made
 4. Known limitations or items requiring manual review
-5. **Offer to capture application circuit** if datasheet includes one
+5. **Application circuit handling** — depends on tier (see Step 5):
+   - **single-task** (component-modeler invoked alone): **offer** to capture if the datasheet includes one; ask the user before generating.
+   - **complete-board** (project-builder workflow): capture it **without asking** — this step is mandatory, per Step 5.

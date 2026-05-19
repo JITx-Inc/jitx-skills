@@ -141,8 +141,8 @@ Nets can be named in the design when the net is defined. It is good practice to 
 
 ```python
 # Top-level design (in src/<ns>/designs/...): symbols are legal here.
-self.my_net = Net(self.a, name = "my_net")
-self.VCC = Net(self.power.Vp, name = "VCC", symbol = PowerSymbol())
+self.my_net = Net([self.a], name="my_net")
+self.VCC = Net([self.power.Vp], name="VCC", symbol=PowerSymbol())
 ```
 
 > ⚠️ **Name nets at the top level only.** A `Net(..., name="GND")` declared
@@ -215,12 +215,15 @@ quick-reference index.
 | ❌ Don't | `self.a += b` where `a` is a `Port`, not a `Net` | Ports are immutable. See §"Port immutability" below. Wrap the LHS in `Net(...)` first. |
 | ❌ Don't | `Net(self.a, self.b, self.c, name=...)` (varargs) | Signature is `Net(ports: Iterable = (), *, name=None, symbol=None)`. Wrap the ports in a list: `Net([self.a, self.b, self.c], name=...)`. |
 
-## Top-level-only constructs — what belongs at the design layer
+## Top-level / aggregator-only constructs — what doesn't belong in a leaf subcircuit
 
-Five JITX 4.x constructs are conventionally placed **only** in the
-`Design` class (or `designs/<board>.py` per project convention). Putting
-them in a subcircuit produces a build-clean design with hidden wiring or
-silent rule conflicts.
+Four JITX 4.x constructs are placed **only** in the `Design` class (or
+`designs/<board>.py` per project convention); a fifth — shared-bus
+pull-ups — lives one level lower, at the **bus-aggregation circuit**
+that owns the multi-consumer bus (which is the Design class on many
+boards, but is a dedicated subcircuit when the bus is reused across
+designs). Putting any of these in a leaf subcircuit produces a build-
+clean design with hidden wiring or silent rule conflicts.
 
 | Construct | Why top-level only |
 |---|---|
@@ -368,9 +371,14 @@ class AmpFanout(Circuit):
     }
 
     def __init__(self):
-        # Instance-level wiring uses the declared port array directly
-        for i, gp in enumerate(self.mcu.gpio_list):
+        # Instance-level wiring uses the declared port array directly.
+        # Root each net on `self` so it survives `__init__` — the bare
+        # `port + port` chain returns a Net that's GC'd after __init__
+        # if not stored.
+        self.amp_ctrl_nets = [
             self.amp_ctrl[i] + gp
+            for i, gp in enumerate(self.mcu.gpio_list)
+        ]
 
         # Parent-to-child wiring: `parent.bus[i] + child.amp_ctrl[i]`
         # (see `references/advanced-patterns.md` for a worked example)
@@ -772,8 +780,8 @@ compose:
 
 ```python
 self.GND = Net([...], name="GND", symbol=GroundSymbol())
-self.GND += Pour(shape, layer=0, isolate=0.1, rank=1)   # symbol survives
-self.GND += Pour(shape, layer=1, isolate=0.1, rank=1)
+self.GND += Pour(shape, layer=0, rank=1)   # symbol survives
+self.GND += Pour(shape, layer=1, rank=1)
 ```
 
 ⚠ `+=` is forbidden on bare `Port` attributes (see §"Port
@@ -781,9 +789,11 @@ immutability" above); the rule above is `+=` on a `Net`, which is fine.
 
 ## Copper pour layer indices
 
-`Pour(shape, layer=…, isolate=…, rank=…)` from `jitx.copper` takes an integer
+`Pour(shape, layer=…, rank=…)` from `jitx.copper` takes an integer
 `layer`. The integer is interpreted by the design's `Substrate` / `Stackup`, with a
-consistent convention across stackups:
+consistent convention across stackups. (`Pour(..., isolate=…)` is legacy —
+see `references/advanced-patterns.md` §"`isolate=` is legacy"; express
+non-default clearance via `design_constraint(...)` with Tags instead.)
 
 | Layer | Index (top-down) | Index (negative / bottom-up) | Notes |
 |---|---|---|---|
@@ -800,20 +810,20 @@ within a design. The negative form pairs naturally with `symmetric_routing_layer
 
 ```python
 # 2-layer board:
-self.GND += Pour(shape, layer=0,  isolate=0.1, rank=1)  # top
-self.GND += Pour(shape, layer=-1, isolate=0.1, rank=1)  # bottom (or layer=1)
+self.GND += Pour(shape, layer=0,  rank=1)  # top
+self.GND += Pour(shape, layer=-1, rank=1)  # bottom (or layer=1)
 
 # 4-layer board (e.g. JLC04161H_1080) — all-positive form:
-self.GND += Pour(shape, layer=0, isolate=0.1, rank=1)   # top
-self.GND += Pour(shape, layer=1, isolate=0.1, rank=1)   # inner 1
-self.VCC += Pour(shape, layer=2, isolate=0.1, rank=1)   # inner 2 (power plane)
-self.GND += Pour(shape, layer=3, isolate=0.1, rank=1)   # bottom
+self.GND += Pour(shape, layer=0, rank=1)   # top
+self.GND += Pour(shape, layer=1, rank=1)   # inner 1
+self.VCC += Pour(shape, layer=2, rank=1)   # inner 2 (power plane)
+self.GND += Pour(shape, layer=3, rank=1)   # bottom
 
 # 4-layer board — symmetric form (equivalent):
-self.GND += Pour(shape, layer=0,  isolate=0.1, rank=1)
-self.GND += Pour(shape, layer=1,  isolate=0.1, rank=1)
-self.VCC += Pour(shape, layer=-2, isolate=0.1, rank=1)
-self.GND += Pour(shape, layer=-1, isolate=0.1, rank=1)
+self.GND += Pour(shape, layer=0,  rank=1)
+self.GND += Pour(shape, layer=1,  rank=1)
+self.VCC += Pour(shape, layer=-2, rank=1)
+self.GND += Pour(shape, layer=-1, rank=1)
 ```
 
 Reference: `~/jitx/TEC-example/tec_example/main.py:145-148` uses the all-positive
