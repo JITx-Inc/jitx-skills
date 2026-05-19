@@ -250,11 +250,11 @@ Copy-paste into the project's `substrate.py`, rename the class to
 match your design, and adjust dielectric thicknesses to match your
 fab. The template provides:
 
-- `FourLayerFR4Stackup` — Symmetric 4-layer FR4 (1080 prepreg, 1 oz copper)
-- `FourLayerFR4Substrate(Substrate)` — wraps the stackup with
-  fabrication constraints, mechanical-drill via, and 50 ohm
-  single-ended + 100 ohm differential routing structures
-- `JitxRules` — sensible default `FabricationConstraints`
+- `FourLayerFR4Substrate(Substrate)` — wraps a nested
+  `class stackup(Symmetric)` (1080 prepreg, 1 oz outer / 0.5 oz inner
+  copper) with fabrication constraints, mechanical-drill via, and 50
+  ohm single-ended + 100 ohm differential routing structures
+- `FabRules(FabricationConstraints)` — sensible default fab constraints
 
 The same shape works for non-JLCPCB targets — just edit the
 dielectric thicknesses and Cu thickness fields to match the fab's

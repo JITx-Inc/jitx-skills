@@ -63,7 +63,23 @@ ln -sfn "$(basename "$JITX_3X")" ~/.jitx/current
   # configuration file".
   PATH="$JITX_3X/stanza:$PATH" "$JITX_3X/jitx" run main.stanza \
       > "$OUT/build.stdout" 2> "$OUT/build.stderr"
-  echo $? > "$OUT/exit-code"
+  rc=$?
+  echo $rc > "$OUT/exit-code"
+
+  # Copy the actual export artifacts. `jitx run` writes them under
+  # ./designs/<design_name>/ in the project dir — without this step,
+  # $OUT contains only the build log and Phase 7 has nothing to diff
+  # against. Fail loud if the expected directory is absent so we don't
+  # silently advance with an empty baseline.
+  ARTIFACTS="./designs/${DESIGN_NAME}"
+  if [ "$rc" -eq 0 ] && [ ! -d "$ARTIFACTS" ]; then
+    echo "ERROR: 3.x build exited 0 but $ARTIFACTS not found —" \
+         "check DESIGN_NAME or the design's actual output dir" >&2
+    exit 1
+  fi
+  if [ -d "$ARTIFACTS" ]; then
+    cp -r "$ARTIFACTS"/. "$OUT/"
+  fi
 )
 ```
 
@@ -71,7 +87,9 @@ The exact invocation may differ per design (some designs ship a wrapper
 script, some use `slm build`, some run `jitx run` against a specific
 entrypoint). The design's own runner / Makefile / README is the source
 of truth — read it and reuse its invocation, only substituting binary
-paths with `"$JITX_3X/..."`.
+paths with `"$JITX_3X/..."`. The artifact-copy step above assumes
+`./designs/<DESIGN_NAME>/` is the export location; designs that emit
+elsewhere need the `ARTIFACTS=` path adjusted.
 
 **On nonzero `exit-code`, do not silently proceed.** Surface
 `build.stderr` verbatim, tell the user the 3.x baseline did not build
@@ -187,8 +205,21 @@ top:
    ```
    Redirect `interactive.log`, `pip.log`, `jitx-version.txt`,
    `pyright.txt`, `build.stdout`, `build.stderr`, and `exit-code` into
-   `$OUT` so the Compare-exports section below can diff them against
-   the 3.x baseline.
+   `$OUT`. **Then copy the actual export artifacts** — without this
+   step, `$OUT` is logs-only and the Compare-exports section below has
+   nothing to diff:
+   ```bash
+   # python -m jitx build writes exports under ./designs/<pkg.mod.DesignClass>/
+   ARTIFACTS="./designs/${DESIGN_NAME}"
+   if [ ! -d "$ARTIFACTS" ]; then
+     echo "ERROR: $ARTIFACTS not found — build did not emit exports" >&2
+     exit 1
+   fi
+   cp -r "$ARTIFACTS"/. "$OUT/"
+   ```
+   Fail loud if the artifact directory is absent — the most common
+   silent failure mode is a stale `DESIGN_NAME` whose build succeeds
+   but writes elsewhere, leaving `$OUT` empty.
 3. **`pyright` must pass before the build is reviewable**:
    ```bash
    pyright . > "$OUT/pyright.txt" 2>&1 || { echo "pyright failed"; exit 1; }
@@ -197,7 +228,7 @@ top:
    commonly mask wiring bugs.
 4. **CI sign-in via env vars**: in headless / CI runs, set
    `JITX_USER_EMAIL` and `JITX_USER_PASS` and pipe the password into
-   `jitx sign-in -email "$JITX_USER_EMAIL" <<<"$JITX_USER_PASS"`. See
+   `jitx sign-in -email "$JITX_USER_EMAIL" -non-interactive <<<"$JITX_USER_PASS"`. See
    `jitx-test/scripts/jitx-build-design.bash` for the production
    pattern (which also sets `JITX_ENV` to `app` / `app-testing` /
    `app-dev`).

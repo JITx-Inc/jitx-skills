@@ -76,7 +76,9 @@ DESIGN_NAME=<package>.<module>.<DesignClass>    # see `python -m jitx find .`
 ln -sfn "$JITX_VER" ~/.jitx/current
 
 # (2) Sign in (once per session; auth state shared across installs).
-~/.jitx/$JITX_VER/jitx sign-in -email "$JITX_USER_EMAIL" <<<"$JITX_USER_PASS"
+# `-non-interactive` is required for the CLI to read the password from
+# stdin — without it the heredoc is ignored and the prompt blocks.
+~/.jitx/$JITX_VER/jitx sign-in -email "$JITX_USER_EMAIL" -non-interactive <<<"$JITX_USER_PASS"
 
 (
   # All subsequent steps run with cwd = the project root.
@@ -100,10 +102,14 @@ ln -sfn "$JITX_VER" ~/.jitx/current
   readlink ~/.jitx/current
 
   # (7) Build headless. JITX_SKIP_STABILIZE_CONFIRMATION=1 suppresses the
-  # interactive "save stable design?" prompt. PYTHONPATH=$PWD ensures the
-  # project package is importable if not installed.
+  # interactive "save stable design?" prompt. Do NOT set PYTHONPATH here:
+  # the editable install at step (5) already exposes the project package,
+  # and `PYTHONPATH=$PWD` masks the failure mode where step (5) silently
+  # left a stale non-editable install in place. Fallback only — if you
+  # cannot use `pip install -e`, set `PYTHONPATH="$PWD"` here as a
+  # last resort and expect the staleness symptoms described above.
   JITX_SKIP_STABILIZE_CONFIRMATION=1 \
-      PYTHONPATH="$PWD" python -m jitx build "$DESIGN_NAME"
+      python -m jitx build "$DESIGN_NAME"
 
   kill "$INT_PID" 2>/dev/null
 )

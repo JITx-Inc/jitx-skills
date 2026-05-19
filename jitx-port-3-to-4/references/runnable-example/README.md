@@ -46,9 +46,19 @@ PATH="$JITX_3X/stanza:$PATH" "$JITX_3X/slm/slm" fetch
 # install's .stanza config; calling jstanza directly fails with "Could not
 # locate .stanza configuration file").
 PATH="$JITX_3X/stanza:$PATH" "$JITX_3X/jitx" run main.stanza
+
+# Capture the artifacts so Phase 7 has something to diff against. Without
+# this, baseline-3.x/ is empty and the export-comparison step is theater.
+BASELINE=/tmp/jitx-port/runnable-example/baseline-3.x
+mkdir -p "$BASELINE"
+if [ ! -d ./designs/runnable-example ]; then
+  echo "ERROR: ./designs/runnable-example not found — build did not emit artifacts" >&2
+  exit 1
+fi
+cp -r ./designs/runnable-example/. "$BASELINE/"
 ```
 
-Expected outcome (on a signed-in install with the matching symlink): real CAD artifacts under `./designs/runnable-example/kicad/` (`.kicad_pcb`, `.kicad_sch`, `.kicad_pro`, footprint lib, sym lib, plus a STEP 3D model). Capture them to `/tmp/jitx-port/runnable-example/baseline-3.x/`.
+Expected outcome (on a signed-in install with the matching symlink): real CAD artifacts under `./designs/runnable-example/kicad/` (`.kicad_pcb`, `.kicad_sch`, `.kicad_pro`, footprint lib, sym lib, plus a STEP 3D model), copied into `/tmp/jitx-port/runnable-example/baseline-3.x/` by the snippet above.
 
 If you see `Unhandled Exception while searching parts database` / `You are not authenticated`, run `~/.jitx/<ver>/jitx sign-in -email <your-email>` first.
 
@@ -87,7 +97,7 @@ source .venv/bin/activate
 pip install --pre -e .          # `--pre` allows pre-release jitx wheels
 
 # Version sanity-check: the pip-installed jitx should match ~/.jitx/current.
-python -c 'import jitx; print(jitx.__version__)'
+python -c 'from importlib.metadata import version; print(version("jitx"))'
 readlink ~/.jitx/current
 
 # Build headless. JITX_SKIP_STABILIZE_CONFIRMATION=1 suppresses the
@@ -96,9 +106,18 @@ JITX_SKIP_STABILIZE_CONFIRMATION=1 \
     PYTHONPATH="$PWD" python -m jitx build runnable_example.main.runnable_example
 
 kill $INT_PID 2>/dev/null
+
+# Capture the actual artifacts so the comparison step below isn't empty.
+PORTED=/tmp/jitx-port/runnable-example/ported-4.x
+mkdir -p "$PORTED"
+if [ ! -d ./designs/runnable_example.main.runnable_example ]; then
+  echo "ERROR: ./designs/runnable_example.main.runnable_example not found — build did not emit artifacts" >&2
+  exit 1
+fi
+cp -r ./designs/runnable_example.main.runnable_example/. "$PORTED/"
 ```
 
-Expected outcome (on a signed-in install): exports under `./designs/runnable_example.main.runnable_example/`. Capture to `/tmp/jitx-port/runnable-example/ported-4.x/`.
+Expected outcome (on a signed-in install): exports under `./designs/runnable_example.main.runnable_example/`, copied into `/tmp/jitx-port/runnable-example/ported-4.x/` by the snippet above.
 
 If `pip install --pre .` fails with a 401/403, your venv doesn't have access to the JITX internal package index. Use the same `JITX_USER_EMAIL`/`JITX_USER_PASS`/`JITX_ENV` env-var setup that `jitx-test/scripts/jitx-build-design.bash` uses.
 
