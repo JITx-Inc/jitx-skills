@@ -191,6 +191,21 @@ no template exists), the receive direction is wired only via `sd` and
 the transmit/receive split is lost — the consumer cannot route a
 separate ADC return path. Define the bundle properly the first time.
 
+**Stanza → Python I²S field rename table** (every audio port re-derives
+this; here it is once):
+
+| Stanza name (`i2s()` / `i2s([…])`) | 4.x `I2S()` sub-port | Notes |
+|---|---|---|
+| `.ck`    | `.sck`        | renamed |
+| `.ws`    | `.ws`         | unchanged |
+| `.sdmo`  | `.sd`         | output direction; the Stanza name was specific to source-side |
+| `.sdmi`  | (not present) | sink-side data — use `I2SFullDuplex` above for both directions |
+| `.mck`   | (not present) | master clock — use `I2SMCK` above |
+
+Plain 3-wire I²S (clock + WS + one data direction) ports cleanly to
+`I2S()`. Any of the extra fields means you need the local
+`I2SMCK` / `I2SFullDuplex` subclass — don't drop them silently.
+
 ### Protocol bundles at hierarchy boundaries — use plain `Port()` instead
 
 Protocol bundles (`I2C`, `I2S`, `USB2`, `SPI`, etc.) are designed for

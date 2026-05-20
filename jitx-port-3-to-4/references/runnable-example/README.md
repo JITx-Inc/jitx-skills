@@ -97,6 +97,8 @@ source .venv/bin/activate
 pip install --pre -e .          # `--pre` allows pre-release jitx wheels
 
 # Version sanity-check: the pip-installed jitx should match ~/.jitx/current.
+# (`import jitx; jitx.__version__` does NOT exist — the package has no
+# `__version__` attribute. Always go through `importlib.metadata.version`.)
 python -c 'from importlib.metadata import version; print(version("jitx"))'
 readlink ~/.jitx/current
 

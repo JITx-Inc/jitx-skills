@@ -367,6 +367,39 @@ class MyIC(jitx.Component):
 
 Only use `self` inside `__init__` (for PadMapping, multi-unit symbols).
 
+**When to fall back to `__init__`-time symbol construction.** The
+bare-name pattern above works because Python class-body scope can
+reach prior class attrs *by direct name*. It breaks the moment you
+need a comprehension, a `for` loop, or any nested function in the
+symbol definition — because comprehensions and nested functions
+**do not have access to class scope**:
+
+```python
+class ESP32_S3(jitx.Component):
+    _GPIO_IDX = list(range(0, 15)) + list(range(17, 22)) + [33, 34]
+    GPIO = {i: Port() for i in _GPIO_IDX}     # ✓ comprehension at class level OK
+    symbol = BoxSymbol(rows=Row(
+        right=PinGroup(*[GPIO[i] for i in _GPIO_IDX]),   # ❌ NameError: GPIO
+    ))
+```
+
+The comprehension scope can't see `GPIO`. The fix is to build the
+symbol in `__init__` against `self`:
+
+```python
+class ESP32_S3(jitx.Component):
+    _GPIO_IDX = list(range(0, 15)) + list(range(17, 22)) + [33, 34]
+    GPIO = {i: Port() for i in _GPIO_IDX}
+
+    def __init__(self):
+        self.symbol = BoxSymbol(rows=Row(
+            right=PinGroup(*[self.GPIO[i] for i in self._GPIO_IDX]),
+        ))
+```
+
+Trigger to switch: any time you need `for` / `*[…]` / `if` inside
+`BoxSymbol(...)`, move it to `__init__` and assign `self.symbol`.
+
 ### Toleranced Values
 
 ```python
@@ -644,6 +677,13 @@ class ESP32_S3(jitx.Component):
 Unpack into a `BoxSymbol` `PinGroup` with `*GPIO.values()`. The same rule applies to
 `PadMapping` when the pad index set is non-contiguous. See the construct-map
 (`jitx-port-3-to-4` §3) for the parallel port-on-`Circuit` pattern.
+
+**Failure signal** if you picked the list shape: the build emits
+`translation failed: <Component>'s port GPIO[N] is not mapped to a
+pad` where `N` is one of the gap-indices. If `GPIO[N]` doesn't
+correspond to a physical pin on the part, switch to `dict[int, Port]`
+keyed by the indices that *do* exist. Don't try to "fix" this by adding
+an extra `PadMapping` entry — the index simply shouldn't be a port.
 
 ## Marking a Component as Do-Not-Populate (DNP)
 

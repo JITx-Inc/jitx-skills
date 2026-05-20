@@ -338,6 +338,41 @@ For short-lived internal connections that don't need a name, root them on
 never the right shape; see `jitx-port-3-to-4/references/pitfalls.md`
 §"Don't bind a Net to a Python local" for the porter-side rule.
 
+### Fan-out wiring in loops — accumulate, don't reassign
+
+A natural reflex when porting "for each i, wire X to Y" loops is to
+write `self._nN = src[i] + dst[i]` inside the loop. That **reassigns
+the same attribute on each iteration** and trips
+`RuntimeWarning: Reassigning a structural field after instantiation
+is very likely an error.` from the framework. Earlier iterations also
+lose their net.
+
+Two correct shapes:
+
+```python
+# ✅ Pattern A: distinct named attrs via setattr
+for i in range(N):
+    setattr(self, f"CTRL_{i}", src[i].gpio + dst[i].gpio)
+
+# ✅ Pattern B: collect anonymous nets in a list rooted on self
+self._fanout = []
+for i in range(N):
+    self._fanout.append(src[i].gpio + dst[i].gpio)
+
+# Or as a comprehension when no other per-iteration state is needed:
+self._fanout = [src[i].gpio + dst[i].gpio for i in range(N)]
+```
+
+The list form is preferred when the nets are interchangeable (bus
+fan-out, identical decoupling). The `setattr` form is preferred when
+each net is semantically distinct and benefits from a descriptive
+attribute name in the schematic (control GPIOs labelled `CTRL_0` …
+`CTRL_5`).
+
+`self._nN = …` inside a loop with a counter is **never** the right
+shape — even if the warnings don't fire, only the last iteration's
+net survives.
+
 ### `Circuit.__dict__` is read-only
 
 The `Circuit` / `Component` metaclass exposes attributes through
@@ -444,6 +479,21 @@ from jitx.shapes.primitive import Arc, ArcPolygon, Polygon, Circle
 
 Use `ArcPolygon` only when `rectangle(w, h, radius=...)` can't express
 the shape.
+
+### `Point` is a type alias, not a class — pass tuples
+
+`jitx.shapes.primitive.Point` is `TypeAlias = tuple[float, float]`. It
+is **not** callable; `Point(-6.0, 16.9)` fails at import time with
+`TypeError: 'typing.TypeAliasType' object is not callable`. Pass bare
+tuples to `Polygon`, `ArcPolygon`, and friends:
+
+```python
+from jitx.shapes.primitive import Polygon
+shape = Polygon([(-6.0, 16.9), (-28.4, 16.9), (-34.0, -5.78), ...])
+```
+
+The same applies to any API typed as `Sequence[Point]` — the type
+annotation describes a sequence of 2-tuples of floats.
 
 ## Pour import path
 

@@ -6,7 +6,7 @@ A phased recipe. Verification phases (0 and 6) bracket the port and are mandator
 
 **Goal:** prove the Stanza source builds *before* you change anything.
 
-1. Confirm an active sign-in: `~/.jitx/<3.x>/jitx sign-in -email <email>`. Without sign-in the build fails at the OCDB part-database query.
+1. Confirm an active sign-in: `~/.jitx/<3.x>/jitx sign-in -email <email>`. Without sign-in the build fails at the OCDB part-database query. If `sign-in` errors with `Login was not successful. Missing password parameter!`, the launcher is reading stdin non-interactively and needs `TEST_PASSWORD` (or equivalent) in env; on a shared machine where 3.x is already signed in, that state usually carries over to 4.x via `~/.jitx/license` and re-signing isn't required.
 2. Point `~/.jitx/current` at the 3.x install you're about to use (`ln -sfn <3.x version> ~/.jitx/current`). JITX reads runtime state via this symlink — a stale 4.x target silently breaks the export pipeline (see `verification.md`).
 3. Read the 3.x entry point. For nightly-test style designs, find the row in `nightly_design_tests/config/designs.yaml` to identify `project_dir`, `stanza_file`, and `design_name`.
 4. Run `slm fetch` to resolve dependencies declared in `slm.toml`, then run the 3.x build using the installed 3.x release at `~/.jitx/<3.x version>/`. See `verification.md` for the exact invocation.
@@ -321,6 +321,19 @@ file open simultaneously, since each circuit's port involves both ends.
 ## Phase 5 — Substrate, constraints, topology, pin assignment
 
 These are the domain-heavy parts of the port. They typically arrive intact in the design but must be reformulated for the Python API:
+
+> ⚠️ **`SampleDesign` is 2-layer only.** If your Stanza source has
+> `copper-pour(LayerIndex(N))` for `N > 1`, you cannot use
+> `SampleDesign` as the base — it ships a 2-layer `SampleSubstrate`,
+> and `Pour(shape, layer=2)` fails at build with
+> `Error: LayerIndex 2 is out of bounds for a 2-layer board.` Two
+> options: (a) collapse all pours to layers 0 and 1 (acceptable for a
+> first-pass functional port that punts on the inner planes), or
+> (b) stand up a real `Substrate` per `jitx-substrate-modeler`
+> (mandatory if the inner planes carry signal-integrity meaning —
+> reference planes for high-speed routing, dedicated PWR/GND planes,
+> etc.). Do not silently drop the pours; record the choice in the
+> port notes.
 
 - **Stackup:** translate `pcb-stackup` to `Stackup` / `Symmetric` (uses `jitx-substrate-modeler`). **If the design targets JLCPCB**, prefer the predefined substrates from `jitxlib.jlcpcb` — `JLC04161H_1080` (closest analog to Stanza `jlcpcb-jlc2313`), `JLC04161H_7628`, or `JLC06161H_7628`. **If `jitxlib.jlcpcb` is not importable** in the installed version, fall back to the `four_layer_fr4.py` template under `jitx-substrate-modeler/references/templates/` rather than hand-rolling from scratch. There is no 2-layer JLCPCB class; build a custom `Substrate` for that case regardless.
 - **Vias and routing structures:** `pcb-via` → `Via`; new in 4.x, formalize via `RoutingStructure`, `DifferentialRoutingStructure`, `NeckDown` (all in `jitx.si`; construct with the `symmetric_routing_layers({...})` helper) where appropriate. Stanza-side `structure ... = SingleEnded(...)` / `Differential(...)` declarations have **no class with those names** in 4.x — rename to `RoutingStructure` / `DifferentialRoutingStructure`.

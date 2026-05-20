@@ -214,6 +214,41 @@ discipline.
   Listing the imports in the Python file is more verbose but more
   navigable.
 
+## `status: ok` with warning storm — the build "passed" but connections dropped
+
+The "Net was GC'd" warning fires **once per dropped `+`-chain**. On a
+non-trivial port that translates dozens of bus-fan-out / decoupling /
+bypass-cap connections by writing bare `port + port` expressions, the
+output looks like this:
+
+```
+WARNING:jitx._structural:Reference to structural object Net() at
+  amplifiers.py:62 lost during instantiation, it likely needs to be
+  assigned to an object.
+WARNING:jitx._structural:Reference to structural object Net() at
+  amplifiers.py:63 lost during instantiation, it likely needs to be
+  assigned to an object.
+... (dozens more)
+INFO:jitx._websocket:All conversations complete, auto-closing connection
+... (dozens more)
+Running design ...
+  status: ok
+  Warning 2: The following circuit port(s) have no internal connections:
+    amps.stereo.i2c.sda
+    amps.stereo.i2c.scl
+    ...
+```
+
+`status: ok` here is **misleading**. The bare `+`-chains landed in
+GC-tier limbo before the framework rooted them on the Circuit, so the
+ports they were meant to connect end up unconnected — that's what
+"Warning 2" is reporting. The fix is the
+[`jitx-skills:jitx-circuit-builder` §"Fan-out wiring in loops"]
+pattern: collect into `self._wires.append(...)`, or use
+`setattr(self, f"NAME_{i}", ...)`. Treat any `Net() lost during
+instantiation` warning as a build-fail signal, not a cosmetic
+log line.
+
 ## "Fewer warnings" is not "more correct"
 
 - A 3.x design that builds with warnings may produce a 4.x port that
