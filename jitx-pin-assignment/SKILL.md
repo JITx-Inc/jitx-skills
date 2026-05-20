@@ -337,17 +337,19 @@ class MCUCircuit(Circuit):
 
 ## Provider Patterns
 
-> ⚠️ **`@provide` belongs on a `Circuit`, not on a `Component`.** Putting
-> `@provide(...)` directly on a `jitx.Component` subclass appears to work
-> in isolation (`MyComp()._instantiate_({})` succeeds) but fails during a
-> real build the moment the component is nested inside a parent
-> `Circuit`, with the misleading assertion
-> `AssertionError: Can only provide bundle port types` raised from
-> `jitx/net.py` (`__bundle`). Always declare the `Component` as a pure
-> pin/symbol/landpattern carrier and put `@provide` on a wrapper
+> ⚠️ **`@provide` belongs on a `Circuit`, not on a `Component`.** This is
+> an **architectural** rule, not a technical one — the framework handles
+> the two cases similarly at the implementation level, but a `Component`
+> models a physical part (its pins, symbol, landpattern, MPN), while
+> layout-flexibility advertisements are a property of how the part is
+> *wired into a design*. Mixing the two concerns on the `Component` makes
+> the component non-reusable across designs that want different
+> pin-mapping policies. Keep `Component` subclasses as pure
+> pin/symbol/landpattern carriers and put `@provide` on a wrapper
 > `Circuit` whose `__init__` instantiates the component. The complete
 > end-to-end example below follows this pattern; see also the porting
-> skill's "Anti-pattern: `@provide` on a `Component`" section in
+> skill's "Where to put `@provide`: wrapper `Circuit`, not `Component`"
+> section in
 > `jitx-skills:jitx-port-3-to-4/references/side-by-side/04-pin-assignment.md`
 > for the wrapper recipe and a hardwire fallback.
 
