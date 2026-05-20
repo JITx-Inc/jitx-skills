@@ -129,21 +129,44 @@ Device = MyCircuit
 ## Key Rules
 
 1. **EVERY component must be stored as `self.<name>`** — `self.c1 = Capacitor(...)` then `self.c1.insert(...)`. Anonymous `Capacitor().insert()` passes pyright but **fails at build time** with `"Reference to structural object lost during instantiation"`. Component instantiation should not be done at the class level.
-2. **`insert()` belongs to the component** — `self.r1.insert(portA, portB)`. No `self.insert()` or `self.add()` on Circuit.
-3. **Always `class X(Circuit):`** — never `Device`, `JITXDevice`, or any other base class. There is no `Device` class in JITX but `Device` can be used as an alias.
-4. **All wiring in `__init__`** — no `circuit()`, `execute()`, or `build()` methods.
-5. **`jitx.Component`** — `import jitx` then `class MyIC(jitx.Component):`.
-6. **Never alias component ports** — `self.x = self.r1.p2` creates multiple parents and fails. To expose a connection point, wire to a class-level Port: `self.r1.insert(gpio, self.output_port)`.
+2. **Pick one `self.<name>` storage path per component.** A `Component` may be reachable from at most one `self.<...>` attribute path — either as a named attribute *or* as an element of a `self.<list>`, never both. The framework treats every attribute path as a structural parent, and a component with two parents fails translation with `Child object X encountered multiple times in Y: circuit.foo[0] and circuit.foo_0`. The trap shape, common when porting a Stanza `for i in 0 to N do : inst c_i : ...` loop:
+
+   ```python
+   # ❌ Two parents — translation error.
+   self.caps = []
+   for i in range(n):
+       c = Capacitor(...)
+       self.caps.append(c)              # parent #1: circuit.caps[i]
+       setattr(self, f"c_{i}", c)        # parent #2: circuit.c_i
+   ```
+
+   Pick **one** storage form: either keep `self.caps = []` and `.append(c)` (access as `self.caps[i]`), or drop the list and rely on `setattr(self, f"c_{i}", c)` only (access as `self.c_0`, `self.c_1`, …). A local-variable list inside `__init__` (used only for wiring while the loop runs) is fine because locals don't become attribute paths.
+3. **`insert()` belongs to the component** — `self.r1.insert(portA, portB)`. No `self.insert()` or `self.add()` on Circuit.
+4. **Always `class X(Circuit):`** — never `Device`, `JITXDevice`, or any other base class. There is no `Device` class in JITX but `Device` can be used as an alias.
+5. **All wiring in `__init__`** — no `circuit()`, `execute()`, or `build()` methods.
+6. **`jitx.Component`** — `import jitx` then `class MyIC(jitx.Component):`.
+7. **Never alias component ports** — `self.x = self.r1.p2` creates multiple parents and fails. To expose a connection point, wire to a class-level Port: `self.r1.insert(gpio, self.output_port)`.
 
 ## Net Definitions
 
 Nets can be named in the design when the net is defined. It is good practice to name the net so that the schematic and layout construction are easy to follow. For power and ground nets, it is also useful to provide a symbol definition (i.e. PowerSymbol() or GroundSymbol()) — **at the top-level design only**. `PowerSymbol()` / `GroundSymbol()` outside `TOP_LEVEL_PATH` (default `designs/`) is a hard-fail under `scripts/grep_gates.sh`; the example below shows the *top-level* pattern.
 
 ```python
+from jitx import Net
+from jitxlib.symbols.net_symbols import PowerSymbol, GroundSymbol
+
 # Top-level design (in src/<ns>/designs/...): symbols are legal here.
 self.my_net = Net([self.a], name="my_net")
 self.VCC = Net([self.power.Vp], name="VCC", symbol=PowerSymbol())
 ```
+
+> ⚠️ **`PowerSymbol` / `GroundSymbol` live in `jitxlib`, not `jitx`.** The
+> natural guesses `from jitx.net import PowerSymbol` and
+> `from jitx import PowerSymbol` both raise `ImportError`. The real
+> import is `from jitxlib.symbols.net_symbols import PowerSymbol,
+> GroundSymbol` (the per-class submodules
+> `jitxlib.symbols.net_symbols.power` / `.ground` work too — the
+> package re-exports both).
 
 > ⚠️ **Name nets at the top level only.** A `Net(..., name="GND")` declared
 > in every sub-`Circuit` builds cleanly through translation, then fails

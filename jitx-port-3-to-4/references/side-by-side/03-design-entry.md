@@ -159,6 +159,19 @@ wrong guesses that all fail at runtime:
 | Straight-sided polygon (with optional holes) | `Polygon([(x,y), …], holes=[[…]])` |
 | Arbitrary mix of arcs and straight edges | `ArcPolygon([Arc(...), (x,y), Arc(...), ...])` |
 
+All of these constructs are valid **right-hand sides** for
+`self.board.shape = …` — no bounding-rectangle wrapper or list-of-points
+conversion is needed. A bare
+
+```python
+self.board.shape = Polygon([(x0, y0), (x1, y1), …])
+```
+
+inside the `Design.__init__` (after `super().__init__()`) is the canonical
+form for a Stanza `val board-shape = Polygon([...])` port. The shape
+object is consumed directly by the `Board`; you do **not** need to assign
+it to a `Rectangle`-typed attribute first.
+
 ### `Arc` constructor
 
 `Arc` has three overloads (see `jitx/shapes/primitive.py:36-126`):

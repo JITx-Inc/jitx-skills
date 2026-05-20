@@ -54,6 +54,50 @@ into the project and specialise the dielectric thicknesses to match
 your fab. See §"Hand-rolled 4-layer FR4 substrate" below for the
 template walkthrough.
 
+### `SampleStackup` for non-JLCPCB ports — pass the layer count
+
+`jitx.sample.SampleSubstrate` is the canonical no-config substrate for
+test designs and quick ports, but it is **two-layer only** — its
+`stackup = SampleTwoLayerStackup()` attribute. Any port whose Stanza
+source pours on inner layers (e.g. `copper-pour(LayerIndex(2), ...) =
+shape`) builds against `SampleSubstrate` with
+
+```
+Error 1: LayerIndex 2 is out of bounds for a 2-layer board.
+```
+
+The underlying `SampleStackup.__init__` accepts a `layer_count: int`,
+but no preset class is shipped for layer counts other than 2. The fix
+is a three-line subclass on the design side:
+
+```python
+from jitx.sample import SampleDesign, SampleStackup, SampleFabConstraints
+from jitx.substrate import Substrate
+from jitx.via import Via, ViaType
+
+class _FourLayerStackup(SampleStackup):
+    def __init__(self):
+        super().__init__(4)              # or 6, 8, …
+
+class _FourLayerSubstrate(Substrate):
+    stackup = _FourLayerStackup()
+    constraints = SampleFabConstraints()
+    class THVia(Via):
+        start_layer = 0; stop_layer = -1
+        diameter = 0.45; hole_diameter = 0.3
+        type = ViaType.MechanicalDrill
+
+class MyDesign(SampleDesign):
+    circuit = MyCircuit()
+    substrate = _FourLayerSubstrate()
+```
+
+`SampleFabConstraints` is reused as-is; only the `Substrate` subclass
+needs to declare at least one `Via` (the through-hole via above is the
+minimum). Use this whenever the Stanza source touches a `LayerIndex(i)`
+with `i ≥ 2` and you're not yet ready to switch to a real `Stackup` /
+`FabricationConstraints` pair.
+
 ## Environment
 
 Environment setup is handled by the base `jitx` skill. Ensure it has been invoked first.

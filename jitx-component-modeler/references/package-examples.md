@@ -11,6 +11,7 @@
 - [BGA-Specific Notes](#bga-specific-notes)
 - [Non-Uniform BGAs (CRITICAL)](#non-uniform-bgas-critical)
 - [Custom Landpatterns (irregular footprints)](#custom-landpatterns-irregular-footprints)
+- [Generic 2.54 mm pin header (OCDB `pin-header(N)` replacement)](#worked-example-generic-254-mm-pin-header-the-stanza-pin-headern-replacement)
 - [PadMapping Reference](#padmapping-reference)
 
 ## Example 1: Simple SOIC-8 (NE555 Timer)
@@ -752,6 +753,92 @@ class PJ614(jitx.Component):
 - **Non-plated mounting holes**: `NPTHPad(cutout=Circle(diameter=…))`.
 
 If a stock generator might exist for your package (e.g. you're tempted to invent `SOT89_3()`), **grep the canonical repo first**: `gh search code --repo JITx-Inc/py-jitx-stdlib SOT89`. Inventing the import is the failure mode this section is here to prevent.
+
+### Worked example: generic 2.54 mm pin header (the Stanza `pin-header(N)` replacement)
+
+Stanza designs lean on OCDB's `pin-header(N)` generator constantly:
+
+```stanza
+inst conn : pin-header(5)
+net VCC (conn.p[1])
+```
+
+There is **no Python equivalent** for OCDB's `pin-header(N)` — neither
+`jitxlib.connectors` nor `jitx.ocdb` exists, and `Part(mpn="…")` against
+typical generic pin-header MPNs raises
+`ValueError: No components meeting requirements`. Build a custom
+`Component` with through-hole pads:
+
+```python
+import jitx
+from jitx import PadMapping
+from jitx.landpattern import Landpattern
+from jitx.net import Port
+from jitx.shapes.primitive import Circle
+from jitxlib.landpatterns.pads import THPad
+from jitxlib.symbols.box import BoxSymbol, PinGroup, Row
+
+
+def _pin_header_lp(n: int, pitch: float = 2.54) -> type[Landpattern]:
+    """Build a Landpattern subclass with N THPads in a straight row."""
+
+    class LP(Landpattern):
+        pass
+
+    # 2.54 mm pitch → 1.7 mm copper / 1.0 mm drill is the JITX 3.x
+    # OCDB default for `pin-header`.
+    for i in range(n):
+        pad = THPad(
+            copper=Circle(diameter=1.7),
+            cutout=Circle(diameter=1.0),
+        ).at(i * pitch, 0.0)
+        setattr(LP, f"p{i + 1}", pad)
+    return LP
+
+
+class PinHeader(jitx.Component):
+    """N-pin straight-row 2.54 mm header (generic / OCDB `pin-header`)."""
+
+    reference_designator_prefix = "J"
+
+    def __init__(self, n: int = 5, *, pitch: float = 2.54):
+        # Ports — Python list with 0-based indexing.  Stanza users
+        # accessing `.p[1]` should remember to translate to `.p[0]`.
+        self.p = [Port() for _ in range(n)]
+        # Landpattern — built per-instance because pad count varies.
+        lp_cls = _pin_header_lp(n, pitch=pitch)
+        self.landpattern = lp_cls()
+        # Symbol — single column of pins on the right side.
+        self.symbol = BoxSymbol(rows=Row(right=PinGroup(*self.p)))
+        # Pad mapping — `p[i]` ↔ landpattern attribute `p{i+1}`.
+        self.mappings = [PadMapping({
+            self.p[i]: [getattr(self.landpattern, f"p{i + 1}")]
+            for i in range(n)
+        })]
+```
+
+Caller-side usage matches Stanza one-for-one except for the **1-indexed
+→ 0-indexed** flip on pin access:
+
+```python
+self.conn = PinHeader(5)
+self.VCC += self.conn.p[0]       # was conn.p[1] in Stanza
+self.GND += self.conn.p[1]       # was conn.p[2] in Stanza
+```
+
+Variations:
+
+- **Two-row 2x N header**: change `_pin_header_lp` to place pads in two
+  rows, e.g. `pad.at(i * pitch, row * pitch)` for `row in (0, 1)`. Use
+  `BoxSymbol(rows=Row(left=PinGroup(*odd_pins), right=PinGroup(*even_pins)))`.
+- **Different pitch** (e.g. 1.27 mm / 2.0 mm): pass `pitch=` and adjust
+  copper / drill diameters to the manufacturer drawing.
+- **Surface-mount header**: replace `THPad` with `SMDPad(copper=...)`.
+
+This recipe ports the single most common OCDB connector. For other
+OCDB connectors (`molex-pico-spox`, `jst-sh`, etc.) the same pattern
+applies — build a custom `Component` with manually-positioned pads and
+a `BoxSymbol`.
 
 ## PadMapping Reference
 

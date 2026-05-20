@@ -337,6 +337,20 @@ class MCUCircuit(Circuit):
 
 ## Provider Patterns
 
+> ⚠️ **`@provide` belongs on a `Circuit`, not on a `Component`.** Putting
+> `@provide(...)` directly on a `jitx.Component` subclass appears to work
+> in isolation (`MyComp()._instantiate_({})` succeeds) but fails during a
+> real build the moment the component is nested inside a parent
+> `Circuit`, with the misleading assertion
+> `AssertionError: Can only provide bundle port types` raised from
+> `jitx/net.py` (`__bundle`). Always declare the `Component` as a pure
+> pin/symbol/landpattern carrier and put `@provide` on a wrapper
+> `Circuit` whose `__init__` instantiates the component. The complete
+> end-to-end example below follows this pattern; see also the porting
+> skill's "Anti-pattern: `@provide` on a `Component`" section in
+> `jitx-skills:jitx-port-3-to-4/references/side-by-side/04-pin-assignment.md`
+> for the wrapper recipe and a hardwire fallback.
+
 ### `@provide(Bundle)` — Multiple independent offers (all_of)
 
 Creates one provider per mapping. Each can be independently assigned. Use for GPIO, where any pin can independently serve as a GPIO.

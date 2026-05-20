@@ -287,10 +287,89 @@ The caller side is then a single line per pair, not a six-line inline block. Fun
 
 For every Stanza `supports` clause, locate the corresponding Python `@provide`:
 
-- [ ] Each `supports <bundle>` in a `pcb-component` has a matching `@provide` or `@provide.one_of` in the corresponding `Circuit` wrapper (Stanza `pcb-component` providers usually move into a wrapper `Circuit` on the Python side — bare `Component` classes rarely host `@provide` in idiomatic 4.x).
+- [ ] Each `supports <bundle>` in a `pcb-component` has a matching `@provide` or `@provide.one_of` in the corresponding `Circuit` wrapper. **Put `@provide` on the wrapper `Circuit`, not directly on the `Component`** — see §"Anti-pattern: `@provide` on a `Component`" below for the failure mode.
 - [ ] Each `option :` block inside a `supports` clause becomes a separate mapping in the `@provide.one_of` return list.
 - [ ] Each `for ... do : supports ...` loop becomes either `@provide` (independent providers) or a flattened-options `@provide.one_of` list — choose by whether consumers will `require` the provider multiple independent times (Shape C / D) or only once with N options (Shape B).
 - [ ] Each `require X : <bundle> from <inst>` in Stanza has a matching `self.<inst>.require(<Bundle>)` on the Python side.
 - [ ] The cardinality of consumer `require()` calls matches the cardinality offered by the wrapper (Shape D constraint).
 
 Audit each Stanza file in the design; check the boxes; surface any unmatched `supports` / `require` pair as a Phase 4 blocker, not a TODO.
+
+## Anti-pattern: `@provide` on a `Component`
+
+Stanza `pcb-component` blocks can host `supports` clauses directly on
+the component. The naive Python translation — putting `@provide` on the
+`jitx.Component` subclass — appears to work in isolation but fails
+during a full build:
+
+```python
+class MyMCU(jitx.Component):
+    GPIO: dict[int, Port] = {i: Port() for i in range(16)}
+
+    @provide(I2C)
+    def provide_i2c(self, i2c: I2C):
+        return [{i2c.sda: self.GPIO[1], i2c.scl: self.GPIO[2]}]
+```
+
+A standalone `MyMCU()._instantiate_({})` succeeds. But once the
+component is **nested inside a `Circuit`** (the normal case for any
+real design), the build raises:
+
+```
+File ".../jitx/net.py", line 369, in __bundle
+    assert isinstance(bundle, Port), "Can only provide bundle port types"
+AssertionError: Can only provide bundle port types
+```
+
+The assertion message is misleading — the bundle type is correct; the
+problem is that `@provide` on a `Component` resolves the bundle on a
+different code path than `@provide` on a `Circuit`. Treat this as a
+hard rule:
+
+> ❌ Do **not** put `@provide` / `@provide.one_of` / `@provide.subset_of`
+> on a `jitx.Component` subclass.
+> ✅ Put it on a `Circuit` that wraps the component, exposing the
+> component's pins via attribute access from inside the `@provide`
+> method.
+
+### Wrapper-Circuit pattern
+
+```python
+class MyMCU(jitx.Component):
+    GPIO: dict[int, Port] = {i: Port() for i in range(16)}
+    # (no @provide here — Component is a pure pin/symbol/landpattern carrier)
+
+class MyMCUWrapper(jitx.Circuit):
+    """Adds layout-flexibility advertisements over MyMCU's pins."""
+
+    def __init__(self):
+        self.mcu = MyMCU()
+
+    @provide(I2C)
+    def provide_i2c(self, i2c: I2C):
+        return [{i2c.sda: self.mcu.GPIO[1], i2c.scl: self.mcu.GPIO[2]}]
+```
+
+Consumers then write `self.mcu_wrapper = MyMCUWrapper()` and
+`i2c = self.mcu_wrapper.require(I2C)` exactly as before.
+
+### Hardwire fallback (when flexibility doesn't matter)
+
+If the layout flexibility a Stanza `supports` clause expressed isn't
+load-bearing for the port (e.g. you're just trying to get a baseline
+build), it's also fine to skip the wrapper entirely and assign specific
+pins inline:
+
+```python
+class MyCircuit(Circuit):
+    def __init__(self):
+        self.mcu = MyMCU()
+        # Hardwired — no pin-mux solver involvement:
+        self.SDA = self.i2c.sda + self.mcu.GPIO[1]
+        self.SCL = self.i2c.scl + self.mcu.GPIO[2]
+```
+
+This loses the router degrees of freedom but is a perfectly valid Phase
+4 exit if the wrapper-`Circuit` route is more refactoring than the port
+warrants. Document the choice in `PORT-DEFERRED.md` so a future pass
+can re-introduce the wrapper.

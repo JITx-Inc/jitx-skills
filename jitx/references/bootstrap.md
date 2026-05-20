@@ -32,7 +32,13 @@ The steps below are **order-sensitive**. Do not change the order.
    `~/.jitx/<version>/jitx sign-in -email <email>`. `python -m jitx build`
    fails authentication if the user is not signed in, with no hint that
    sign-in is the missing step. Auth state is shared across versioned
-   installs, so this only needs to happen once per machine + user.
+   installs **and persists across sessions** in `~/.jitx/license` (a
+   JWT), so this only needs to happen once per machine + user — if a
+   prior session already signed in and the token is still valid, this
+   step is a no-op and can be skipped. There is no separate "check-auth"
+   command; the build itself is the test, and an expired token surfaces
+   as `You are not authenticated. Please sign in through the JITX
+   Sidebar in VSCode.` at build time, at which point re-run sign-in.
    Headless: pipe the password in via stdin
    (`<<<"$JITX_USER_PASS"`).
 3. **Start the interactive server**:
