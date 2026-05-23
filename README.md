@@ -117,6 +117,19 @@ Apply signal integrity constraints to JITX designs. Covers:
 - "Match data signals to the clock within 20ps"
 - "Set up PCIe Gen4 constraints"
 
+### jitx-code-review
+
+Same-model self-critique pass on JITX Python code just written in the current workspace. Catches the architectural failure modes that grep gates and static linters miss — parallel string-keyed models, sibling-attribute reflection, substrate-shaped tables duplicated in designs, build-spec-then-iterate, name-construction at module-import time. Produces severity-tagged findings (CRITICAL / WARNING / NOTE) that fold into the task acceptance block.
+
+- **Mandatory** for complete-board tier (folds into the Think Twice step at task acceptance, before codex outside-voice).
+- **User-invoked** for single-task work.
+
+**Example triggers:**
+- "Review my JITX code"
+- "Check this for string-hacking"
+- "Self-critique what I just wrote"
+- "Audit before merge"
+
 ## Project Structure
 
 ```
@@ -141,6 +154,11 @@ jitx-skills/
 │   ├── SKILL.md
 │   └── references/
 │       └── protocol-standards.md  # Protocol timing parameters
+├── jitx-code-review/             # Same-model self-critique skill
+│   ├── SKILL.md
+│   └── references/
+│       ├── checklist.md            # Pattern taxonomy
+│       └── patterns.md             # PR-derived worked examples
 └── .claude-plugin/
     └── marketplace.json
 ```
