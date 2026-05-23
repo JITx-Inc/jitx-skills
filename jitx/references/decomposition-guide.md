@@ -127,6 +127,18 @@ Within each cluster, tasks may need to be sequential (e.g., constraints before c
 - SI constraint verification
 - Iterate on failures
 
+## Step 3b: Architectural decomposition for parametric tasks
+
+For any task that is *parametric* or *generator-shaped* — BGA ballout, deskew geometry, antipad fence pattern, N-lane fanout, per-layer table, repeating-block scene graph — the task description in PLAN.md must commit to an **object shape** before any code is written. This is the decision point where the dominant AI failure mode (parallel string-keyed models — see `jitx/SKILL.md` Don'ts and `references/architectural-patterns.md`) becomes hard to reverse later.
+
+Trigger questions the orchestrator answers at decomposition time, recorded in PLAN.md (Architectural questions) and ARCHITECTURE.md (Object-Hierarchy Decisions):
+
+- **How are N parallel things structured?** `list[T]` / `dict[StructuralKey, T]` / typed dataclass — *not* sibling attributes plus `getattr(self, f"X_{i}")`.
+- **Where does the substrate-shaped data live?** On the substrate (`self.substrate.via[(a, b)]`-style) — *not* duplicated as a design-level constant table.
+- **Are intermediate "spec" records needed, or can the JITX objects be constructed directly?** Default: direct construction. If a `@dataclass(frozen=True)` is needed, name its fields explicitly — *not* `dict[str, Any]`.
+
+These decisions are not implementation detail — they are architectural commitments. Recording them in PLAN.md and ARCHITECTURE.md gives the sub-agent a hard contract, and gives `jitx-code-review` something to check against at task acceptance.
+
 ## Step 4: Write Task Definitions
 
 Each task in PLAN.md needs these fields:

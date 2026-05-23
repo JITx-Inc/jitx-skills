@@ -54,6 +54,12 @@ from jitx.units import ohm
 
 For complete API signatures, see [jitx.si API docs](https://docs.jitx.com/en/latest/api/jitx.si.html).
 
+## Anti-string-hacking — read before applying per-lane / per-pair constraint metadata
+
+When applying constraints across N parallel diff-pairs or N parallel lanes, iterate over a typed collection (`self.lanes: list[DiffPair]`), not a string-keyed dict (`self.pairs["TX_b0"]`) or sibling attributes plus `getattr`. The constraints themselves are objects; assemble them inside a typed dataclass or list, never `dict[str, Any]`. See `jitx/references/architectural-patterns.md` §§ "String-keyed dicts → structural objects" and "Sibling attributes → array attributes" before writing per-lane constraint application code.
+
+For a same-model self-critique pass on the constraint code after writing (catches what these rules don't), invoke `jitx-skills:jitx-code-review`. Optional for single-task use.
+
 ## The Critical Distinction: `+` vs `>>`
 
 The most important concept for SI-constrained designs:

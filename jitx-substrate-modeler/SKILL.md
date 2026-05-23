@@ -57,6 +57,14 @@ from jitx.container import inline
 `jitx.material`, `jitx.layer`, `jitx.routing`, `jitx.impedance`, `jitx.pcb`,
 `jitx.dielectric`, `jitx.conductor`, `jitxlib.stackup`, `jitxlib.substrate`
 
+## Anti-string-hacking — read before adding per-layer / per-via tables
+
+Substrate-shaped data (layer-to-via maps, layer-pair tables, per-layer trace widths) belongs **on the substrate**, queried by the design — not duplicated as design-level constants. The design should write `self.substrate.via[(a, b)]`, not maintain its own `_SIGNAL_LAYER_TO_VIA` dict. See `jitx/references/architectural-patterns.md` § "Substrate-shaped tables live on the substrate" before adding per-layer constant tables. Also: instantiate generic substrates (`stackup = Generic_Stackup()`), don't inline-subclass them (`@inline class stackup(Generic_Stackup): pass`) — § "Instantiate, don't inline-subclass".
+
+A "generic" substrate must be reusable across designs. Design-specific tags (`AntipadFenceTag` named after a particular escape design), design-specific trace widths (`DESKEW_TRACE_WIDTH`), or design-specific fence definitions do **not** belong in `generic_*.py` — push them into the consuming design.
+
+For a same-model self-critique pass on the substrate after writing (catches what these rules don't), invoke `jitx-skills:jitx-code-review`. Optional for single-task use.
+
 ## File Structure
 
 Everything goes in **one Python file** per substrate:

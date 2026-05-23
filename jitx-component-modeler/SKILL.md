@@ -87,6 +87,12 @@ project/
 - `raspberry_pi_RP2040.py`
 - `renesas_DA14705.py`
 
+## Anti-string-hacking — read before building arrays of pins / lanes / bundles
+
+For any component with N parallel siblings (BGAs, multi-channel ICs, banked diff-pairs), reach for `self.pins: list[Port]` or `self.lanes: list[DiffPair]` — **never** `self.TX_b0, self.TX_b1, ...` plus `getattr(self, f"TX_b{i}")` to iterate. See `jitx/references/architectural-patterns.md` § "Sibling attributes → array attributes" before writing the constructor. Also: do not assign `refdes=`, net names, or other JITX-assigned values yourself (§ "Don't assign what JITX assigns").
+
+For a same-model self-critique pass on the component after writing (catches what these rules don't), invoke `jitx-skills:jitx-code-review`. Optional for single-task use.
+
 ## Instructions
 
 When generating a JITX component from a datasheet or specification, follow this structured approach:
