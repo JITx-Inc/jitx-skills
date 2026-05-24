@@ -1,6 +1,6 @@
 ---
 name: jitx-code-review
-description: Same-model self-critique pass for JITX Python code just written in this workspace. Use when the user asks to "review my JITX code", "self-critique", "check JITX conventions", "find string-hacking", "audit before merge", or any equivalent. Mandatory for complete-board tier at task acceptance (folds into Think Twice); user-invoked for single-task work. Catches the architectural failure modes that grep gates and static linters miss — parallel string-keyed models, sibling-attribute reflection, substrate-shaped tables duplicated in designs, build-spec-then-iterate, name-construction at module-import time. Produces severity-tagged findings (CRITICAL / WARNING / NOTE) that fold into the task acceptance block.
+description: Same-model self-critique pass for JITX Python code just written in this workspace. Use when the user asks to "review my JITX code", "self-critique", "check JITX conventions", "find string-hacking", "check framework-boundary issues", "audit before merge", or any equivalent. Mandatory for complete-board tier at task acceptance (folds into Think Twice); user-invoked for single-task work. Catches the architectural failure modes that grep gates and static linters miss — parallel string-keyed models, reflection-as-iteration (regardless of whether on self), owner-shaped data misplaced in design code, build-spec-then-iterate, module-import-time parallel models, and framework-boundary-bypass (the "framework does it, therefore so can I" trap caught on the PR #4 rearchitecture test). Applies an ownership test to every banned-pattern hit or proposed exception. Produces severity-tagged findings (CRITICAL / WARNING / NOTE) that fold into the task acceptance block.
 ---
 
 # JITX Code Review
@@ -36,10 +36,24 @@ The review is **evidence-anchored**: every finding cites `file:line` and quotes 
 2. **Read the rule sources** above. The point of reading them in-skill is so the reviewer cites verbatim — not paraphrases.
 3. **Walk the pattern checklist** (`references/checklist.md`). For each pattern, look for instances; for each instance, capture severity and citation.
 4. **Apply the architectural pass** (`references/patterns.md`). The dominant failure modes from PR #4 are encoded as worked patterns; check each one against the code under review.
-5. **Emit the findings block** in the format below.
-6. **Hand back to the caller** (orchestrator in Think Twice, or user for single-task). The orchestrator folds findings into the task acceptance block; the user decides whether to fix or accept-with-rationale.
+5. **Apply the ownership test to every banned-pattern hit or proposed exception** (see "Ownership test" below). The pattern checklist names patterns; the ownership test catches the framework-boundary-bypass failure where the AI rationalizes a banned pattern as "OK because the framework does it."
+6. **Emit the findings block** in the format below.
+7. **Hand back to the caller** (orchestrator in Think Twice, or user for single-task). The orchestrator folds findings into the task acceptance block; the user decides whether to fix or accept-with-rationale.
 
 The skill does **not** modify code. Findings → caller → fix decision → next iteration.
+
+## Ownership test (mandatory for every banned-pattern hit or proposed exception)
+
+When the code uses a banned pattern (`getattr`, `type(...)`, `_protected_method()`, etc.), or when the agent/author proposes a carve-out ("this `getattr` is OK because…", "this is the boundary call into the framework…"), the reviewer must answer four questions before accepting the carve-out:
+
+1. **What object owns the invariant** the code is navigating? (A numbering scheme, a layer-to-via map, a protocol pin assignment, etc.)
+2. **Is this code inside that object's class or a subclass of it?** If yes, the same-class exception applies and the pattern is legitimately allowed (carve-out is real). If no, see step 3.
+3. **Is the caller using a public method on the owning object?** If yes, that's the right shape — no banned-pattern use needed. If no, see step 4.
+4. **If no public method exists, can a subclass adapter expose one?** If yes, that's the fix — add a public method on the subclass that delegates to the framework's protected method (the "method calling another method on the same class" carve-out of the no-leading-underscore-from-elsewhere rule). All design-side callers go through the adapter.
+
+If the answer is "outside the owner, copying internals" or "wrapping the banned pattern in a helper to make it look like one boundary call," classify the finding as **`framework-boundary-bypass`** (see `references/checklist.md`) and recommend the subclass-adapter fix.
+
+This step exists because rule text alone wasn't sufficient — see the pattaya PR #4 rearchitecture postmortem in the repo's `.context/pattaya-postmortem.md`: the AI followed the no-getattr rule literally (one wrapped `getattr` call), but missed the rule's intent (don't replicate framework internals in design code) and produced a coupled-to-numbering-scheme design that the reviewer caught.
 
 ## Severity scheme
 
