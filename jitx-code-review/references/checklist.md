@@ -18,11 +18,13 @@ These are the dominant failure mode in AI-generated JITX code. Catch them at wri
 
 **Rule source:** `jitx/SKILL.md` Don'ts ("Don't key design state by hand-built strings…"); `jitx/references/architectural-patterns.md` § 1.
 
-### `getattr-on-self`
+### `reflection-as-iteration` (formerly `getattr-on-self`)
 
-**Look for:** `getattr(self, f"...")` or `getattr(self.<child>, "...")` with a string-formatted attribute name. Reflection-as-iteration over sibling attributes.
+**Look for:** `getattr(self, f"...")`, `getattr(self.<child>, "...")`, OR `getattr(<framework-object>, <runtime-string>)` with a string-formatted attribute name. The failure isn't about `self` — it's about navigating structural state by an assembled string.
 
-**Severity:** CRITICAL. Hard-fail grep gate already catches `getattr(self, ...)`; the broader `getattr(<other>, "...")` is review-required. Both are usually fixable by declaring the collection as a `list` / `dict` attribute up front.
+The name `getattr-on-self` was too narrow: it let agents rationalize `getattr(lp, row_letter)` as fine because "it's not on self." That rationalization landed a framework-boundary-bypass failure on PR #4's rearchitecture — see Pattern `framework-boundary-bypass` below.
+
+**Severity:** CRITICAL when the call navigates JITX/framework-owned structural state by an assembled string, regardless of whether the receiver is `self` or another object. Hard-fail grep gate catches `getattr(self, ...)`; broader `getattr(...)` is review-required and demands per-hit ownership analysis (not just disposition prose).
 
 **Rule source:** `jitx/SKILL.md` Don'ts ("Don't reflect on `self` by name…"); `jitx/references/architectural-patterns.md` § 2. Quoted PR-review verdict: "this is illegal" / "illegal — no getattr".
 
@@ -34,13 +36,34 @@ These are the dominant failure mode in AI-generated JITX code. Catch them at wri
 
 **Rule source:** `jitx/references/architectural-patterns.md` § 3 ("Build the scene graph directly"). Quoted PR-review verdict: "This is building a separate model and then constructing the object out of that model. Just build the scene graph directly."
 
-### `substrate-pollution` / `substrate-shaped-table-in-design`
+### `owner-shaped-data-misplaced` (formerly `substrate-pollution`)
 
-**Look for:** Design-level constants that mirror substrate properties — `_NUM_CONDUCTOR_LAYERS`, `_SIGNAL_LAYER_TO_VIA`, per-layer trace widths declared at module scope in a design file. The substrate is the authoritative source; the design should query, not duplicate.
+**Look for:** Design-level constants or tables that mirror data owned by *any* structural object — substrate (layer counts, via maps), landpattern (pad numbering), routing structure (per-layer trace widths, references, keepouts), protocol bundle (pin roles). The owning object is authoritative; the design should query, not duplicate.
 
-**Severity:** WARNING by default (the AI may not know JITX's substrate-query API). CRITICAL when the design *contradicts* the substrate (e.g., wrong layer count, stale via map).
+**Severity:** WARNING by default. CRITICAL when the design *contradicts* the owning object (wrong layer count, stale via map) or when the data is design-state-critical (pad numbering for placement).
 
-**Rule source:** `jitx/references/architectural-patterns.md` § 4. Quoted PR-review verdict: "out of place — the substrate has layers. Introspect from stackup."
+**Rule source:** `jitx/references/architectural-patterns.md` § 4. Sub-example 4a covers substrates; sub-example 4b covers routing-structure per-layer geometry. Quoted PR-review verdict: "out of place — the substrate has layers. Introspect from stackup."
+
+### `framework-boundary-bypass`
+
+**Look for:** Design code that *replicates the navigation logic* of a framework class, rather than calling the framework class's public API. The smell can be:
+- An import of a framework helper that touches an invariant the framework class owns (`from jitxlib.landpatterns.grid_layout import to_bga_row_ref`).
+- A thin wrapper in design code that hides a `getattr(<framework-object>, ...)` call (`_pad_at(lp, r, c)` wrapping `getattr(lp, row_letter)[c]`).
+- A design-side comment rationalizing one `getattr` / one `type(...)` / one `_protected_method` call as "the boundary call" or "the framework does this."
+
+The failure mode is the AI seeing framework code use a banned pattern (because the framework class has same-class access to its own internals) and concluding that the pattern is allowed in design code too. The wrapper is the rationalization, not the fix.
+
+**Recognition shape (ownership test):** for every banned-pattern hit or proposed exception:
+1. What object owns the invariant?
+2. Is this code inside that object's class or subclass?
+3. Is the caller using a public method?
+4. If no public method exists, can a subclass adapter expose one (delegate to the protected method from a same-class context)?
+
+If the answer is "outside the owner, copying internals," the finding is `framework-boundary-bypass`.
+
+**Severity:** CRITICAL. The right fix is to add a public adapter method on a framework subclass that delegates to the protected method (allowed by the "method calling another method on the same class" carve-out of the no-leading-underscore-from-elsewhere rule), and route all design-side calls through the adapter.
+
+**Rule source:** `jitx/SKILL.md` Don'ts ("Don't reinvent framework code in design code…"); `jitx/references/architectural-patterns.md` § 9 ("Framework boundary — internals don't transfer to design code"). Quoted PR-review verdict (paraphrased): "they did it, therefore so can I! 🎉 — this is bad architecture, and couples the design to a numbering scheme."
 
 ### `untyped-records`
 
@@ -50,11 +73,13 @@ These are the dominant failure mode in AI-generated JITX code. Catch them at wri
 
 **Rule source:** `jitx/references/architectural-patterns.md` § 5. Quoted PR-review verdict: "There's no safety here — typechecker won't help against typos. Poor craftsmanship."
 
-### `module-import-time-logic`
+### `module-import-time-parallel-model`
 
-**Look for:** `for` loops or `if` blocks at column 0 (module scope) that populate global tables. Module-level `_BALLOUT = {}` followed by `for i in range(7): _BALLOUT[f"X{i}"] = ...`.
+**Look for:** Module-level `for` loops, `if` blocks, or comprehensions at column 0 that populate a mutable global parallel design model — `_BALLOUT = {}; for i in range(7): _BALLOUT[f"X{i}"] = ...`. The smell almost always co-occurs with `string-keyed-model` (Pattern 1) and `parallel-data-model` (Pattern 3).
 
-**Severity:** CRITICAL (hard-fail grep gate catches the `for` form). WARNING for comprehension form (`{f"X{i}": ... for i in range(7)}` at module scope).
+**Class-body comprehensions are not this pattern.** `lanes: list[list[DiffPair]] = [[DiffPair() for _ in cols] for cols in pair_cols]` inside a class body is the *actual* object model, not a parallel one. This pattern targets module-level globals only.
+
+**Severity:** WARNING (grep gate now review-required after PR #20 codex findings). CRITICAL when the global drives string-keyed downstream dispatch.
 
 **Rule source:** `jitx/SKILL.md` Don'ts; `jitx/references/architectural-patterns.md` § 6.
 

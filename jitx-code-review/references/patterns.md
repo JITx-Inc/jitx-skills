@@ -299,6 +299,67 @@ DRS_DiffPair_85_L2 = DRS_DiffPair_85.with_layer(_make_drs_layer_85().reference(L
 
 ---
 
+## P11b. Framework-boundary-bypass (the "they did it, therefore so can I" trap)
+
+**Recognition shape:** the AI follows the no-getattr / no-`type(...)` / no-leading-underscore rules literally but rationalizes one "boundary call" because "the framework does it." The smell is one of:
+- An import of a framework helper that does internal navigation (`from jitxlib.landpatterns.grid_layout import to_bga_row_ref`).
+- A thin design-side wrapper that hides a `getattr(<framework-object>, ...)` call (`_pad_at(lp, r, c)` wrapping `getattr(lp, row_letter)[c]`).
+- A code comment rationalizing one banned-pattern call as "the boundary call" or "the framework does this."
+
+**Evidence (PR #4 rearchitecture commit `ed95f1c`, before fix `be0be76`):**
+
+```python
+# generic_bga.py — design code copying framework navigation
+from jitxlib.landpatterns.grid_layout import to_bga_row_ref
+
+def _pad_at(lp, r: int, c: int):
+    """Boundary call into AlphaDictNumbering's row-letter-keyed pad dict."""
+    row_letter = to_bga_row_ref(r)
+    return getattr(lp, row_letter)[c]
+
+# Then in GenericHexGridBGA.__init__:
+mapping[pair.p] = [_pad_at(lp, bottom_row, col)]
+mapping[pair.n] = [_pad_at(lp, top_row, col)]
+```
+
+The AI's plan literally documented the rationalization: *"The only `getattr` is the single boundary call into `AlphaDictNumbering`'s row-letter-keyed pad dictionary; there is no design-side string-keyed model."*
+
+**Reviewer quote:** *"rather amusing that this was indeed already called out, but missing the point/intent and ending up with the opposite conclusion ('they did it, therefore so can I! 🎉' — paraphrased). [...] This is bad architecture, and couples the landpattern to a numbering scheme. Since the numbering is a separate concern, [...] this code will fail instead of relying on the existing polymorphic behavior."*
+
+**Finding severity:** CRITICAL. Pattern tag: `framework-boundary-bypass`.
+
+**Good (PR #4 fix commit `be0be76`):**
+
+```python
+# generic_bga.py — public adapter on the framework subclass
+class HexBGA(A1, AlphaDictNumbering, HexBGADecorated):
+    """Hex-staggered BGA with A1-corner alpha/dict pad numbering."""
+
+    def get_pad(self, r: int, c: int):
+        """Public (row, col) -> Pad lookup.
+
+        Polymorphic over the numbering mixin so design code stays
+        decoupled from AlphaDictNumbering's row-letter attribute
+        layout. Wraps the framework-internal _get_pad so callers can
+        stay clear of leading-underscore access."""
+        return self._get_pad(r, c)   # same-class call — allowed
+
+# Then in design code:
+mapping[pair.p] = [lp.get_pad(bottom_row, col)]
+```
+
+**Apply the ownership test (jitx-code-review/SKILL.md):**
+1. Owner of the row-letter-numbering invariant? `AlphaDictNumbering` (the framework mixin).
+2. Is `_pad_at(lp, r, c)` inside that class or a subclass? No — it's in design module scope.
+3. Is the caller using a public method? No — it's calling `getattr(lp, ...)` directly.
+4. Can a subclass adapter expose a public method? Yes — `HexBGA` is already a subclass; add `def get_pad(self, r, c): return self._get_pad(r, c)`.
+
+→ Classify as `framework-boundary-bypass`; fix by adding the adapter.
+
+**The meta-failure to watch for.** When the AI rationalizes a banned pattern as "OK because…" — especially "OK because the framework does it" — the reviewer must apply the ownership test, not accept the rationalization. The wrapper, the helper, and the comment naming it "the boundary call" are all rationalizations; only the ownership test determines whether the carve-out is real.
+
+---
+
 ## P12. Naming hygiene
 
 Single-comment items from PR #4 that don't repeat across themes:
