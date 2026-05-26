@@ -397,7 +397,7 @@ Final verification before declaring the project done.
 ```markdown
 ## Phase 4 Verification: <project-name>
 
-**Final build:** `status: ok` (via `<exact build command — usually `python -m jitx build <ns>.designs.Design`>`)
+**Final build:** `status: ok` (via `<exact build command — usually `jitx build <ns>.designs.Design`>`)
 
 **Build warnings:** none | <list — every warning needs a disposition>
 

@@ -9,56 +9,87 @@ Base skill for JITX hardware design automation. JITX is a Python framework for p
 
 ## Environment Setup
 
-Before any JITX work, check and fix the environment automatically:
+The `jitx` CLI owns project scaffolding, auth, runtime install/start, and design build for VSCode-free workflows. Drive everything through it.
+
+### Step 1 — Ensure the `jitx` CLI is available
 
 ```bash
-# Check for JITX project
-if [ ! -f pyproject.toml ] || ! grep -q "jitx" pyproject.toml; then
-  echo "ERROR: Not a JITX project (no pyproject.toml with jitx dependency)"
-  exit 1
-fi
-
-# Create venv if missing, install deps
-if [ ! -d .venv ]; then
-  python3 -m venv .venv
+if ! command -v jitx >/dev/null 2>&1; then
+  # Bootstrap venv + install jitx from PyPI + the internal index.
+  # PIP_PRE / extra-index-url cover the 4.x pre-release line.
+  [ -d .venv ] || python3 -m venv .venv
   source .venv/bin/activate
-  pip install -e . --quiet 2>&1 | tail -1
-  pip install ruff --quiet 2>&1 | tail -1
+  PIP_PRE=1 pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple jitx ruff --quiet 2>&1 | tail -1
 else
-  source .venv/bin/activate
+  # `jitx` is on PATH — activate the project venv if one exists so build/runtime calls resolve consistently.
+  [ -d .venv ] && source .venv/bin/activate
 fi
 
-# Verify core imports (don't check __version__ — not present in all JITX versions).
-# Fail loud if any import is missing; do not work around with substitutions.
-python - <<'PY'
-import sys
-required = [
-    "jitx",
-    "jitxlib",
-    "jitxlib.parts",
-    "jitxlib.symbols.box",
-    "jitxlib.voltage_divider",
-]
-missing = []
-for mod in required:
-    try:
-        __import__(mod)
-    except Exception as e:
-        missing.append(f"{mod}: {e}")
-if missing:
-    print("ERROR: missing required JITX modules:")
-    for m in missing:
-        print(f"  - {m}")
-    sys.exit(1)
-print("JITX core ready")
-PY
+jitx --version 2>/dev/null || jitx --help >/dev/null
+```
+
+### Step 2 — Project layout (scaffold if missing)
+
+```bash
+if [ ! -f pyproject.toml ] || ! grep -q "jitx" pyproject.toml; then
+  # No JITX project here — scaffold the canonical layout.
+  # CONFIRM WITH THE USER BEFORE RUNNING in a non-empty directory.
+  jitx project layout init
+  # Sync deps into the venv so `jitx` keeps resolving to a project-aware install.
+  pip install -e . --quiet 2>&1 | tail -1
+fi
+```
+
+`jitx project layout init` writes the canonical project skeleton (`pyproject.toml`, `src/<ns>/`, `.gitignore`, `.vscode/`). Subcommands `jitx project layout {pyproject,gitignore,settings,vscode}` refresh individual pieces of an existing project.
+
+### Step 3 — Auth
+
+```bash
+if ! jitx auth show >/dev/null 2>&1; then
+  jitx auth login   # interactive — prompts for credentials
+fi
+```
+
+`jitx auth show` exits non-zero when not authenticated. `jitx auth login` is interactive (the user types credentials); don't try to script around it.
+
+### Step 4 — Runtime install + start
+
+The runtime is the websocket server that `jitx build` and `jitx ui open` talk to. It must be installed and running before any design command.
+
+```bash
+# If a runtime is already running, do nothing.
+if jitx runtime status >/dev/null 2>&1; then
+  :
+elif jitx runtime introspect >/dev/null 2>&1; then
+  # Installed but not running — start it.
+  jitx runtime start --background
+else
+  # Not installed. Pick a version (see "Runtime version" below) and install it.
+  # `update` is the idempotent variant of `install`; safe in setup scripts.
+  jitx runtime update --version "$JITX_RUNTIME_VERSION"
+  jitx runtime start --background
+fi
+```
+
+**Runtime version.** `jitx runtime install/update` requires `--version` — there is no "latest" mode. Resolve the version in this order:
+1. `$JITX_RUNTIME_VERSION` env var, or a `jitx.version` file in the project root.
+2. A `jitx` runtime version pinned in the project's `mise.toml` or equivalent.
+3. Ask the user — point them at the `jitx-client` release page for a published version (e.g. `4.1.0-rc.7`).
+
+Don't guess a version. If none of (1)–(3) yields one, stop and ask.
+
+### Step 5 — Verify
+
+```bash
+jitx runtime status         # confirms the socket is up
+jitx find                   # lists the designs the runtime sees in this project
 ```
 
 Also probe the target substrate package if known (e.g., `python -c "import jitxlib.jlcpcb"` when the user has chosen JLCPCB). For complete-board tier, the Phase 0 → 1 gate requires this probe.
 
-**Missing-dependency rule:** if any required import fails, stop and surface it to the user as a blocker. Do NOT remove or substitute design requirements as a workaround (e.g. dropping controlled-impedance routing because `jitxlib` didn't import). See `references/project-builder-flow.md` Recovery Procedures → "Missing dependency escalation".
+**Missing-dependency rule:** if `jitx runtime status` fails, `jitx find` errors, or a required import is missing, stop and surface it to the user as a blocker. Do NOT remove or substitute design requirements as a workaround (e.g. dropping controlled-impedance routing because `jitxlib` didn't import). See `references/project-builder-flow.md` Recovery Procedures → "Missing dependency escalation".
 
-Only install deps on first run (venv creation). Skip `pip install` on subsequent runs — it's slow and noisy. Don't ask user to do manual setup.
+Skip steps 1–4 on subsequent runs once everything is in place — only step 5 (a status probe) needs to run every time. Don't ask the user to do manual setup.
 
 ## Python Linting Setup (Recommended)
 
@@ -99,12 +130,17 @@ Durable rules for JITX Python user code. The first three don'ts protect JITX's i
 
 ## Running JITX Designs
 
-```bash
-# Build a specific design
-python -m jitx build <module.path.DesignClass>
+Build commands talk to the running runtime over its websocket — `jitx runtime start --background` from the Environment Setup must have succeeded first.
 
-# Build all designs in project
-python -m jitx build-all
+```bash
+# List the designs the runtime sees in this project
+jitx find
+
+# Build a specific design
+jitx build <module.path.DesignClass>
+
+# Build every design in the project
+jitx build-all
 ```
 
 **Don't run parallel builds on the same design.** Concurrent JITX builds against the *same design* aren't reliable — cache state, build artifacts, and design-explorer output overlap. Sequence those. Parallel builds of *different designs* in the same project (different test designs, different module paths) share the WebSocket session but are generally safe — the JITX backend serializes internally, possibly with a wait. The skill orchestrator's Phase 1 runs sub-agents in parallel on different test designs; the parallelism is at the design-work level, and concurrent builds on distinct designs are an acceptable consequence.
@@ -112,10 +148,25 @@ python -m jitx build-all
 **Success output:** `status: ok`
 **Error output:** Python traceback or `status: error`
 
+**Structured output:** pass `--format json` on any subcommand for machine-readable output (the JSON shape is part of the public contract — what VSCode reads).
+
 **Output files** (in `designs/<design_name>/`):
 - `cache/netlist.json` - JSON netlist for verification
 - `cache/design-explorer.json` - Design hierarchy
 - `design-info/stable.design` - Design snapshot
+
+## Visualizers (Board / Schematic Popout)
+
+VSCode is no longer required to view a built design. `jitx ui open` spawns the bundled `jitx-ui` Electron viewer pointed at the running runtime:
+
+```bash
+jitx ui open --board     --design <module.path.DesignClass>
+jitx ui open --schematic --design <module.path.DesignClass>
+```
+
+The viewer auto-detects the runtime via `.socket.jitx`. If no runtime is reachable, the CLI exits with a pointer to `jitx runtime start --background`.
+
+Use the popout viewer for visual inspection (DRC review, placement sanity check, schematic walkthrough). It is read-only — live editing (route, place, schematic move) still requires the VSCode extension.
 
 ## Project Structure
 
@@ -195,7 +246,7 @@ Concurrent builds of the *same JITX design* share cache state, build artifacts, 
 
 For the project-builder workflow: Phase 1 sub-agents can run in parallel, each working on its own component file and its own test design. They are not running concurrent builds of the *same* design. Phase 2/3/4 builds are inherently sequential.
 
-For ad-hoc work outside the project-builder flow: just don't run two `python -m jitx build` calls against the same design at once.
+For ad-hoc work outside the project-builder flow: just don't run two `jitx build` calls against the same design at once.
 
 ### Grep Gate Enforcement
 
@@ -219,7 +270,7 @@ After initial implementation, sub-agents MUST stop and run the domain-specific c
 
 The orchestrator does NOT blindly trust the self-validation block. For each returned task:
 - Read the generated code for obvious issues
-- Verify the build claim (re-run `python -m jitx build` for critical tasks)
+- Verify the build claim (re-run `jitx build` for critical tasks)
 - Spot-check high-risk checklist items independently
 - Verify interface compatibility with downstream tasks
 - Append the acceptance verdict to the same block: **accept** / **rework** (send back with specific issues) / **reject** (replan)
@@ -429,5 +480,15 @@ ruff format path/to/file.py
 
 | Task | Command/Pattern |
 |------|-----------------|
-| Build design | `python -m jitx build module.Design` (sequence calls — see "Build Safety") |
+| Scaffold new project | `jitx project layout init` |
+| Auth check / login | `jitx auth show` / `jitx auth login` |
+| Install runtime | `jitx runtime update --version <X.Y.Z>` |
+| Start runtime | `jitx runtime start --background` |
+| Runtime status | `jitx runtime status` |
+| List designs | `jitx find` |
+| Build design | `jitx build module.Design` (sequence calls — see "Build Safety") |
+| Build all designs | `jitx build-all` |
+| Open board viewer | `jitx ui open --board --design module.Design` |
+| Open schematic viewer | `jitx ui open --schematic --design module.Design` |
+| Submit support bundle | `jitx support request` |
 | Format code | `ruff format path/to/file.py` |

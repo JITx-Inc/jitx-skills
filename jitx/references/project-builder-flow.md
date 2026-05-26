@@ -477,7 +477,7 @@ Configure the editor's Python language server to surface unused-expression warni
   [tool.ruff.lint]
   extend-select = ["B018"]
   ```
-- **Pyright / Pylance** (VS Code default): enable `reportUnusedExpression = "warning"` (or `"error"`) in `pyrightconfig.json` or VS Code settings.
+- **Pyright / Pylance**: enable `reportUnusedExpression = "warning"` (or `"error"`) in `pyrightconfig.json` (also picked up by the VS Code Python extension when present).
 - **Pyflakes**: emits `Statement seems to have no effect` by default — also catches bare `+` / `>>` expressions.
 
 These editor-side checks won't catch Pattern 1 (the `.insert(...)` call has a side effect, so it isn't a "useless expression" from the type checker's view), but they cover Pattern 2 cheaply, and any extra signal during code review is worth turning on.
@@ -581,11 +581,11 @@ Do not accept "noted for future refactoring" — if it's broken, fix it now.
 
 ### Process
 
-1. Run full build: `python -m jitx build <ns>.main.Design`
+1. Run full build: `jitx build <ns>.main.Design`
 2. Check output for:
    - `status: ok` — proceed to verification
    - `status: error` — read traceback, fix, rebuild
-3. Open in JITX UI and verify:
+3. Open the popout viewer (`jitx ui open --board --design <ns>.main.Design` and `jitx ui open --schematic --design <ns>.main.Design`) and verify:
    - Schematic: all connections present, symbols readable
    - Board: components placed (or floating), no overlaps
    - Issues List: SI constraints satisfied or flagged

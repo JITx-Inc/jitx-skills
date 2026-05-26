@@ -482,7 +482,7 @@ class TestDesign(SampleDesign):
 
 Always use the available virtual environment. If one is not present, stop and ask.
 ```bash
-python -m jitx build <module>.TestDesign
+jitx build <module>.TestDesign
 ```
 
 Don't run parallel JITX builds against the same project — sequence them. See `jitx/SKILL.md` "Build Safety".
