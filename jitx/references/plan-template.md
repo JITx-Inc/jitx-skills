@@ -105,6 +105,11 @@ Copy this into the project root and fill in task details. The orchestrator maint
   - [Are there external transistors in the datasheet app circuit?]
   - [Which pins are dual-function? How are they configured?]
   - [What happens during power sequencing / startup?]
+- **Architectural questions** (required for *parametric / generator* tasks only — BGA ballout, deskew geometry, antipad fence, N-lane fanout, per-layer table, repeating-block scene graph. Skip for one-off circuits.):
+  - [How are N parallel things structured? `list[T]` / `dict[StructuralKey, T]` / typed dataclass — *not* sibling attributes plus `getattr(self, f"X_{i}")`.]
+  - [Where does substrate-shaped data live? On the substrate, queried by the design — *not* duplicated as a design-level constant table.]
+  - [Are intermediate "spec" records needed, or can JITX objects be constructed directly? Default: direct construction. If a `@dataclass(frozen=True)` is needed, name its fields explicitly — *not* `dict[str, Any]`.]
+  - [Does any iteration use `getattr(self, f"...")`? It must not — see `jitx/SKILL.md` Don'ts and `references/architectural-patterns.md`.]
 - **Verification:** `jitx build <ns>.circuits.<name>.TestDesign`
 - **Status:** pending
 

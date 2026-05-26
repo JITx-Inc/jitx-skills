@@ -96,6 +96,12 @@ Device = MyCircuit
 5. **`jitx.Component`** — `import jitx` then `class MyIC(jitx.Component):`.
 6. **Never alias component ports** — `self.x = self.r1.p2` creates multiple parents and fails. To expose a connection point, wire to a class-level Port: `self.r1.insert(gpio, self.output_port)`.
 
+## Anti-string-hacking — read before writing parametric / generator circuits
+
+For circuits that emit N parallel instances (per-lane fanout, per-row ballout, per-channel filter), construct the JITX objects directly inside the Circuit — do not build an intermediate `list[dict[str, Any]]` "spec" model and then walk it to emit JITX calls. If you need to batch parameters, use a frozen dataclass with named fields, not bare `dict[str, Any]`. See `jitx/references/architectural-patterns.md` §§ "Build the scene graph directly" and "Typed records over `dict[str, Any]`" before writing record-then-iterate code.
+
+For a same-model self-critique pass on the circuit after writing (catches what these rules don't), invoke `jitx-skills:jitx-code-review`. Optional for single-task use.
+
 ## Net Definitions
 
 Nets can be named in the design when the net is defined. It is good practice to name the net so that the schematic and layout construction are easy to follow. For power and ground nets, it is also useful to provide a symbol definition (i.e. PowerSymbol() or GroundSymbol()) — **at the top-level design only**. `PowerSymbol()` / `GroundSymbol()` outside `TOP_LEVEL_PATH` (default `designs/`) is a hard-fail under `scripts/grep_gates.sh`; the example below shows the *top-level* pattern.

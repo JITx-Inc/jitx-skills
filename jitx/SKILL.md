@@ -111,13 +111,28 @@ pyright src/
 
 ## JITX Python Code Conventions
 
-Durable rules for JITX Python user code. The first three don'ts protect JITX's internal instantiation tracking; the rest are standard Python encapsulation discipline.
+Durable rules for JITX Python user code. The architectural rules below protect against the dominant failure mode in AI-generated JITX code (parallel string-keyed models instead of JITX-native structure). The runtime rules protect JITX's internal instantiation tracking. The rest are standard Python encapsulation discipline.
 
 ### Don'ts
+
+**Architectural — anti-string-hacking + framework-boundary discipline (the failure modes that produced the worst AI-generated JITX code):**
+
+- **Don't key design state by hand-built strings.** `dict[str, Whatever]` indexed by `f"TX_b{i}"` / `(row_letter, col)` / `f"L{n}_via"` is the failure mode. Use lists, dicts keyed by JITX Port / structural objects (like `@provide` mappings), `@dataclass(frozen=True)`, or `NamedTuple` instead. **If the only key you have is a string you assembled at runtime, the structural object you need is missing.** Exception: `@provide` mappings return `list[dict[Port, Port]]` keyed by Port objects — that's the framework's pin-mapping contract, not a parallel model. See `references/architectural-patterns.md` § "String-keyed dicts → structural objects".
+- **Don't reflect on `self` by name to find your own children.** `getattr(self, f"TX_b{i}")` is illegal in JITX user code. If you need to iterate sibling objects, declare them as a `list` or `dict` attribute up front: `self.lanes: list[DiffPair] = [...]`. See `references/architectural-patterns.md` § "Sibling attributes → array attributes".
+- **Don't build an intermediate `list[dict[str, Any]]` "spec" model and then iterate it to emit JITX calls.** Construct JITX objects directly in the Component / Circuit / Substrate. If you find yourself batching into records and then walking them, the right composite or container is missing. See `references/architectural-patterns.md` § "Build the scene graph directly".
+- **Don't restate data or logic owned by a structural object.** Substrates own layer counts and via maps; landpatterns own pad numbering; routing structures own per-layer trace/keepout geometry; protocol bundles own pin role assignments. Query through the owning object (`self.substrate.signal_via[layer]`, `lp.get_pad(row, col)`, etc.); do not maintain a parallel table or copy the navigation logic into design code. See `references/architectural-patterns.md` § "Owner-shaped data lives on the owning structural object".
+- **Don't reinvent framework code in design code.** If the framework uses a banned pattern (e.g., `getattr`, `type(...)`) inside a class that owns the relevant invariant, that's the framework's same-class exception. **The exception does not transfer to design code on the other side of the boundary.** Copying the framework's internal navigation logic into your design is the failure mode, not a license. The right move is to use the framework's public API; if only a protected method exists (`_get_pad`, etc.), add a public adapter on a subclass that delegates to it (allowed by the "method calling another method on the same class" carve-out). See `references/architectural-patterns.md` § "Framework boundary — internals don't transfer to design code".
+- **Don't generate lookup tables or populate mutable globals at module-import time.** Module-level `_BALLOUT = {}; for i in range(N): _BALLOUT[f"X{i}"] = ...` is the failure mode. Class-body structural collections (`lanes: list[list[DiffPair]] = [...]`, `GND = [Port() for _ in range(N)]`) are fine — they're the actual object model. The discriminator is whether the loop is populating a parallel/mutable global or declaring class structure.
+- **Don't manually assign values that JITX assigns automatically** in design code. Reference designators like `refdes="U1"`, net names from topology, and layer-derived names / labels are assigned by the framework when the design queries the right structural object. Substrate code legitimately defines layer indices (`start_layer = 0` on a Via class, etc.) — that's the structural definition, not a design-side duplication. The failure mode is *design* code computing names or indices the framework's owning object already exposes.
+
+**JITX runtime — protect internal instantiation tracking:**
 
 - **No `setattr` / `getattr`.** They exist for very narrow scenarios; JITX user code is not one of them. Use lists/dicts when you need to store a programmatic collection on `self`.
 - **No dynamic types at runtime.** Do not call `type(...)` to construct a new class on the fly. This breaks JITX's internal instantiation tracking. Express the same intent with parameterized classes — instantiate, don't synthesize.
 - **No subclassing JITX classes inside functions or methods.** Same instantiation-tracking failure mode. Declare jitx-class subclasses at module scope (nested at class-body scope is fine).
+
+**Encapsulation — standard Python discipline:**
+
 - **No `type()` for type checks.** Use `isinstance` so subclasses are handled correctly.
 - **No access to double-underscore (private) members.** They are private for a reason.
 - **No use of leading-underscore packages, modules, or functions from elsewhere.** The Python "protected" convention applies. The single exception is a method calling another method on the same class.
@@ -127,6 +142,7 @@ Durable rules for JITX Python user code. The first three don'ts protect JITX's i
 - **Run pyright** for type checking and language-server diagnostics.
 - **Run `ruff check`** for common-mistake analysis (the `ruff` package is already installed by the environment-setup step).
 - **Run `ruff format`** for style consistency.
+- **Run `jitx-code-review`** as a same-model self-critique pass before declaring a task complete. Mandatory for complete-board tier (folds into Phase 1+ Think Twice); user-invoked for single-task work. See the subskill description below.
 
 ## Running JITX Designs
 
@@ -431,6 +447,21 @@ Covers:
 - Protocol-specific pin flexibility rules (DiffPair P/N, PCIe lanes, DDR4 byte/bit)
 - Topology and constraint composition on pin-assigned ports
 - `DiffPairConstraint` and `ConstrainReferenceDifference` with `require()`
+
+### Code Review (`jitx-code-review`)
+
+**Invoke this subskill** when:
+- A sub-agent finishes a complete-board task — runs at Think Twice Step 4 before emitting the task acceptance block. **Mandatory for complete-board tier.**
+- The user asks "review my JITX code", "self-critique", "check JITX conventions", or "find string-hacking" on single-task work — **user-invoked**.
+
+**How to invoke:** Use the Skill tool with `skill: "jitx-skills:jitx-code-review"`
+
+Covers:
+- Same-model self-critique against `jitx/SKILL.md` Don'ts and `references/architectural-patterns.md`
+- Recognition of the 15 PR-derived failure patterns (string-keyed models, sibling-attribute reflection, parallel data models, substrate pollution, etc.)
+- Severity-tagged findings (CRITICAL / WARNING / NOTE) that fold into the task acceptance block's `JITX code review (self):` field
+
+Skill is the *per-task* same-model pre-pass before codex outside-voice. Phase 3b uses a different same-model pre-pass (the four-pass design audit) — see `references/outside-voice-review.md`.
 
 ## Documentation Lookup
 

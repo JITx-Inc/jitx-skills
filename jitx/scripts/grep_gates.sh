@@ -112,6 +112,16 @@ run_check "Anonymous structural .insert(...) — silent-drop pattern 1" \
 echo ""
 echo "=== review-required patterns ==="
 
+# Module-scope for-loops — anti-string-hacking theme 9. Module-import-time
+# logic populating global tables is the named failure mode (see
+# jitx/SKILL.md Don'ts and references/architectural-patterns.md
+# § "No code at module-import time"). Legitimate uses (dispatch
+# registration, static data generation) exist; review-required with
+# disposition keeps the door open while flagging the smell.
+run_check "Module-scope for-loop — review for module-import-time logic" \
+    '^for\s+\w+\s+in\s+' \
+    "no" "review"
+
 # Pour(..., isolate=...) — legacy parameter, Pass 3 deprecates in favor of design_constraint with Tags
 run_check "Pour(..., isolate=...) — legacy parameter (see Pass 3 deprecation)" \
     '\bPour\s*\([^)]*\bisolate\s*=' \
@@ -126,6 +136,27 @@ run_check "Bare net/topology expression — silent-drop pattern 2" \
 # Dynamic type(...) call — JITX disallows runtime type construction; isinstance is the right check
 run_check "type(...) call — verify not used for runtime type construction" \
     '\btype\s*\(' \
+    "no" "review"
+
+# Tag-like f-string construction — anti-string-hacking theme 1. f-strings
+# starting with an uppercase letter and building names with a
+# brace-substitution (f"TX_b{i}", f"L{n}_via", f"X{lane}_{pol}",
+# f"GND_via_{i}") are the canonical string-keyed-name failure mode. Some
+# legitimate uses exist (log messages, error formatting) — disposition
+# each hit with rationale or fix per jitx/SKILL.md Don'ts and
+# references/architectural-patterns.md § "String-keyed dicts →
+# structural objects".
+run_check "Tag-like f-string (anti-string-hacking — string-keyed names)" \
+    '[fF]["'"'"'][A-Z][A-Za-z0-9_]*\{' \
+    "no" "review"
+
+# Broader getattr( call — narrower hard-fail above catches getattr(self,
+# ...). This wider review-required catches getattr(other, "...") cases
+# where strings are still being used as the indirection mechanism. Most
+# are still smells; legitimate framework uses (e.g., hasattr/getattr on a
+# known-typed external object) are dispositioned per-hit.
+run_check "getattr( — review for string-keyed indirection on non-self objects" \
+    '\bgetattr\s*\(' \
     "no" "review"
 
 # I2C pull-ups outside designs/ — shared-bus components belong at the

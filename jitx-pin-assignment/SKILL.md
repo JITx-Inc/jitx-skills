@@ -159,6 +159,12 @@ def provide_i2c(self, i2c: I2C):
 **The keys** are always sub-ports of the bundle parameter (`g.gpio`, `i2c.sda`, etc.).
 **The values** are always component pins from `self.<component>.<port>`.
 
+### Carve-out from the anti-string-hacking rule
+
+`jitx/SKILL.md` Don'ts say "don't key design state by hand-built strings" and "don't build intermediate `list[dict[str, Any]]` spec models." The `@provide` return type — `list[dict[Port, Port]]` — is the **carve-out**: the dict is keyed by Port objects (not strings), and the list is the framework's pin-mapping contract (not a parallel data model). Use this shape exactly when implementing `@provide` methods. Do **not** introduce string keys anywhere in the return value — keys are always Port objects from the bundle parameter. See `jitx/references/architectural-patterns.md` § "String-keyed dicts → structural objects" for the discriminator (key type), and § "Build the scene graph directly" for the general rule the carve-out exempts you from.
+
+For a same-model self-critique pass on the pin-assignment code after writing, invoke `jitx-skills:jitx-code-review`. Optional for single-task use.
+
 ## The Two APIs
 
 ### Decorator API (preferred for static configurations)

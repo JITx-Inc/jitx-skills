@@ -70,6 +70,13 @@ Copy this template verbatim. Fill every field. Every `N/A` requires a reason.
 - Power requirements: <voltage and current draw>
 - Constraints needed at top level: <SI constraints to apply, or "none">
 
+**JITX code review (self):** clean | <N> findings | not applicable: single-task tier | not applicable: no JITX Python changed (verify-only task) | not run: <reason — blocking unless user approves>
+- CRITICAL: <one-line> — file:line — rule source (e.g., `jitx/SKILL.md` Don'ts, `architectural-patterns.md` § N) — disposition: fix | accept with rationale: <why>
+- WARNING: ...
+- NOTE: ...
+
+See `jitx-code-review/SKILL.md` for what this pass covers and `jitx-code-review/references/checklist.md` for the pattern taxonomy. The field is **mandatory for complete-board tier task acceptance blocks** (the review runs at Think Twice Step 4 — see `task-execution.md`). For single-task tier, value is `not applicable: single-task tier` unless the user explicitly invoked `jitx-code-review`. For verify-type tasks (no Python written, just `jitx build` and inspection of the build output), use `not applicable: no JITX Python changed`. The field is **scoped to the task acceptance block only** — the Phase 3b audit block uses the four-pass audit instead (see `Phase 3b Design Audit Block` below). CRITICAL or WARNING findings change the combined verdict to `issues-pending` until fixed, downgraded with rationale, or user-approved — same precedence rule as `Outside-voice review (codex)` below.
+
 **Outside-voice review (codex):** clean | <N> findings | not applicable: single-task tier | not applicable: complete-board, task class not in trigger list | not run: <reason — blocking unless user approves on trigger-list tasks>
 - CRITICAL: <one-line> — file:line — datasheet p.M fig.N (or "inference") — disposition
 - WARNING: ...
@@ -95,6 +102,7 @@ The orchestrator (or user) then appends the acceptance decision:
 - **`N/A` requires a reason.** Bare `N/A` in any field is rejected on review.
 - **Primary source must be ground truth.** A prior project as primary source is a flag — the orchestrator should reject and ask for the datasheet (or user-confirmed exception). Prior projects belong under "Secondary references".
 - **Static checks are required where Python was touched.** `ruff check` and `ruff format` always run. `pyright` runs if installed; `not available` requires a reason and may be rejected for high-risk tasks (MCUs, RF, power converters, safety).
+- **JITX code review (self) is required for complete-board tier.** A complete-board task acceptance block with `JITX code review (self): not run` defaults to `block`. Bulk dispositions on findings ("all accepted, framework code") without per-line rationale fail review. See `jitx-code-review/SKILL.md`.
 - **Verdict (self): ready-for-review** is the only valid sub-agent verdict. Any other value (e.g. `done`, `complete`) means the protocol was not followed.
 
 ### Verdict workflow
@@ -123,7 +131,6 @@ A hard-fail hit blocks task acceptance. Fix the underlying code; do not whitelis
 | 2 | Net symbols outside top-level designs (`GroundSymbol` / `PowerSymbol` are top-level only) | `\b(GroundSymbol\|PowerSymbol)\s*\(` | `src/<ns>/` excluding `src/<ns>/designs/` |
 | 3 | `setattr(self, ...)` / `getattr(self, ...)` — JITX convention violation (see `jitx/SKILL.md` Don'ts) | `\b(setattr\|getattr)\s*\(\s*self\b` | anywhere in `src/<ns>/` |
 | 4 | Anonymous structural `.insert(...)` (silent-drop pattern 1 — `Resistor(...).insert(...)` instead of `self.r = Resistor(...); self.r.insert(...)`) | `\b(Capacitor\|Resistor\|Inductor)\s*\([^)]*\)\s*\.insert\s*\(` | anywhere in `src/<ns>/` |
-
 Pattern 1 catches the *call* form, not imports. `from jitx.si import ConstrainDiffPair` is fine; `ConstrainDiffPair(...)` is not (outside top-level designs).
 
 Pattern 4 misses nested constructor args (e.g., `Resistor(resistance=Toleranced.percent(...)).insert(...)`). Not common; treat as a known gap, not a reason to broaden the regex (cost of false positives is too high).
@@ -134,13 +141,20 @@ A review-required hit does not block, but each hit must appear in the task accep
 
 | # | Rule | Pattern | Where checked |
 |---|------|---------|----|
-| 5 | `Pour(..., isolate=...)` — legacy parameter (Pass 3 deprecates in favor of `design_constraint(...)` with Tags) | `\bPour\s*\([^)]*\bisolate\s*=` | anywhere in `src/<ns>/` |
-| 6 | Bare net/topology expression (silent-drop pattern 2 — `self.a + self.b` or `self.a >> self.b` with no LHS assignment) | `^\s*self\.\w+(\.\w+\|\[[^]]+\])*\s*(\+\|>>)\s*self\.\w+(\.\w+\|\[[^]]+\])*(\s*#.*)?$` | anywhere in `src/<ns>/` |
-| 7 | `type(...)` call — verify not used for runtime type construction (use `isinstance` for type checks) | `\btype\s*\(` | anywhere in `src/<ns>/` |
-| 8 | I2C pull-up (`r_sda` / `r_scl`) outside top-level designs — flag for review of bus-aggregation level. Pull-ups belong at the level that composes master + slaves on the bus (usually the top-level design; sometimes a subcircuit that encloses an entire private bus). Pull-up local to a single bus participant is the failure mode. Disposition: `accept (bus-aggregation level: <circuit>)` or `fix (move to <level>)`. | `\br_(sda\|scl)\b` | `src/<ns>/` excluding `src/<ns>/designs/` |
-| 9 | `.insert(...)` calls missing `short_trace=` — every power-rail capacitor insert (decoupling, bypass, bulk, output filter) needs `short_trace=True`. Non-power-rail caps and non-cap inserts dispositioned as exception or N/A. See `jitx-circuit-builder/SKILL.md` "short_trace=True is the default for power-rail capacitors" | `\.insert\s*\(` then `grep -v short_trace` | anywhere in `src/<ns>/` |
+| 5 | Module-scope `for` loop — anti-string-hacking theme 9. Module-import-time logic that *might* populate a global table; legitimate uses (dispatch registration, static data generation) exist. Disposition: `fix (move into function)` or `accept (legitimate import-time logic: <reason>)`. See `jitx/SKILL.md` Don'ts and `references/architectural-patterns.md` § "No code at module-import time". | `^for\s+\w+\s+in\s+` | anywhere in `src/<ns>/` |
+| 6 | `Pour(..., isolate=...)` — legacy parameter (Pass 3 deprecates in favor of `design_constraint(...)` with Tags) | `\bPour\s*\([^)]*\bisolate\s*=` | anywhere in `src/<ns>/` |
+| 7 | Bare net/topology expression (silent-drop pattern 2 — `self.a + self.b` or `self.a >> self.b` with no LHS assignment) | `^\s*self\.\w+(\.\w+\|\[[^]]+\])*\s*(\+\|>>)\s*self\.\w+(\.\w+\|\[[^]]+\])*(\s*#.*)?$` | anywhere in `src/<ns>/` |
+| 8 | `type(...)` call — verify not used for runtime type construction (use `isinstance` for type checks) | `\btype\s*\(` | anywhere in `src/<ns>/` |
+| 9 | Tag-like f-string — anti-string-hacking theme 1. f-strings (single- or double-quoted, lowercase or uppercase `f`/`F`) starting with an uppercase letter and building names via brace-substitution (`f"TX_b{i}"`, `f'L{n}_via'`, `F"GND_via_{n}"`) are the canonical string-keyed-name failure mode. See `jitx/SKILL.md` Don'ts and `references/architectural-patterns.md` § "String-keyed dicts → structural objects". Disposition: `fix (use structural object)` or `accept (legitimate use: <reason>)`. | `[fF]["'][A-Z][A-Za-z0-9_]*\{` | anywhere in `src/<ns>/` |
+| 10 | Broader `getattr(` — narrower hard-fail Pattern 3 catches `getattr(self, ...)`. This wider net catches `getattr(other, "...")` where strings are still the indirection mechanism. Most are still smells; legitimate framework uses (e.g., `getattr` on a known-typed external object) are dispositioned per-hit. | `\bgetattr\s*\(` | anywhere in `src/<ns>/` |
+| 11 | I2C pull-up (`r_sda` / `r_scl`) outside top-level designs — flag for review of bus-aggregation level. Pull-ups belong at the level that composes master + slaves on the bus (usually the top-level design; sometimes a subcircuit that encloses an entire private bus). Pull-up local to a single bus participant is the failure mode. Disposition: `accept (bus-aggregation level: <circuit>)` or `fix (move to <level>)`. | `\br_(sda\|scl)\b` | `src/<ns>/` excluding `src/<ns>/designs/` |
+| 12 | `.insert(...)` calls missing `short_trace=` — every power-rail capacitor insert (decoupling, bypass, bulk, output filter) needs `short_trace=True`. Non-power-rail caps and non-cap inserts dispositioned as exception or N/A. See `jitx-circuit-builder/SKILL.md` "short_trace=True is the default for power-rail capacitors" | `\.insert\s*\(` then `grep -v short_trace` | anywhere in `src/<ns>/` |
 
-Pattern 7 is intentionally broad; it will match comments and legitimate `isinstance`-adjacent uses. The disposition workflow handles this — review-required is the right severity.
+Pattern 8 is intentionally broad; it will match comments and legitimate `isinstance`-adjacent uses. The disposition workflow handles this — review-required is the right severity.
+
+Pattern 9 catches f-strings that look like they're building tag-style identifiers (`ALL_CAPS` prefix + brace). Legitimate uses (log lines like `f"ERROR_{code}"`) need disposition with rationale. The disposition workflow keeps this from becoming compliance theater.
+
+Pattern 10 (broader `getattr(`) is intentionally a wider net than Pattern 3 (`getattr(self, ...)` hard-fail). It catches string-indirection on other objects (`getattr(self.bga, "TX_b0")`). Bulk dispositions ("all accepted, framework code") fail review — each hit needs a per-line rationale.
 
 ### Reporting in the task acceptance block
 
