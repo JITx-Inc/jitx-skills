@@ -608,7 +608,7 @@ pyright path/to/circuit.py
 
 ### Step 2: Build Test
 ```bash
-python -m jitx build <module.path.DesignClass>
+jitx build <module.path.DesignClass>
 ```
 
 Don't run parallel JITX builds against the same project — sequence them. See `jitx/SKILL.md` "Build Safety".

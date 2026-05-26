@@ -100,7 +100,7 @@ The `<pattern tag>` is from the checklist (e.g., `string-keyed-model`, `getattr-
 
 - **Not a port of the internal `code-review` skill.** That one (in `jitx-knowledge`) reviews JITX codebases against the wiki, pulls cached remote clones, runs Claude + codex two-pass. Different use case (cross-repo audit), different evidence flow. This skill is in-workspace, same-model only.
 - **Not a replacement for static analysis.** `pyright` and `ruff check` still run as part of the task acceptance block. They catch type / lint issues; this skill catches architectural smells they can't see.
-- **Not a build verifier.** `python -m jitx build` still runs. This skill is purely a code-quality pass.
+- **Not a build verifier.** `jitx build` still runs. This skill is purely a code-quality pass.
 
 ## Compliance-theater watch
 

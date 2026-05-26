@@ -72,7 +72,7 @@ This ensures reproducibility across sessions and avoids repeated downloads.
 Run the test build:
 
 ```bash
-python -m jitx build <module.path.TestDesign>
+jitx build <module.path.TestDesign>
 ```
 
 Don't run a concurrent build of the same design in parallel — see `jitx/SKILL.md` "Build Safety".
@@ -129,7 +129,7 @@ If `jitx-code-review` is unavailable (skill not loaded, errored), record `JITX c
 If Step 4 found issues (it usually does — checklist or grep), fix them all and rebuild:
 
 ```bash
-python -m jitx build <module.path.TestDesign>
+jitx build <module.path.TestDesign>
 ```
 
 Verify `status: ok`. Re-run `bash <project>/scripts/grep_gates.sh src/<ns>/` if any code changed; the hard-fail set must now show 0 hits. Re-run `jitx-code-review` if the fix touched code the previous review flagged.
@@ -171,7 +171,7 @@ Open each file the sub-agent created or modified. Scan for:
 If the sub-agent's block says `status: ok`, confirm by checking for the test harness file and that the code structure is plausible. For critical tasks, re-run the build:
 
 ```bash
-python -m jitx build <module.path.TestDesign>
+jitx build <module.path.TestDesign>
 ```
 
 #### 3. Spot-Check High-Risk Checklist Items

@@ -75,7 +75,7 @@ Copy this template verbatim. Fill every field. Every `N/A` requires a reason.
 - WARNING: ...
 - NOTE: ...
 
-See `jitx-code-review/SKILL.md` for what this pass covers and `jitx-code-review/references/checklist.md` for the pattern taxonomy. The field is **mandatory for complete-board tier task acceptance blocks** (the review runs at Think Twice Step 4 — see `task-execution.md`). For single-task tier, value is `not applicable: single-task tier` unless the user explicitly invoked `jitx-code-review`. For verify-type tasks (no Python written, just `python -m jitx build` and inspection of the build output), use `not applicable: no JITX Python changed`. The field is **scoped to the task acceptance block only** — the Phase 3b audit block uses the four-pass audit instead (see `Phase 3b Design Audit Block` below). CRITICAL or WARNING findings change the combined verdict to `issues-pending` until fixed, downgraded with rationale, or user-approved — same precedence rule as `Outside-voice review (codex)` below.
+See `jitx-code-review/SKILL.md` for what this pass covers and `jitx-code-review/references/checklist.md` for the pattern taxonomy. The field is **mandatory for complete-board tier task acceptance blocks** (the review runs at Think Twice Step 4 — see `task-execution.md`). For single-task tier, value is `not applicable: single-task tier` unless the user explicitly invoked `jitx-code-review`. For verify-type tasks (no Python written, just `jitx build` and inspection of the build output), use `not applicable: no JITX Python changed`. The field is **scoped to the task acceptance block only** — the Phase 3b audit block uses the four-pass audit instead (see `Phase 3b Design Audit Block` below). CRITICAL or WARNING findings change the combined verdict to `issues-pending` until fixed, downgraded with rationale, or user-approved — same precedence rule as `Outside-voice review (codex)` below.
 
 **Outside-voice review (codex):** clean | <N> findings | not applicable: single-task tier | not applicable: complete-board, task class not in trigger list | not run: <reason — blocking unless user approves on trigger-list tasks>
 - CRITICAL: <one-line> — file:line — datasheet p.M fig.N (or "inference") — disposition
@@ -411,7 +411,7 @@ Final verification before declaring the project done.
 ```markdown
 ## Phase 4 Verification: <project-name>
 
-**Final build:** `status: ok` (via `<exact build command — usually `python -m jitx build <ns>.designs.Design`>`)
+**Final build:** `status: ok` (via `<exact build command — usually `jitx build <ns>.designs.Design`>`)
 
 **Build warnings:** none | <list — every warning needs a disposition>
 

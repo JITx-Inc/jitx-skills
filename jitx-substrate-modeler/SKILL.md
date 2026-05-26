@@ -625,7 +625,7 @@ class SubstrateB(Substrate, MyVias):
 5. **Define vias** — all via types needed (through, micro, stacked, blind, buried, backdrilled)
 6. **Add routing structures** — `RoutingStructure` and `DifferentialRoutingStructure` for each impedance target
 7. **Add design rules** — Tags and `design_constraint()` for clearances if needed
-8. **Verify** — `pyright` type check, then `python -m jitx build` with a test design (sequence builds — don't parallelize against the same project; see `jitx/SKILL.md` "Build Safety")
+8. **Verify** — `pyright` type check, then `jitx build` with a test design (sequence builds — don't parallelize against the same project; see `jitx/SKILL.md` "Build Safety")
 
 ## API Reference
 

@@ -255,7 +255,7 @@ class TestDesign(SampleDesign):
 ```
 
 ```bash
-python -m jitx build <module>.design.TestDesign
+jitx build <module>.design.TestDesign
 ```
 
 Don't run parallel JITX builds against the same project — sequence them. See `jitx/SKILL.md` "Build Safety".
