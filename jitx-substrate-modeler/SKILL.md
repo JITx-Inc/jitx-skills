@@ -1,6 +1,6 @@
 ---
 name: jitx-substrate-modeler
-description: This skill should be used when the user asks to "create a substrate", "define a stackup", "add via definitions", "set up routing structures", "configure impedance control", "define differential pairs", "set fabrication rules", or "model a PCB layer structure". Ask the user which fabrication house they are targeting — if they confirm JLCPCB, predefined substrates from jitxlib.jlcpcb (JLC04161H_1080, JLC04161H_7628, JLC06161H_7628) are available with 4/6-layer FR-4, 50/90/100 ohm routing structures, vias, and fab rules. Otherwise, create a custom substrate. Covers Stackup, Symmetric, Conductor, Dielectric, Via (laser, mechanical, backdrilled, blind, buried, stacked), RoutingStructure, DifferentialRoutingStructure, NeckDown, via fencing, geometry, reference planes, and FabricationConstraints.
+description: This skill should be used when the user asks to "create a substrate", "define a stackup", "add via definitions", "set up routing structures", "configure impedance control", "define differential pairs", "set fabrication rules", "ring a shape with fence vias", "fence a pour outline", "fence an antipad", or "model a PCB layer structure". Ask the user which fabrication house they are targeting — if they confirm JLCPCB, predefined substrates from jitxlib.jlcpcb (JLC04161H_1080, JLC04161H_7628, JLC06161H_7628) are available with 4/6-layer FR-4, 50/90/100 ohm routing structures, vias, and fab rules. Otherwise, create a custom substrate. Covers Stackup, Symmetric, Conductor, Dielectric, Via (laser, mechanical, backdrilled, blind, buried, stacked), RoutingStructure, DifferentialRoutingStructure, NeckDown, via fencing along traces, fenced pour outlines (Tag + fence_via rule paired with a Pour + optional same-shape KeepOut — covers antipads, RF cavities, BGA breakouts), geometry, reference planes, and FabricationConstraints.
 ---
 
 # JITX Substrate Modeler
@@ -581,6 +581,68 @@ self.rule3 = design_constraint(RFSignalTag(), GNDTag()).clearance(0.15)
 **Board-wide defaults belong on the Design class, not the substrate.** The four canonical defaults — trace width, copper clearance, thermal relief, wider power/ground — go in `self.rules` on the top-level Design via `UnaryDesignConstraint(IsTrace)` / `BinaryDesignConstraint(IsCopper, IsCopper)` / `UnaryDesignConstraint(IsPad)` / `UnaryDesignConstraint(PowerTag() | GroundTag(), priority=1)`. See `jitx/references/project-builder-flow.md` "Default design rules" for the full pattern. The substrate's `FabricationConstraints` are the fab-minimum floor; the Design rules are the production-friendly defaults that sit above the floor.
 
 `design_constraint(...)` and `UnaryDesignConstraint(...)` / `BinaryDesignConstraint(...)` are equivalent — the lowercase form is a factory that returns the right subtype based on arity. Use either.
+
+## Fenced Pour Outlines (Antipads, RF Cavities, BGA Breakouts)
+
+Trick for placing fence vias along an arbitrary closed shape — antipad rings around signal-via pairs, RF cavity perimeters, BGA breakout boundaries, deskew arc cutouts. Three pieces compose:
+
+1. **Substrate-side rule** — a Tag and a `design_constraint(...).fence_via(...)` declaring that any pour carrying the Tag gets fence vias of the given class placed along it.
+2. **Design-side Pour** — created on the fence net (typically GND) with the Tag assigned. The Pour exists to give the constraint engine a shape to ring with vias; its copper may or may not be wanted.
+3. **Optional matching KeepOut** — same shape, voids the pour's copper. Add it when the pour is purely a fence-via trigger (you want the vias, not the copper). Omit it when the pour's copper is real (e.g. a stitching region that doubles as a return-path pour).
+
+### Substrate-side declaration
+
+```python
+from jitx.constraints import Tag, design_constraint, ViaFencePattern
+
+class FenceOutlineTag(Tag):
+    """Pours with this tag get fence vias along their outline."""
+
+class MySubstrate(Substrate):
+    # ... other vias ...
+    class uGndStitch(Via):
+        """Example fence via — adjust to your fab's microvia capability."""
+        type = ViaType.LaserDrill
+        start_layer = 0
+        stop_layer = 6
+        diameter = 0.25
+        hole_diameter = 0.1
+        filled = True
+
+    _FENCE_PATTERN = ViaFencePattern(
+        pitch=0.35,   # via-to-via spacing along each row
+        offset=0.15,  # row-to-row spacing; also the default boundary-to-first-row offset
+        num_rows=1,
+    )
+
+    outline_fence_rule = design_constraint(
+        FenceOutlineTag(), priority=20
+    ).fence_via(uGndStitch, _FENCE_PATTERN)
+```
+
+`ViaFencePattern.input_shape_only` (pour-only, defaults to `True`) controls which pour shape gets fenced — the pre-isolation input outline (default) or the post-isolation computed copper. Leaving it default is correct for nearly every fenced-outline case; set `False` only if downstream clearance rules will reshape the pour and the fence vias should track the reshaped boundary.
+
+### Design-side usage
+
+The tagged pour must sit on a conductor layer the fence via reaches — fence vias inherit the pour's net, so the pour has to be on a layer they can land on. Typically the pour goes on the reference/termination layer being fenced (here, the via's `stop_layer = 6`, so the pour goes on `layer=6`).
+
+```python
+from jitx import Pour
+from jitx.feature import KeepOut
+from jitx.layerindex import LayerSet
+
+# `shape` is the outline to fence — e.g. a capsule around a signal-via pair,
+# an RF cavity perimeter, a BGA breakout boundary, or a deskew arc cutout.
+fence_pour = Pour(shape, layer=6)
+FenceOutlineTag().assign(fence_pour)
+self.GND += fence_pour
+
+# Add this ONLY when the pour copper itself is unwanted (cavity / antipad opening).
+# Omit when the pour doubles as a real GND region.
+self.fence_outline_keepout = KeepOut(shape, layers=LayerSet(6), pour=True, via=True)
+```
+
+Do not set `isolate=` on the fence Pour — it's legacy. Pour clearance is governed by `FabricationConstraints` + Tag-based `design_constraint(...).clearance(...)`.
 
 ## Via Mixin Pattern
 
