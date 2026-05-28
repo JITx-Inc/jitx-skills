@@ -85,7 +85,7 @@ Users who already have `.kicad_mod` files (from KiCad libraries, vendor download
 ```bash
 parts2jitx-kicad my_footprint.kicad_mod --class-name MyConnector \
     --manufacturer "Amphenol" --mpn "12345" \
-    -o src/<namespace>/components/connectors/amphenol_12345.py
+    -o <namespace>/components/connectors/amphenol_12345.py
 ```
 
 This works with any `.kicad_mod` file regardless of source — not just LCSC/EasyEDA.
@@ -220,6 +220,6 @@ All sourced data must be saved to the project for reproducibility:
 project/
 ├── datasheets/          # PDFs (from manufacturer sites or user-provided)
 ├── kicad_footprints/    # .kicad_mod files (from any source)
-└── src/<namespace>/
+└── <namespace>/
     └── components/      # Generated JITX Python
 ```

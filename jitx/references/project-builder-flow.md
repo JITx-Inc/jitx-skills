@@ -184,8 +184,8 @@ Subcircuits that expose bundles (I2C, ULPI, USB2, etc.) for any signal that will
 - [ ] Provide/require interfaces are consistent across wrapper and consuming circuits
 - [ ] **Interface circuits expose bundle-typed ports** (I2S, I2C, SPI, USB2, GPIO, Power) — not individual signal ports. If a circuit wraps individual-pin components, the bundle wiring happens inside the circuit.
 - [ ] **For any signal that will receive an SI constraint at top level, the subcircuit's bundle wiring uses `>>` (not `+`)** between component pins and bundle sub-ports — see Phase 3 "Topology vs net membership"
-- [ ] **No anonymous `Resistor` / `Capacitor` / `Inductor` `.insert(...)` calls and no bare `+` / `>>` expressions** in the subcircuit — every structural object stored on `self` (see Phase 3 "Silent-drop patterns"). Enforced via `bash scripts/grep_gates.sh src/<ns>/` — hard-fail hits block this gate.
-- [ ] **Every power-rail capacitor `.insert(...)` call uses `short_trace=True`** — decoupling, bypass, bulk, output filter. Non-power-rail caps (AC coupling, RC time constants, RF matching, compensation, crystal load) and non-cap inserts (resistors, inductors) are dispositioned in the task acceptance block as exceptions or N/A. See `jitx-circuit-builder/SKILL.md` "short_trace=True is the default for power-rail capacitors". The grep gate `bash scripts/grep_gates.sh src/<ns>/` flags every `.insert(...)` missing `short_trace=` as review-required.
+- [ ] **No anonymous `Resistor` / `Capacitor` / `Inductor` `.insert(...)` calls and no bare `+` / `>>` expressions** in the subcircuit — every structural object stored on `self` (see Phase 3 "Silent-drop patterns"). Enforced via `bash scripts/grep_gates.sh <ns>/` — hard-fail hits block this gate.
+- [ ] **Every power-rail capacitor `.insert(...)` call uses `short_trace=True`** — decoupling, bypass, bulk, output filter. Non-power-rail caps (AC coupling, RC time constants, RF matching, compensation, crystal load) and non-cap inserts (resistors, inductors) are dispositioned in the task acceptance block as exceptions or N/A. See `jitx-circuit-builder/SKILL.md` "short_trace=True is the default for power-rail capacitors". The grep gate `bash scripts/grep_gates.sh <ns>/` flags every `.insert(...)` missing `short_trace=` as review-required.
 - [ ] Port names and bundle types match between providers and consumers
 - [ ] Power circuit outputs match the voltage/current needs documented in ARCHITECTURE.md
 
@@ -496,7 +496,7 @@ These editor-side checks won't catch Pattern 1 (the `.insert(...)` call has a si
 - [ ] Board geometry defined (shape, mounting holes, pours)
 - [ ] `capacitor_defaults` and `resistor_defaults` set on Design class to match the design's manufacturing path and circuit role — per-circuit refinements documented for any specialty parts (HV, RF, bulk, precision, hand-build)
 - [ ] **Default design rules set on Design class** — `self.rules` contains a default trace width (`IsTrace`), copper clearance (`IsCopper`, `IsCopper`), thermal relief (`IsPad`), and wider trace rule for tagged power/ground nets (`PowerTag` / `GroundTag` with `priority=1`). Values calibrated to substrate fab class. See "Default design rules" above.
-- [ ] `bash scripts/grep_gates.sh src/<ns>/` reports 0 hard-fail hits; review-required hits dispositioned
+- [ ] `bash scripts/grep_gates.sh <ns>/` reports 0 hard-fail hits; review-required hits dispositioned
 
 **Emit the `Gate: Phase 3 → Phase 3b` block** from `references/completion-blocks.md` before advancing.
 

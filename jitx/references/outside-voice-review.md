@@ -52,13 +52,13 @@ Prompts are **narrow and evidence-anchored**, not "review everything". The promp
 
 | Trigger | Target dir | Evidence packet | Prompt focus |
 |---------|------------|-----------------|---------------|
-| Phase 3b complete-board | project root | `PLAN.md`, `ARCHITECTURE.md`, `src/<ns>/`, `datasheets/`, all accepted task acceptance blocks | Cross-reference PLAN.md task statuses vs `src/<ns>/` reality. For each high-stakes IC, compare code against datasheet sections. Surface CRITICAL/WARNING/NOTE findings the same-model audit missed. |
-| Per-task: MCU/FPGA | component dir + datasheet PDF | `src/<ns>/components/<part>.py`, `datasheets/<part>.pdf` | Datasheet-vs-code: pin coverage, power-domain completeness, footprint dimensions vs mechanical drawing |
-| Per-task: RF | circuit dir + datasheets + relevant ref design | `src/<ns>/circuits/<this>.py`, component files, `datasheets/<rf-part>.pdf` | Impedance, return path, ESD, antenna feed structure |
-| Per-task: power converter | circuit dir + regulator datasheet | `src/<ns>/circuits/<this>.py`, `datasheets/<regulator>.pdf` | Voltage divider math, bootstrap, enable, compensation, dissipation |
-| Per-task: safety-critical | circuit dir + spec doc | `src/<ns>/circuits/<this>.py`, relevant spec | Isolation, creepage, fail-safe state, fault behavior |
-| Per-task: high-speed digital | circuit dir + protocol spec + substrate | `src/<ns>/circuits/<this>.py`, substrate file, protocol spec PDF | Constraint application, topology with `>>`, termination, return-path continuity |
-| Per-task: battery/protection | circuit dir + charger datasheet + pack spec | `src/<ns>/circuits/<this>.py`, `datasheets/<charger>.pdf`, pack spec | Charger config, fuel gauge wiring, thermistor, power-path, fault response |
+| Phase 3b complete-board | project root | `PLAN.md`, `ARCHITECTURE.md`, `<ns>/`, `datasheets/`, all accepted task acceptance blocks | Cross-reference PLAN.md task statuses vs `<ns>/` reality. For each high-stakes IC, compare code against datasheet sections. Surface CRITICAL/WARNING/NOTE findings the same-model audit missed. |
+| Per-task: MCU/FPGA | component dir + datasheet PDF | `<ns>/components/<part>.py`, `datasheets/<part>.pdf` | Datasheet-vs-code: pin coverage, power-domain completeness, footprint dimensions vs mechanical drawing |
+| Per-task: RF | circuit dir + datasheets + relevant ref design | `<ns>/circuits/<this>.py`, component files, `datasheets/<rf-part>.pdf` | Impedance, return path, ESD, antenna feed structure |
+| Per-task: power converter | circuit dir + regulator datasheet | `<ns>/circuits/<this>.py`, `datasheets/<regulator>.pdf` | Voltage divider math, bootstrap, enable, compensation, dissipation |
+| Per-task: safety-critical | circuit dir + spec doc | `<ns>/circuits/<this>.py`, relevant spec | Isolation, creepage, fail-safe state, fault behavior |
+| Per-task: high-speed digital | circuit dir + protocol spec + substrate | `<ns>/circuits/<this>.py`, substrate file, protocol spec PDF | Constraint application, topology with `>>`, termination, return-path continuity |
+| Per-task: battery/protection | circuit dir + charger datasheet + pack spec | `<ns>/circuits/<this>.py`, `datasheets/<charger>.pdf`, pack spec | Charger config, fuel gauge wiring, thermistor, power-path, fault response |
 
 Append a catch-all line at the end of every prompt: **"Also flag any directly observable blocking electrical or geometry mismatch in the reviewed files."** This preserves narrow focus while allowing obvious unknown unknowns to surface.
 

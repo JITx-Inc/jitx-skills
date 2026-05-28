@@ -63,7 +63,7 @@ Copy this template verbatim. Fill every field. Every `N/A` requires a reason.
 - `ruff check`: clean | <N issues, fixed>
 - `ruff format`: applied
 - `pyright`: clean | <N issues, fixed> | not available (<reason>)
-- Grep gates (`bash <project>/scripts/grep_gates.sh src/<ns>/`): hard-fail 0 hits, review-required <0 | N hits with disposition>
+- Grep gates (`bash <project>/scripts/grep_gates.sh <ns>/`): hard-fail 0 hits, review-required <0 | N hits with disposition>
 
 **Interface notes:** <compact — only fields downstream tasks need>
 - Ports exposed: <bundle types, e.g. "I2S (out), Power (3V3 in), GPIO (status)">
@@ -127,10 +127,10 @@ A hard-fail hit blocks task acceptance. Fix the underlying code; do not whitelis
 
 | # | Rule | Pattern (Python `re`-style) | Where checked |
 |---|------|------|----|
-| 1 | SI / top-level applications outside top-level designs (top-level only — `ReferencePlanes`, `Constrain`, `ConstrainDiffPair`, `ConstrainReferenceDifference` are *applied* in `designs/`, not subcircuits) | `\b(ReferencePlanes\|Constrain\|ConstrainDiffPair\|ConstrainReferenceDifference)\s*\(` | `src/<ns>/` excluding `src/<ns>/designs/` |
-| 2 | Net symbols outside top-level designs (`GroundSymbol` / `PowerSymbol` are top-level only) | `\b(GroundSymbol\|PowerSymbol)\s*\(` | `src/<ns>/` excluding `src/<ns>/designs/` |
-| 3 | `setattr(self, ...)` / `getattr(self, ...)` — JITX convention violation (see `jitx/SKILL.md` Don'ts) | `\b(setattr\|getattr)\s*\(\s*self\b` | anywhere in `src/<ns>/` |
-| 4 | Anonymous structural `.insert(...)` (silent-drop pattern 1 — `Resistor(...).insert(...)` instead of `self.r = Resistor(...); self.r.insert(...)`) | `\b(Capacitor\|Resistor\|Inductor)\s*\([^)]*\)\s*\.insert\s*\(` | anywhere in `src/<ns>/` |
+| 1 | SI / top-level applications outside top-level designs (top-level only — `ReferencePlanes`, `Constrain`, `ConstrainDiffPair`, `ConstrainReferenceDifference` are *applied* in `designs/`, not subcircuits) | `\b(ReferencePlanes\|Constrain\|ConstrainDiffPair\|ConstrainReferenceDifference)\s*\(` | `<ns>/` excluding `<ns>/designs/` |
+| 2 | Net symbols outside top-level designs (`GroundSymbol` / `PowerSymbol` are top-level only) | `\b(GroundSymbol\|PowerSymbol)\s*\(` | `<ns>/` excluding `<ns>/designs/` |
+| 3 | `setattr(self, ...)` / `getattr(self, ...)` — JITX convention violation (see `jitx/SKILL.md` Don'ts) | `\b(setattr\|getattr)\s*\(\s*self\b` | anywhere in `<ns>/` |
+| 4 | Anonymous structural `.insert(...)` (silent-drop pattern 1 — `Resistor(...).insert(...)` instead of `self.r = Resistor(...); self.r.insert(...)`) | `\b(Capacitor\|Resistor\|Inductor)\s*\([^)]*\)\s*\.insert\s*\(` | anywhere in `<ns>/` |
 Pattern 1 catches the *call* form, not imports. `from jitx.si import ConstrainDiffPair` is fine; `ConstrainDiffPair(...)` is not (outside top-level designs).
 
 Pattern 4 misses nested constructor args (e.g., `Resistor(resistance=Toleranced.percent(...)).insert(...)`). Not common; treat as a known gap, not a reason to broaden the regex (cost of false positives is too high).
@@ -141,14 +141,14 @@ A review-required hit does not block, but each hit must appear in the task accep
 
 | # | Rule | Pattern | Where checked |
 |---|------|---------|----|
-| 5 | Module-scope `for` loop — anti-string-hacking theme 9. Module-import-time logic that *might* populate a global table; legitimate uses (dispatch registration, static data generation) exist. Disposition: `fix (move into function)` or `accept (legitimate import-time logic: <reason>)`. See `jitx/SKILL.md` Don'ts and `references/architectural-patterns.md` § "No code at module-import time". | `^for\s+\w+\s+in\s+` | anywhere in `src/<ns>/` |
-| 6 | `Pour(..., isolate=...)` — legacy parameter (Pass 3 deprecates in favor of `design_constraint(...)` with Tags) | `\bPour\s*\([^)]*\bisolate\s*=` | anywhere in `src/<ns>/` |
-| 7 | Bare net/topology expression (silent-drop pattern 2 — `self.a + self.b` or `self.a >> self.b` with no LHS assignment) | `^\s*self\.\w+(\.\w+\|\[[^]]+\])*\s*(\+\|>>)\s*self\.\w+(\.\w+\|\[[^]]+\])*(\s*#.*)?$` | anywhere in `src/<ns>/` |
-| 8 | `type(...)` call — verify not used for runtime type construction (use `isinstance` for type checks) | `\btype\s*\(` | anywhere in `src/<ns>/` |
-| 9 | Tag-like f-string — anti-string-hacking theme 1. f-strings (single- or double-quoted, lowercase or uppercase `f`/`F`) starting with an uppercase letter and building names via brace-substitution (`f"TX_b{i}"`, `f'L{n}_via'`, `F"GND_via_{n}"`) are the canonical string-keyed-name failure mode. See `jitx/SKILL.md` Don'ts and `references/architectural-patterns.md` § "String-keyed dicts → structural objects". Disposition: `fix (use structural object)` or `accept (legitimate use: <reason>)`. | `[fF]["'][A-Z][A-Za-z0-9_]*\{` | anywhere in `src/<ns>/` |
-| 10 | Broader `getattr(` — narrower hard-fail Pattern 3 catches `getattr(self, ...)`. This wider net catches `getattr(other, "...")` where strings are still the indirection mechanism. Most are still smells; legitimate framework uses (e.g., `getattr` on a known-typed external object) are dispositioned per-hit. | `\bgetattr\s*\(` | anywhere in `src/<ns>/` |
-| 11 | I2C pull-up (`r_sda` / `r_scl`) outside top-level designs — flag for review of bus-aggregation level. Pull-ups belong at the level that composes master + slaves on the bus (usually the top-level design; sometimes a subcircuit that encloses an entire private bus). Pull-up local to a single bus participant is the failure mode. Disposition: `accept (bus-aggregation level: <circuit>)` or `fix (move to <level>)`. | `\br_(sda\|scl)\b` | `src/<ns>/` excluding `src/<ns>/designs/` |
-| 12 | `.insert(...)` calls missing `short_trace=` — every power-rail capacitor insert (decoupling, bypass, bulk, output filter) needs `short_trace=True`. Non-power-rail caps and non-cap inserts dispositioned as exception or N/A. See `jitx-circuit-builder/SKILL.md` "short_trace=True is the default for power-rail capacitors" | `\.insert\s*\(` then `grep -v short_trace` | anywhere in `src/<ns>/` |
+| 5 | Module-scope `for` loop — anti-string-hacking theme 9. Module-import-time logic that *might* populate a global table; legitimate uses (dispatch registration, static data generation) exist. Disposition: `fix (move into function)` or `accept (legitimate import-time logic: <reason>)`. See `jitx/SKILL.md` Don'ts and `references/architectural-patterns.md` § "No code at module-import time". | `^for\s+\w+\s+in\s+` | anywhere in `<ns>/` |
+| 6 | `Pour(..., isolate=...)` — legacy parameter (Pass 3 deprecates in favor of `design_constraint(...)` with Tags) | `\bPour\s*\([^)]*\bisolate\s*=` | anywhere in `<ns>/` |
+| 7 | Bare net/topology expression (silent-drop pattern 2 — `self.a + self.b` or `self.a >> self.b` with no LHS assignment) | `^\s*self\.\w+(\.\w+\|\[[^]]+\])*\s*(\+\|>>)\s*self\.\w+(\.\w+\|\[[^]]+\])*(\s*#.*)?$` | anywhere in `<ns>/` |
+| 8 | `type(...)` call — verify not used for runtime type construction (use `isinstance` for type checks) | `\btype\s*\(` | anywhere in `<ns>/` |
+| 9 | Tag-like f-string — anti-string-hacking theme 1. f-strings (single- or double-quoted, lowercase or uppercase `f`/`F`) starting with an uppercase letter and building names via brace-substitution (`f"TX_b{i}"`, `f'L{n}_via'`, `F"GND_via_{n}"`) are the canonical string-keyed-name failure mode. See `jitx/SKILL.md` Don'ts and `references/architectural-patterns.md` § "String-keyed dicts → structural objects". Disposition: `fix (use structural object)` or `accept (legitimate use: <reason>)`. | `[fF]["'][A-Z][A-Za-z0-9_]*\{` | anywhere in `<ns>/` |
+| 10 | Broader `getattr(` — narrower hard-fail Pattern 3 catches `getattr(self, ...)`. This wider net catches `getattr(other, "...")` where strings are still the indirection mechanism. Most are still smells; legitimate framework uses (e.g., `getattr` on a known-typed external object) are dispositioned per-hit. | `\bgetattr\s*\(` | anywhere in `<ns>/` |
+| 11 | I2C pull-up (`r_sda` / `r_scl`) outside top-level designs — flag for review of bus-aggregation level. Pull-ups belong at the level that composes master + slaves on the bus (usually the top-level design; sometimes a subcircuit that encloses an entire private bus). Pull-up local to a single bus participant is the failure mode. Disposition: `accept (bus-aggregation level: <circuit>)` or `fix (move to <level>)`. | `\br_(sda\|scl)\b` | `<ns>/` excluding `<ns>/designs/` |
+| 12 | `.insert(...)` calls missing `short_trace=` — every power-rail capacitor insert (decoupling, bypass, bulk, output filter) needs `short_trace=True`. Non-power-rail caps and non-cap inserts dispositioned as exception or N/A. See `jitx-circuit-builder/SKILL.md` "short_trace=True is the default for power-rail capacitors" | `\.insert\s*\(` then `grep -v short_trace` | anywhere in `<ns>/` |
 
 Pattern 8 is intentionally broad; it will match comments and legitimate `isinstance`-adjacent uses. The disposition workflow handles this — review-required is the right severity.
 
@@ -161,15 +161,15 @@ Pattern 10 (broader `getattr(`) is intentionally a wider net than Pattern 3 (`ge
 When the grep gates pass with no hits:
 
 ```
-- Grep gates (`bash scripts/grep_gates.sh src/<ns>/`): hard-fail 0 hits, review-required 0 hits
+- Grep gates (`bash scripts/grep_gates.sh <ns>/`): hard-fail 0 hits, review-required 0 hits
 ```
 
 When there are review-required hits:
 
 ```
-- Grep gates (`bash scripts/grep_gates.sh src/<ns>/`): hard-fail 0 hits, review-required 2 hits:
-    - src/<ns>/circuits/usb.py:88 — `Pour(..., isolate=0.15)` — deferred to Pass 3 deprecation
-    - src/<ns>/circuits/power.py:42 — `type(x) is Foo` — fixed: changed to `isinstance(x, Foo)`
+- Grep gates (`bash scripts/grep_gates.sh <ns>/`): hard-fail 0 hits, review-required 2 hits:
+    - <ns>/circuits/usb.py:88 — `Pour(..., isolate=0.15)` — deferred to Pass 3 deprecation
+    - <ns>/circuits/power.py:42 — `type(x) is Foo` — fixed: changed to `isinstance(x, Foo)`
 ```
 
 When there are hard-fail hits, the task is not done. Fix and re-run.
@@ -179,7 +179,7 @@ When there are hard-fail hits, the task is not done. Fix and re-run.
 The script defaults to excluding `**/designs/**` from the top-level-only checks. If a project uses a different convention (e.g. `top/` or `boards/`), set `TOP_LEVEL_PATH=top` before invocation:
 
 ```bash
-TOP_LEVEL_PATH=top bash scripts/grep_gates.sh src/<ns>/
+TOP_LEVEL_PATH=top bash scripts/grep_gates.sh <ns>/
 ```
 
 ---
@@ -242,7 +242,7 @@ The criteria mirror the exit-gate bullet lists in `references/project-builder-fl
 **Provide/require interfaces consistent:** confirmed across wrappers and consumers
 **Bundle-typed ports:** every interface circuit exposes bundle-typed ports (I2S, I2C, SPI, USB2, etc.) — not individual signal ports — confirmed by code review
 **Topology vs net wiring:** subcircuits exposing bundles for SI-constrained signals wire bundle sub-ports with `>>` not `+` — confirmed
-**`short_trace=True` on power-rail caps:** every decoupling / bypass / bulk / output-filter capacitor `.insert(...)` uses `short_trace=True`. Non-power-rail caps (AC coupling, RC, RF, crystal load) and non-cap inserts dispositioned in task acceptance blocks. `bash scripts/grep_gates.sh src/<ns>/` review-required hits all resolved.
+**`short_trace=True` on power-rail caps:** every decoupling / bypass / bulk / output-filter capacitor `.insert(...)` uses `short_trace=True`. Non-power-rail caps (AC coupling, RC, RF, crystal load) and non-cap inserts dispositioned in task acceptance blocks. `bash scripts/grep_gates.sh <ns>/` review-required hits all resolved.
 **Power circuit outputs match ARCHITECTURE.md:** voltage and current ratings line up with the documented power tree
 
 **Open from this phase:** <list, or "none">
@@ -271,7 +271,7 @@ The criteria mirror the exit-gate bullet lists in `references/project-builder-fl
 
 **Build warnings:** no `Reference to structural object … lost during instantiation` warnings | <list>
 
-**Grep gates (top-level-only enforcement):** `bash scripts/grep_gates.sh src/<ns>/` — hard-fail 0 hits, review-required <count + disposition>
+**Grep gates (top-level-only enforcement):** `bash scripts/grep_gates.sh <ns>/` — hard-fail 0 hits, review-required <count + disposition>
 
 **Passive defaults:** `capacitor_defaults` and `resistor_defaults` set on the Design class to match the manufacturing path and circuit role; per-circuit overrides for specialty parts documented
 

@@ -63,7 +63,7 @@ Read your task definition from PLAN.md. Note:
 All downloaded data must be saved to the project — never use /tmp or transient locations:
 - **Datasheets** → `datasheets/<mpn>.pdf`
 - **KiCad footprints** → `kicad_footprints/<mpn>.kicad_mod` (user-provided, manufacturer download, or from `parts2jitx-lcsc --footprint`)
-- **Generated components** → `src/<namespace>/components/<category>/<file>.py`
+- **Generated components** → `<namespace>/components/<category>/<file>.py`
 
 This ensures reproducibility across sessions and avoids repeated downloads.
 
@@ -104,7 +104,7 @@ This step typically catches 3-5 issues. Common misses by domain:
 After the domain checklist, run the grep gates:
 
 ```bash
-bash <project>/scripts/grep_gates.sh src/<ns>/
+bash <project>/scripts/grep_gates.sh <ns>/
 ```
 
 The script reports hard-fail and review-required hits. Hard-fail hits must be fixed before proceeding. Review-required hits get a disposition (`fixed`, `accepted with rationale: <why>`, or `deferred to <named follow-up>`) when reported in the task acceptance block in Step 6.
@@ -115,7 +115,7 @@ After grep gates pass clean, run the same-model code review:
 
 ```
 Skill: jitx-skills:jitx-code-review
-Scope: src/<ns>/<files-this-task-touched>
+Scope: <ns>/<files-this-task-touched>
 ```
 
 This is **mandatory for every sub-agent task in complete-board tier**, before emitting the task acceptance block. The review catches the architectural failure modes that grep regex can't see — parallel string-keyed models, sibling-attribute reflection, substrate-shaped tables duplicated in designs, build-spec-then-iterate, untyped intermediate records. CRITICAL findings must be fixed before Step 6; WARNING findings get a disposition (fix or accept-with-rationale) in the task acceptance block's `JITX code review (self):` field; NOTE findings are recorded but don't block.
@@ -132,7 +132,7 @@ If Step 4 found issues (it usually does — checklist or grep), fix them all and
 jitx build <module.path.TestDesign>
 ```
 
-Verify `status: ok`. Re-run `bash <project>/scripts/grep_gates.sh src/<ns>/` if any code changed; the hard-fail set must now show 0 hits. Re-run `jitx-code-review` if the fix touched code the previous review flagged.
+Verify `status: ok`. Re-run `bash <project>/scripts/grep_gates.sh <ns>/` if any code changed; the hard-fail set must now show 0 hits. Re-run `jitx-code-review` if the fix touched code the previous review flagged.
 
 #### Step 6: Emit the Task Acceptance Block
 
