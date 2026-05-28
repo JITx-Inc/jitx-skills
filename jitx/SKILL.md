@@ -17,9 +17,10 @@ The `jitx` CLI owns project scaffolding, auth, runtime install/start, and design
 if ! command -v jitx >/dev/null 2>&1; then
   # Bootstrap venv + install jitx from PyPI + the internal index.
   # PIP_PRE / extra-index-url cover the 4.x pre-release line.
+  # `click` is a runtime import of the `jitx` CLI but the 4.3.x wheel doesn't declare it — install it explicitly.
   [ -d .venv ] || python3 -m venv .venv
   source .venv/bin/activate
-  PIP_PRE=1 pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple jitx ruff --quiet 2>&1 | tail -1
+  PIP_PRE=1 pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple jitx ruff click --quiet 2>&1 | tail -1
 else
   # `jitx` is on PATH — activate the project venv if one exists so build/runtime calls resolve consistently.
   [ -d .venv ] && source .venv/bin/activate
@@ -28,6 +29,8 @@ fi
 jitx --version 2>/dev/null || jitx --help >/dev/null
 ```
 
+If `jitx --version` raises `ModuleNotFoundError: No module named 'click'`, the wheel's missing-dep gap bit you — `pip install click` resolves it.
+
 ### Step 2 — Project layout (scaffold if missing)
 
 ```bash
@@ -35,26 +38,37 @@ if [ ! -f pyproject.toml ] || ! grep -q "jitx" pyproject.toml; then
   # No JITX project here — scaffold the canonical layout.
   # CONFIRM WITH THE USER BEFORE RUNNING in a non-empty directory.
   jitx project layout init
-  # Sync deps into the venv so `jitx` keeps resolving to a project-aware install.
-  pip install -e . --quiet 2>&1 | tail -1
+  # Sync project deps. PIP_PRE + extra-index-url are required for `jitxlib-*` to resolve.
+  # Note: pip's resolver may re-pin `jitx` to an older 4.x that satisfies the project's `<5` constraint
+  # (e.g. 4.1.0a11 instead of 4.3.0a0). Both work for `jitx find` / `jitx build`, so don't fight it.
+  # If you specifically need the latest, follow with: `pip install --upgrade jitx` (see below).
+  PIP_PRE=1 pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple -e . --quiet 2>&1 | tail -1
 fi
 ```
 
-`jitx project layout init` writes the canonical project skeleton (`pyproject.toml`, `src/<ns>/`, `.gitignore`, `.vscode/`). Subcommands `jitx project layout {pyproject,gitignore,settings,vscode}` refresh individual pieces of an existing project.
+`jitx project layout init` writes the canonical project skeleton: `pyproject.toml`, a flat `<ns>/` package (NOT `src/<ns>/`) containing `__init__.py` + a `main.py` that already defines a working two-resistor `SampleDesign`, plus `.gitignore` and `.vscode/`. That seeded design is buildable as-is once auth and runtime are up — a useful smoke test before writing real design code. Subcommands `jitx project layout {pyproject,gitignore,settings,vscode}` refresh individual pieces of an existing project.
 
 ### Step 3 — Auth
 
 ```bash
-if ! jitx auth show >/dev/null 2>&1; then
-  jitx auth login   # interactive — prompts for credentials
-fi
+# Inspect first — `auth show` reads on-disk license state and reports authorization.
+jitx auth show 2>&1 | head -20
 ```
 
-`jitx auth show` exits non-zero when not authenticated. `jitx auth login` is interactive (the user types credentials); don't try to script around it.
+The output has an `Authorized: yes | no` line. Three cases:
+
+1. **`Authorized: yes`.** Done.
+2. **`Authorized: no` (token present but expired/invalid).** Run `jitx auth refresh`. This rotates the refresh token against the JITX server and writes a fresh license — **fully headless**, no user action needed. Re-run `jitx auth show` to confirm.
+3. **No state on disk, or `auth show` reports no account / no token.** STOP and ask the user to sign in. Initial sign-in is NOT headless — pick one path with the user:
+   - VSCode JITX sidebar → interactive sign-in (recommended for desktop developers).
+   - The bundled launcher binary: `~/.jitx/current/jitx sign-in -email <email>` sends an email link the user must click.
+   - `jitx auth login --email <email> --password-stdin` accepts a password on stdin (works for password-bound accounts; some accounts are email-link only).
+
+**`LauncherError: ... did not produce valid JSON` from `auth show` / `auth refresh`** means the CLI is hitting a stale `launcher` binary that predates the `introspect` subcommand. Most common cause: a `JITX_ROOT` env var pointing at a dev build of `jitx-client`. Either `unset JITX_ROOT` so the CLI uses `~/.jitx/current`, or install a fresh runtime (Step 4) and retry. Don't try to script around this — surface it to the user.
 
 ### Step 4 — Runtime install + start
 
-The runtime is the websocket server that `jitx build` and `jitx ui open` talk to. It must be installed and running before any design command.
+The runtime is a daemon (an instance of the bundled `jitx` launcher binary, run with `interactive <project-root>`) that hosts the websocket server `jitx build` and `jitx ui open` talk to. When `jitx runtime start --background` succeeds, the daemon writes `.socket.jitx` into the project root — that's the file every subsequent CLI invocation in that project uses to find the running runtime.
 
 ```bash
 # If a runtime is already running, do nothing.
@@ -106,7 +120,7 @@ npm install -g pyright
 
 **Verify:** Ask Claude to "check for type errors" or run manually:
 ```bash
-pyright src/
+pyright <ns>/
 ```
 
 ## JITX Python Code Conventions
@@ -173,31 +187,45 @@ jitx build-all
 
 ## Visualizers (Board / Schematic Popout)
 
-VSCode is no longer required to view a built design. `jitx ui open` spawns the bundled `jitx-ui` Electron viewer pointed at the running runtime:
+VSCode is no longer required to view a built design. `jitx ui open` spawns the bundled `jitx-ui` Electron viewer pointed at the running runtime. Pick exactly one of `--board` / `--schematic`:
 
 ```bash
+# Open the board (PCB layout) viewer for a specific design.
 jitx ui open --board     --design <module.path.DesignClass>
+
+# Open the schematic viewer for a specific design.
 jitx ui open --schematic --design <module.path.DesignClass>
+
+# --design is optional. With one discoverable design, the viewer auto-picks it
+# and prints e.g. `(one design found; using <module.path.DesignClass>)`.
+# With multiple designs, the CLI prompts you to pick.
+jitx ui open --board
 ```
 
-The viewer auto-detects the runtime via `.socket.jitx`. If no runtime is reachable, the CLI exits with a pointer to `jitx runtime start --background`.
+The viewer probes `.socket.jitx` in the project root to find the runtime; build it first with `jitx runtime start --background` (Step 4 above). If no runtime is reachable, `jitx ui open` exits with: `Error: no runtime reachable in this project. Start one with \`jitx runtime start --background\`.`
+
+`jitx ui open` runs *foreground* until you close the window. The viewer is a separate child process (`jitx-ui` Electron app) — if you launch it from an agent shell, background it with `&` and remember to `pkill -f "jitx ui open"` (and `pkill -f jitx-ui`) when you're done, or it will keep running after the agent exits.
 
 Use the popout viewer for visual inspection (DRC review, placement sanity check, schematic walkthrough). It is read-only — live editing (route, place, schematic move) still requires the VSCode extension.
 
 ## Project Structure
 
-Standard JITX project layout:
+Standard JITX project layout — what `jitx project layout init` seeds, plus the conventional subdirs for larger projects:
 ```
 project/
 ├── pyproject.toml          # Project config with JITX deps
-├── src/<namespace>/
-│   ├── components/         # Custom component definitions
+├── <namespace>/            # Flat package (NOT src/<namespace>/)
+│   ├── __init__.py
+│   ├── main.py             # Seeded Design class lives here
+│   ├── components/         # Custom component definitions (add as needed)
 │   │   ├── <category>/     # mcus, connectors, power, etc.
 │   │   │   └── <mfr>_<mpn>.py
 │   │   └── __init__.py
-│   ├── circuits/           # Reusable circuit blocks
-│   └── designs/            # Top-level designs
-├── designs/                # Build output directory
+│   ├── circuits/           # Reusable circuit blocks (add as needed)
+│   └── designs/            # Top-level designs (add as needed)
+├── designs/                # Build output directory (created on first build)
+├── .socket.jitx            # Written by `jitx runtime start --background`
+├── .jitx/logs/             # Runtime logs (written by the daemon)
 └── .venv/                  # Virtual environment
 ```
 
@@ -266,10 +294,10 @@ For ad-hoc work outside the project-builder flow: just don't run two `jitx build
 
 ### Grep Gate Enforcement
 
-Copy `scripts/grep_gates.sh` from this skill into the project's `scripts/` directory. Sub-agents (and the orchestrator at every phase exit gate) run it against `src/<ns>/` to enforce JITX code conventions and top-level-only rules:
+Copy `scripts/grep_gates.sh` from this skill into the project's `scripts/` directory. Sub-agents (and the orchestrator at every phase exit gate) run it against the project's Python package (e.g. `<ns>/`) to enforce JITX code conventions and top-level-only rules:
 
 ```bash
-bash scripts/grep_gates.sh src/<ns>/
+bash scripts/grep_gates.sh <ns>/
 ```
 
 The script reports hard-fail hits (which block task acceptance and gate transitions) and review-required hits (which need a disposition in the task acceptance block). Pattern set and disposition rules: `references/completion-blocks.md` "Grep Gate Patterns".
