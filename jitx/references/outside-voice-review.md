@@ -9,7 +9,7 @@ This file specifies when to invoke outside-voice review, what to ask it, and how
 Codex outside-voice never runs first. A same-model pass always precedes it. The pre-pass differs by scope:
 
 - **Per-task (Think Twice — `task-execution.md` Part A Step 4):** the `jitx-code-review` skill runs as the same-model self-critique pre-pass. Catches architectural and code-craft smells: parallel string-keyed models, sibling-attribute reflection, substrate-shaped tables in design files, build-spec-then-iterate, name-construction patterns. Reads `jitx/SKILL.md` Don'ts and `jitx/references/architectural-patterns.md`. **Mandatory for every sub-agent task in complete-board tier**; user-invoked for single-task work. Codex then runs *per-task* only for trigger-list task classes (this file's "Per-task — mandatory for triggered tasks" section).
-- **Phase 3b (whole-design audit):** the **four-pass design audit** runs as the same-model pre-pass — Circuit-vs-Datasheet, Assumption Compatibility, Interface-by-Interface Trace, Power+Thermal (see `references/completion-blocks.md` "Phase 3b Design Audit Block"). `jitx-code-review` does **not** re-run at Phase 3b — by then every Phase 1/2/3 task has already passed its per-task `jitx-code-review`. Codex then runs the Phase 3b outside-voice pass after the four-pass audit.
+- **Phase 3b (whole-design audit):** the **six-pass design audit** runs as the same-model pre-pass — Circuit-vs-Datasheet, Assumption Compatibility, Interface-by-Interface Trace, Power+Thermal, Protection & Reliability, DFT/DFM (see `references/completion-blocks.md` "Phase 3b Design Audit Block"). `jitx-code-review` does **not** re-run at Phase 3b — by then every Phase 1/2/3 task has already passed its per-task `jitx-code-review`. Codex then runs the Phase 3b outside-voice pass after the six-pass audit.
 
 In both scopes the two reviewers are additive — neither replaces the other. Findings from both get severity tags (`CRITICAL` / `WARNING` / `NOTE`) and feed the same combined-verdict precedence rule below. A CRITICAL or WARNING finding from *either* reviewer changes the combined verdict to `issues-pending`.
 
@@ -115,7 +115,7 @@ The mandatory invocation sites:
 - `references/project-builder-flow.md` — Phase 3b section: after the same-model audit block, run outside-voice pass per this file. Result is required in the Phase 3b audit block and the Phase 3b → 4 gate.
 - `references/task-execution.md` Part A Step 4 — same-model `jitx-code-review` runs after grep gates and before emitting the task acceptance block, mandatory for every complete-board sub-agent task.
 - `references/task-execution.md` Part B Step 5 (Issue Verdict): for trigger-list task classes, run outside-voice (codex) before issuing `accept`. Result is required in the task acceptance block.
-- `references/completion-blocks.md` — task acceptance block carries both the `JITX code review (self)` and `Outside-voice review (codex)` fields (both always present). Phase 3b audit block carries only the `Outside-voice review (codex)` field (Phase 3b's same-model pre-pass is the four-pass audit recorded in the block body itself, not the per-task `jitx-code-review`).
+- `references/completion-blocks.md` — task acceptance block carries both the `JITX code review (self)` and `Outside-voice review (codex)` fields (both always present). Phase 3b audit block carries only the `Outside-voice review (codex)` field (Phase 3b's same-model pre-pass is the six-pass audit recorded in the block body itself, not the per-task `jitx-code-review`).
 
 ## Compliance-theater watch list
 

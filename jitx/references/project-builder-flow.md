@@ -343,7 +343,7 @@ class Design(...):
 
 **Calibrate to fab capability.** The 0.125 mm trace width / clearance and 0.4 mm power width above are typical JLC04161H-class defaults — adjust for the actual substrate's `FabricationConstraints` minimums. Heavier copper (2 oz, 3 oz) allows narrower traces at the same current; tighter fab classes allow narrower clearance.
 
-**Non-default net classes (RF, switch node, sensitive analog, HV) get higher-priority rules.** See `references/domain-checklists.md` "Net Class Taxonomy" — those rules go in the same `self.rules` list with `priority >= 2`.
+**Non-default net classes (RF, switch node, sensitive analog, HV) get higher-priority rules.** See `references/net-classes.md` — those rules go in the same `self.rules` list with `priority >= 2`.
 
 ### Topology vs net membership (CRITICAL)
 
@@ -516,7 +516,7 @@ Spawn a sub-agent to perform the design-level audit. The audit agent reads code 
 
 Before the audit runs, the orchestrator must have already addressed the build-time silent-drop patterns documented in Phase 3 → "Silent-drop patterns" — those bugs build with `status: ok` but produce a wrong design, and the audit agent's datasheet-comparison passes assume the netlist matches the source. JITX emits a `Reference to structural object … lost during instantiation` warning for some of these cases (constraint and similar structural classes), but not for bare net or topology expressions — handle both manually.
 
-The audit runs four passes:
+The audit runs six passes (the full pass list and per-pass schema live in `references/completion-blocks.md` "Phase 3b Design Audit Block"):
 
 #### Pass 1: Circuit vs Datasheet Application Schematic
 
@@ -550,6 +550,14 @@ For every interface connecting two or more ICs, trace the complete signal path f
 - Check thermal dissipation: P = (Vin - Vout) * I for linear regulators, efficiency loss for switchers. Flag any package that will exceed its thermal rating.
 - Check hot-plug and transient scenarios: what happens when power appears suddenly? Does anything see voltage before its regulator stabilizes?
 - Verify bulk capacitance meets datasheet recommendations (especially for power amplifiers).
+
+#### Pass 5: Protection and Reliability
+
+ESD, transient suppression, reverse polarity, environmental class. Walk the ESD-or-justification table from `references/domains/external-interfaces.md` for every external connector and user-touchable conductor. For aerospace / automotive / medical class designs, walk `references/domains/safety-critical.md`. Full per-row template in `references/completion-blocks.md` "Phase 3b Design Audit Block".
+
+#### Pass 6: DFT / DFM
+
+Test access and manufacturability. Walk `references/domains/dft.md` (test points, debug headers, named TPs) and `references/domains/dfm.md` (fab rules, edge clearance, BOM, footprint library). Full per-row template in `references/completion-blocks.md`.
 
 ### Loopback
 

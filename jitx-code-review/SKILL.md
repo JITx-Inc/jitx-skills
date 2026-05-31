@@ -9,7 +9,7 @@ Task-level architectural self-review for JITX Python code just written in the cu
 
 This skill is the *per-task same-model pre-pass* in the Think Twice flow (see `jitx/references/task-execution.md` Part A Step 4 and `jitx/references/outside-voice-review.md` "Same-model passes precede codex"). It catches architectural and code-craft smells (string-hacking, parallel models, naming hygiene). Codex outside-voice — which runs only for trigger-list task classes (MCU/FPGA, RF, power, safety, high-speed digital, battery) — catches the JITX-engineering-domain issues (datasheet-vs-code, impedance/return-path, voltage-divider math).
 
-Phase 3b's same-model pre-pass is the **four-pass design audit** (not this skill) — see `jitx/references/completion-blocks.md` "Phase 3b Design Audit Block". By the time Phase 3b runs, every Phase 1/2/3 task has already passed its per-task `jitx-code-review` and the findings live in the task acceptance blocks.
+Phase 3b's same-model pre-pass is the **six-pass design audit** (not this skill) — see `jitx/references/completion-blocks.md` "Phase 3b Design Audit Block". By the time Phase 3b runs, every Phase 1/2/3 task has already passed its per-task `jitx-code-review` and the findings live in the task acceptance blocks.
 
 ## When this skill runs
 

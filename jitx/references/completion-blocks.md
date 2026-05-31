@@ -58,7 +58,7 @@ Copy this template verbatim. Fill every field. Every `N/A` requires a reason.
 **Footprint source:** <KiCad file path + origin> | <JITX standard generator: QFN/SOIC/etc.> | <vendor mechanical drawing — for pad-only / mechanical footprints>
 
 **Checks run:**
-- <Domain checklist name from domain-checklists.md>: N/N items, M issues fixed, K items N/A (with reasons)
+- <Domain checklist name from domain-checklists.md or references/domains/*.md>: N/N items, M issues fixed, K items N/A (with reasons)
 - General Gotcha Scrub: N/N items
 - `ruff check`: clean | <N issues, fixed>
 - `ruff format`: applied
@@ -75,7 +75,7 @@ Copy this template verbatim. Fill every field. Every `N/A` requires a reason.
 - WARNING: ...
 - NOTE: ...
 
-See `jitx-code-review/SKILL.md` for what this pass covers and `jitx-code-review/references/checklist.md` for the pattern taxonomy. The field is **mandatory for complete-board tier task acceptance blocks** (the review runs at Think Twice Step 4 — see `task-execution.md`). For single-task tier, value is `not applicable: single-task tier` unless the user explicitly invoked `jitx-code-review`. For verify-type tasks (no Python written, just `jitx build` and inspection of the build output), use `not applicable: no JITX Python changed`. The field is **scoped to the task acceptance block only** — the Phase 3b audit block uses the four-pass audit instead (see `Phase 3b Design Audit Block` below). CRITICAL or WARNING findings change the combined verdict to `issues-pending` until fixed, downgraded with rationale, or user-approved — same precedence rule as `Outside-voice review (codex)` below.
+See `jitx-code-review/SKILL.md` for what this pass covers and `jitx-code-review/references/checklist.md` for the pattern taxonomy. The field is **mandatory for complete-board tier task acceptance blocks** (the review runs at Think Twice Step 4 — see `task-execution.md`). For single-task tier, value is `not applicable: single-task tier` unless the user explicitly invoked `jitx-code-review`. For verify-type tasks (no Python written, just `jitx build` and inspection of the build output), use `not applicable: no JITX Python changed`. The field is **scoped to the task acceptance block only** — the Phase 3b audit block uses the six-pass audit instead (see `Phase 3b Design Audit Block` below). CRITICAL or WARNING findings change the combined verdict to `issues-pending` until fixed, downgraded with rationale, or user-approved — same precedence rule as `Outside-voice review (codex)` below.
 
 **Outside-voice review (codex):** clean | <N> findings | not applicable: single-task tier | not applicable: complete-board, task class not in trigger list | not run: <reason — blocking unless user approves on trigger-list tasks>
 - CRITICAL: <one-line> — file:line — datasheet p.M fig.N (or "inference") — disposition
@@ -308,7 +308,51 @@ The criteria mirror the exit-gate bullet lists in `references/project-builder-fl
 
 ## Phase 3b Design Audit Block (complete-board only)
 
-The audit happens in Phase 3b. A read-only audit agent (no code edits) reviews the assembled design across four passes and emits this block. The orchestrator decides which findings to fix; fix sub-agents handle the loopback. After fixes, the audit re-runs and the block is updated (or a new block is emitted alongside the first).
+The audit happens in Phase 3b. A read-only audit agent (no code edits) reviews the assembled design across six passes and emits this block. The orchestrator decides which findings to fix; fix sub-agents handle the loopback. After fixes, the audit re-runs and the block is updated (or a new block is emitted alongside the first).
+
+### Audit execution states
+
+Each rule the audit checks has one of four execution states. Read this before authoring a Phase 3b audit block:
+
+- **`now`** — the check runs against the circuit graph (the JITX design code) today. Most Passes 1–4 checks are in this state, as are connectivity / decoupling / topology rules in Passes 5–6.
+- **`awaiting-evidence-format`** — the rule needs human-supplied evidence (BOM column, fab note, vendor certificate, datasheet field on a JITX Component) that the JITX type system does not carry today. Examples: aerospace Class 3 solder alloy spec (`AERO_SLD_001`), electrolytic ripple-current / temperature lifetime (`COMP_CAP_005`). The audit MUST surface these as "needs evidence from <named field>" rather than silently passing.
+- **`awaiting-introspection`** — the check requires a jitx-client layout-introspection API (trace length, via positions, copper geometry, plane splits, component placements) that is not yet shipped. The audit MUST raise a clear "not yet runnable — needs API X" message rather than silently passing. Most Passes 5–6 quantitative-layout rules are in this state today.
+- **`out-of-band`** — the check requires data the JITX toolchain does not produce (thermal simulation, EMC chamber measurement, conformal-coat photo, mechanical 3D fit). Document; verify externally.
+
+The per-rule stubs live in `references/phase-3b-check-stubs.md`, grouped by rule ID and execution state. The deduplicated list of jitx-client APIs the `awaiting-introspection` stubs collectively need is in `references/phase-3b-introspection-apis.md`. The source coverage matrix (167 rules) is `references/phase-3b-coverage-matrix.csv`.
+
+The ruledeck and several conventions below are adapted from ThomsonLint (MIT). Repository, license, pinned ontology commit, and a table of what was adapted for JITX live in one place: `phase-3b-attribution.md`.
+
+When a jitx-client layout introspection API or a JITX type metadata field lands that would activate one or more stubs, follow the activation discipline in `references/phase-3b-roadmap.md` — that file documents how to flip stubs into `now`, regenerate the artifacts, and keep the matrix and the audit block in sync.
+
+### Evidence discipline
+
+Every quantitative claim in a finding is an **evidence row** with a mandatory `source`. (This evidence-row contract is adapted from the ThomsonLint findings schema — see `phase-3b-attribution.md`.) Two row shapes:
+
+- **Parameter comparison** — `label` (what was measured, e.g. "inductor Isat vs peak"), `datasheet` (the spec/limit), `design` (the observed or computed value), `margin` (the derived comparison, e.g. "1.6×", "+15 °C headroom"), `verdict` (`ok` | `marginal` | `fail` | `n/a` | `unverified`), `source`.
+- **Free-form note** — `note` (a qualifier or fact, e.g. "clamped by D2 freewheel"), `source`.
+
+Rules:
+
+- **`source` is required on every row, no exceptions.** A source is a datasheet page/figure (`AON7544 ds p.2 Fig.1`), a JITX object reference (`bucks.sw net`), a JITX-introspection query result, or `inference` (with the inference stated). A row with no source is not admissible.
+- **Do not put parameter tables in prose.** A number that compares a design value against a limit goes in an evidence row so the verdict and margin are explicit and the source is attached.
+- **Verbatim limits.** `datasheet` carries the actual spec value, not a paraphrase; `margin` is the computed relationship, not "looks fine".
+- **`verdict` is row-local; severity is the finding's.** A row's `verdict` (`ok`/`marginal`/`fail`/`n/a`/`unverified`) is the outcome of that one measurement. It is NOT the finding's severity — `CRITICAL`/`WARNING`/`NOTE` is assigned to the *finding* per the severity definitions below. A `fail` verdict usually drives a `CRITICAL` or `WARNING` finding, but a finding can carry a `fail` row and still be `WARNING` (e.g. a marginal rail with an accepted-risk rationale), and a `marginal` row can sit inside a `NOTE`. The audit author sets severity; the verdict does not set it automatically.
+
+**Finding format (all six passes use this).** Each finding bullet is:
+
+`**<SEVERITY>** <rule_id> <component/net>: <one-line>. Evidence: {label, datasheet, design, margin, verdict, source}[, …]`
+
+`<SEVERITY>` is `CRITICAL` / `WARNING` / `NOTE`. At least one evidence row, every row sourced. The per-pass Findings bullets below all follow this one format — the pass tables are the working scratch, the finding bullet is the deliverable.
+
+### Coverage gate (don't silently skip)
+
+A review that emits only problems is indistinguishable from a review that didn't look. Two mechanics make coverage **auditable** (self-reported by the audit agent today — there is no JITX-side validator script yet; see the honesty note below):
+
+- **Verified checks are deliverables.** When a `now` rule is checked and the result is OK, record it as a verified check (see the template below) — *not* as silence. The act of checking is the deliverable. (Adapted from the ThomsonLint `verified_checks[]` discipline — see `phase-3b-attribution.md`.)
+- **Every classified rule is accounted for.** Each rule in `phase-3b-check-stubs.md` that applies to this design must terminate in one of: a finding (issue), a verified check (OK), a `awaiting-introspection` / `awaiting-evidence-format` stub message (not yet runnable — state which API or field is missing), or an explicit `n/a` with a one-line reason. "I didn't get to it" is not an admissible outcome — that is the failure mode the gate exists to prevent. The audit emits a **per-rule ledger** (one row per applicable rule → its terminal bucket + a link/source), and the `Unaccounted` count is derived from that ledger, not asserted as a bare number.
+
+**Honesty note — self-reported, not enforced.** ThomsonLint makes the analogous input-coverage gate *mechanical*: `tools/validate_findings.py` enumerates every input file and hard-fails (non-zero exit) if any is uncited, and rejects any evidence row missing a `source`. The Phase 3b audit has **no equivalent validator** — the source-on-every-row rule and the `Unaccounted: 0` gate are applied by the audit agent itself and verified by the orchestrator at acceptance, not by a script. Until a JITX-side `validate_phase3b.py` exists (a worthwhile follow-up: it would parse the audit block, cross-check the per-rule ledger against `phase-3b-check-stubs.md`, and confirm every evidence row has a source), treat the gate as a discipline, not a guarantee.
 
 ```markdown
 ## Phase 3b Audit: <project-name>
@@ -363,9 +407,84 @@ Findings:
 - **WARNING** ...
 - **NOTE** ...
 
+### Pass 5: Protection and Reliability
+
+ESD, transient suppression, reverse polarity, environmental class. For every external connector and user-touchable conductor, walk the ESD-or-justification table from `references/domains/external-interfaces.md`. For aerospace / automotive / medical class designs, walk `references/domains/safety-critical.md`.
+
+| External pin / conductor | Disposition | Component or rationale | State | Findings |
+|--------------------------|-------------|------------------------|-------|----------|
+| J1 USB D+ / D− | low-cap TVS | USBLC6-2 (≤ 1 pF) | `now` (presence) + `awaiting-introspection` (≤ 10 mm placement) | none |
+| J2 5 V input | bidirectional TVS + active RPP | SMCJ18CA + LM74700-Q1 | `now` | none |
+| TP1 debug | internal-only | sealed enclosure | `now` | accept-with-rationale |
+| ... | ... | ... | ... | ... |
+
+Findings:
+- **CRITICAL** ...
+- **WARNING** ...
+- **NOTE** ...
+
+### Pass 6: DFT / DFM
+
+Test access and manufacturability. Walk `references/domains/dft.md` and `references/domains/dfm.md`.
+
+| Item | Status | State | Findings |
+|------|--------|-------|----------|
+| Test point on every major power rail | <yes / no — list rails> | `now` | none |
+| Ground probe pad accessible | <yes / no> | `now` | none |
+| SWD / JTAG header reachable | <yes / no — header location> | `now` (presence) + `awaiting-introspection` (accessibility) | none |
+| Substrate fabrication constraints in fab class | <yes / no — link to FabricationConstraints> | `now` | none |
+| Component-to-edge ≥ 2.5 mm | <yes / no> | `awaiting-introspection` | stub |
+| BOM with distributor PNs | <yes / no — link to BOM> | `now` | none |
+| Footprint library 1:1 with datasheets | <yes / no — sample-checked count> | `now` | none |
+| ... | ... | ... | ... |
+
+Findings:
+- **CRITICAL** ...
+- **WARNING** ...
+- **NOTE** ...
+
+(All six passes' finding bullets use the single "Finding format" defined before Pass 1 — severity + rule_id + one-line + sourced evidence row(s).)
+
+### Verified Checks (analyses that came back OK)
+
+Record every `now` rule that was checked and passed — these are deliverables, not omissions. One row per check; same evidence-row discipline (every row sourced).
+
+| Rule | Check | datasheet / limit | design | margin | verdict | source |
+|------|-------|-------------------|--------|--------|---------|--------|
+| `PWR_RATING_001` | Inductor Isat vs peak | 4.0 A (MT3608) | 2.4 A peak | 1.6× | ok | MT3608 ds p.5 |
+| `PWR_DECPL_002` | Bulk cap per power domain | ≥ datasheet min | present, all rails | — | ok | circuit graph |
+| ... | ... | ... | ... | ... | ... | ... |
+
+### Rule Coverage (gate)
+
+Confirm every applicable rule terminated somewhere. A rule that is neither a finding, a verified check, a stated `awaiting-*` stub, nor an explicit `n/a` is an audit gap. Emit a **per-rule ledger** — one row per applicable rule — and derive the counts from it. The counts are a summary of the ledger, not a substitute for it.
+
+Per-rule ledger (one row per rule in `phase-3b-check-stubs.md` that applies to this design):
+
+| rule_id | terminal bucket | link / source |
+|---------|-----------------|---------------|
+| `PWR_DECPL_002` | verified-check | Verified Checks table row |
+| `PWR_BUCK_001` | awaiting-introspection | needs `board.loop_area(net_set)` |
+| `AERO_SLD_001` | awaiting-evidence-format | needs `Component.solder_finish` |
+| `HS_DIFF_004` | n/a | no nets >2 GHz in this design |
+| `EMC_ESD_001` | issue | Pass 5 CRITICAL finding |
+| ... | ... | ... |
+
+Summary (derived from the ledger):
+
+```
+Rules applicable to this design: <N = ledger row count>
+  - issues:                <count>
+  - verified checks:       <count>
+  - awaiting-introspection: <count> (each names the missing API)
+  - awaiting-evidence-format: <count> (each names the missing field)
+  - n/a (with reason):     <count>
+Unaccounted: 0   ← must be 0; any rule not in the ledger blocks the gate
+```
+
 ### Outside-Voice Review (codex)
 
-**Required for complete-board.** Run after the four passes above; codex provides an independent perspective from outside the conversation context. See `references/outside-voice-review.md` for invocation, prompt shape, and combined-verdict rule.
+**Required for complete-board.** Run after the six passes above; codex provides an independent perspective from outside the conversation context. See `references/outside-voice-review.md` for invocation, prompt shape, and combined-verdict rule.
 
 ```
 Outside-voice review (codex): clean | <N> findings | not run: <reason — blocking unless user approves>
@@ -374,7 +493,7 @@ Outside-voice review (codex): clean | <N> findings | not run: <reason — blocki
 - NOTE: ...
 ```
 
-Any CRITICAL or WARNING outside-voice finding changes the combined audit verdict to `issues-pending`, even if the four passes above were `clean`.
+Any CRITICAL or WARNING outside-voice finding changes the combined audit verdict to `issues-pending`, even if the six passes above were `clean`.
 
 ### Loopback Decisions
 
@@ -388,6 +507,8 @@ Any CRITICAL or WARNING outside-voice finding changes the combined audit verdict
 **Re-audit needed:** yes (after fixes land) | no (no fixes)
 
 **Audit verdict (combined):** clean | issues-pending (returns to phase chain after fixes)
+
+(`clean` requires Rule Coverage `Unaccounted: 0` AND no open CRITICAL/WARNING from either reviewer.)
 ```
 
 Severity definitions:
@@ -401,6 +522,8 @@ Rules:
 - Audit agent does not edit files. Findings → orchestrator → fix agents.
 - "Noted for future refactoring" is not a valid disposition for CRITICAL or WARNING.
 - After any fix lands, re-audit. The re-audit does not need to repeat passes that didn't touch the changed code, but must re-verify the original findings are resolved.
+- Every evidence row cites a `source` (datasheet page/figure, JITX object/introspection result, or stated inference). Unsourced numbers are not admissible.
+- Every applicable rule terminates in a finding, a verified check, a stated `awaiting-*` stub, or an explicit `n/a` — `Unaccounted` must be 0. A passing check is recorded as a verified check, never as silence.
 
 ---
 
