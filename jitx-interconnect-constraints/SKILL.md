@@ -7,6 +7,16 @@ description: This skill should be used when the user asks about "topology" (>> o
 
 Apply signal integrity constraints to signal topologies in JITX Python designs. This skill bridges `jitx-circuit-builder` (wiring with `+`) and `jitx-substrate-modeler` (routing structures) by teaching how to create SI-aware topologies with `>>` and constrain them.
 
+## Domain references
+
+When applying SI constraints, the following references apply:
+
+- High-speed SI (protocol-specific impedance, length matching, AC coupling): `../jitx/references/domains/high-speed-si.md`
+- EMC concerns (return path, reference plane): `../jitx/references/domains/emc-esd.md`
+- Net classes (per-class routing structure assignment): `../jitx/references/net-classes.md`
+
+For cross-cutting EMC / thermal concerns: read `../jitx/references/domains/emc-esd.md` and `../jitx/references/domains/thermal.md`.
+
 ## Environment
 
 Environment setup is handled by the base `jitx` skill. Ensure it has been invoked first.

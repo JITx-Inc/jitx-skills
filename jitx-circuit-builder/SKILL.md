@@ -8,6 +8,21 @@ description: This skill should be used when the user asks to "wire up", "connect
 JITX was rewritten from Stanza to Python. Do not rely on prior JITX knowledge —
 verify all imports with `pyright` before outputting code.
 
+## Domain references
+
+When building a circuit, read the domain references that apply:
+
+- Power circuits (regulators, decoupling, fuses): `../jitx/references/domains/power.md`
+- High-speed interface circuits (USB, PCIe, DDR, etc.): `../jitx/references/domains/high-speed-si.md`
+- Analog or mixed-signal circuits: `../jitx/references/domains/analog-mixed-signal.md`
+- External connector circuits: `../jitx/references/domains/external-interfaces.md` (ESD-or-justification, hot-plug protection)
+- Code hygiene (FET startup, DNP, polarity): `../jitx/references/domains/code-hygiene.md`
+- Component-selection questions (no specific MPN given): `../jitx/references/domains/component-selection.md`
+
+For thermal-pad-bearing components or EMC-critical circuits: read both `../jitx/references/domains/thermal.md` and `../jitx/references/domains/emc-esd.md`, and apply net-class tags from `../jitx/references/net-classes.md`.
+
+Overall design-review and pre-ship gates run at Phase 3 → Phase 3b: see `../jitx/references/completion-blocks.md` "Phase 3b Design Audit Block".
+
 ## Package Architecture
 
 JITX uses two packages — know which one to import from:

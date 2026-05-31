@@ -7,6 +7,30 @@ description: Base skill for JITX hardware design workflow. Use for JITX Python p
 
 Base skill for JITX hardware design automation. JITX is a Python framework for programmatic PCB design.
 
+## Domain references
+
+This skill is the entry point for JITX work. When the task is clearly within one artifact (component, circuit, substrate, constraint, pin), invoke the corresponding subskill. Domain knowledge that spans artifacts lives in `references/domains/`:
+
+- Power: `references/domains/power.md`
+- High-speed SI: `references/domains/high-speed-si.md`
+- Analog / mixed-signal: `references/domains/analog-mixed-signal.md`
+- EMC / ESD: `references/domains/emc-esd.md`
+- Thermal: `references/domains/thermal.md`
+- Component selection (no specific MPN): `references/domains/component-selection.md`
+- Code hygiene: `references/domains/code-hygiene.md`
+- External interfaces: `references/domains/external-interfaces.md`
+- DFT (test access): `references/domains/dft.md`
+- DFM (manufacturability): `references/domains/dfm.md`
+- Mechanical integration: `references/domains/mechanical.md`
+- Safety-critical (aerospace / automotive / medical): `references/domains/safety-critical.md`
+
+The net-class taxonomy lives in `references/net-classes.md`.
+
+Pre-tapeout review: the Phase 3b Design Audit Block in `references/completion-blocks.md` runs a six-pass audit (Circuit-vs-Datasheet, Assumption Compatibility, Interface-by-Interface Trace, Power+Thermal, Protection & Reliability, DFT/DFM) against the design. Per-rule check stubs live in `references/phase-3b-check-stubs.md`; the introspection-API wishlist (for layout-geometry checks waiting on jitx-client) lives in `references/phase-3b-introspection-apis.md`; the source coverage matrix is `references/phase-3b-coverage-matrix.csv`. The ruledeck is adapted from ThomsonLint (MIT) — attribution, license, and pinned source commit are in `references/phase-3b-attribution.md`.
+
+Cross-cutting concerns:
+- Thermal and EMC: read both `references/domains/thermal.md` and `references/domains/emc-esd.md`; net-class tagging in `references/net-classes.md` ties the two together.
+
 ## Environment Setup
 
 The `jitx` CLI owns project scaffolding, auth, runtime install/start, and design build for VSCode-free workflows. Drive everything through it.
@@ -323,7 +347,7 @@ A task without an acceptance block is `in-progress`, not done. Phase gates only 
 
 For the full protocol: read `references/task-execution.md`
 For block templates: read `references/completion-blocks.md`
-For domain checklists: read `references/domain-checklists.md`
+For domain checklists: read `references/domain-checklists.md` (artifact-level: Component / MCU-FPGA / Substrate) and the relevant `references/domains/*.md` (domain-level: power, high-speed-si, analog-mixed-signal, emc-esd, thermal, etc.). For net-class assignments: `references/net-classes.md`.
 
 ### Exit Gates
 
@@ -489,7 +513,7 @@ Covers:
 - Recognition of the 15 PR-derived failure patterns (string-keyed models, sibling-attribute reflection, parallel data models, substrate pollution, etc.)
 - Severity-tagged findings (CRITICAL / WARNING / NOTE) that fold into the task acceptance block's `JITX code review (self):` field
 
-Skill is the *per-task* same-model pre-pass before codex outside-voice. Phase 3b uses a different same-model pre-pass (the four-pass design audit) — see `references/outside-voice-review.md`.
+Skill is the *per-task* same-model pre-pass before codex outside-voice. Phase 3b uses a different same-model pre-pass (the six-pass design audit) — see `references/outside-voice-review.md`.
 
 ### Mechanical Interface (`jitx-mechanical`)
 

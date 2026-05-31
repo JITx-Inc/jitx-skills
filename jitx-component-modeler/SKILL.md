@@ -7,6 +7,16 @@ description: Create JITX Python component code from datasheets, KiCad footprints
 
 Generate JITX Python component code from datasheets, user-provided KiCad footprints, or specifications. Data can come from multiple sources — always prefer user-provided data over automated lookups.
 
+## Domain references
+
+When modeling a component, the following references apply:
+
+- Component selection (if user did not provide a specific MPN): `../jitx/references/domains/component-selection.md` — capacitor dielectric, voltage derating, inductor Isat / SRF, resistor noise / tempco
+- Thermal pads on dissipative ICs: `../jitx/references/domains/thermal.md`
+- Safety-critical component selection: `../jitx/references/domains/safety-critical.md` (AEC-Q, JESD201 finishes, Sn63/Pb37 solder for aerospace Class 3)
+
+If the user asks "which cap / inductor / resistor should I use" without a specific MPN, read `../jitx/references/domains/component-selection.md` before generating a component spec.
+
 ## No fabrication — source authority for geometry and pinout
 
 > **Do not write dimensions, pin labels, or pad assignments from memory.**

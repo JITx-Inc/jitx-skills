@@ -7,6 +7,17 @@ description: This skill should be used when the user asks to "create a substrate
 
 Generate complete JITX Python substrate definitions — stackups, materials, vias, routing structures, and fabrication constraints — all in a single file.
 
+## Domain references
+
+When modeling a substrate, the following references apply:
+
+- DFM and fabrication constraints: `../jitx/references/domains/dfm.md`
+- High-speed SI (stackup choice, material, layer assignment): `../jitx/references/domains/high-speed-si.md`
+- Thermal (thermal vias, copper area per Watt): `../jitx/references/domains/thermal.md`
+- Net classes (routing structures, clearance per class): `../jitx/references/net-classes.md`
+
+For EMC-driven substrate choices (stitching grid, plane partitioning): read `../jitx/references/domains/emc-esd.md` and apply net-class tags from `../jitx/references/net-classes.md`.
+
 ## Predefined Substrates (JLCPCB Only)
 
 If the user has confirmed they are targeting **JLCPCB** as their fabrication house, predefined substrates from `jitxlib.jlcpcb` are available. These are production-validated with correct materials, vias, fab rules, and impedance-matched routing structures:

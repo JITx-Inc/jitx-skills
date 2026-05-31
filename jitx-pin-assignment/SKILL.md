@@ -7,6 +7,13 @@ description: This skill should be used when the user asks about "provide/require
 
 Model flexible pin mappings between circuit-level interfaces and component-level pins. JITX's provide/require system lets the layout engine choose optimal pin assignments during routing.
 
+## Domain references
+
+When working on pin assignment, the following references apply:
+
+- High-speed SI (DiffPair P/N swap, PCIe lane reversal, DDR byte swap): `../jitx/references/domains/high-speed-si.md`
+- Code hygiene (boot-mode, reset pins, I2C addressing): `../jitx/references/domains/code-hygiene.md`
+
 ## Environment
 
 Environment setup is handled by the base `jitx` skill. Ensure it has been invoked first.
