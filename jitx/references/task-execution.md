@@ -83,7 +83,7 @@ If it fails, fix errors and rebuild until `status: ok`. Do not proceed to Step 4
 
 **STOP. Do not return yet.**
 
-Open `references/domain-checklists.md` and find the checklist(s) for your task type. Go through EVERY item:
+Open `references/domain-checklists.md` for the artifact-level checklist (Component / MCU-FPGA / Substrate) AND the relevant per-domain reference(s) under `references/domains/` (power, high-speed-si, analog-mixed-signal, emc-esd, thermal, component-selection, code-hygiene, external-interfaces, dft, dfm, mechanical, safety-critical). For net-class assignments, also read `references/net-classes.md`. Go through EVERY item in each applicable list:
 
 1. For each item, re-examine the datasheet or specification — do not check from memory.
 2. If there is a discrepancy, fix it now.

@@ -91,185 +91,28 @@ Run the base Component checklist above FIRST, then verify these:
 
 ---
 
-## Power Circuit
+## Domain references
 
-### Electrical Correctness
-- [ ] Input voltage range of regulator covers the actual source voltage (with tolerance)
-- [ ] Output voltage matches the load requirement
-- [ ] Output current rating sufficient with margin (>20% headroom recommended)
-- [ ] Efficiency acceptable at expected load (check datasheet curves)
-- [ ] Output noise/ripple within load IC requirements (especially for analog, RF, PLL supplies)
-- [ ] Transient load response adequate for the load profile (check datasheet load transient plots)
+Power, high-speed, analog, EMC, thermal, and other domain-specific checks have moved into per-domain reference files. Read the file(s) that apply to your task:
 
-### Enable Pin — CRITICAL (commonly missed)
-- [ ] Enable pin is NOT left floating
-- [ ] If always-on: tied to input voltage through resistor or direct (check datasheet for max voltage)
-- [ ] If controlled: connected to control signal at correct logic level
-- [ ] If open-drain/open-collector: has pull-up to appropriate rail
-- [ ] UVLO threshold appropriate for input source (EN pin voltage divider if needed)
+- [`domains/power.md`](domains/power.md) — regulators, decoupling, fuses, flyback, polar caps
+- [`domains/high-speed-si.md`](domains/high-speed-si.md) — diff pairs, DDR/PCIe/USB/Ethernet, crystals, length matching
+- [`domains/analog-mixed-signal.md`](domains/analog-mixed-signal.md) — op-amps, ADC, mixed-signal partitioning
+- [`domains/emc-esd.md`](domains/emc-esd.md) — stitching, plane partitioning, aggressor / victim separation
+- [`domains/thermal.md`](domains/thermal.md) — power density, thermal vias, heatsink decisions
+- [`domains/component-selection.md`](domains/component-selection.md) — cap dielectric, voltage derating, inductor Isat / SRF, resistor noise / tempco
+- [`domains/code-hygiene.md`](domains/code-hygiene.md) — DNP, polarity, FET startup, I2C addressing
+- [`domains/external-interfaces.md`](domains/external-interfaces.md) — connector ESD-or-justification, hot-plug protection, retention
+- [`domains/dft.md`](domains/dft.md) — test points, debug headers, named TPs
+- [`domains/dfm.md`](domains/dfm.md) — fab rules, acid traps, edge clearance, panelization
+- [`domains/mechanical.md`](domains/mechanical.md) — mounting, enclosure fit, heatsink mech
+- [`domains/safety-critical.md`](domains/safety-critical.md) — aerospace, automotive, medical class-specific
+- [`domains/thermal-and-emc-workflow.md`](domains/thermal-and-emc-workflow.md) — cross-artifact orchestration when thermal and EMC concerns both apply (e.g. switching regulators, RF designs, mixed-signal partitioning)
 
-### Feedback Network
-- [ ] Fixed output: verify FB/VOUT pin wiring matches datasheet (some go to output, some to a divider)
-- [ ] Adjustable output: voltage divider from output to FB pin to GND
-- [ ] Voltage divider MUST use `voltage_divider_from_constraints()` — NEVER manual resistor values
-- [ ] Reference voltage (Vref) matches datasheet exactly (0.6V, 0.8V, 1.0V, etc.)
-- [ ] `v_out` uses `Toleranced.percent()` not `Toleranced.exact()`
+Net classes (switch node, RF, high-speed diff, sensitive analog, high-voltage, high-current, gate drive, Kelvin sense, isolated domain, thermal pad, ESD-exposed) live in [`net-classes.md`](net-classes.md).
 
-### Soft-Start and Sequencing
-- [ ] Soft-start capacitor included if pin is available (prevents inrush)
-- [ ] Power sequencing requirements documented if multiple rails
-- [ ] Sequencing order correct: core supplies before IO supplies, analog before digital where required
-- [ ] Sequencing implementation identified: PGOOD chaining, enable sequencing, or dedicated sequencer IC
+The artifact-level Component, MCU/FPGA, and Substrate checklists remain in this file (below). The cross-cutting General Gotcha Scrub is also here.
 
-### Switching Regulator Specifics (skip for LDOs)
-- [ ] Inductor selected: saturation current > peak current, DCR acceptable for efficiency, core material appropriate for frequency
-- [ ] Bootstrap capacitor present if required (buck converters with high-side FET)
-- [ ] Compensation network matches datasheet recommendation (Type II/III, values from datasheet or calculator)
-- [ ] Input capacitance meets datasheet minimum (low-ESR ceramic + bulk), voltage rating exceeds max input
-- [ ] Output capacitance meets datasheet minimum for stability AND transient response
-- [ ] Boost capacitor present if required (e.g., charge pump pin on some converters)
-- [ ] Frequency-setting resistor correct if oscillator frequency is configurable
-- [ ] Current sense resistor value correct (if external current sensing)
-- [ ] Layout-sensitive components identified (input cap, bootstrap cap, inductor — must be close to IC)
-
-### Output Stage
-- [ ] Output capacitance meets datasheet minimum
-- [ ] Output capacitor ESR within stability range (check datasheet — some LDOs require minimum ESR)
-- [ ] Output decoupling: at minimum 100nF ceramic + bulk cap per datasheet
-
-### Input Stage
-- [ ] Input decoupling per datasheet recommendations (value, type, ESR)
-- [ ] Input capacitor voltage rating exceeds maximum input voltage
-
-### Power-Good and Fault — CRITICAL (commonly missed)
-- [ ] PGOOD pin type identified: open-drain or push-pull (check datasheet)
-- [ ] If open-drain: pull-up resistor to appropriate voltage rail (1k-100k typical)
-- [ ] If push-pull: direct connection, no pull-up needed
-- [ ] PGOOD connected to monitoring input or indicator LED
-- [ ] Fault pins (OVP, OCP, THERMAL_SHUTDOWN) handled if present
-
-### Thermal
-- [ ] Thermal/exposed pad connected to ground copper (not left floating)
-- [ ] Power dissipation within component ratings for expected ambient temperature
-
----
-
-## Interface Circuit
-
-### Port Design
-- [ ] Circuit exposes **bundle-typed ports** (I2S, I2C, SPI, USB2, GPIO, DiffPair, Power) — not individual signal ports
-- [ ] If wrapping a component with individual pins, bundle wiring happens inside the circuit
-- [ ] Bundle port types match what the MCU/FPGA wrapper provides via require()
-
-### Signal Integrity
-- [ ] Termination scheme matches the protocol standard:
-      - Series termination at source for point-to-point
-      - Parallel termination at receiver for transmission lines
-      - AC coupling caps for DC-blocking (check value for frequency range)
-- [ ] Impedance targets documented for constrained signals
-- [ ] Routing structure assigned matches impedance target
-- [ ] Topologies created with `>>` inside the circuit for constrained signal paths
-- [ ] **SI constraints (Constrain, ConstrainDiffPair, ReferencePlanes) are NOT applied here** — they go at the top-level design where the full path is visible. The circuit only creates the topology segments.
-
-### Level Translation
-- [ ] Voltage domains of connected ICs compared — level shifter needed if they differ
-- [ ] Level shifter direction correct (unidirectional vs bidirectional)
-- [ ] Level shifter OE pin handled (not floating)
-- [ ] Open-collector/open-drain outputs: pull-up voltage compatible with the receiving IC's input voltage range (e.g., a 5V-tolerant OC output pulled up to 5V must not drive a 3.3V-only input)
-
-### Control Signal Handling
-- [ ] I2C lines: open-drain with pull-ups to VDDIO (value per bus speed: 4.7k for 100kHz, 2.2k for 400kHz)
-- [ ] SPI chip select: pull-up to deselect when inactive
-- [ ] UART: TX-to-RX crossover verified (not TX-to-TX)
-- [ ] Reset pins: RC filter for noise immunity, ESD protection if board edge
-- [ ] Interrupt pins: pull-up or pull-down matching active polarity
-
-### Unused Pin Handling
-- [ ] Unused inputs on active devices terminated (not floating) — tie to VCC or GND per datasheet
-- [ ] Unused outputs left unconnected or noted as NC
-- [ ] Unused op-amp sections: non-inverting input to mid-rail, output left open
-
-### Decoupling — CRITICAL (commonly missed)
-- [ ] 100nF bypass cap on EVERY power pin of EVERY active IC in the circuit
-- [ ] Bulk capacitor (10uF) per power domain
-- [ ] **Every power-rail cap `.insert(...)` uses `short_trace=True`** — decoupling, bypass, bulk, output filter. Exceptions (AC coupling, RC time constants, RF, crystal load) are dispositioned in the task acceptance block. Gated at Phase 2 → 3.
-- [ ] Ferrite bead or filter on analog supply pins if mixed-signal
-
-### Protocol-Specific Checks
-Apply the relevant protocol check:
-
-**USB**: differential impedance 90 ohm, AC coupling caps if required by standard, VBUS decoupling, ESD on connector pins, ID pin handling (OTG)
-
-**Ethernet (RGMII/SGMII)**: TX/RX clock routing, 50 ohm / 100 ohm impedance, magnetics/transformer, MDI termination
-
-**DDR (DDR3/DDR4/DDR5)**: per-byte-lane DQ-to-DQS matching, CK differential, command/address timing, ODT values, VREF decoupling, ZQ calibration resistor
-
-**LPDDR (LPDDR4/LPDDR5)**: differential read/write strobes per byte lane (different signaling than standard DDR), per-lane DQ-to-DQS matching, CK differential, CA bus timing, VREF decoupling, termination values differ from DDR — consult the specific LPDDR spec
-
-**PCIe**: AC coupling on TX (required by spec for different ground references between endpoints — but verify for your specific link configuration), 100 ohm differential, REFCLK distribution to all endpoints on same clock domain, PERST# handling, WAKE# pull-up
-
-**SPI**: clock polarity (CPOL) and phase (CPHA) mode verified, chip select unique per device
-
----
-
-## External Connector / Hot-Plug Interface
-
-Apply for any connector or interface that exposes the board to the outside world: USB (any flavor), Ethernet, audio jacks, power input (barrel, terminal, USB-PD, PoE), debug headers if user-accessible, expansion connectors, antenna connectors (U.FL, SMA, board-edge contacts). PCB antenna geometry itself belongs to the substrate / RF net-class rules — not this checklist.
-
-### Per-Connector Decision
-
-- [ ] **Connector orientation / pin mirroring**: USB-C is symmetric (CC1/CC2 mirror); standard USB-A/B is not. Verify pin map matches the chosen orientation.
-- [ ] **Shield / chassis strategy**: connected to chassis ground via short trace, ferrite bead, capacitor, or hard-tied — picked deliberately, not by default.
-- [ ] **Current rating**: connector ampacity exceeds the worst-case load with margin.
-- [ ] **Polarity / hot-plug protection**: reverse-voltage, surge, inrush handled per the source class (USB-PD differs from barrel jack differs from PoE).
-- [ ] **Mechanical retention**: through-hole tabs, screw mount, locking mechanism, or none — matched to expected use.
-
-### ESD-or-Justification
-
-For every external or user-accessible signal pin — not only connector pins, but also exposed switch contacts, jumpers, push-button terminals, exposed test points, edge-card fingers, exposed castellations, and any other user-touchable conductor — the row must say one of:
-
-- **TVS / ESD diode** specified, with capacitance compatible with the signaling speed (low-cap TVS for high-speed; standard for low-speed).
-- **Internal-only**: not user-accessible (board-to-board internal link, sealed enclosure, controlled environment).
-- **Omitted by design**: explicit reason (e.g., RF impedance budget, cost-constrained prototype, EMC-controlled fixture). User confirms.
-
-### Protocol-Specific Sub-Checklists (load only when applicable)
-
-These are examples, not required coverage. Pick the ones that apply to the design.
-
-**USB-C / USB-PD**: CC1/CC2 pull-down or PD configuration resistors per the role (sink/source/DRP); CC capacitance limits; VBUS protection rated for negotiated voltages (5V/9V/15V/20V); D+/D- ESD low-cap; configuration-trap pins per the controller datasheet.
-
-**Ethernet (RJ45)**: magnetics/transformer or LAN module; MDI/MDIX termination; Bob Smith terminations; shield bond strategy; chassis-to-circuit-ground bond per EMC plan.
-
-**Audio (3.5mm TRS / TRRS)**: switching contacts on TRS detect insertion; AC coupling on signal lines (or DC-coupled with explicit reason); ESD on tip/ring; ground-loop strategy for line-out.
-
-**Antenna connector / feed (U.FL, SMA, board-edge contact)**: 50Ω routing structure to the connector; return-plane keepout under the feed (see Net Class Taxonomy → RF below); connector type matched to frequency and connector-mate strategy.
-
-**Debug headers (if user-accessible)**: ESD on signals; protection if user can short pins; pin keying or marking to prevent reverse insertion. (Internal-only debug headers in sealed enclosures may justify omitting ESD — note explicitly.)
-
----
-
-## Net Class Taxonomy (Per-Design Table)
-
-Some nets need non-default physical rules — width, clearance, impedance, keepout, return path, shield. The class catalog isn't fixed; each design enumerates the net classes that apply. Generate this table during Phase 3 and apply rules via `design_constraint(<NetClassTag>(), priority=N).<rule>(...)`.
-
-**Generate one row per applicable class. Skip rows that don't apply. If no nets in this design need non-default rules, record "no non-default net classes" with one-line rationale.**
-
-| Net class | Why it matters | Width / clearance / keepout / impedance / return path | JITX expression |
-|-----------|---------------|-------------------------------------------------------|-----------------|
-| Switch node (buck/boost) | Hot loop EMI, dV/dt | Width sized for current; tight loop area; pour pulled back from node | `design_constraint(SwTag(), ...).clearance(...)` |
-| RF / antenna feed | Impedance, return current, EMI | 50Ω routing structure; return-plane keepout under antenna | Routing structure + `design_constraint(RFTag(), ...)` |
-| High-speed differential (USB, Ethernet, PCIe, etc.) | Impedance, skew, EMI | 90/100Ω diff; via stitching; reference-plane continuity | SI constraint + routing structure |
-| DDR / LPDDR | Per-byte-lane timing | Per-class width/clearance; length matching | Diff and length-matching constraints |
-| Sensitive analog | Coupling, ground loops | Guard rings, shield, separate return | Net class with clearance |
-| High-voltage / mains | Creepage, isolation | Class-dependent clearance, no-pour zones | Clearance constraint, layer assignment |
-| High-current | I²R, thermal, EMI | Wide trace or pour, multiple vias | Width and via-count constraint |
-| Gate drive | dV/dt, ringing | Tight return loop, gate resistor placement | Net class + placement constraint |
-| Kelvin sense | Accuracy | Separate trace from current path | Routing rule |
-| Isolated domain | Galvanic isolation | Creepage / clearance / barrier | No-pour zone, clearance |
-
-The list is not exhaustive — add new classes as a design demands them (e.g., low-leakage thermocouple inputs, guard rings, motor phase windings).
-
-The Phase 3 → 3b transition confirms the table exists if the design has any non-default net classes; if not, it confirms the explicit "no non-default net classes" statement.
 
 ---
 
