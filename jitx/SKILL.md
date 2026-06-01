@@ -1,6 +1,6 @@
 ---
 name: jitx
-description: Base skill for JITX hardware design workflow. Use for JITX Python projects, PCB design, circuit creation, and build commands. Use when the user asks to "build my JITX design", "set up JITX environment", "create a circuit", "build a complete board", "design a PCB from requirements", or "create a full JITX project". For multi-component designs (3+ components, substrate, circuits), invoke the Project Builder workflow for orchestrated parallel agent execution with quality gates. CRITICAL - If user asks to create/model/generate a component or mentions a part number (NE555, LM1117, RP2040, etc.), immediately invoke jitx-component-modeler subskill. If user asks to create a substrate, stackup, via definitions, or routing structures, invoke jitx-substrate-modeler subskill. If user asks to import DXF/EMN/IDF/IDX/BDF mechanical data, set board outline from mechanical, export STEP, add a 3D model, export JITX board XML to DXF, or work with mechanical CAD data, invoke jitx-mechanical subskill.
+description: Base skill for JITX hardware design workflow. Use for JITX Python projects, PCB design, circuit creation, and build commands. Use when the user asks to "build my JITX design", "set up JITX environment", "create a circuit", "build a complete board", "design a PCB from requirements", or "create a full JITX project". For multi-component designs (3+ components, substrate, circuits), invoke the Project Builder workflow for orchestrated parallel agent execution with quality gates. CRITICAL - If user asks to create/model/generate a component or mentions a part number (NE555, LM1117, RP2040, etc.), immediately invoke jitx-component-modeler subskill. If user asks to create a substrate, stackup, via definitions, or routing structures, invoke jitx-substrate-modeler subskill. If user asks to author physical layout from code — draw copper, antennas, filters, or net-ties; build custom shapes with shapely; add pad/soldermask/paste/thermal-pad features; place vias or routes from code; or apply fanout/escape/direct-connect layout tags — invoke jitx-physical-layout subskill. If user asks to import DXF/EMN/IDF/IDX/BDF mechanical data, set board outline from mechanical, export STEP, add a 3D model, export JITX board XML to DXF, or work with mechanical CAD data, invoke jitx-mechanical subskill.
 ---
 
 # JITX Workflow Skill
@@ -391,7 +391,7 @@ Supports:
 - Build application circuits from datasheets
 - Work with passives (resistors, capacitors, inductors)
 - Set up power connections or decoupling
-- Add copper pours or geometry
+- Add basic top-level pours or simple net copper (custom/overlapping/shapely geometry, antennas, filters, pad features, code-placed vias/routes → jitx-physical-layout)
 
 **How to invoke:** Use the Skill tool with `skill: "jitx-skills:jitx-circuit-builder"`
 
@@ -429,6 +429,30 @@ Covers:
 - DifferentialRoutingStructure with pair spacing and uncoupled regions
 - FabricationConstraints for manufacturing rules
 - Design constraint rules with Tags
+
+### Physical Layout (`jitx-physical-layout`)
+
+**Invoke this subskill** when user asks to:
+- Draw copper from code, or create antennas, filters, or net-ties (overlapping copper)
+- Build custom shapes with shapely for any feature (copper, pours, keepouts, board outline, pads)
+- Add pad features — soldermask/paste openings, thermal pads with vias
+- Place vias or components from code, or attach a via/copper to a pad (`PortAttachment`)
+- Apply layout-intent tags (fanout/escape, direct-connect / thermal-relief) to layout objects
+- Author code-based routes or control points for escape routing / deskew (advanced, preliminary API)
+
+**How to invoke:** Use the Skill tool with `skill: "jitx-skills:jitx-physical-layout"`
+
+Covers:
+- `Copper` vs `OverlappableCopper` vs `Pour` (net membership + overlap exemption)
+- Shapely (`ShapelyGeometry`) custom shapes feeding any feature; built-in composites
+- Pad features (`Soldermask`, `Paste`, `SMDPadConfig`, `.thermal_pad`)
+- `PortAttachment` + explicit placement (`Circuit.place`, `.at`), local frames
+- Keepouts that shape pours; local-vs-global pour placement
+- Layout-intent tags for object selection (rule mechanics stay in jitx-substrate-modeler)
+- `Route`, `InsertionControl`, `PairControl` (advanced / preliminary)
+
+This skill owns design-side geometry and placement; the substrate owns the via and
+routing-structure *definitions* and the `design_constraint(...)` rules that act on it.
 
 ### Interconnect Constraints (`jitx-interconnect-constraints`)
 

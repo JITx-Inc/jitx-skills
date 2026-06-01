@@ -186,6 +186,12 @@ For query refinement, voltage divider, pours, copper geometry,
 placement, and a complete application circuit example, see
 [references/advanced-patterns.md](references/advanced-patterns.md).
 
+For the *deep* treatment of physical layout authoring — custom shapes with shapely,
+`OverlappableCopper` (antennas / filters / net-ties), pad features (soldermask / paste /
+thermal pad), code-placed vias and routes, and layout-intent tags — invoke the
+**jitx-physical-layout** subskill (`skill: "jitx-skills:jitx-physical-layout"`). The
+Pours / Copper Geometry / Placement sections below are the basics.
+
 ### Voltage Divider — Critical Rules
 
 **NEVER manually calculate resistor values for voltage dividers.** Manual values like 8kΩ or 25kΩ

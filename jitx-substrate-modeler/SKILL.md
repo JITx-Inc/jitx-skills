@@ -570,6 +570,11 @@ Custom attributes are allowed for fab-house-specific rules (not engine-enforced)
 
 ## Design Constraints (Tags)
 
+This section defines the *rules* (`design_constraint(...)`) a tag triggers. Choosing
+*which* layout objects to tag and why — fanout/escape tags on package escapes,
+direct-connect on high-current pads, tagging a code-based `Route` — is covered in the
+**jitx-physical-layout** subskill.
+
 For net-to-net clearances and via stitching rules:
 
 ```python
