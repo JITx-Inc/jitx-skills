@@ -2,7 +2,7 @@
 
 ## When to read this
 
-The user asks "which capacitor / resistor / inductor should I use" without giving a specific MPN, OR you are about to instantiate a passive whose value is correct but whose *type* (dielectric, package, technology) is not specified. This reference sits inside `jitx-component-modeler/references/` because selection and creation are usually contiguous turns.
+The user asks "which capacitor / resistor / inductor should I use" without giving a specific MPN, OR you are about to instantiate a passive whose value is correct but whose *type* (dielectric, package, technology) is not specified. This domain reference lives under `jitx/references/domains/` and is linked from `jitx-component-modeler` because selection and creation are usually contiguous turns.
 
 ## Capacitors
 

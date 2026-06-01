@@ -15,7 +15,7 @@ Quantitative thresholds (TVS placement distance, ESD capacitance budgets, connec
 - [ ] **Current rating** — connector ampacity exceeds worst-case load with margin
 - [ ] **Polarity / hot-plug protection** — reverse-voltage, surge, inrush handled per source class
 - [ ] **Mechanical retention** — through-hole tabs, screw mount, locking mechanism, or none, matched to expected use (`MEC_CONN_001`)
-- [ ] **Function label on silkscreen** — `J1_USB`, `J2_SWD`, not just `J1` (`DFT_CONN_LABEL_001`)
+- [ ] **Function-label intent recorded in JITX** — `J1_USB`, `J2_SWD`, not just `J1`; rendered silkscreen is out-of-band visual verification until tooling supports it (`DFT_CONN_LABEL_001`)
 
 ### ESD-or-justification (one row per external pin)
 
@@ -35,8 +35,8 @@ For every external or user-accessible signal pin — connector pins, exposed swi
 
 ### Polarity and labeling
 
-- [ ] Power connectors: polarity marking on silkscreen (+ / − or RED / BLACK) (`DFT_POL_001`)
-- [ ] Function label per connector (`DFT_CONN_LABEL_001`)
+- [ ] Power connectors: polarity-marking and voltage/current label intent recorded in JITX; rendered silkscreen is out-of-band visual verification until tooling supports it (`DFT_POL_001`)
+- [ ] Function-label intent per connector recorded in JITX; rendered silkscreen is out-of-band visual verification until tooling supports it (`DFT_CONN_LABEL_001`)
 - [ ] Power-rail test point near the connector for bring-up (also `dft.md`)
 
 ## Protocol-specific sub-checklists
@@ -85,6 +85,8 @@ These are examples, not required coverage. Pick the ones that apply.
 - Isolation barrier creepage per the regulatory class
 
 ## Quantitative layout targets (waiting on introspection)
+
+Record authoring intent in JITX now. Classify placement checks with named layout APIs as `awaiting-introspection`; rendered silkscreen/label checks remain out-of-band visual verification.
 
 | Rule | Target | Introspection API needed |
 |---|---|---|

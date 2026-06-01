@@ -185,7 +185,7 @@ Subcircuits that expose bundles (I2C, ULPI, USB2, etc.) for any signal that will
 - [ ] **Interface circuits expose bundle-typed ports** (I2S, I2C, SPI, USB2, GPIO, Power) — not individual signal ports. If a circuit wraps individual-pin components, the bundle wiring happens inside the circuit.
 - [ ] **For any signal that will receive an SI constraint at top level, the subcircuit's bundle wiring uses `>>` (not `+`)** between component pins and bundle sub-ports — see Phase 3 "Topology vs net membership"
 - [ ] **No anonymous `Resistor` / `Capacitor` / `Inductor` `.insert(...)` calls and no bare `+` / `>>` expressions** in the subcircuit — every structural object stored on `self` (see Phase 3 "Silent-drop patterns"). Enforced via `bash scripts/grep_gates.sh <ns>/` — hard-fail hits block this gate.
-- [ ] **Every power-rail capacitor `.insert(...)` call uses `short_trace=True`** — decoupling, bypass, bulk, output filter. Non-power-rail caps (AC coupling, RC time constants, RF matching, compensation, crystal load) and non-cap inserts (resistors, inductors) are dispositioned in the task acceptance block as exceptions or N/A. See `jitx-circuit-builder/SKILL.md` "short_trace=True is the default for power-rail capacitors". The grep gate `bash scripts/grep_gates.sh <ns>/` flags every `.insert(...)` missing `short_trace=` as review-required.
+- [ ] **Power-rail capacitor placement intent recorded** — grep gate review-required hits for `.insert(...)` calls missing `short_trace=` are dispositioned per `jitx-circuit-builder/SKILL.md` "short_trace=True is the default for power-rail capacitors".
 - [ ] Port names and bundle types match between providers and consumers
 - [ ] Power circuit outputs match the voltage/current needs documented in ARCHITECTURE.md
 
@@ -220,15 +220,7 @@ The orchestrator (or a single sub-agent) assembles the top-level design.
    - **SPI pull-ups** on CS lines — same rule
    - **CAN termination** resistors — same rule
    - Any termination that spans multiple subcircuits goes at the top-level design that aggregates them
-7. Apply ALL SI constraints at this level within `ReferencePlanes(GND)` context. Example:
-   ```python
-   with ReferencePlanes(self.GND):
-       usb_topo = Topology(self.mcu.usb.data.p, self.usb_conn.DP)
-       self.cst_usb = ConstrainDiffPair(usb_topo) \
-           .structure(substrate.DRS_90) \
-           .timing_difference(0.1e-12)
-   ```
-   Every protocol with impedance or timing requirements needs constraints here. **Read "Topology vs net membership" below before designing the chains.**
+7. Apply ALL SI constraints at this level, with the full source-to-destination topology visible. Use `jitx-interconnect-constraints/SKILL.md` for exact `Topology`, `ReferencePlanes`, timing, loss, and routing-structure syntax. Every protocol with impedance or timing requirements needs constraints here. **Read "Topology vs net membership" below before designing the chains.**
 8. Define board shape, mounting holes, and any keepout zones.
 9. **Set passive query defaults on the Design class** to match the design's manufacturing path and circuit role (see "Passive query defaults" below). Without explicit defaults, the unfiltered `jitxlib.parts` search may return parts unsuitable for the design (e.g. through-hole leaded electrolytics ahead of SMD ceramics on an SMT design).
 10. **Set default design rules on the Design class** — trace width, copper clearance, thermal relief, and wider traces for tagged power/ground rails. See "Default design rules" below. These are the production-friendly defaults every board should have; without them, the router uses the substrate's `FabricationConstraints` minimums, which are usually too narrow for power.
@@ -510,54 +502,23 @@ Each subcircuit was designed in isolation. Now review the assembled design as a 
 
 ### Audit Structure
 
-Spawn a sub-agent to perform the design-level audit. The audit agent reads code and datasheets but **does not edit any files**. It produces a **Phase 3b Audit Block** with issues classified as CRITICAL / WARNING / NOTE — see the template in `references/completion-blocks.md` "Phase 3b Design Audit Block".
+Spawn a read-only audit agent after Phase 3 build validation passes. The audit agent reads code and datasheets but **does not edit any files**. It produces a **Phase 3b Audit Block** with issues classified as CRITICAL / WARNING / NOTE.
 
-**After the same-model audit, run an outside-voice (codex) pass — mandatory for complete-board tier.** The two reviews are additive: the same-model audit uses skill knowledge, codex provides independent perspective from outside the conversation. See `references/outside-voice-review.md` for the trigger rules, prompt shape, invocation command, and combined-verdict rule (any CRITICAL/WARNING outside-voice finding makes the combined verdict `issues-pending` even if the same-model audit said `clean`).
+This audit catches "silent drops": project-build tasks that looked structurally complete but omitted a required hardware function, datasheet application circuit element, connector use case, test hook, or assembly constraint.
 
-Before the audit runs, the orchestrator must have already addressed the build-time silent-drop patterns documented in Phase 3 → "Silent-drop patterns" — those bugs build with `status: ok` but produce a wrong design, and the audit agent's datasheet-comparison passes assume the netlist matches the source. JITX emits a `Reference to structural object … lost during instantiation` warning for some of these cases (constraint and similar structural classes), but not for bare net or topology expressions — handle both manually.
+The Phase 3b audit schema, six-pass checklist, evidence-row format, verified-check ledger, and rule-coverage ledger are canonical in `references/completion-blocks.md` "Phase 3b Design Audit Block". Do not restate the pass contents here; this file only defines orchestration flow.
 
-The audit runs six passes (the full pass list and per-pass schema live in `references/completion-blocks.md` "Phase 3b Design Audit Block"):
+Before the audit runs, the orchestrator must have already addressed the build-time silent-drop patterns documented in Phase 3 → "Silent-drop patterns" — those bugs build with `status: ok` but produce a wrong design, and the audit agent's datasheet-comparison passes assume the netlist matches the source.
 
-#### Pass 1: Circuit vs Datasheet Application Schematic
+Run Phase 3b in this order:
 
-For each major IC circuit, open the datasheet's typical application schematic and compare component-by-component:
-- Count external components in the datasheet. Count components in the code. Flag any missing.
-- Check passive values match datasheet recommendations (cap values, resistor values, inductor values).
-- Check component types match (e.g., datasheet says 0.22uF bootstrap but code has 0.1uF).
-- Note every assumption the circuit makes about its operating environment (input voltage, load current, enable timing, power sequencing).
+1. Run the same-model audit and emit the Phase 3b Audit Block from `references/completion-blocks.md`.
+2. Run the outside-voice pass after the same-model audit, using the same evidence bundle plus the audit block. See `references/outside-voice-review.md` for trigger rules, prompt shape, invocation command, and combined-verdict rule.
+3. Review combined CRITICAL/WARNING/NOTE findings and decide whether each is a fix, accepted limitation, or user-facing follow-up.
+4. Spawn fix agents for scoped corrections, keeping ownership boundaries explicit.
+5. Re-run the Phase 3b audit after fixes until blocking findings are resolved or explicitly accepted.
 
-#### Pass 2: Assumption Compatibility
-
-Collect all assumptions from Pass 1 and check them at the system level:
-- Does the actual input voltage match what each circuit assumes?
-- Does the power sequencing match what each IC requires? (e.g., does the amp expect PDN held low during power-up, but the circuit pulls it high immediately?)
-- Do the current draws add up within regulator ratings?
-- Are voltage domains compatible across circuit boundaries?
-
-#### Pass 3: Interface-by-Interface Trace
-
-For every interface connecting two or more ICs, trace the complete signal path from source to destination through every component:
-- **USB**: trace D+/D- from connector through every device on the bus. Are there bus conflicts? ESD protection? Series termination? **Are SI constraints applied?**
-- **I2C**: trace SDA/SCL. Pull-up voltage and value correct? Address conflicts? Level compatible?
-- **I2S**: trace BCLK/LRCLK/DIN/DOUT. Clock source correct? Format (I2S vs TDM vs LJ) compatible?
-- **SPI**: trace MOSI/MISO/SCK/CS. Polarity? Speed? Pull-ups on CS?
-- **Power**: trace each rail from source through regulation to every load. Decoupling at every IC?
-- For every high-speed interface (USB, Ethernet, DDR, PCIe, HDMI): **verify SI constraints exist and are applied at the top level**. If constraints are missing, this is CRITICAL.
-
-#### Pass 4: Power and Thermal
-
-- Verify every regulator's output current rating exceeds the sum of its loads (with margin).
-- Check thermal dissipation: P = (Vin - Vout) * I for linear regulators, efficiency loss for switchers. Flag any package that will exceed its thermal rating.
-- Check hot-plug and transient scenarios: what happens when power appears suddenly? Does anything see voltage before its regulator stabilizes?
-- Verify bulk capacitance meets datasheet recommendations (especially for power amplifiers).
-
-#### Pass 5: Protection and Reliability
-
-ESD, transient suppression, reverse polarity, environmental class. Walk the ESD-or-justification table from `references/domains/external-interfaces.md` for every external connector and user-touchable conductor. For aerospace / automotive / medical class designs, walk `references/domains/safety-critical.md`. Full per-row template in `references/completion-blocks.md` "Phase 3b Design Audit Block".
-
-#### Pass 6: DFT / DFM
-
-Test access and manufacturability. Walk `references/domains/dft.md` (test points, debug headers, named TPs) and `references/domains/dfm.md` (fab rules, edge clearance, BOM, footprint library). Full per-row template in `references/completion-blocks.md`.
+For application-circuit coverage, Phase 3b verifies that `jitx-component-modeler` captured each IC's datasheet application circuit during component/circuit work and compares that captured source against the assembled design. The capture workflow itself remains in `jitx-component-modeler/SKILL.md`.
 
 ### Loopback
 

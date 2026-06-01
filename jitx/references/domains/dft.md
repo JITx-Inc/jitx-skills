@@ -2,7 +2,7 @@
 
 ## When to read this
 
-You are finalizing a board before tapeout, instantiating connectors for debug/programming, or planning bring-up. Most DFT items are authoring-time (place a TestPoint, add a connector, label it in code) — a small set requires layout introspection for placement / accessibility.
+You are finalizing a board before tapeout, instantiating connectors for debug/programming, or planning bring-up. Policy: authoring intent is recorded in JITX now; visual silkscreen/label verification is out-of-band visual verification; physical placement/accessibility may be `awaiting-introspection`.
 
 ## Authoring-time targets
 
@@ -12,7 +12,7 @@ You are finalizing a board before tapeout, instantiating connectors for debug/pr
   - Diameter ≥ 35 mils for oscilloscope probe contact
 - [ ] Dedicated ground probe pad accessible for scope reference (`DFT_TP_002`, `DFT_GND_003`)
 - [ ] Named test points for key signals: critical clocks, reset, mode-select, error flags (`DFT_TP_003`)
-- [ ] Silkscreen label per test point: `TP1_3V3`, `TP2_GND`, etc. (`DFT_TP_004` — note silkscreen is `out-of-band`; the *intent* is authoring-time)
+- [ ] Test-point label intent recorded in JITX: `TP1_3V3`, `TP2_GND`, etc. (`DFT_TP_004`; rendered silkscreen is out-of-band visual verification)
 
 ### Debug interfaces
 
@@ -24,8 +24,8 @@ You are finalizing a board before tapeout, instantiating connectors for debug/pr
 
 ### Connector labeling
 
-- [ ] Every connector function-labeled on silkscreen (`DFT_CONN_LABEL_001` — silkscreen is `out-of-band`; the *labeling intent* is authoring-time)
-- [ ] Power connectors polarity-marked (`DFT_POL_001`)
+- [ ] Every connector function-label intent recorded in JITX (`DFT_CONN_LABEL_001`; rendered silkscreen is out-of-band visual verification)
+- [ ] Power connector polarity-marking intent recorded in JITX (`DFT_POL_001`; rendered silkscreen is out-of-band visual verification)
 
 ### Connectivity DRC (mostly enforced by JITX)
 
@@ -68,7 +68,7 @@ self.swd.nreset += self.mcu.nrst
 
 | Rule | Why out-of-band | Suggested verification |
 |---|---|---|
-| `DFT_TP_004`, `DFT_SILK_001/002`, `DFT_POL_001`, `DFT_CONN_LABEL_001` | Silkscreen content / visual labeling | Visual review of CAD silkscreen layer |
+| `DFT_TP_004`, `DFT_SILK_001/002`, `DFT_POL_001`, `DFT_CONN_LABEL_001` | Visual silkscreen/label verification | CAD screenshot / board render review; authoring intent should already be recorded in JITX |
 | `DFT_BUILD_001` | Prototype assembly | Project process |
 | `DFT_MEAS_001` | Design parameter measurement | Project process / bring-up plan |
 | `DFT_PROD_001` | Validation before production | Project process |

@@ -242,7 +242,7 @@ The criteria mirror the exit-gate bullet lists in `references/project-builder-fl
 **Provide/require interfaces consistent:** confirmed across wrappers and consumers
 **Bundle-typed ports:** every interface circuit exposes bundle-typed ports (I2S, I2C, SPI, USB2, etc.) — not individual signal ports — confirmed by code review
 **Topology vs net wiring:** subcircuits exposing bundles for SI-constrained signals wire bundle sub-ports with `>>` not `+` — confirmed
-**`short_trace=True` on power-rail caps:** every decoupling / bypass / bulk / output-filter capacitor `.insert(...)` uses `short_trace=True`. Non-power-rail caps (AC coupling, RC, RF, crystal load) and non-cap inserts dispositioned in task acceptance blocks. `bash scripts/grep_gates.sh <ns>/` review-required hits all resolved.
+**Power-rail capacitor placement intent:** grep gates report `.insert(...)` calls missing `short_trace=`; every hit has a disposition per `jitx-circuit-builder/SKILL.md` "short_trace=True is the default for power-rail capacitors".
 **Power circuit outputs match ARCHITECTURE.md:** voltage and current ratings line up with the documented power tree
 
 **Open from this phase:** <list, or "none">
@@ -312,7 +312,7 @@ The audit happens in Phase 3b. A read-only audit agent (no code edits) reviews t
 
 ### Audit execution states
 
-Each rule the audit checks has one of four execution states. Read this before authoring a Phase 3b audit block:
+Each rule the audit checks has one of these execution states. Read this before authoring a Phase 3b audit block:
 
 - **`now`** — the check runs against the circuit graph (the JITX design code) today. Most Passes 1–4 checks are in this state, as are connectivity / decoupling / topology rules in Passes 5–6.
 - **`awaiting-evidence-format`** — the rule needs human-supplied evidence (BOM column, fab note, vendor certificate, datasheet field on a JITX Component) that the JITX type system does not carry today. Examples: aerospace Class 3 solder alloy spec (`AERO_SLD_001`), electrolytic ripple-current / temperature lifetime (`COMP_CAP_005`). The audit MUST surface these as "needs evidence from <named field>" rather than silently passing.
@@ -362,6 +362,8 @@ A review that emits only problems is indistinguishable from a review that didn't
 **Audited from:** <commit hash, or files reviewed at this snapshot>
 
 ### Pass 1: Circuit vs Datasheet Application Schematic
+
+Application-circuit capture is owned by `jitx-component-modeler/SKILL.md`; this audit verifies the captured datasheet figure/source against the assembled design.
 
 | IC | Datasheet figure / page | External components in datasheet | External components in code | Status | Findings |
 |----|--------------------------|----------------------------------|-----------------------------|--------|----------|
@@ -426,13 +428,14 @@ Findings:
 
 ### Pass 6: DFT / DFM
 
-Test access and manufacturability. Walk `references/domains/dft.md` and `references/domains/dfm.md`.
+Test access, manufacturability, and labeling/polarity authoring intent. Intent recorded in JITX is a `now` check; rendered visual verification remains out-of-band, and physical accessibility/placement remains `awaiting-introspection` when it needs named layout APIs.
 
 | Item | Status | State | Findings |
 |------|--------|-------|----------|
 | Test point on every major power rail | <yes / no — list rails> | `now` | none |
 | Ground probe pad accessible | <yes / no> | `now` | none |
 | SWD / JTAG header reachable | <yes / no — header location> | `now` (presence) + `awaiting-introspection` (accessibility) | none |
+| Connector/test-point label and polarity intent recorded in JITX | <yes / no — source; out-of-band visual checks if needed> | `now` (intent) + `out-of-band` (rendered visual verification) | none |
 | Substrate fabrication constraints in fab class | <yes / no — link to FabricationConstraints> | `now` | none |
 | Component-to-edge ≥ 2.5 mm | <yes / no> | `awaiting-introspection` | stub |
 | BOM with distributor PNs | <yes / no — link to BOM> | `now` | none |

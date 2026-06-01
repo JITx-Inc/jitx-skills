@@ -32,7 +32,7 @@ Read this if you are:
 
 ## Activation: `awaiting-introspection` → `now`
 
-49 checks are currently in this state. `phase-3b-introspection-apis.md` lists the 44 distinct APIs they collectively need, ranked by severity-weighted rules unblocked.
+48 checks are currently in this state. `phase-3b-introspection-apis.md` lists the 42 distinct APIs they collectively need, ranked by severity-weighted rules unblocked.
 
 When jitx-client ships a new layout introspection API:
 
@@ -68,7 +68,7 @@ The matrix as of 2026-05-25 ranks these as the highest-value additions:
 | 5 | `board.return_path(net)` | 5 | 2 |
 | 6 | `board.trace_length(net)` | 5 | 2 |
 
-See `phase-3b-introspection-apis.md` for the full prioritized list (44 APIs) and per-API rule mappings.
+See `phase-3b-introspection-apis.md` for the full prioritized list (42 APIs) and per-API rule mappings.
 
 ## Activation: `awaiting-evidence-format` → `now`
 

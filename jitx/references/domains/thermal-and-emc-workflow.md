@@ -18,7 +18,7 @@ The detailed quantitative rules live in:
 | Concern | Component | Circuit | Substrate | Constraint |
 |---|---|---|---|---|
 | Thermal pad subdivision | landpattern paste mask | — | — | — |
-| Power-rail decoupling | — | `short_trace=True` | — | — |
+| Power-rail decoupling | — | circuit-builder short_trace rule | — | — |
 | Thermal via density | — | — | `ThermalPadTag` rule | — |
 | Stitching via grid | — | — | global fab rule | — |
 | TVS placement near connector | — | EMI filter inserted | — | placement constraint |
@@ -36,7 +36,7 @@ The detailed quantitative rules live in:
 
 3. **Tag the component's thermal pad with `ThermalPadTag()`.** This drives the substrate's thermal via density rule (see [`../net-classes.md`](../net-classes.md) → Thermal Pad).
 
-4. **Verify thermal pad paste subdivision.** Pads > 4 mm² need 2×2 or 3×3 paste subdivision to prevent reflow voids. The `jitx-component-modeler` skill handles this; verify it was done during the Phase 3b audit Pass 4 (Power and Thermal).
+4. **Verify thermal pad paste subdivision.** Pads > 4 mm² need 2×2 or 3×3 paste subdivision to prevent reflow voids. The `jitx-component-modeler` skill handles this; verify it through the Phase 3b power/thermal audit template.
 
 5. **Decide forced-air vs passive.** If passive thermal budget is insufficient, the system needs forced cooling — flag as an out-of-band requirement for the system designer.
 
@@ -69,39 +69,17 @@ The detailed quantitative rules live in:
 
 6. **Place EMI filtering at boundaries.** Ferrite bead or RC filter at every external connector signal pin (`EMC_ESD_002`). TVS on the connector side of the filter, ferrite on the system side.
 
-## JITX expressions (combined)
+## Implementation sources
 
-> Illustrative; see the banner at the top of this file for the canonical-API reminder.
+Use this file to assign responsibilities. Use artifact skills for exact API and implementation mechanics:
 
-```python
-# Thermal pad tag drives substrate via density rule
-self.buck.thermal_pad += gnd
-design_constraint(ThermalPadTag()).thermal_via_density(
-    density=10 * PER_CM2,
-    via_diameter=0.3 * MM,
-    # Center-to-center spacing >= 2 mm to prevent solder reflow wicking
-    # (THM_VIA_003); rely on density to constrain staggered offset.
-    via_spacing=2.0 * MM,
-)
+- Thermal pad and paste-window implementation: `jitx-component-modeler/SKILL.md`
+- Power-rail decoupling implementation: `jitx-circuit-builder/SKILL.md`
+- Routing structures, reference planes, and SI constraints: `jitx-interconnect-constraints/SKILL.md`
+- Substrate vias, stitching, and fabrication rules: `jitx-substrate-modeler/SKILL.md`
+- Net-class tag taxonomy: `../net-classes.md`
 
-# Aggressor / victim separation
-design_constraint(SwTag(), SensitiveAnalogTag()).min_distance(50 * MM)
-design_constraint(ClockTag(), RFTag()).min_distance(20 * MM)
-
-# Stitching grid
-design_constraint(GlobalTag()).via_stitch_grid(spacing=20 * MM)
-design_constraint(LayerTransitionTag()).via_stitch_grid(spacing=10 * MM)
-
-# TVS placement intent (layout-time check via Phase 3b awaiting-introspection)
-class UsbConnector(Circuit):
-    def __init__(self):
-        self.j_usb = USB_C_Receptacle()
-        self.tvs = USBLC6_2()  # low-cap TVS for high-speed
-        self.tvs.d1 += self.j_usb.dp
-        self.tvs.d2 += self.j_usb.dn
-        # Layout-time: TVS within 10 mm of connector (EMC_ESD_001)
-        design_constraint(self.tvs, self.j_usb).max_distance(10 * MM)
-```
+Phase 3b verifies achieved behavior through `completion-blocks.md`; quantitative placement and geometry rows remain `awaiting-introspection` until named APIs land.
 
 ## Out of scope (defer to external tools)
 

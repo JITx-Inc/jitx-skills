@@ -12,7 +12,7 @@ You are working on a power-regulator circuit (LDO, buck, boost, charge pump), a 
 - [ ] One bulk cap (10 µF typical) per power domain
 - [ ] Multiple smaller caps preferred over one large cap for HF decoupling (`PWR_DECPL_002`)
 - [ ] 0402 / 0603 packages preferred over 0805 for HF — lower ESL (`PWR_DECPL_004`)
-- [ ] Every power-rail cap `.insert(...)` uses `short_trace=True`. Exceptions (AC coupling, RC time constants, RF, crystal load) are dispositioned in the task acceptance block.
+- [ ] Power-rail capacitors carry explicit placement intent; use the canonical `short_trace=True` rule and exception/disposition flow in `jitx-circuit-builder/SKILL.md`.
 
 ### Regulator electrical correctness
 
@@ -48,11 +48,8 @@ You are working on a power-regulator circuit (LDO, buck, boost, charge pump), a 
 design_constraint(SwTag(), priority=HIGH).clearance(0.5)  # pour pullback from switch node
 design_constraint(HighCurrentTag()).width(...)            # see references/net-classes.md
 
-# Decoupling with short trace — store the cap on self (anonymous .insert is grep-banned)
-self.cdec = Capacitor(100 * NF)
-self.cdec.insert(ic.vdd, gnd, short_trace=True)
-self.cbulk = Capacitor(10 * UF)
-self.cbulk.insert(power_domain.vbus, power_domain.gnd, short_trace=True)
+# Decoupling implementation patterns live in jitx-circuit-builder/SKILL.md;
+# use that canonical short_trace=True rule and exception policy.
 
 # Adjustable LDO feedback
 r_top, r_bot = voltage_divider_from_constraints(

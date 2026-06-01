@@ -12,7 +12,7 @@ You are working on signals at ≥ 100 MHz fundamental: USB (any), Ethernet, PCIe
 - [ ] Topologies built with `>>` operator (not `+`), one node per IC-pin / in-line component
 - [ ] AC-coupling caps and series resistors use `BridgingPinModel` so delay/loss propagates
 - [ ] IC endpoints use `TerminatingPinModel`
-- [ ] `Constrain`, `ConstrainDiffPair`, `ConstrainReferenceDifference` applied at the **top-level design** within `ReferencePlanes(GND)` context, never inside subcircuits
+- [ ] SI constraints applied at the **top-level design** with ground reference planes, never inside subcircuits; see `jitx-interconnect-constraints/SKILL.md` for exact API syntax
 - [ ] Length-matching scope correct: per-DQS-group for DDR; per-pair for diff; per-bus for parallel
 
 ### Impedance and stackup
@@ -34,42 +34,22 @@ You are working on signals at ≥ 100 MHz fundamental: USB (any), Ethernet, PCIe
 
 | Protocol | Diff impedance | Match constraint | Termination | Notes |
 |---|---|---|---|---|
-| USB 2.0 | 90 Ω | ±150 mil | None (host pull-ups) | D+/D- ESD low-cap, ID pin for OTG |
-| USB 3.x SS | 90 Ω | ±5 mil | AC coupling on TX | Low-cap TVS < 1 pF |
-| PCIe Gen 2+ | 85 Ω | ±5 mil | AC coupling on TX | REFCLK shared across endpoints, PERST# |
-| Ethernet RGMII | 50 Ω | ±10 mil/group | Source termination | Magnetics + MDI termination |
-| Ethernet 1000BASE-T | 100 Ω | ±50 mil | Magnetics | Bob Smith terminations |
+| USB 2.0 | 90 Ω | timing/skew constraint via SI skill | None (host pull-ups) | D+/D- ESD low-cap, ID pin for OTG |
+| USB 3.x SS | 90 Ω | timing/skew + loss constraint via SI skill | AC coupling on TX | Low-cap TVS < 1 pF |
+| PCIe Gen 2+ | 85 Ω | timing/skew + loss constraint via SI skill | AC coupling on TX | REFCLK shared across endpoints, PERST# |
+| Ethernet RGMII | 50 Ω | bus timing/skew constraint via SI skill | Source termination | Magnetics + MDI termination |
+| Ethernet 1000BASE-T | 100 Ω | pair timing/skew constraint via SI skill | Magnetics | Bob Smith terminations |
 | DDR3/4 | 40/50 Ω SE, 80/100 Ω diff | per-byte-lane DQ↔DQS skew | ODT | VREF/VTT decoupling per `HS_DDR_002` |
 | LPDDR4/5 | per spec | per-byte-lane DQ↔DQS skew | per spec | Diff strobes per byte lane |
 | MIPI D-PHY | 100 Ω | intra-pair skew | At receiver | LP and HS modes |
 
-Match constraints are applied as **timing skew** (and impedance/loss) via the `jitx-interconnect-constraints` skill — `ConstrainDiffPair(...).timing_difference(...)` for intra-pair, `ConstrainReferenceDifference(...).timing_difference(...)` for DQ↔DQS / bus-to-clock matching. JITX matches by timing, not by length; the routing-length figures sometimes quoted for these protocols are guidance only. Do not restate length tolerances here — define the timing constraint in the constraints layer.
+Match constraints are applied as **timing skew** plus impedance/loss via the `jitx-interconnect-constraints` skill. JITX matches by timing, not by length; the routing-length figures sometimes quoted for these protocols are guidance only. Do not restate length tolerances here — define the timing constraint in the constraints layer.
 
-## JITX expressions
+## JITX implementation source
 
-The SI-constraint API below (`Topology`, `ConstrainDiffPair`, `ConstrainReferenceDifference`, `ReferencePlanes`) is real — its canonical reference and full patterns live in `jitx-interconnect-constraints`. This file is a reminder of *what* to constrain, not a second source of truth; verify exact signatures there. Constraints are applied at the top-level design inside `ReferencePlanes(GND)`. Skew is a **timing** value in seconds; loss is **dB** — never a length.
+This file defines what must be constrained. The canonical "how" for `Topology`, `ConstrainDiffPair`, `ConstrainReferenceDifference`, `ReferencePlanes`, timing units, insertion loss, and `BridgingPinModel` / `TerminatingPinModel` patterns is `jitx-interconnect-constraints/SKILL.md`. Do not copy API snippets from here into designs; open that skill when writing constraints.
 
-```python
-# Intra-pair constraint: create the topology with >>, then constrain it.
-with ReferencePlanes(GND):
-    self += self.host.tx >> self.dev.rx
-    topo = Topology(self.host.tx, self.dev.rx)
-    drs90 = current.substrate.differential_routing_structure(90.0)
-    self.usb3_cst = (
-        ConstrainDiffPair(topo)
-        .timing_difference(5e-12)   # <= 5 ps intra-pair (P-to-N) skew
-        .insertion_loss(3.0)        # <= 3 dB per line
-        .structure(drs90)
-    )
-
-# AC-coupling cap on the pair: TWO topology segments. The cap carries a
-# BridgingPinModel that represents the internal p1->p2 delay/loss — do NOT
-# write `cap.p1 >> cap.p2` as a topology hop.
-self += self.host.tx_p >> self.ac_cap.p1
-self += self.ac_cap.p2 >> self.conn.tx_p
-```
-
-DDR DQ↔DQS (and any bus-to-clock) matching is a per-byte-lane **timing** constraint, expressed with `ConstrainReferenceDifference(guide=dqs_topo, topologies=dq_topos).timing_difference(...)` — see `jitx-interconnect-constraints`. It is not a length spec and is not restated here.
+DDR DQ-to-DQS and bus-to-clock matching are timing constraints, not length-only specs; implement them through the SI skill's canonical patterns.
 
 ## Quantitative layout targets (waiting on introspection)
 
