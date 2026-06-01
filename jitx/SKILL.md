@@ -1,6 +1,6 @@
 ---
 name: jitx
-description: Base skill for JITX hardware design workflow. Use for JITX Python projects, PCB design, circuit creation, and build commands. Use when the user asks to "build my JITX design", "set up JITX environment", "create a circuit", "build a complete board", "design a PCB from requirements", or "create a full JITX project". For multi-component designs (3+ components, substrate, circuits), invoke the Project Builder workflow for orchestrated parallel agent execution with quality gates. CRITICAL - If user asks to create/model/generate a component or mentions a part number (NE555, LM1117, RP2040, etc.), immediately invoke jitx-component-modeler subskill. If user asks to create a substrate, stackup, via definitions, or routing structures, invoke jitx-substrate-modeler subskill. If user asks to author physical layout from code — draw copper, antennas, filters, or net-ties; build custom shapes with shapely; add pad/soldermask/paste/thermal-pad features; place vias or routes from code; or apply fanout/escape/direct-connect layout tags — invoke jitx-physical-layout subskill.
+description: Base skill for JITX hardware design workflow. Use for JITX Python projects, PCB design, circuit creation, and build commands. Use when the user asks to "build my JITX design", "set up JITX environment", "create a circuit", "build a complete board", "design a PCB from requirements", or "create a full JITX project". For multi-component designs (3+ components, substrate, circuits), invoke the Project Builder workflow for orchestrated parallel agent execution with quality gates. CRITICAL - If user asks to create/model/generate a component or mentions a part number (NE555, LM1117, RP2040, etc.), immediately invoke jitx-component-modeler subskill. If user asks to create a substrate, stackup, via definitions, or routing structures, invoke jitx-substrate-modeler subskill. If user asks to author physical layout from code — draw copper, antennas, filters, or net-ties; build custom shapes with shapely; add pad/soldermask/paste/thermal-pad features; place vias or routes from code; or apply fanout/escape/direct-connect layout tags — invoke jitx-physical-layout subskill. If user asks to import DXF/EMN/IDF/IDX/BDF mechanical data, set board outline from mechanical, export STEP, add a 3D model, export JITX board XML to DXF, or work with mechanical CAD data, invoke jitx-mechanical subskill.
 ---
 
 # JITX Workflow Skill
@@ -514,6 +514,27 @@ Covers:
 - Severity-tagged findings (CRITICAL / WARNING / NOTE) that fold into the task acceptance block's `JITX code review (self):` field
 
 Skill is the *per-task* same-model pre-pass before codex outside-voice. Phase 3b uses a different same-model pre-pass (the four-pass design audit) — see `references/outside-voice-review.md`.
+
+### Mechanical Interface (`jitx-mechanical`)
+
+**Invoke this subskill** when user asks to:
+- Inspect or import DXF/EMN/IDF/IDX/BDF mechanical data
+- Set a board outline from a mechanical CAD file
+- Export JITX board XML to DXF for mechanical review
+- Attach a 3D STEP model to a component
+- Export the full board assembly as a STEP file
+- Work with mechanical CAD data (DXF, EMN/IDF, STEP)
+
+**How to invoke:** Use the Skill tool with `skill: "jitx-skills:jitx-mechanical"`
+
+Covers:
+- Mechanical import, inspect, and DXF export via the single `jitx-mechanical` CLI
+- Required user choice for circular/plated mounting-hole policy before import
+- Board-focused generated Python modules, optional mechanical-hole companion
+  modules, and import reports
+- `Model3D` for attaching STEP files to component landpatterns
+- Board-level STEP export via the JITX UI
+- STEP file sourcing, alignment, and troubleshooting
 
 ## Documentation Lookup
 
