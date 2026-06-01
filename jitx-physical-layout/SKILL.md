@@ -61,7 +61,7 @@ from jitx.constraints import Tag, Tags
 from jitxlib.landpatterns.pads import SMDPadConfig
 # Code-based routes / control points (PRELIMINARY — see fenced reference)
 from jitx.circuit import Route
-from jitx.control_points import InsertionControl, PairControl
+from jitx.controlpoint import SingleControl, InsertionControl, PairControl
 ```
 
 **Do NOT import** (these do not exist): `jitx.copper.OverlappableCopper`
@@ -278,21 +278,26 @@ in `references/control-points-preliminary.md`.
 
 ## Control points & code-based routes (ADVANCED / PRELIMINARY)
 
-`jitx.control_points` is marked **`# PRELIMINARY`** and its accessor surface differs
-across JITX versions. Treat this as advanced-only: verify against the installed
-`jitx/control_points.py`, run `pyright`, and **build-test** before relying on it.
+The module is **`jitx.controlpoint`** (singular — verified in jitx 4.2.0a4 and
+4.3.0a1; `jitx.control_points` does not exist there), it is marked
+**`# PRELIMINARY`**, and its accessor surface differs across JITX versions. Treat
+this as advanced-only: verify against the installed `jitx/controlpoint.py`, run
+`pyright`, and **build-test** before relying on it.
 
 - `Route(source, destination, layer, sketch=None)` — a code-based route between two
   `Port`/`Pad` endpoints (not directional); `sketch` is an optional `list[Point]`
   hint for the routing engine.
+- `SingleControl(layer=..., shape=None)` — the **single-ended** control point; its
+  `.port` is the routable endpoint.
 - `InsertionControl(layer=...)` / `PairControl(layer=...)` — differential-pair
   insertion / pairing control points, placed with `.at(point, rotate=)` and wired to
   ports via `PortAttachment([n, p], control)`.
 
 The 4.1.0a7 docstring **mentions** `.a` / `.b` / `.pair` accessors on
-`InsertionControl`, while a newer py-components example uses `.coupled` /
-`.uncoupled.{n,p}` — **do not hard-code an accessor name from memory**; read the
-installed source. Full pattern + the real BGA escape/deskew example:
+`InsertionControl`, while 4.2.0a4 / 4.3.0a1 use `.coupled` / `.uncoupled.{n,p}`
+(`InsertionControl`), `.pair` (`PairControl`), and `.port` (`SingleControl`) —
+**do not hard-code an accessor name from memory**; read the installed source. Full
+pattern + the real BGA escape/deskew example:
 `references/control-points-preliminary.md`.
 
 ## Anti-string-hacking
