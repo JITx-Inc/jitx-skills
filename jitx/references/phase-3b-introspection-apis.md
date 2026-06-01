@@ -25,7 +25,7 @@ The `demonstrated` and `computable` tiers are the recommended first wave: Thomso
 
 ---
 
-**Total APIs requested:** 43
+**Total APIs requested:** 42
 
 ## Priority-ordered API list
 
@@ -67,15 +67,14 @@ The `demonstrated` and `computable` tiers are the recommended first wave: Thomso
 | 34 | `board.thermal_via_spacing(component)` | `computable` | 2 | 1 |
 | 35 | `board.serpentine_spacing(net)` | `computable` | 2 | 1 |
 | 36 | `board.trace_crossings_angle()` | `computable` | 2 | 1 |
-| 37 | `board.acid_traps()` | `needs-geometry` | 2 | 1 |
-| 38 | `board.copper_slivers()` | `needs-geometry` | 2 | 1 |
-| 39 | `board.thermal_distribution()` | `computable` | 2 | 1 |
-| 40 | `board.trace_crossings()` | `computable` | 2 | 1 |
-| 41 | `board.probe_access(net)` | `needs-3d/ext` | 2 | 1 |
-| 42 | `board.copper_balance(layer)` | `needs-geometry` | 2 | 1 |
-| 43 | `board.trace_corners(net)` | `computable` | 1 | 1 |
+| 37 | `board.copper_slivers()` | `needs-geometry` | 2 | 1 |
+| 38 | `board.thermal_distribution()` | `computable` | 2 | 1 |
+| 39 | `board.trace_crossings()` | `computable` | 2 | 1 |
+| 40 | `board.probe_access(net)` | `needs-3d/ext` | 2 | 1 |
+| 41 | `board.copper_balance(layer)` | `needs-geometry` | 2 | 1 |
+| 42 | `board.trace_corners(net)` | `computable` | 1 | 1 |
 
-**By precedent tier:** `demonstrated` 7 · `computable` 19 · `needs-geometry` 14 · `needs-3d/ext` 3
+**By precedent tier:** `demonstrated` 7 · `computable` 19 · `needs-geometry` 13 · `needs-3d/ext` 3
 
 
 ---
@@ -594,21 +593,7 @@ board.trace_crossings_angle()  # called from Phase 3b audit stubs
 
 - `MX_ROUTE_001` (Minor, MixedSignal) — Routing techniques for mixed-signal design
 
-### 37. `board.acid_traps()`
-
-**Severity score:** 2 · **Rules unblocked:** 1 · **Precedent:** `needs-geometry` — needs trace/pad polygon angle analysis
-
-**Suggested signature (illustrative — actual jitx-client API will dictate):**
-
-```python
-board.acid_traps()  # called from Phase 3b audit stubs
-```
-
-**Rules this enables:**
-
-- `DFM_ACID_001` (Minor, DFT) — Acid trap prevention
-
-### 38. `board.copper_slivers()`
+### 37. `board.copper_slivers()`
 
 **Severity score:** 2 · **Rules unblocked:** 1 · **Precedent:** `needs-geometry` — needs copper polygon
 
@@ -622,7 +607,7 @@ board.copper_slivers()  # called from Phase 3b audit stubs
 
 - `DFM_SLIVER_001` (Minor, DFT) — Copper and solder mask slivers
 
-### 39. `board.thermal_distribution()`
+### 38. `board.thermal_distribution()`
 
 **Severity score:** 2 · **Rules unblocked:** 1 · **Precedent:** `computable` — placements (+ power annotation)
 
@@ -636,7 +621,7 @@ board.thermal_distribution()  # called from Phase 3b audit stubs
 
 - `THM_SPREAD_001` (Minor, Thermal) — Spread heat-dissipating components across PCB
 
-### 40. `board.trace_crossings()`
+### 39. `board.trace_crossings()`
 
 **Severity score:** 2 · **Rules unblocked:** 1 · **Precedent:** `computable` — segment intersection
 
@@ -650,7 +635,7 @@ board.trace_crossings()  # called from Phase 3b audit stubs
 
 - `HS_CROSS_001` (Minor, HighSpeed) — Minimize crossing signal traces
 
-### 41. `board.probe_access(net)`
+### 40. `board.probe_access(net)`
 
 **Severity score:** 2 · **Rules unblocked:** 1 · **Precedent:** `needs-3d/ext` — 3D / keepout clearance
 
@@ -664,7 +649,7 @@ board.probe_access(net)  # called from Phase 3b audit stubs
 
 - `DFT_GND_003` (Minor, DFT) — Ground measurement point for probing
 
-### 42. `board.copper_balance(layer)`
+### 41. `board.copper_balance(layer)`
 
 **Severity score:** 2 · **Rules unblocked:** 1 · **Precedent:** `needs-geometry` — needs per-layer copper-area polygon
 
@@ -678,7 +663,7 @@ board.copper_balance(layer)  # called from Phase 3b audit stubs
 
 - `DFM_COPPER_001` (Minor, DFT) — Check copper balance for PCB reliability
 
-### 43. `board.trace_corners(net)`
+### 42. `board.trace_corners(net)`
 
 **Severity score:** 1 · **Rules unblocked:** 1 · **Precedent:** `computable` — segment geometry
 

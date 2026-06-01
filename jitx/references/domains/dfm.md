@@ -33,7 +33,7 @@ You are finalizing substrate fabrication rules, choosing a fab house's process c
 
 - [ ] Copper ≥ 10 mils from board edge (`DFM_EDGE_001`) — `partial`, exact distance needs introspection
 - [ ] Components ≥ 100 mils (2.5 mm) from board edge (`DFM_COMP_EDGE_001`) — `awaiting-introspection`
-- [ ] Components ≥ 1 mm from V-score (`DFM_PANEL_001` — panel-level, `out-of-band`)
+- [ ] Components ≥ 1 mm from V-score (`DFM_PANEL_001` — panel-level; `filtered`, set at the fab/panelizer, see below)
 - [ ] MLCCs ≥ 6 mm from breakaway tabs
 
 ### Library quality (covered by component-modeler)
@@ -68,7 +68,6 @@ substrate.fabrication_constraints = FabricationConstraints(
 
 | Rule | Target | Introspection API needed |
 |---|---|---|
-| `DFM_ACID_001` | Acid traps: no acute angles, 45° chamfers | `board.acid_traps()` |
 | `DFM_SLIVER_001` | Copper features < 6 mils removed | `board.copper_slivers()` |
 | `DFM_COMP_EDGE_001` | Components ≥ 100 mils from edge | `board.component_to_edge()` |
 | `DFM_PASTE_001` | Paste layer correct pad coverage | `board.paste_coverage(pad)` |
@@ -80,14 +79,18 @@ substrate.fabrication_constraints = FabricationConstraints(
 | Rule | Why out-of-band | Suggested verification |
 |---|---|---|
 | `DFM_SILK_001` | Silkscreen graphic content | Visual review in CAD |
-| `DFM_PANEL_001`, `DFM_FID_001/002` | Panelization happens at the fab, not in JITX | Fab DFM report; first-article photo |
 | `DFM_LABEL_001` | Board ID silkscreen content | Visual review |
 
-## Authorable items not yet in substrate
+## Filtered — not applicable to a JITX-authored design
 
-These are `uncovered-authorable` — fold them into substrate constraints over time:
+These rules belong to the fab's CAM/panelizer step (or are obsolete on modern processes), not to the JITX board design. The Phase 3b audit **filters them out** (they are not in the applicable-rule set); the rationale is recorded in `phase-3b-coverage-matrix.csv` under the `not-applicable` status.
 
-- Panel fiducials ≥ 3 in asymmetric L-shape, 1 mm diameter, ≥ 3 mm clearance (`DFT_FID_001`) — currently a panel/fab item; can be expressed as substrate metadata for the panelizer
+| Rule | Why filtered |
+|---|---|
+| `DFM_ACID_001` | Acid traps are auto-resolved by the fab CAM/DFM step on modern processes |
+| `DFM_PANEL_001` | Panelization (V-score / breakaway) is defined by the fab/panelizer, not in the JITX board design |
+| `DFM_FID_001`, `DFT_FID_001` | Panel fiducials are added by the panelizer at the fab |
+| `DFM_FID_002` | Fiducial first-article photo is a fab/QA process step, not a design artifact |
 
 ## Common gotchas
 

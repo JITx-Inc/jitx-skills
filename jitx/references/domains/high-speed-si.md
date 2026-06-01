@@ -32,40 +32,44 @@ You are working on signals at ≥ 100 MHz fundamental: USB (any), Ethernet, PCIe
 
 ### Protocol-specifics
 
-| Protocol | Diff impedance | Length match | Termination | Notes |
+| Protocol | Diff impedance | Match constraint | Termination | Notes |
 |---|---|---|---|---|
 | USB 2.0 | 90 Ω | ±150 mil | None (host pull-ups) | D+/D- ESD low-cap, ID pin for OTG |
 | USB 3.x SS | 90 Ω | ±5 mil | AC coupling on TX | Low-cap TVS < 1 pF |
 | PCIe Gen 2+ | 85 Ω | ±5 mil | AC coupling on TX | REFCLK shared across endpoints, PERST# |
 | Ethernet RGMII | 50 Ω | ±10 mil/group | Source termination | Magnetics + MDI termination |
 | Ethernet 1000BASE-T | 100 Ω | ±50 mil | Magnetics | Bob Smith terminations |
-| DDR3/4 | 40/50 Ω SE, 80/100 Ω diff | per DQS group ±25 mil | ODT | VREF/VTT decoupling per `HS_DDR_002` |
-| LPDDR4/5 | per spec | per byte lane | per spec | Diff strobes per byte lane |
-| MIPI D-PHY | 100 Ω | ±5 mil | At receiver | LP and HS modes |
+| DDR3/4 | 40/50 Ω SE, 80/100 Ω diff | per-byte-lane DQ↔DQS skew | ODT | VREF/VTT decoupling per `HS_DDR_002` |
+| LPDDR4/5 | per spec | per-byte-lane DQ↔DQS skew | per spec | Diff strobes per byte lane |
+| MIPI D-PHY | 100 Ω | intra-pair skew | At receiver | LP and HS modes |
+
+Match constraints are applied as **timing skew** (and impedance/loss) via the `jitx-interconnect-constraints` skill — `ConstrainDiffPair(...).timing_difference(...)` for intra-pair, `ConstrainReferenceDifference(...).timing_difference(...)` for DQ↔DQS / bus-to-clock matching. JITX matches by timing, not by length; the routing-length figures sometimes quoted for these protocols are guidance only. Do not restate length tolerances here — define the timing constraint in the constraints layer.
 
 ## JITX expressions
 
-> **Illustrative.** The `design_constraint(...).METHOD(...)` patterns below show authoring intent, not exact API. The canonical rule-builder methods exported by `jitx.constraints` today are `trace_width`, `clearance`, `stitch_via`, `fence_via`, and `thermal_relief`. Tag subclasses (`SwTag`, `RFTag`, `ThermalPadTag`, `SensitiveAnalogTag`, etc.) are user-defined per the `Tag` base-class docstring — declare them at module scope in the project's tags module (see `project-builder-flow.md`). When a rule below names a method not in the canonical set, treat it as a placeholder for either a future rule-builder method or a project-local helper that calls the canonical methods.
+The SI-constraint API below (`Topology`, `ConstrainDiffPair`, `ConstrainReferenceDifference`, `ReferencePlanes`) is real — its canonical reference and full patterns live in `jitx-interconnect-constraints`. This file is a reminder of *what* to constrain, not a second source of truth; verify exact signatures there. Constraints are applied at the top-level design inside `ReferencePlanes(GND)`. Skew is a **timing** value in seconds; loss is **dB** — never a length.
 
 ```python
-# Differential pair constraint
+# Intra-pair constraint: create the topology with >>, then constrain it.
 with ReferencePlanes(GND):
-    ConstrainDiffPair(
-        pair=self.usb3.tx,
-        intra_pair_skew=Toleranced.max(5 * PS),
-        max_loss=Toleranced.max(3 * DB),
+    self += self.host.tx >> self.dev.rx
+    topo = Topology(self.host.tx, self.dev.rx)
+    drs90 = current.substrate.differential_routing_structure(90.0)
+    self.usb3_cst = (
+        ConstrainDiffPair(topo)
+        .timing_difference(5e-12)   # <= 5 ps intra-pair (P-to-N) skew
+        .insertion_loss(3.0)        # <= 3 dB per line
+        .structure(drs90)
     )
 
-# Length matching across a DDR byte lane
-ConstrainReferenceDifference(
-    reference=self.ddr.dqs0,
-    signals=[self.ddr.dq0, self.ddr.dq1, ..., self.ddr.dq7],
-    skew=Toleranced.max(5 * MIL),
-)
-
-# Topology with bridging cap
-self.usb3_p = self.host.tx_p >> self.ac_cap_p.p[1] >> self.ac_cap_p.p[2] >> self.conn.tx_p
+# AC-coupling cap on the pair: TWO topology segments. The cap carries a
+# BridgingPinModel that represents the internal p1->p2 delay/loss — do NOT
+# write `cap.p1 >> cap.p2` as a topology hop.
+self += self.host.tx_p >> self.ac_cap.p1
+self += self.ac_cap.p2 >> self.conn.tx_p
 ```
+
+DDR DQ↔DQS (and any bus-to-clock) matching is a per-byte-lane **timing** constraint, expressed with `ConstrainReferenceDifference(guide=dqs_topo, topologies=dq_topos).timing_difference(...)` — see `jitx-interconnect-constraints`. It is not a length spec and is not restated here.
 
 ## Quantitative layout targets (waiting on introspection)
 

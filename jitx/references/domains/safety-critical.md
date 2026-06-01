@@ -31,7 +31,7 @@ The design class is aerospace (DO-160, MIL-STD-810, AS-50881), automotive (AEC-Q
 ### Vibration and mechanical hardening
 
 - [ ] High-mass components > 3 g (relays, large electrolytic caps, transformers): RTV staking or mechanical clamp per AS-50881 Method 13 in +6 G environments (`AERO_VIB_001`)
-- [ ] Staking locations called out on assembly drawing; not just "use staking"
+- [ ] Staking locations recorded **in the code** as an annotation on the assembly / fabrication layer (e.g. a silkscreen/assembly-layer note or a documentation property on the staked instance), so the requirement travels with the design and lands on the generated assembly drawing — not just "use staking" in prose
 - [ ] Through-hole over SMT for connectors in vibration environments
 - [ ] Conformal coat alone is NOT vibration mitigation — it spreads load but doesn't constrain mass
 

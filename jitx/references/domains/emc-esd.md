@@ -42,6 +42,8 @@ design_constraint(SwTag(), priority=HIGH).clearance(0.5)
 design_constraint(SwTag(), SensitiveAnalogTag()).min_distance(50 * MM)
 ```
 
+A `min_distance` constraint is honored by the placer for components it places. For components placed in code (`.at(...)`), the separation is already fixed at authoring time and is checkable then. For anything the placer/auto-placer positions, *verifying* the achieved separation needs layout introspection (`board.distance(...)`) — so the actual-separation check on non-code-placed parts is an `awaiting-introspection` item, not a `now` one.
+
 ## Quantitative layout targets (waiting on introspection)
 
 | Rule | Target | Introspection API needed |

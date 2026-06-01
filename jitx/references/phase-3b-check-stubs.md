@@ -6,10 +6,13 @@ Per-rule stubs for the Phase 3b Design Audit Block (see `completion-blocks.md` "
 
 **Header counts:**
 
-- `now`: 92 checks — runnable against the circuit graph (the JITX design code) today (matrix statuses `covered`, `partial`, `uncovered-authorable`)
+- `now`: 91 checks — runnable against the circuit graph (the JITX design code) today (matrix statuses `covered`, `partial`, `uncovered-authorable`)
 - `awaiting-evidence-format`: 5 checks — need human-supplied evidence (BOM column, fab note, vendor cert, datasheet field on a JITX Component) before they can run. The audit must surface these as 'needs evidence from <field>' rather than silently passing
-- `awaiting-introspection`: 49 checks — wait on jitx-client layout APIs
-- `out-of-band`: 21 checks — require external tools (thermal sim, EMC chamber, MCAD, fab DFM)
+- `awaiting-introspection`: 48 checks — wait on jitx-client layout APIs
+- `out-of-band`: 18 checks — require external tools (thermal sim, EMC chamber, MCAD, fab DFM)
+- `filtered`: 5 rules — **not applicable to a JITX-authored design** (handled by the fab CAM/panelizer, or obsolete). Excluded from the 162 applicable checks above; listed at the end with rationale
+
+Applicable rule count: **162** (the audit's coverage gate operates over these; the 5 `filtered` rules are out of scope).
 
 Within each state, stubs are grouped by ThomsonLint domain. Mapping from `phase-3b-coverage-matrix.csv` status to execution state:
 
@@ -21,6 +24,7 @@ Within each state, stubs are grouped by ThomsonLint domain. Mapping from `phase-
 | `evidence-required` | `awaiting-evidence-format` | Rule needs human-supplied evidence (BOM / fab / vendor cert) that the JITX type system does not carry today |
 | `future-design-review` | `awaiting-introspection` | Stub registers the API need; raises visible 'not yet runnable' |
 | `out-of-band` | `out-of-band` | Documented for the user to verify externally |
+| `not-applicable` | `filtered` | Does not apply to a JITX design (fab CAM/panelizer concern, or obsolete); excluded from the audit, rationale recorded |
 
 ---
 
@@ -326,13 +330,6 @@ Within each state, stubs are grouped by ThomsonLint domain. Mapping from `phase-
 - **Rule:** Using the smallest available via size throughout the design reduces reliability. Reserve small vias for high-density areas and use larger vias where space permits.
 
 ### Domain: DFT+Mechanical
-
-### DFT_FID_001 — Fiducials for pick and place alignment
-- **Domain:** DFT+Mechanical · **Severity:** Major
-- **State:** `now`
-- **Responsible:** references/domains/dfm.md
-- **Notes:** Panel fiducials >=3 L-shape - DFM authoring rule
-- **Rule:** PCBs must have at least 2 fiducial markers placed in opposite corners of the board for pick and place machine alignment.
 
 ### DFM_LIB_001 — Print 1:1 scale and verify footprints
 - **Domain:** DFT+Mechanical · **Severity:** Critical
@@ -819,14 +816,6 @@ Within each state, stubs are grouped by ThomsonLint domain. Mapping from `phase-
 
 ### Domain: DFT
 
-### DFM_ACID_001 — Acid trap prevention
-- **Domain:** DFT · **Severity:** Minor
-- **State:** `awaiting-introspection`
-- **Needs API:** `board.acid_traps()`
-- **Responsible:** phase-3b-audit
-- **Notes:** Acid traps at 45°/90° - DRC-style check
-- **Rule:** Acute angles in copper traces can trap etchant during PCB fabrication, causing over-etching and open circuits. Avoid angles less than 90 degrees in trace routing.
-
 ### DFM_SLIVER_001 — Copper and solder mask slivers
 - **Domain:** DFT · **Severity:** Minor
 - **State:** `awaiting-introspection`
@@ -1240,27 +1229,6 @@ Within each state, stubs are grouped by ThomsonLint domain. Mapping from `phase-
 - **Notes:** Silkscreen clearance/font - silkscreen content
 - **Rule:** Silkscreen must not overlap pads or vias and must meet minimum line width and font size requirements for legibility.
 
-### DFM_PANEL_001 — PCB panelization requirements
-- **Domain:** DFT · **Severity:** Major
-- **State:** `out-of-band`
-- **Responsible:** references/domains/dfm.md
-- **Notes:** Panelization V-score clearance
-- **Rule:** Panelized PCBs require proper V-score or breakaway tab design, adequate rails, and consideration for depaneling stress on components.
-
-### DFM_FID_001 — Fiducial mark placement
-- **Domain:** DFT · **Severity:** Major
-- **State:** `out-of-band`
-- **Responsible:** references/domains/dfm.md
-- **Notes:** Panel fiducial geometry
-- **Rule:** Fiducial marks are required for automated SMT assembly. They must be properly sized, placed, and have adequate clearance for machine vision recognition.
-
-### DFM_FID_002 — Place fiducial marks for assembly
-- **Domain:** DFT · **Severity:** Major
-- **State:** `out-of-band`
-- **Responsible:** references/domains/dfm.md
-- **Notes:** Fiducial first-article photo
-- **Rule:** Add fiducial marks for automated pick-and-place alignment. Minimum 3 fiducials in an asymmetric L-pattern for proper board orientation detection.
-
 ### DFM_LABEL_001 — Add board identification text and version
 - **Domain:** DFT · **Severity:** Minor
 - **State:** `out-of-band`
@@ -1347,6 +1315,50 @@ Within each state, stubs are grouped by ThomsonLint domain. Mapping from `phase-
 - **Responsible:** references/domains/mechanical.md
 - **Notes:** Forced-air CFM calc
 - **Rule:** For designs with significant total power dissipation where passive cooling is insufficient, consider active cooling with fans or blowers.
+
+
+---
+
+## State: `filtered`
+
+### Domain: DFT
+
+### DFM_ACID_001 — Acid trap prevention
+- **Domain:** DFT · **Severity:** Minor
+- **State:** `filtered`
+- **Responsible:** references/domains/dfm.md
+- **Notes:** Acid traps are auto-resolved by the fab CAM/DFM step on modern processes; not a JITX authoring concern
+- **Rule:** Acute angles in copper traces can trap etchant during PCB fabrication, causing over-etching and open circuits. Avoid angles less than 90 degrees in trace routing.
+
+### DFM_PANEL_001 — PCB panelization requirements
+- **Domain:** DFT · **Severity:** Major
+- **State:** `filtered`
+- **Responsible:** references/domains/dfm.md
+- **Notes:** Panelization (V-score / breakaway) is defined by the fab/panelizer, not in the JITX board design
+- **Rule:** Panelized PCBs require proper V-score or breakaway tab design, adequate rails, and consideration for depaneling stress on components.
+
+### DFM_FID_001 — Fiducial mark placement
+- **Domain:** DFT · **Severity:** Major
+- **State:** `filtered`
+- **Responsible:** references/domains/dfm.md
+- **Notes:** Panel fiducials are added by the panelizer at the fab, not in the JITX board design
+- **Rule:** Fiducial marks are required for automated SMT assembly. They must be properly sized, placed, and have adequate clearance for machine vision recognition.
+
+### DFM_FID_002 — Place fiducial marks for assembly
+- **Domain:** DFT · **Severity:** Major
+- **State:** `filtered`
+- **Responsible:** references/domains/dfm.md
+- **Notes:** Fiducial first-article photo is a fab/QA process step, not a design artifact
+- **Rule:** Add fiducial marks for automated pick-and-place alignment. Minimum 3 fiducials in an asymmetric L-pattern for proper board orientation detection.
+
+### Domain: DFT+Mechanical
+
+### DFT_FID_001 — Fiducials for pick and place alignment
+- **Domain:** DFT+Mechanical · **Severity:** Major
+- **State:** `filtered`
+- **Responsible:** references/domains/dfm.md
+- **Notes:** Panel fiducials are added by the panelizer at the fab, not in the JITX board design
+- **Rule:** PCBs must have at least 2 fiducial markers placed in opposite corners of the board for pick and place machine alignment.
 
 
 ---

@@ -30,7 +30,7 @@ design_constraint(SwTag(), priority=HIGH).clearance(0.5 * MM)
 ```
 
 **Future introspection checks (Phase 3b audit):**
-- `board.loop_area([vin, sw, gnd_in]) <= 20`
+- `board.loop_area([vin, sw, gnd_in]) <= 20`  # mm² (input-cap → switch-FET → GND hot loop)
 - `board.copper_area(sw_net) <= threshold`
 - `board.copper_under(inductor) is None`
 
@@ -130,10 +130,10 @@ design_constraint(HighDissTag()).copper_area_min_per_watt(15.3 * CM2)  # 7.7 wit
 **JITX expressions:**
 ```python
 design_constraint(HighSpeedDiffTag()).routing_structure(diff_90ohm)
-ConstrainDiffPair(
-    pair=self.usb3.tx,
-    intra_pair_skew=Toleranced.max(5 * PS),
-)
+# Intra-pair skew/loss via the constraints layer (jitx-interconnect-constraints).
+# timing_difference is seconds; insertion_loss is dB — verify the signature there.
+self += self.host.tx >> self.dev.rx
+ConstrainDiffPair(Topology(self.host.tx, self.dev.rx)).timing_difference(5e-12).insertion_loss(3.0)
 ```
 
 **Future introspection checks:**
@@ -152,7 +152,7 @@ ConstrainDiffPair(
 **Why it matters:** Per-byte-lane timing margin, VREF/VTT rail integrity.
 
 **Quantitative targets:**
-- DQ-to-DQS matching per byte lane: ±25 mil typical (`HS_DDR_001`)
+- Per-byte-lane DQ↔DQS **timing** skew (`HS_DDR_001`) — a timing constraint, not a length tolerance; applied via `jitx-interconnect-constraints`, not restated here
 - CK differential pair impedance per spec
 - Command / address timing per spec
 - VREF / VTT / VDDQ decoupling per `HS_DDR_002`
@@ -160,15 +160,14 @@ ConstrainDiffPair(
 **JITX expressions:**
 ```python
 design_constraint(DDRTag()).routing_structure(ddr_50ohm_se)
-ConstrainReferenceDifference(
-    reference=self.ddr.dqs0,
-    signals=self.ddr.dq[0:8],
-    skew=Toleranced.max(25 * MIL),
-)
+# DQ↔DQS per-byte-lane timing match — see jitx-interconnect-constraints for the
+# canonical ConstrainReferenceDifference pattern. Window is seconds, not mils.
+dqs = Topology(self.ddr.dqs0_src, self.ddr.dqs0_dst)
+dq = [Topology(self.ddr.dq_src[i], self.ddr.dq_dst[i]) for i in range(8)]
+ConstrainReferenceDifference(guide=dqs, topologies=dq).timing_difference(Toleranced(0, 50e-12))
 ```
 
-**Future introspection checks:**
-- `board.trace_length_match(dqs, dq[:]) <= 25 * MIL`
+**Enforcement:** DQ↔DQS matching is solved and checked by the JITX SI constraint solver (timing), not by a layout-introspection length query — so it is not an `awaiting-introspection` item.
 
 **Domain references:** [`high-speed-si.md`](domains/high-speed-si.md)
 

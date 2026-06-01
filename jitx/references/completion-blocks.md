@@ -317,7 +317,8 @@ Each rule the audit checks has one of four execution states. Read this before au
 - **`now`** — the check runs against the circuit graph (the JITX design code) today. Most Passes 1–4 checks are in this state, as are connectivity / decoupling / topology rules in Passes 5–6.
 - **`awaiting-evidence-format`** — the rule needs human-supplied evidence (BOM column, fab note, vendor certificate, datasheet field on a JITX Component) that the JITX type system does not carry today. Examples: aerospace Class 3 solder alloy spec (`AERO_SLD_001`), electrolytic ripple-current / temperature lifetime (`COMP_CAP_005`). The audit MUST surface these as "needs evidence from <named field>" rather than silently passing.
 - **`awaiting-introspection`** — the check requires a jitx-client layout-introspection API (trace length, via positions, copper geometry, plane splits, component placements) that is not yet shipped. The audit MUST raise a clear "not yet runnable — needs API X" message rather than silently passing. Most Passes 5–6 quantitative-layout rules are in this state today.
-- **`out-of-band`** — the check requires data the JITX toolchain does not produce (thermal simulation, EMC chamber measurement, conformal-coat photo, mechanical 3D fit). Document; verify externally.
+- **`out-of-band`** — the check requires data the JITX toolchain does not produce (thermal simulation, EMC chamber measurement, conformal-coat photo, mechanical 3D fit). The concern is real; verify externally.
+- **`filtered` (not applicable)** — the rule does **not** apply to a JITX-authored design: it is handled downstream by the fab's CAM/panelizer (acid-trap repair, panelization, panel fiducials) or is obsolete on modern processes. These are **excluded from the applicable-rule set** — the audit does not run or list them as checks; the rationale lives in `phase-3b-coverage-matrix.csv` (status `not-applicable`) and `references/domains/*.md`. Distinct from `out-of-band`, where the concern is real but externally verified.
 
 The per-rule stubs live in `references/phase-3b-check-stubs.md`, grouped by rule ID and execution state. The deduplicated list of jitx-client APIs the `awaiting-introspection` stubs collectively need is in `references/phase-3b-introspection-apis.md`. The source coverage matrix (167 rules) is `references/phase-3b-coverage-matrix.csv`.
 
@@ -350,7 +351,7 @@ Rules:
 A review that emits only problems is indistinguishable from a review that didn't look. Two mechanics make coverage **auditable** (self-reported by the audit agent today — there is no JITX-side validator script yet; see the honesty note below):
 
 - **Verified checks are deliverables.** When a `now` rule is checked and the result is OK, record it as a verified check (see the template below) — *not* as silence. The act of checking is the deliverable. (Adapted from the ThomsonLint `verified_checks[]` discipline — see `phase-3b-attribution.md`.)
-- **Every classified rule is accounted for.** Each rule in `phase-3b-check-stubs.md` that applies to this design must terminate in one of: a finding (issue), a verified check (OK), a `awaiting-introspection` / `awaiting-evidence-format` stub message (not yet runnable — state which API or field is missing), or an explicit `n/a` with a one-line reason. "I didn't get to it" is not an admissible outcome — that is the failure mode the gate exists to prevent. The audit emits a **per-rule ledger** (one row per applicable rule → its terminal bucket + a link/source), and the `Unaccounted` count is derived from that ledger, not asserted as a bare number.
+- **Every classified rule is accounted for.** Each rule in `phase-3b-check-stubs.md` that applies to this design must terminate in one of: a finding (issue), a verified check (OK), a `awaiting-introspection` / `awaiting-evidence-format` stub message (not yet runnable — state which API or field is missing), or an explicit `n/a` with a one-line reason. Rules marked `filtered` (not applicable to JITX) are **out of scope** — they are not part of the applicable set and do not count toward coverage. "I didn't get to it" is not an admissible outcome — that is the failure mode the gate exists to prevent. The audit emits a **per-rule ledger** (one row per applicable rule → its terminal bucket + a link/source), and the `Unaccounted` count is derived from that ledger, not asserted as a bare number.
 
 **Honesty note — self-reported, not enforced.** ThomsonLint makes the analogous input-coverage gate *mechanical*: `tools/validate_findings.py` enumerates every input file and hard-fails (non-zero exit) if any is uncited, and rejects any evidence row missing a `source`. The Phase 3b audit has **no equivalent validator** — the source-on-every-row rule and the `Unaccounted: 0` gate are applied by the audit agent itself and verified by the orchestrator at acceptance, not by a script. Until a JITX-side `validate_phase3b.py` exists (a worthwhile follow-up: it would parse the audit block, cross-check the per-rule ledger against `phase-3b-check-stubs.md`, and confirm every evidence row has a source), treat the gate as a discipline, not a guarantee.
 
@@ -473,13 +474,15 @@ Per-rule ledger (one row per rule in `phase-3b-check-stubs.md` that applies to t
 Summary (derived from the ledger):
 
 ```
-Rules applicable to this design: <N = ledger row count>
+Rules applicable to this design: <N = ledger row count>   (filtered/not-applicable rules excluded)
   - issues:                <count>
   - verified checks:       <count>
   - awaiting-introspection: <count> (each names the missing API)
   - awaiting-evidence-format: <count> (each names the missing field)
+  - out-of-band:           <count>
   - n/a (with reason):     <count>
-Unaccounted: 0   ← must be 0; any rule not in the ledger blocks the gate
+Filtered (not applicable, out of scope): <count>   ← informational; not part of the applicable set
+Unaccounted: 0   ← must be 0; any applicable rule not in the ledger blocks the gate
 ```
 
 ### Outside-Voice Review (codex)

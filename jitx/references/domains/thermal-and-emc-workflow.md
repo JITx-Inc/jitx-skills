@@ -48,7 +48,7 @@ The detailed quantitative rules live in:
 
 2. **Tag victim circuits.** Sensitive analog (high-impedance sensor, precision ADC input) gets `SensitiveAnalogTag()`. RF receive paths get `RFTag()` + appropriate isolation.
 
-3. **Apply aggressor / victim separation.**
+3. **Apply aggressor / victim separation.** The placer honors `min_distance` for parts it places; code-placed parts (`.at(...)`) have their separation fixed and checkable at authoring time. *Verifying* achieved separation for auto-placed parts needs layout introspection (`board.distance(...)`) — an `awaiting-introspection` check.
 
    ```python
    design_constraint(SwTag(), SensitiveAnalogTag()).min_distance(50 * MM)
