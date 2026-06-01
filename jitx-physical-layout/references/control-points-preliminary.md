@@ -1,14 +1,16 @@
 # Control Points & Code-Based Routes (PRELIMINARY)
 
-> ⚠️ **Preliminary, unstable API.** `jitx.control_points` is marked `# PRELIMINARY`
-> in the source, and its accessor surface has **changed between JITX versions**
-> (4.1.0a7's docstring mentions `.a` / `.b` / `.pair`; a later py-components example
-> uses `.coupled` / `.uncoupled.{n,p}`). Before using any of this:
+> ⚠️ **Preliminary, unstable API.** The control-point module is `jitx.controlpoint`
+> (singular — verified in jitx 4.2.0a4 and 4.3.0a1; `jitx.control_points` does NOT
+> exist there). It is marked `# PRELIMINARY`, and its accessor surface has **changed
+> between JITX versions** (4.1.0a7's docstring mentions `.a` / `.b` / `.pair`;
+> 4.2.0a4 / 4.3.0a1 use `.coupled` / `.uncoupled.{n,p}` (`InsertionControl`), `.pair`
+> (`PairControl`), `.port` (`SingleControl`)). Before using any of this:
 >
-> 1. Read the installed source — `jitx/control_points.py` and `jitx.circuit.Route` —
->    to confirm the actual constructor and accessor names for *your* version:
+> 1. Read the installed source — `jitx/controlpoint.py` and `jitx.circuit.Route` —
+>    to confirm the actual module, constructor, and accessor names for *your* version:
 >    ```bash
->    sed -n '1,120p' .venv/lib/python*/site-packages/jitx/control_points.py
+>    sed -n '1,120p' .venv/lib/python*/site-packages/jitx/controlpoint.py
 >    grep -n "class Route" .venv/lib/python*/site-packages/jitx/circuit.py
 >    ```
 > 2. Run `pyright` (it will catch a wrong accessor as an attribute error).
@@ -48,11 +50,12 @@ from jitx.constraints import Tags
 Tags(PinFanoutTag()).assign(r)         # the rule for PinFanoutTag is defined elsewhere
 ```
 
-## Control points — `InsertionControl` / `PairControl`
+## Control points — `SingleControl` / `InsertionControl` / `PairControl`
 
-Both subclass `ControlPoint(layer=...)` and are placed with `.at(point, rotate=)`.
-They are differential-pair primitives:
+All subclass `ControlPoint(layer=...)` and are placed with `.at(point, rotate=)`:
 
+- **`SingleControl(layer=..., shape=None)`** — the single-ended control point. Its
+  `.port` is the routable endpoint (`Route(some_port, sc.port, layer)`).
 - **`InsertionControl(layer=...)`** — a differential-pair *insertion* point. One side
   is a coupled pair, the other side is the two single-ended legs. By convention the
   pair's `p`/`n` are the "left"/"right" of the pair looking toward the pair side;
@@ -98,9 +101,10 @@ insertion point and the two uncoupled legs out to the test-point pair. Attachmen
 routes accumulate in plain **lists** (not string-keyed dicts).
 
 ```python
-# 4.1.0a7 exports the control points from jitx.control_points; some newer builds also
-# re-export them from top-level `jitx`. Read your installed source; let pyright confirm.
-from jitx.control_points import InsertionControl, PairControl
+# The control-point module is jitx.controlpoint (verified in 4.2.0a4 / 4.3.0a1);
+# some builds also re-export from top-level `jitx`. Read your installed source; let
+# pyright confirm.
+from jitx.controlpoint import SingleControl, InsertionControl, PairControl
 from jitx.circuit import Route
 from jitx.net import PortAttachment
 
