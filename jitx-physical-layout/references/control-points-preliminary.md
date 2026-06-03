@@ -89,11 +89,11 @@ self.nets = [
 ]
 ```
 
-A later py-components example connects them with explicit **`Route`** objects and uses
+A later example connects them with explicit **`Route`** objects and uses
 **different accessor names** (`.coupled`, `.uncoupled.n/.p`, `.pair`). Same idea, two
 vocabularies — which is exactly why you must read the installed source.
 
-## Worked example — BGA escape lane deskew (from py-components `bga_escape.py`)
+## Worked example — BGA escape lane deskew
 
 Per TX lane: drop signal vias at the BGA pads, place a `PairControl` at the deskew
 exit and an `InsertionControl` further out, then route the coupled pair into the

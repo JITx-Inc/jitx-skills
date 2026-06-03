@@ -120,7 +120,7 @@ Scope: <ns>/<files-this-task-touched>
 
 This is **mandatory for every sub-agent task in complete-board tier**, before emitting the task acceptance block. The review catches the architectural failure modes that grep regex can't see — parallel string-keyed models, sibling-attribute reflection, substrate-shaped tables duplicated in designs, build-spec-then-iterate, untyped intermediate records. CRITICAL findings must be fixed before Step 6; WARNING findings get a disposition (fix or accept-with-rationale) in the task acceptance block's `JITX code review (self):` field; NOTE findings are recorded but don't block.
 
-The review reads `jitx/SKILL.md` Don'ts, `jitx/references/architectural-patterns.md`, the subskill SKILL.mds relevant to this task, and its own `references/checklist.md` and `references/patterns.md`. It produces a structured findings block with severity tags and `file:line` citations that fold directly into the task acceptance block.
+The review reads `jitx/SKILL.md` Don'ts, `jitx/references/architectural-patterns.md`, the subskill SKILL.mds relevant to this task, and its own `references/checklist.md`. It produces a structured findings block with severity tags and `file:line` citations that fold directly into the task acceptance block.
 
 If `jitx-code-review` is unavailable (skill not loaded, errored), record `JITX code review (self): not run: <reason>` in the task acceptance block. Per the precedence rule in `references/completion-blocks.md`, this defaults to `block` unless the user explicitly approves proceeding.
 

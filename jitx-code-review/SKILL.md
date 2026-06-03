@@ -1,6 +1,6 @@
 ---
 name: jitx-code-review
-description: Same-model self-critique pass for JITX Python code just written in this workspace. Use when the user asks to "review my JITX code", "self-critique", "check JITX conventions", "find string-hacking", "check framework-boundary issues", "audit before merge", or any equivalent. Mandatory for complete-board tier at task acceptance (folds into Think Twice); user-invoked for single-task work. Catches the architectural failure modes that grep gates and static linters miss — parallel string-keyed models, reflection-as-iteration (regardless of whether on self), owner-shaped data misplaced in design code, build-spec-then-iterate, module-import-time parallel models, and framework-boundary-bypass (the "framework does it, therefore so can I" trap caught on the PR #4 rearchitecture test). Applies an ownership test to every banned-pattern hit or proposed exception. Produces severity-tagged findings (CRITICAL / WARNING / NOTE) that fold into the task acceptance block.
+description: Same-model self-critique pass for JITX Python code just written in this workspace. Use when the user asks to "review my JITX code", "self-critique", "check JITX conventions", "find string-hacking", "check framework-boundary issues", "audit before merge", or any equivalent. Mandatory for complete-board tier at task acceptance (folds into Think Twice); user-invoked for single-task work. Catches the architectural failure modes that grep gates and static linters miss — parallel string-keyed models, reflection-as-iteration (regardless of whether on self), owner-shaped data misplaced in design code, build-spec-then-iterate, module-import-time parallel models, and framework-boundary-bypass (the "framework does it, therefore so can I" trap). Applies an ownership test to every banned-pattern hit or proposed exception. Produces severity-tagged findings (CRITICAL / WARNING / NOTE) that fold into the task acceptance block.
 ---
 
 # JITX Code Review
@@ -19,23 +19,22 @@ Phase 3b's same-model pre-pass is the **four-pass design audit** (not this skill
 
 ## Inputs the review takes
 
-1. **The code under review.** Default: the workspace's `src/<ns>/` directory (everything just written for the current task). The orchestrator may scope tighter (single file) when invoking from Think Twice.
+1. **The code under review.** Default: the workspace's `<ns>/` directory (everything just written for the current task). The orchestrator may scope tighter (single file) when invoking from Think Twice.
 2. **The task acceptance block draft** (if running mid-Think-Twice). Tells the reviewer what was supposed to be built and what evidence the author cites.
 3. **The relevant rule sources.** Read at review time:
    - `jitx/SKILL.md` Don'ts (always)
    - `jitx/references/architectural-patterns.md` (always — this is the worked-counter-example source for the dominant failure modes)
    - Subskill SKILL.mds for the work in scope (component-modeler if a component file changed, etc.)
-   - `jitx-code-review/references/checklist.md` (the pattern taxonomy)
-   - `jitx-code-review/references/patterns.md` (PR-derived worked examples)
+   - `jitx-code-review/references/checklist.md` (the pattern index over the architecture doctrine)
 
-The review is **evidence-anchored**: every finding cites `file:line` and quotes a rule sentence (from SKILL.md, a reference file, or a wiki page if applicable). Findings without a citation are downgraded to `NOTE`.
+The review is **evidence-anchored**: every finding cites `file:line` and quotes a rule sentence (from SKILL.md or a reference file). Findings without a citation are downgraded to `NOTE`.
 
 ## Workflow
 
-1. **Identify the scope.** Files / directories under review. Default `src/<ns>/`, but a scoped run can target a single file.
+1. **Identify the scope.** Files / directories under review. Default `<ns>/`, but a scoped run can target a single file.
 2. **Read the rule sources** above. The point of reading them in-skill is so the reviewer cites verbatim — not paraphrases.
 3. **Walk the pattern checklist** (`references/checklist.md`). For each pattern, look for instances; for each instance, capture severity and citation.
-4. **Apply the architectural pass** (`references/patterns.md`). The dominant failure modes from PR #4 are encoded as worked patterns; check each one against the code under review.
+4. **Apply the architectural pass** (`jitx/references/architectural-patterns.md`). The dominant failure modes are encoded there as worked counter-examples (Bad/Good + rationale); check each one against the code under review.
 5. **Apply the ownership test to every banned-pattern hit or proposed exception** (see "Ownership test" below). The pattern checklist names patterns; the ownership test catches the framework-boundary-bypass failure where the AI rationalizes a banned pattern as "OK because the framework does it."
 6. **Emit the findings block** in the format below.
 7. **Hand back to the caller** (orchestrator in Think Twice, or user for single-task). The orchestrator folds findings into the task acceptance block; the user decides whether to fix or accept-with-rationale.
@@ -53,7 +52,7 @@ When the code uses a banned pattern (`getattr`, `type(...)`, `_protected_method(
 
 If the answer is "outside the owner, copying internals" or "wrapping the banned pattern in a helper to make it look like one boundary call," classify the finding as **`framework-boundary-bypass`** (see `references/checklist.md`) and recommend the subclass-adapter fix.
 
-This step exists because rule text alone wasn't sufficient — see the pattaya PR #4 rearchitecture postmortem in the repo's `.context/pattaya-postmortem.md`: the AI followed the no-getattr rule literally (one wrapped `getattr` call), but missed the rule's intent (don't replicate framework internals in design code) and produced a coupled-to-numbering-scheme design that the reviewer caught.
+This step exists because rule text alone wasn't sufficient: in a real review, the AI followed the no-getattr rule literally (one wrapped `getattr` call) but missed the rule's intent (don't replicate framework internals in design code) and produced a design coupled to a numbering scheme that the reviewer caught.
 
 ## Severity scheme
 
@@ -68,7 +67,7 @@ Combined with the codex outside-voice precedence rule: **any CRITICAL or WARNING
 ## Output format
 
 ```markdown
-## JITX code review — <scope, e.g., src/<ns>/circuits/bga_escape.py>
+## JITX code review — <scope, e.g., <ns>/circuits/<circuit>.py>
 
 **Reviewer:** jitx-code-review (same-model self-critique)
 **Scope:** <list of files reviewed, with revision/commit if relevant>
@@ -94,11 +93,11 @@ Combined with the codex outside-voice precedence rule: **any CRITICAL or WARNING
 CRITICAL: <count> | WARNING: <count> | NOTE: <count>
 ```
 
-The `<pattern tag>` is from the checklist (e.g., `string-keyed-model`, `getattr-on-self`, `substrate-pollution`, `parallel-data-model`). Pattern tags are orthogonal to severity — a single pattern can produce CRITICAL or WARNING findings depending on the specific instance.
+The `<pattern tag>` is from the checklist (e.g., `string-keyed-model`, `reflection-as-iteration`, `owner-shaped-data-misplaced`, `parallel-data-model`). Pattern tags are orthogonal to severity — a single pattern can produce CRITICAL or WARNING findings depending on the specific instance.
 
 ## What this skill is NOT
 
-- **Not a port of the internal `code-review` skill.** That one (in `jitx-knowledge`) reviews JITX codebases against the wiki, pulls cached remote clones, runs Claude + codex two-pass. Different use case (cross-repo audit), different evidence flow. This skill is in-workspace, same-model only.
+- **Not a cross-repo audit tool.** This skill is in-workspace and same-model only — it reviews the code just written here, not a remote codebase against external documentation.
 - **Not a replacement for static analysis.** `pyright` and `ruff check` still run as part of the task acceptance block. They catch type / lint issues; this skill catches architectural smells they can't see.
 - **Not a build verifier.** `jitx build` still runs. This skill is purely a code-quality pass.
 
@@ -110,5 +109,6 @@ The skill can become ritual if the reviewer agent passes everything as `clean` w
 - Findings without `file:line` citations or rule quotes.
 - All findings tagged `NOTE` when the pattern checklist named CRITICAL-eligible patterns.
 - Bulk dispositions (`all accepted, all framework code`) on review-required grep-gate hits — each hit needs a per-line rationale.
+- A prior finding marked `fix`/`resolved`/`accepted` with no cited evidence — no fix commit or `file:line` showing the change, and no stated acceptance rationale. "Resolved" with neither is the author-side form of compliance theater (e.g. a reviewer reopening a thread marked resolved with "not sure what the resolution is"). A `resolved` disposition must point at the diff that resolved it or say why it's accepted as-is.
 
 A valid review output should let a reader open the cited file at the cited line and verify the finding in under a minute.
