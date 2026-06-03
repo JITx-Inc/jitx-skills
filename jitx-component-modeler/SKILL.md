@@ -62,7 +62,7 @@ Once the datasheet PDF is available, extract pinout, package dimensions, and pin
 ### Standard Structure
 ```
 project/
-└── src/<namespace>/
+└── <namespace>/
     └── components/
         ├── __init__.py
         ├── <category>/
@@ -72,7 +72,7 @@ project/
             └── ...
 ```
 
-If `src/<namespace>/` doesn't exist, use:
+For a project without a namespace package, place components at the root:
 ```
 project/
 └── components/

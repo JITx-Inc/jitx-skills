@@ -19,23 +19,22 @@ Phase 3b's same-model pre-pass is the **four-pass design audit** (not this skill
 
 ## Inputs the review takes
 
-1. **The code under review.** Default: the workspace's `src/<ns>/` directory (everything just written for the current task). The orchestrator may scope tighter (single file) when invoking from Think Twice.
+1. **The code under review.** Default: the workspace's `<ns>/` directory (everything just written for the current task). The orchestrator may scope tighter (single file) when invoking from Think Twice.
 2. **The task acceptance block draft** (if running mid-Think-Twice). Tells the reviewer what was supposed to be built and what evidence the author cites.
 3. **The relevant rule sources.** Read at review time:
    - `jitx/SKILL.md` Don'ts (always)
    - `jitx/references/architectural-patterns.md` (always — this is the worked-counter-example source for the dominant failure modes)
    - Subskill SKILL.mds for the work in scope (component-modeler if a component file changed, etc.)
-   - `jitx-code-review/references/checklist.md` (the pattern taxonomy)
-   - `jitx-code-review/references/patterns.md` (PR-derived worked examples)
+   - `jitx-code-review/references/checklist.md` (the pattern index over the architecture doctrine)
 
-The review is **evidence-anchored**: every finding cites `file:line` and quotes a rule sentence (from SKILL.md, a reference file, or a wiki page if applicable). Findings without a citation are downgraded to `NOTE`.
+The review is **evidence-anchored**: every finding cites `file:line` and quotes a rule sentence (from SKILL.md or a reference file). Findings without a citation are downgraded to `NOTE`.
 
 ## Workflow
 
-1. **Identify the scope.** Files / directories under review. Default `src/<ns>/`, but a scoped run can target a single file.
+1. **Identify the scope.** Files / directories under review. Default `<ns>/`, but a scoped run can target a single file.
 2. **Read the rule sources** above. The point of reading them in-skill is so the reviewer cites verbatim — not paraphrases.
 3. **Walk the pattern checklist** (`references/checklist.md`). For each pattern, look for instances; for each instance, capture severity and citation.
-4. **Apply the architectural pass** (`references/patterns.md`). The dominant failure modes are encoded as worked patterns; check each one against the code under review.
+4. **Apply the architectural pass** (`jitx/references/architectural-patterns.md`). The dominant failure modes are encoded there as worked counter-examples (Bad/Good + rationale); check each one against the code under review.
 5. **Apply the ownership test to every banned-pattern hit or proposed exception** (see "Ownership test" below). The pattern checklist names patterns; the ownership test catches the framework-boundary-bypass failure where the AI rationalizes a banned pattern as "OK because the framework does it."
 6. **Emit the findings block** in the format below.
 7. **Hand back to the caller** (orchestrator in Think Twice, or user for single-task). The orchestrator folds findings into the task acceptance block; the user decides whether to fix or accept-with-rationale.
@@ -68,7 +67,7 @@ Combined with the codex outside-voice precedence rule: **any CRITICAL or WARNING
 ## Output format
 
 ```markdown
-## JITX code review — <scope, e.g., src/<ns>/circuits/<circuit>.py>
+## JITX code review — <scope, e.g., <ns>/circuits/<circuit>.py>
 
 **Reviewer:** jitx-code-review (same-model self-critique)
 **Scope:** <list of files reviewed, with revision/commit if relevant>
@@ -98,7 +97,7 @@ The `<pattern tag>` is from the checklist (e.g., `string-keyed-model`, `reflecti
 
 ## What this skill is NOT
 
-- **Not a port of the internal `code-review` skill.** That one (in `jitx-knowledge`) reviews JITX codebases against the wiki, pulls cached remote clones, runs Claude + codex two-pass. Different use case (cross-repo audit), different evidence flow. This skill is in-workspace, same-model only.
+- **Not a cross-repo audit tool.** This skill is in-workspace and same-model only — it reviews the code just written here, not a remote codebase against external documentation.
 - **Not a replacement for static analysis.** `pyright` and `ruff check` still run as part of the task acceptance block. They catch type / lint issues; this skill catches architectural smells they can't see.
 - **Not a build verifier.** `jitx build` still runs. This skill is purely a code-quality pass.
 

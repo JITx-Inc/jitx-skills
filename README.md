@@ -157,8 +157,7 @@ jitx-skills/
 ├── jitx-code-review/             # Same-model self-critique skill
 │   ├── SKILL.md
 │   └── references/
-│       ├── checklist.md            # Pattern taxonomy
-│       └── patterns.md             # PR-derived worked examples
+│       └── checklist.md            # Pattern index over the architecture doctrine
 └── .claude-plugin/
     └── marketplace.json
 ```

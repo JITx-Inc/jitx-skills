@@ -26,7 +26,7 @@ The name `getattr-on-self` was too narrow: it let agents rationalize `getattr(lp
 
 **Severity:** CRITICAL when the call navigates JITX/framework-owned structural state by an assembled string, regardless of whether the receiver is `self` or another object. Hard-fail grep gate catches `getattr(self, ...)`; broader `getattr(...)` is review-required and demands per-hit ownership analysis (not just disposition prose).
 
-**Rule source:** `jitx/SKILL.md` Don'ts ("Don't reflect on `self` by name…"); `jitx/references/architectural-patterns.md` § 2. Reviewer note: "this is illegal" / "illegal — no getattr".
+**Rule source:** `jitx/SKILL.md` Don'ts ("Don't reflect on `self` by name…"); `jitx/references/architectural-patterns.md` § 2.
 
 ### `parallel-data-model`
 
@@ -34,7 +34,7 @@ The name `getattr-on-self` was too narrow: it let agents rationalize `getattr(lp
 
 **Severity:** CRITICAL when the intermediate model is a `list[dict[str, Any]]` mirroring JITX-object shape one-to-one. WARNING when typed but still pointlessly indirect.
 
-**Rule source:** `jitx/references/architectural-patterns.md` § 3 ("Build the scene graph directly"). Reviewer note: "This is building a separate model and then constructing the object out of that model. Just build the scene graph directly."
+**Rule source:** `jitx/references/architectural-patterns.md` § 3 ("Build the scene graph directly").
 
 ### `owner-shaped-data-misplaced` (formerly `substrate-pollution`)
 
@@ -42,7 +42,7 @@ The name `getattr-on-self` was too narrow: it let agents rationalize `getattr(lp
 
 **Severity:** WARNING by default. CRITICAL when the design *contradicts* the owning object (wrong layer count, stale via map) or when the data is design-state-critical (pad numbering for placement).
 
-**Rule source:** `jitx/references/architectural-patterns.md` § 4. Sub-example 4a covers substrates; sub-example 4b covers routing-structure per-layer geometry. Reviewer note: "out of place — the substrate has layers. Introspect from stackup."
+**Rule source:** `jitx/references/architectural-patterns.md` § 4. Sub-example 4a covers substrates; sub-example 4b covers routing-structure per-layer geometry.
 
 ### `framework-boundary-bypass`
 
@@ -63,7 +63,7 @@ If the answer is "outside the owner, copying internals," the finding is `framewo
 
 **Severity:** CRITICAL. The right fix is to add a public adapter method on a framework subclass that delegates to the protected method (allowed by the "method calling another method on the same class" carve-out of the no-leading-underscore-from-elsewhere rule), and route all design-side calls through the adapter.
 
-**Rule source:** `jitx/SKILL.md` Don'ts ("Don't reinvent framework code in design code…"); `jitx/references/architectural-patterns.md` § 9 ("Framework boundary — internals don't transfer to design code"). Reviewer note (paraphrased): "they did it, therefore so can I! 🎉 — this is bad architecture, and couples the design to a numbering scheme."
+**Rule source:** `jitx/SKILL.md` Don'ts ("Don't reinvent framework code in design code…"); `jitx/references/architectural-patterns.md` § 9 ("Framework boundary — internals don't transfer to design code").
 
 ### `untyped-records`
 
@@ -71,7 +71,7 @@ If the answer is "outside the owner, copying internals," the finding is `framewo
 
 **Severity:** WARNING. Always fixable by introducing a `@dataclass(frozen=True)`.
 
-**Rule source:** `jitx/references/architectural-patterns.md` § 5. Reviewer note: "There's no safety here — typechecker won't help against typos. Poor craftsmanship."
+**Rule source:** `jitx/references/architectural-patterns.md` § 5.
 
 ### `module-import-time-parallel-model`
 
@@ -137,7 +137,7 @@ Patterns where the substrate / routing-structure / framework API is being misuse
 
 **Severity:** WARNING (architecture smell; functional code). NOTE when it's only two tags.
 
-**Rule source:** `jitx-substrate-modeler/SKILL.md` ("Tag inheritance & proliferation"). Reviewer note: "unclear that we need this many tags, it could possibly also be covered by a better rule" / "showcase that we support tag inheritance."
+**Rule source:** `jitx-substrate-modeler/SKILL.md` ("Tag inheritance & proliferation").
 
 ## Code-craft patterns
 
@@ -149,7 +149,7 @@ Hygiene patterns. Lower priority on their own but they accumulate.
 
 **Severity:** NOTE if the function is called from one site. WARNING if it's called from 4+ sites with all calls identical except for `.reference()` / `.fence()` post-construction chains — those varying inputs should be function arguments.
 
-**Rule source:** Reviewer note: "why have a function to make the construction instead of making the construction? doesn't make sense if not parameterized."
+**Rule source:** code-craft hygiene — an unparameterized factory is just a costlier constructor call; parameterize it or inline it.
 
 ### `dead-named-constant`
 
@@ -157,7 +157,7 @@ Hygiene patterns. Lower priority on their own but they accumulate.
 
 **Severity:** NOTE. Inline-or-keep is a judgment call; reviewer flags for author decision.
 
-**Rule source:** Reviewer note: "This is a descriptive structure — put the number in it instead of having a variable."
+**Rule source:** code-craft hygiene — a single-use named constant that adds no unit or derivation; the literal is clearer.
 
 ### `vestigial-construct`
 
@@ -183,19 +183,17 @@ Hygiene patterns. Lower priority on their own but they accumulate.
 
 **Severity:** NOTE only. Do not escalate; do not add to `jitx/SKILL.md` Don'ts.
 
-**Rule source:** Reviewer note (framed as a side-note): "we should stop doing these … with tool support there's not really an argument for having easy-for-humans-to-hand-type aliases."
+**Rule source:** code-craft hygiene (soft) — editor tooling removes the need for hand-typing aliases; a published-API alias is the exception.
 
 ## Cross-cutting tags
 
 These are general cross-cutting tags that translate cleanly to JITX-Python targets. Use them as a fallback when the named architectural / API / code-craft patterns above don't fit, or as a *secondary* tag alongside a named pattern when the same finding has two shapes.
 
-The eight tags below are the ones that fire most often on user-written JITX code; four others (`recommend-against-yourself`, `miscalibrated-heuristic`, `block-vs-warn`, `trigger-ambiguity`) are skill-doc-shaped and rarely apply to user code.
-
 - `inaccurate` — code claims a mechanism that doesn't match how JITX actually works.
 - `wrong-abstraction-level` — rule / construct placed at the wrong scope (component-level when it should be circuit-level, etc.).
 - `quantitative-error` — magic numbers that don't check out against the cited datasheet / spec.
 - `coverage-gap` — categorical handling that misses adjacent cases (USB-C without USB-A; USB 2.0 without USB 3.0).
-- `internal-inconsistency` — the same concept named differently across files in this PR.
+- `internal-inconsistency` — the same concept named differently across files in the design.
 - `stale-reference` — code refers to a file / class that no longer exists.
 - `example-shaped-rule` — a constant / function that's overfit to one specific instance (rather than parametric).
 - `compliance-theater` — a claim made without backing evidence (e.g., "datasheet says X" with no page/figure reference; "tested clean" with no test file). Includes a code comment or docstring asserting a fact the code doesn't support ("optimized for HFSS extraction", "matches the reference stackup") — facts not in evidence.
