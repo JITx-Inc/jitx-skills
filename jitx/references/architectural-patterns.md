@@ -1,6 +1,6 @@
 # Architectural Patterns — Anti-String-Hacking
 
-Worked counter-examples for the architectural don'ts in `jitx/SKILL.md`. The category name is "parallel-model / stringly-typed-indirection" — the shorthand "string-hacking" is from PR-review register.
+Worked counter-examples for the architectural don'ts in `jitx/SKILL.md`. The category name is "parallel-model / stringly-typed-indirection" — "string-hacking" is the shorthand.
 
 These patterns are the dominant failure mode in AI-generated JITX code. They cluster around the same root cause: the AI built a parallel data model keyed by hand-built strings (or did reflection-as-iteration on `self`) instead of letting JITX's own class/list/dict structure *be* the model. Every pattern below: a real failure pattern observed in review, and the JITX-native counter-pattern that replaces it.
 
@@ -102,7 +102,7 @@ for pair in self.bga.TX:
     self += pair.P + ...
 ```
 
-**Why.** "Why isn't this an array of arrays?" (PR review). Sibling attributes are the failure mode when the underlying collection is homogeneous (same type, same role). Reach for `list` / `dict` / `PinGroup` directly. If you need a programmatic collection, `getattr(self, ...)` is the wrong answer; the right answer is to declare the collection.
+**Why.** "Why isn't this an array of arrays?". Sibling attributes are the failure mode when the underlying collection is homogeneous (same type, same role). Reach for `list` / `dict` / `PinGroup` directly. If you need a programmatic collection, `getattr(self, ...)` is the wrong answer; the right answer is to declare the collection.
 
 If you genuinely need to introspect children (across heterogeneous types, e.g., "give me every pad on this Component"), use JITX's inspection API — never name-reconstruction with `getattr`.
 
@@ -153,7 +153,7 @@ def _make_lane(self, i: int) -> EscapeLane:
 self.lanes: list[EscapeLane] = [self._make_lane(i) for i in range(self.n_pairs)]
 ```
 
-**Why.** "This is building a separate model and then constructing the object out of that model. Just build the scene graph directly. Use constructors, objects, composites, containers" (PR review). The intermediate `list[dict]` is scaffolding — it has no role once the JITX objects exist. Cut it out; construct the objects directly inside the right JITX-native grouping (see triage below).
+**Why.** "This is building a separate model and then constructing the object out of that model. Just build the scene graph directly. Use constructors, objects, composites, containers". The intermediate `list[dict]` is scaffolding — it has no role once the JITX objects exist. Cut it out; construct the objects directly inside the right JITX-native grouping (see triage below).
 
 The exception is *intentional parameter staging* — e.g., gathering input parameters for a generator function. That's not a "spec model"; that's just function arguments. The smell is when the dict mirrors the JITX-object shape one-to-one.
 
@@ -219,7 +219,7 @@ class Generic_Substrate(Substrate):
 
 Trace widths, reference-plane assignments, fence-via patterns, and keepout radii belong inside the routing structure's per-layer entry (`DifferentialRoutingStructure.Layer(...).reference(...).fence(...)`). The design should not maintain a parallel constant table or apply these via tag-based `design_constraint(...)` rules when the routing structure already supports them.
 
-**Why.** "Out of place — the substrate has layers. Introspect from stackup" (PR review). When a value is naturally indexed by an invariant a structural object owns, the table lives on that object. Designs should not maintain a parallel "L1→uVia_L1_L2" table. If JITX doesn't expose the right API, that's a gap to file — not a license to copy.
+**Why.** "Out of place — the substrate has layers. Introspect from stackup". When a value is naturally indexed by an invariant a structural object owns, the table lives on that object. Designs should not maintain a parallel "L1→uVia_L1_L2" table. If JITX doesn't expose the right API, that's a gap to file — not a license to copy.
 
 Closely related: see Pattern 9 ("Framework boundary — internals don't transfer to design code"). Copying the *navigation logic* (not just the data) is the same failure with a different surface.
 
@@ -262,7 +262,7 @@ r = records[0]
 self.use(r.tx_pair)  # typecheck OK
 ```
 
-**Why.** "There's no safety here — typechecker won't help against typos. Poor craftsmanship. There are dataclasses for this, named tuples, etc." (PR review). The Python tooling (pyright, mypy) catches dataclass-attribute typos at write-time; it can't catch dict-key typos. If batching into records is necessary (after rules 1–3 have been honored), use a frozen dataclass or NamedTuple — never bare `dict[str, Any]`.
+**Why.** "There's no safety here — typechecker won't help against typos. Poor craftsmanship. There are dataclasses for this, named tuples, etc.". The Python tooling (pyright, mypy) catches dataclass-attribute typos at write-time; it can't catch dict-key typos. If batching into records is necessary (after rules 1–3 have been honored), use a frozen dataclass or NamedTuple — never bare `dict[str, Any]`.
 
 ---
 
@@ -305,7 +305,7 @@ The discriminator:
 - **Class-body declaring JITX structural children** = fine.
 - **Module-level literal data without computed string keys** (e.g., `BALLOUT: list[BallPosition] = [BallPosition(lane=0, polarity="P", ...), ...]`) = fine if literals only; once you have a loop or comprehension building names, see the bad pattern.
 
-**Why.** "Code that runs on initialization is poor form. Again it's constructing names" (PR review). The specific failure is *generating a parallel data model from scratch at import time*. Class-body structural declarations don't generate a parallel model — they ARE the model. The grep gate `^for\s+\w+\s+in\s+` (column-0 only) catches the module-level form without firing on class-body comprehensions.
+**Why.** "Code that runs on initialization is poor form. Again it's constructing names". The specific failure is *generating a parallel data model from scratch at import time*. Class-body structural declarations don't generate a parallel model — they ARE the model. The grep gate `^for\s+\w+\s+in\s+` (column-0 only) catches the module-level form without firing on class-body comprehensions.
 
 ---
 
@@ -329,7 +329,7 @@ class MySubstrate(Substrate):
 
 **Note — legitimate inline-subclass case:** `@inline class stackup(Symmetric):` with a *non-empty body* that declares layers (see `jitx-substrate-modeler/SKILL.md` "Inline Stackup") is the canonical pattern for defining a stackup. This rule applies only to **pass-through inline subclasses** where the body adds no fields, no overrides, no methods. The discriminator is body content: empty body = bad (instantiate instead); non-empty body = legitimate inline-stackup pattern.
 
-**Why.** "This is incorrect — should instantiate generic instead of inlining" (PR review). An empty-body `@inline class X(Base): pass` does nothing the base class doesn't already do — it's just a more expensive way to instantiate. The general principle: prefer instance composition over class-level mechanisms when both produce the same runtime structure. Inheritance is for *adding or changing* behavior; if you're not adding or changing anything, instantiate.
+**Why.** "This is incorrect — should instantiate generic instead of inlining". An empty-body `@inline class X(Base): pass` does nothing the base class doesn't already do — it's just a more expensive way to instantiate. The general principle: prefer instance composition over class-level mechanisms when both produce the same runtime structure. Inheritance is for *adding or changing* behavior; if you're not adding or changing anything, instantiate.
 
 ---
 
@@ -350,7 +350,7 @@ def ball_spec(self, name: str) -> Ball:
 # JITX assigns the refdes; downstream tools see the right name
 ```
 
-**Why.** "Would not assign reference designator here, because JITX assigns those. Lots in this design to handle hardships going through odb++ to hfss" (PR review). If you're computing a name that JITX should be giving you, you're bypassing the framework. The general principle: don't manually assign values that JITX assigns automatically — reference designators, net names from topology, layer indices from stackup, etc. Pressure from export-pipeline tools (e.g., `odb++` → HFSS) is a known temptation to do the wrong thing; resist it.
+**Why.** "Would not assign reference designator here, because JITX assigns those. Lots in this design to handle hardships going through odb++ to hfss". If you're computing a name that JITX should be giving you, you're bypassing the framework. The general principle: don't manually assign values that JITX assigns automatically — reference designators, net names from topology, layer indices from stackup, etc. Pressure from export-pipeline tools (e.g., `odb++` → HFSS) is a known temptation to do the wrong thing; resist it.
 
 ---
 
@@ -362,7 +362,7 @@ This is the meta-failure of the previous patterns. Even when the AI has correctl
 
 **Bad:**
 ```python
-# design/generic_bga.py
+# design module
 from jitxlib.landpatterns.grid_layout import to_bga_row_ref   # WRONG — copying framework navigation
 
 def _pad_at(lp, r: int, c: int):
@@ -390,7 +390,7 @@ class HexBGA(A1, AlphaDictNumbering, HexBGADecorated):
 mapping[pair.p] = [lp.get_pad(bottom_row, col)]   # polymorphic, decoupled
 ```
 
-**Why.** "[Y]ou're not going with the grain" / "this code will fail instead of relying on the existing polymorphic behavior" (PR-review verdict, paraphrased). Framework code factored out for separation of concerns is a **boundary**, not a license. When framework code uses `getattr` inside the class that owns the row-letter numbering invariant, that's the framework's same-class exception inside its own implementation. Design code on the *outside* of that boundary does not inherit the exception — replicating the navigation logic out there is the failure mode.
+**Why.** "[Y]ou're not going with the grain" / "this code will fail instead of relying on the existing polymorphic behavior" (reviewer, paraphrased). Framework code factored out for separation of concerns is a **boundary**, not a license. When framework code uses `getattr` inside the class that owns the row-letter numbering invariant, that's the framework's same-class exception inside its own implementation. Design code on the *outside* of that boundary does not inherit the exception — replicating the navigation logic out there is the failure mode.
 
 The reviewer's framing: *"rather amusing that this was indeed already called out, but missing the point/intent and ending up with the opposite conclusion ('they did it, therefore so can I! 🎉' — paraphrased)."*
 
@@ -412,7 +412,7 @@ Wrapping the banned pattern in a helper does not make it allowed. The helper is 
 
 Three layers, in order:
 
-1. **Use what JITX already exposes** — public API on the structural object that owns the invariant (Pattern 4, Pattern 9).
+1. **Use what JITX already exposes** — public API on the structural object that owns the invariant (Pattern 4, Pattern 9). This includes public *constructors and overloads* on primitives, not only methods on structural objects: before hand-rolling a helper that assembles a geometry/value the framework already builds, check for an existing overload. (E.g. a hand-written arc-builder that duplicates one of `Arc`'s overloaded constructors — three-point, start/end/radius, and center/radius/start/sweep all exist — could be reduced to just using the existing overload. Reinventing a *public* primitive is a code-craft / simplification miss, distinct from `framework-boundary-bypass`, which is copying framework *internals*.)
 2. **If no public API exists, add one as a subclass adapter** — Pattern 9's exit hatch. This keeps the boundary intact while giving design code a clean call site.
 3. **If JITX has no structural object for what you're modeling,** the right answer is a typed Python primitive (`@dataclass(frozen=True)`, `list[T]`, `dict[StructuralKey, T]`), never `dict[str, Any]` or sibling attributes plus `getattr` (Patterns 1, 2, 5). Note: prefer `jitx.container.Container` or assigning structural collections directly on `self` when the grouped values are JITX structural children that need traversal — `@dataclass` is for pure metadata or parameter records.
 

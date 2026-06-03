@@ -61,7 +61,7 @@ from jitx.container import inline
 
 Substrate-shaped data (layer-to-via maps, layer-pair tables, per-layer trace widths) belongs **on the substrate**, queried by the design — not duplicated as design-level constants. The design should write `self.substrate.via[(a, b)]`, not maintain its own `_SIGNAL_LAYER_TO_VIA` dict. See `jitx/references/architectural-patterns.md` § "Substrate-shaped tables live on the substrate" before adding per-layer constant tables. Also: instantiate generic substrates (`stackup = Generic_Stackup()`), don't inline-subclass them (`@inline class stackup(Generic_Stackup): pass`) — § "Instantiate, don't inline-subclass".
 
-A "generic" substrate must be reusable across designs. Design-specific tags (`AntipadFenceTag` named after a particular escape design), design-specific trace widths (`DESKEW_TRACE_WIDTH`), or design-specific fence definitions do **not** belong in `generic_*.py` — push them into the consuming design.
+A "generic" substrate must be reusable across designs. Design-specific tags (`AntipadFenceTag` named after a particular escape design), design-specific trace widths (`DESKEW_TRACE_WIDTH`), or design-specific fence definitions do **not** belong in `generic_*.py` — push them into the consuming design. **Comments and docstrings are part of this surface too:** a generic substrate must not claim it's tuned for one downstream tool's extraction/export flow (`jitx-ansys` / HFSS, `odb++`) or state a fact the code doesn't back — that couples the reusable artifact to one consumer and asserts facts not in evidence. A neutral, evidenced mention of a tool isn't the problem; an unbacked tool-specific *suitability* claim is.
 
 For a same-model self-critique pass on the substrate after writing (catches what these rules don't), invoke `jitx-skills:jitx-code-review`. Optional for single-task use.
 
@@ -594,6 +594,31 @@ self.rule3 = design_constraint(RFSignalTag(), GNDTag()).clearance(0.15)
 **Board-wide defaults belong on the Design class, not the substrate.** The four canonical defaults — trace width, copper clearance, thermal relief, wider power/ground — go in `self.rules` on the top-level Design via `UnaryDesignConstraint(IsTrace)` / `BinaryDesignConstraint(IsCopper, IsCopper)` / `UnaryDesignConstraint(IsPad)` / `UnaryDesignConstraint(PowerTag() | GroundTag(), priority=1)`. See `jitx/references/project-builder-flow.md` "Default design rules" for the full pattern. The substrate's `FabricationConstraints` are the fab-minimum floor; the Design rules are the production-friendly defaults that sit above the floor.
 
 `design_constraint(...)` and `UnaryDesignConstraint(...)` / `BinaryDesignConstraint(...)` are equivalent — the lowercase form is a factory that returns the right subtype based on arity. Use either.
+
+### Tag inheritance & proliferation
+
+**Tags form a hierarchy through class inheritance, and a rule on a base tag applies to every subclass tag.** This is a first-class JITX feature, not a trick — a tag can subclass *another tag*, not just `Tag`:
+
+```python
+class FenceTag(Tag): pass
+class AntipadFenceTag(FenceTag): pass        # subclass of FenceTag
+class DeskewAntipadFenceTag(AntipadFenceTag): pass   # subclass of AntipadFenceTag
+
+# Applies to ALL fence tags — antipad, deskew, and any future FenceTag subclass:
+self.fence_clearance = design_constraint(FenceTag(), GNDTag()).clearance(0.15)
+
+# Applies only to the deskew variant; give it higher priority to override the base
+# rule where they overlap (higher priority wins when multiple rules match):
+self.deskew_fence = design_constraint(DeskewAntipadFenceTag(), priority=10).fence_via(...)
+```
+
+A net/pour/object tagged `DeskewAntipadFenceTag()` matches rules written against `DeskewAntipadFenceTag`, `AntipadFenceTag`, **and** `FenceTag`. Where two matching rules conflict, the higher `priority=` wins — that's how a specific subtag rule overrides the general base-tag rule. (Tags also combine with `&` / `|` / `~` and `Tag.any(...)` when a hierarchy isn't the right shape.)
+
+**Flat tag proliferation is a smell.** A row of near-identical sibling tags that all inherit straight from `Tag` and differ only by name — each wired to its own rule that mostly restates the others — usually wants one of:
+- a **base tag** carrying the shared rule, with subtags only where behavior actually differs (the neckdown case: one clearance rule for *all* neckdown via `NeckDownTag`, plus a higher-priority rule for the one neckdown level that's special), or
+- a single **combined rule** (`design_constraint(TagA() | TagB())…`) when the tags aren't really distinct concepts.
+
+Reach for many flat tags only when the rule sets are genuinely distinct. Mapping a spreadsheet of per-combination rules into a flat tag-per-row table is the usual way this goes wrong — the hierarchy expresses the same intent with far fewer rules.
 
 ## Fenced Pour Outlines (Antipads, RF Cavities, BGA Breakouts)
 

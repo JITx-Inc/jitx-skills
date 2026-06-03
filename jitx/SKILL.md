@@ -510,7 +510,7 @@ Covers:
 
 Covers:
 - Same-model self-critique against `jitx/SKILL.md` Don'ts and `references/architectural-patterns.md`
-- Recognition of the 15 PR-derived failure patterns (string-keyed models, sibling-attribute reflection, parallel data models, substrate pollution, etc.)
+- Recognition of the PR-derived failure patterns (string-keyed models, sibling-attribute reflection, parallel data models, owner-shaped data misplaced, tag proliferation, etc.)
 - Severity-tagged findings (CRITICAL / WARNING / NOTE) that fold into the task acceptance block's `JITX code review (self):` field
 
 Skill is the *per-task* same-model pre-pass before codex outside-voice. Phase 3b uses a different same-model pre-pass (the four-pass design audit) — see `references/outside-voice-review.md`.

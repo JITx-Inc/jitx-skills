@@ -1,6 +1,6 @@
-# Worked Patterns — PR #4 as the canonical evidence set
+# Worked Patterns — recognition examples for the JITX code reviewer
 
-These are the failure patterns the reviewer should recognize on sight. Each pattern: a one-line description, a representative example from the PR-review evidence set (JITx-Inc/py-components#4), the rule that names it as wrong, and what good looks like.
+These are the failure patterns the reviewer should recognize on sight. Each pattern: a one-line description, a representative (anonymized) example, the rule that names it as wrong, and what good looks like.
 
 Use this file as the *recognition* counterpart to `checklist.md` (which is the taxonomy). When the reviewer sees code that looks like one of the examples below, the finding writes itself.
 
@@ -10,7 +10,7 @@ Use this file as the *recognition* counterpart to `checklist.md` (which is the t
 
 **Recognition shape:** A function `_build_X_records()` that returns `list[dict]`, populated by hand-built strings, then walked by a separate consumer.
 
-**Evidence (PR #4, `src/jitxexamples/designs/si_bga_optimization/bga_escape.py`):**
+**Bad:**
 
 ```python
 def _build_pair_records(self) -> list[dict]:
@@ -60,7 +60,7 @@ self.lanes: list[EscapeLane] = [
 
 **Recognition shape:** Several sibling attributes on a component, named with a numeric suffix; an iteration that reassembles them by `getattr(self, f"X_{i}")`.
 
-**Evidence (`generic_bga.py`):**
+**Bad:**
 
 ```python
 class HexBGA_Base(Component):
@@ -80,7 +80,7 @@ pairs = [getattr(self, f"TX_b{i}") for i in _NON_LEGACY_PAIR_INDICES]
 
 **Reviewer quotes:** "this is illegal" / "illegal — no getattr" / "Why isn't this an array of arrays?" / "there has to be a better way to structure this."
 
-**Finding severity:** CRITICAL. Pattern tags: `getattr-on-self`, `string-keyed-model`.
+**Finding severity:** CRITICAL. Pattern tags: `reflection-as-iteration`, `string-keyed-model`.
 
 **Good:**
 
@@ -101,7 +101,7 @@ for pair in self.TX:
 
 **Recognition shape:** Module-level constants in a design file that describe substrate properties — layer counts, layer-to-via maps, layer-to-name maps.
 
-**Evidence (`bga_escape.py:35`):**
+**Bad:**
 
 ```python
 _NUM_CONDUCTOR_LAYERS = 20  # Generic_Stackup L1..L20
@@ -116,7 +116,7 @@ _SIGNAL_LAYER_TO_VIA = {
 
 **Reviewer quotes:** "Out of place — the substrate has layers. Introspect from stackup." / "Encode as a mapping: from – to. L1-L2: 0-1. Can put this in the substrate. `via[(0,1)]`."
 
-**Finding severity:** WARNING (default) or CRITICAL (if design contradicts substrate). Pattern tags: `substrate-pollution`, `substrate-shaped-table-in-design`.
+**Finding severity:** WARNING (default) or CRITICAL (if design contradicts substrate). Pattern tags: `owner-shaped-data-misplaced`.
 
 **Good:** Design queries `self.substrate.via[(a, b)]` and `self.substrate.n_conductors`; substrate file owns the tables.
 
@@ -126,7 +126,7 @@ _SIGNAL_LAYER_TO_VIA = {
 
 **Recognition shape:** A "generic" substrate file (`generic_<n>layer.py`) that imports / declares tags, trace widths, or fence definitions named after a specific design.
 
-**Evidence (`generic_20layer.py`):**
+**Bad:**
 
 ```python
 # In the file declaring a "generic" substrate
@@ -148,7 +148,7 @@ DESKEW_PAIR_SPACING = 0.118     # design-specific
 
 **Recognition shape:** Module-level `for` loop or comprehension at column 0 that populates a global table by string-formatting names.
 
-**Evidence (`generic_bga.py:113`):**
+**Bad:**
 
 ```python
 # module top level
@@ -160,7 +160,7 @@ for lane in range(7):
 
 **Reviewer quote:** "Code that runs on initialization is poor form. Again it's constructing names."
 
-**Finding severity:** CRITICAL (hard-fail grep gate catches the `for` form). Pattern tags: `module-import-time-logic`, `string-keyed-model`.
+**Finding severity:** CRITICAL (hard-fail grep gate catches the `for` form). Pattern tags: `module-import-time-parallel-model`, `string-keyed-model`.
 
 **Good:** Function called lazily, or restructure as a typed list / dict-keyed-by-structural-object. See `jitx/references/architectural-patterns.md` § 6.
 
@@ -170,7 +170,7 @@ for lane in range(7):
 
 **Recognition shape:** `list[dict]` (without explicit element type) or bare `dict[str, Any]` used to batch state, with no `@dataclass` discipline.
 
-**Evidence (same `_build_pair_records` example as P1).**
+**Bad (same `_build_pair_records` example as P1).**
 
 **Reviewer quote:** "There's no safety here — typechecker won't help against typos. Poor craftsmanship. There are dataclasses for this, named tuples, etc."
 
@@ -184,7 +184,7 @@ for lane in range(7):
 
 **Recognition shape:** A `design_constraint(...)` rule with a tag (e.g., `BGAFanoutTag`) bolting a keepout or reference plane onto a routing structure, when the routing structure's `Layer(...)` already supports `.reference(...)` and the keepout can go there directly.
 
-**Evidence (`generic_20layer.py:509`):**
+**Bad:**
 
 ```python
 # tag-based keepout added far from the routing structure
@@ -215,7 +215,7 @@ DRS_DiffPair_85 = DifferentialRoutingStructure([
 
 **Recognition shape:** Names like `L1_Ground1` inside a `Symmetric` stackup. The mirror means the bottom conductor gets the same name, which loses information.
 
-**Evidence (`generic_20layer.py:77`):**
+**Bad:**
 
 ```python
 @inline
@@ -237,7 +237,7 @@ class stackup(Symmetric):
 
 **Recognition shape:** `@inline class X(Base): pass` where `x = Base()` would do.
 
-**Evidence (`generic_20layer.py:296`):**
+**Bad:**
 
 ```python
 @inline
@@ -257,7 +257,7 @@ class stackup(Generic_Stackup):
 
 **Recognition shape:** `refdes=` set explicitly in user code; net names hard-coded by string-formatting; layer indices computed when the substrate could be queried.
 
-**Evidence (`bga_geometry.py:121`):**
+**Bad:**
 
 ```python
 def ball_spec(self, name: str, refdes: str = "U1") -> Ball:
@@ -276,7 +276,7 @@ def ball_spec(self, name: str, refdes: str = "U1") -> Ball:
 
 **Recognition shape:** A function with zero arguments returning a fully-baked JITX construction object, with all parameters inlined as literals. Called from N sites, each adding `.reference(...)` / `.fence(...)` post-construction.
 
-**Evidence (`generic_20layer.py:256`):**
+**Bad:**
 
 ```python
 def _make_drs_layer_85() -> DifferentialRoutingStructure.Layer:
@@ -306,10 +306,10 @@ DRS_DiffPair_85_L2 = DRS_DiffPair_85.with_layer(_make_drs_layer_85().reference(L
 - A thin design-side wrapper that hides a `getattr(<framework-object>, ...)` call (`_pad_at(lp, r, c)` wrapping `getattr(lp, row_letter)[c]`).
 - A code comment rationalizing one banned-pattern call as "the boundary call" or "the framework does this."
 
-**Evidence (PR #4 rearchitecture commit `ed95f1c`, before fix `be0be76`):**
+**Bad — design code copying framework navigation:**
 
 ```python
-# generic_bga.py — design code copying framework navigation
+# in the component module
 from jitxlib.landpatterns.grid_layout import to_bga_row_ref
 
 def _pad_at(lp, r: int, c: int):
@@ -328,10 +328,10 @@ The AI's plan literally documented the rationalization: *"The only `getattr` is 
 
 **Finding severity:** CRITICAL. Pattern tag: `framework-boundary-bypass`.
 
-**Good (PR #4 fix commit `be0be76`):**
+**Good:**
 
 ```python
-# generic_bga.py — public adapter on the framework subclass
+# in the component module — public adapter on the framework subclass
 class HexBGA(A1, AlphaDictNumbering, HexBGADecorated):
     """Hex-staggered BGA with A1-corner alpha/dict pad numbering."""
 
@@ -362,10 +362,11 @@ mapping[pair.p] = [lp.get_pad(bottom_row, col)]
 
 ## P12. Naming hygiene
 
-Single-comment items from PR #4 that don't repeat across themes:
+Single-instance naming-hygiene items that don't repeat across themes:
 
 - `LEGACY` / `DORMANT` in names — pattern tag `vestigial-construct`.
 - Subclass not echoing base class name (`HexBGA_Base extends BGADecorated`) — pattern tag `name-vs-base-class-mismatch`.
 - Tag named after geometry primitive instead of role (`DiffPairTag` when it's a transmission-line-class tag) — pattern tag `name-vs-base-class-mismatch`.
+- Aliases added only so a human can hand-type a shorter name (pad aliases, shorthand accessors) — pattern tag `convenience-alias`. Editor tooling removes the ergonomic argument and each alias is a second naming surface to maintain. Soft preference: legitimate when part of a published/public API contract. Reviewer flags; never blocks.
 
 **Severity:** NOTE. Reviewer flags for author decision; not blocking.
