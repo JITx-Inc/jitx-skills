@@ -171,6 +171,7 @@ from jitx.landpattern import Landpattern, Pad
 from jitx.layerindex import LayerSet
 from jitx.net import Net, Port
 from jitx.shapes.composites import rectangle
+from jitxlib.symbols.box import BoxSymbol
 
 
 # Define Tag subclasses at MODULE scope — never inside a method (subclassing a JITX
@@ -197,6 +198,7 @@ class AntennaIFA(jitx.Component):
     feed = Port()
     short = Port()
     landpattern = _AnchorLandpattern()
+    symbol = BoxSymbol()             # components without a symbol fail translation
 
     def __init__(self) -> None:
         lp = self.landpattern
