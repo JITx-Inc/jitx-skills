@@ -438,7 +438,7 @@ Covers:
 - Add pad features — soldermask/paste openings, thermal pads with vias
 - Place vias or components from code, or attach a via/copper to a pad (`PortAttachment`)
 - Apply layout-intent tags (fanout/escape, direct-connect / thermal-relief) to layout objects
-- Author code-based routes or control points for escape routing / deskew (advanced, preliminary API)
+- Author code-based routes or control points for escape routing / deskew (advanced)
 
 **How to invoke:** Use the Skill tool with `skill: "jitx-skills:jitx-physical-layout"`
 
@@ -449,7 +449,7 @@ Covers:
 - `PortAttachment` + explicit placement (`Circuit.place`, `.at`), local frames
 - Keepouts that shape pours; local-vs-global pour placement
 - Layout-intent tags for object selection (rule mechanics stay in jitx-substrate-modeler)
-- `Route`, `InsertionControl`, `PairControl` (advanced / preliminary)
+- `Route`, `RoutePoint`, `PairInsertion`, `PairPoint` (advanced; stable as of JITX 4.2)
 
 This skill owns design-side geometry and placement; the substrate owns the via and
 routing-structure *definitions* and the `design_constraint(...)` rules that act on it.

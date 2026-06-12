@@ -1,6 +1,6 @@
 ---
 name: jitx-physical-layout
-description: This skill should be used when the user asks to author PCB physical layout from code — "draw copper from code", "create an antenna" / "filter copper" / "net tie" / "overlapping copper", build a "custom shape" or board outline with shapely, add a "custom pad shape", "soldermask/paste opening", or "thermal pad with vias", "place vias from code" / "attach a via to a pad", apply "fanout / escape tags" or "direct-connect / thermal-relief" to layout objects, or (advanced) add "control points" and "code-based routes" for escape routing or deskew. Covers shapely shape creation feeding ANY feature, Copper vs OverlappableCopper vs Pour, pad features (Soldermask/Paste/SMDPadConfig/thermal_pad), PortAttachment + explicit placement, layout-intent tags, and the preliminary Route / InsertionControl / PairControl API. For stackup, via definitions, routing structures, fence-via rules, and fenced pour outlines use jitx-substrate-modeler; for net wiring, passives, and basic pours use jitx-circuit-builder.
+description: This skill should be used when the user asks to author PCB physical layout from code — "draw copper from code", "create an antenna" / "filter copper" / "net tie" / "overlapping copper", build a "custom shape" or board outline with shapely, add a "custom pad shape", "soldermask/paste opening", or "thermal pad with vias", "place vias from code" / "attach a via to a pad", apply "fanout / escape tags" or "direct-connect / thermal-relief" to layout objects, or (advanced) add "control points" and "code-based routes" for escape routing or deskew. Covers shapely shape creation feeding ANY feature, Copper vs OverlappableCopper vs Pour, pad features (Soldermask/Paste/SMDPadConfig/thermal_pad), PortAttachment + explicit placement, layout-intent tags, and the Route / control-point API (RoutePoint / PairInsertion / PairPoint, stable as of JITX 4.2). For stackup, via definitions, routing structures, fence-via rules, and fenced pour outlines use jitx-substrate-modeler; for net wiring, passives, and basic pours use jitx-circuit-builder.
 ---
 
 # JITX Physical Layout
@@ -10,10 +10,11 @@ placement, code-driven vias/routes, and layout-intent tags — directly in Pytho
 This is the layer **between** schematic-level wiring (`jitx-circuit-builder`) and
 stackup/fab definition (`jitx-substrate-modeler`).
 
-JITX is a moving target and parts of this API are marked **preliminary** in the
-source. Do not rely on prior JITX knowledge — **verify every import and signature
-with `pyright` against the installed package**, and build-test anything from the
-"preliminary" sections below before trusting it.
+JITX is a moving target — APIs on this page have been renamed across releases
+(most recently the control-point classes in 4.2.0). Do not rely on prior JITX
+knowledge — **verify every import and signature with `pyright` against the
+installed package**, and build-test control-point/route geometry before
+trusting it.
 
 ## Scope — what this skill owns vs neighbors
 
@@ -23,7 +24,7 @@ with `pyright` against the installed package**, and build-test anything from the
 | Build a shape with shapely and feed it to any feature | **this skill** |
 | Add soldermask/paste/thermal-pad features, place vias/components from code | **this skill** |
 | Tag layout objects (fanout, escape, direct-connect) for selection | **this skill** (rule *mechanics* → substrate-modeler) |
-| Code-based routes & control points (escape lanes, deskew) | **this skill** (preliminary — fenced reference) |
+| Code-based routes & control points (escape lanes, deskew) | **this skill** (advanced — see reference) |
 | Wire nets, add passives, voltage dividers, basic pours | `jitx-circuit-builder` |
 | Define the stackup, vias, routing structures, fence-via rules, fenced pour outlines | `jitx-substrate-modeler` |
 | Author a component's package/landpattern from a datasheet | `jitx-component-modeler` |
@@ -42,7 +43,7 @@ Environment setup is handled by the base `jitx` skill — invoke it first.
 ```python
 # Copper & pours
 from jitx import Copper, Pour, current
-from jitx.feature import OverlappableCopper          # netless overlap copper (PRELIMINARY)
+from jitx.feature import OverlappableCopper          # netless overlap copper
 # Features (pad / surface / keepout)
 from jitx.feature import Soldermask, Paste, Silkscreen, Courtyard, Custom, Cutout, KeepOut
 # Shapes
@@ -59,9 +60,9 @@ from jitx.net import Port, PortAttachment
 from jitx.constraints import Tag, Tags
 # Pad config (landpattern feature generation)
 from jitxlib.landpatterns.pads import SMDPadConfig
-# Code-based routes / control points (PRELIMINARY — see fenced reference)
+# Code-based routes / control points (stable as of 4.2; also re-exported from top-level jitx)
 from jitx.circuit import Route
-from jitx.controlpoint import SingleControl, InsertionControl, PairControl
+from jitx.controlpoint import RoutePoint, PairInsertion, PairPoint
 ```
 
 **Do NOT import** (these do not exist): `jitx.copper.OverlappableCopper`
@@ -127,7 +128,7 @@ copper is allowed to **overlap** other copper:
 | `OverlappableCopper(shape, layer)` | **no** (netless) | **yes** | antenna radiators, filter copper, decorative/RF fill that overlaps pads — ignored by the router and overlap checks |
 
 `Copper` lives in `jitx` (top-level / `jitx.copper`); `OverlappableCopper` lives in
-`jitx.feature` and is **`# PRELIMINARY`** in the source.
+`jitx.feature`.
 
 ```python
 from jitx import Copper, Pour
@@ -251,8 +252,15 @@ routing structure) is declared in the substrate or top-level design via
 Apply with `MyLayoutTag().assign(obj)` or `Tags(tag_a, tag_b).assign(obj1, obj2)` —
 always a `Tag` *subclass you define*, never the bare `Tag` base — inside a
 design/circuit context. Supported object types: **`Net`, `TopologyNet`, `Copper`,
-`Pour`, `Route`, `Component`, `Circuit`, `Landpattern`, `Pad`, `Via`** — note
-`OverlappableCopper` is *not* taggable.
+`Pour`, `Route`, `Component`, `Circuit`, `Landpattern`, `Pad`, `Via`,
+`ControlPoint`** — note `OverlappableCopper` is *not* taggable.
+
+Tagging a **container tags the copper objects inside it** — tag a `Landpattern`
+and every pad in it inherits the tag; same for a `Component` or `Circuit`. Tag
+`self` in a class `__init__` to tag *all instances* of that class. Assignment
+outside a design-relevant context emits a `RuntimeWarning` and has no effect, and
+assigning a `BuiltinTag` raises `TypeError` (builtins are rule conditions only —
+see `jitx-substrate-modeler`).
 
 Common layout-intent tag roles (define the `Tag` subclasses in your design):
 
@@ -273,32 +281,31 @@ self.routes = [r]                          # store on self so the structural wal
 Tags(PinFanoutTag()).assign(r)             # Route is a supported tag target
 ```
 
-`Route` and the control-point types are detailed (with their preliminary-API caveats)
-in `references/control-points-preliminary.md`.
+`Route` and the control-point types are detailed in
+`references/control-points.md`.
 
-## Control points & code-based routes (ADVANCED / PRELIMINARY)
+## Control points & code-based routes (ADVANCED)
 
-The module is **`jitx.controlpoint`** (singular — verified in jitx 4.2.0a4 and
-4.3.0a1; `jitx.control_points` does not exist there), it is marked
-**`# PRELIMINARY`**, and its accessor surface differs across JITX versions. Treat
-this as advanced-only: verify against the installed `jitx/controlpoint.py`, run
-`pyright`, and **build-test** before relying on it.
+Stable as of **JITX 4.2.0**. The module is **`jitx.controlpoint`** (the three
+classes are also re-exported from top-level `jitx`). The classes were **renamed in
+4.2.0** — pre-release alphas called them `SingleControl` / `InsertionControl` /
+`PairControl`; those names no longer import.
 
 - `Route(source, destination, layer, sketch=None)` — a code-based route between two
-  `Port`/`Pad` endpoints (not directional); `sketch` is an optional `list[Point]`
-  hint for the routing engine.
-- `SingleControl(layer=..., shape=None)` — the **single-ended** control point; its
-  `.port` is the routable endpoint.
-- `InsertionControl(layer=...)` / `PairControl(layer=...)` — differential-pair
-  insertion / pairing control points, placed with `.at(point, rotate=)` and wired to
-  ports via `PortAttachment([n, p], control)`.
+  `Port`/`Pad`/`Via` endpoints (not directional); `sketch` is an optional list of
+  points hinting the routing engine. No per-route width/clearance overrides — tag
+  the route and write a `design_constraint(...)` rule instead.
+- `RoutePoint(layer=..., shape=None, bundle=Port)` — the **single-ended** control
+  point; its `.port` is the routable endpoint.
+- `PairInsertion(layer=..., bundle=DiffPair)` — differential-pair **insertion**
+  point (uncoupled legs on one side via `.uncoupled.{n,p}`, coupled pair on the
+  other via `.coupled`); `PairPoint(layer=..., bundle=DiffPair)` — joins two
+  coupled segments via `.pair`. Both are placed with `.at(point, rotate=)` and
+  wired to ports via `PortAttachment([n, p], control)` — port **order sets
+  chirality** for `PairInsertion`.
 
-The 4.1.0a7 docstring **mentions** `.a` / `.b` / `.pair` accessors on
-`InsertionControl`, while 4.2.0a4 / 4.3.0a1 use `.coupled` / `.uncoupled.{n,p}`
-(`InsertionControl`), `.pair` (`PairControl`), and `.port` (`SingleControl`) —
-**do not hard-code an accessor name from memory**; read the installed source. Full
-pattern + the real BGA escape/deskew example:
-`references/control-points-preliminary.md`.
+Full pattern, chirality rules + the real BGA escape/deskew example:
+`references/control-points.md`.
 
 ## Anti-string-hacking
 
@@ -313,7 +320,7 @@ missing. See the base `jitx` skill's `references/architectural-patterns.md`, and
 ## Verification
 
 ```bash
-pyright path/to/layout.py        # verify imports/signatures — esp. preliminary APIs
+pyright path/to/layout.py        # verify imports/signatures against the installed package
 ruff format path/to/layout.py
 ```
 
@@ -326,4 +333,4 @@ reach a fab feature.
 
 Complete class definitions and parameters: [JITX Documentation](https://docs.jitx.com).
 Worked examples: `references/layout-examples.md` (thermal-pad CSG, antenna) and
-`references/control-points-preliminary.md` (Route / control points).
+`references/control-points.md` (Route / control points).
