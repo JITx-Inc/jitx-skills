@@ -402,7 +402,8 @@ When to choose which:
 
 - **Topology `Constrain(...).structure(...)`** — an ordered `>>` path exists and
   SI constraints (timing, skew, insertion loss) travel with the structure. The
-  structure applies to that one signal path.
+  structure applies to the topology paths you enumerate (`Constrain` takes one
+  topology or a list — see "Multiple signals with same constraint").
 - **Tag-based `design_constraint(...).routing_structure(...)`** — class-of-net
   rules: every net or code-based `Route` carrying the tag gets the structure,
   with no per-signal topology authoring. This is also the only way to put a

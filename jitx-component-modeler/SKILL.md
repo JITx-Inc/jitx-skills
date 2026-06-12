@@ -369,8 +369,8 @@ from jitxlib.landpatterns.pads import SMDPadConfig, WindowSubdivide
 ## Multi-Unit Symbols
 
 `BoxSymbol` accepts `BoxConfig` field overrides as keyword arguments — e.g.
-`BoxSymbol(rows=..., orientation=90)` rotates the box symbol (degrees as an
-int; jitxlib 4.2+).
+`BoxSymbol(rows=..., orientation=90)` rotates the box symbol (an int multiple
+of 90 degrees; other values raise `ValueError`; jitxlib 4.2+).
 
 Multiple `BoxSymbol` attributes = separate visual boxes:
 

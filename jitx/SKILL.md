@@ -39,9 +39,10 @@ if [ ! -f pyproject.toml ] || ! grep -q "jitx" pyproject.toml; then
   # CONFIRM WITH THE USER BEFORE RUNNING in a non-empty directory.
   jitx project layout init
   # Sync project deps. PIP_PRE + extra-index-url are required for `jitxlib-*` to resolve.
-  # Note: pip's resolver may re-pin `jitx` to an older 4.x that satisfies the project's `<5` constraint
-  # (e.g. 4.1.0a11 instead of 4.3.0a0). Both work for `jitx find` / `jitx build`, so don't fight it.
-  # If you specifically need the latest, follow with: `pip install --upgrade jitx` (see below).
+  # Note: pip's resolver may re-pin `jitx` to an older 4.x that satisfies the project's `<5` constraint.
+  # This skills bundle documents the 4.2 API surface (RoutePoint/PairInsertion/PairPoint, runtime
+  # auto-resolution, etc. do not exist below 4.2) — if the resolver lands below 4.2, pin it:
+  #   PIP_PRE=1 pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple "jitx==4.2.*"
   PIP_PRE=1 pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple -e . --quiet 2>&1 | tail -1
 fi
 ```

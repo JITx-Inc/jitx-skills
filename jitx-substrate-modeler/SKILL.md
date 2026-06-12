@@ -639,7 +639,7 @@ Rule conditions are not limited to tags you define:
   `Tag.any(*tags)` / `Tag.all(*tags)`.
 
 ```python
-from jitx.constraints import design_constraint, AnyObject, OnLayer, IsPour
+from jitx.constraints import design_constraint, AnyObject, OnLayer
 
 # Wider high-speed traces on external layers only:
 self.hs_outer = design_constraint(HighSpeedTag() & OnLayer.external()).trace_width(0.15)
@@ -655,8 +655,10 @@ instances of a class are covered in **jitx-physical-layout** "Layout-intent tags
 
 ### Constraint effects — the full surface
 
-A rule's effects are chainable methods; one rule can set several. Everything a
-`design_constraint(...)` can do (all dimensions in mm):
+A rule's effects are chainable methods; one rule can set several. The arity
+boundary: unary rules (one condition) chain any effect below *except*
+clearance; binary rules (two conditions) support only `.clearance()`.
+Everything a `design_constraint(...)` can do (all dimensions in mm):
 
 | Effect | Signature | Notes |
 |---|---|---|
