@@ -620,6 +620,96 @@ A net/pour/object tagged `DeskewAntipadFenceTag()` matches rules written against
 
 Reach for many flat tags only when the rule sets are genuinely distinct. Mapping a spreadsheet of per-combination rules into a flat tag-per-row table is the usual way this goes wrong — the hierarchy expresses the same intent with far fewer rules.
 
+### Conditions toolbox — builtin tags, layers, expressions
+
+Rule conditions are not limited to tags you define:
+
+- **Builtin tags** — `IsCopper`, `IsTrace`, `IsPour`, `IsVia`, `IsPad`,
+  `IsBoardEdge`, `IsThroughHole`, `IsNeckdown`, `IsHole` (import from
+  `jitx.constraints` or top-level `jitx`). The engine matches them by object
+  kind; they are **conditions only** — `assign()` on a builtin raises
+  `TypeError`. The four canonical Design defaults use these
+  (see `jitx/references/project-builder-flow.md` "Default design rules").
+- **`OnLayer(index)`** — layer-scoped condition (import from `jitx.constraints`;
+  not re-exported top-level). `OnLayer.external()` matches the top and bottom
+  copper layers; `OnLayer.internal()` is its inverse.
+- **`AnyObject`** — matches everything; useful as the second condition of a
+  binary rule.
+- **Expressions** — conditions combine with `&` / `|` / `~`, and n-ary
+  `Tag.any(*tags)` / `Tag.all(*tags)`.
+
+```python
+from jitx.constraints import design_constraint, AnyObject, OnLayer
+
+# Wider high-speed traces on external layers only:
+self.hs_outer = design_constraint(HighSpeedTag() & OnLayer.external()).trace_width(0.15)
+
+# Keep everything 0.3 mm away from tagged power copper:
+self.pwr_keepaway = design_constraint(PowerTag(), AnyObject).clearance(0.3)
+```
+
+Which objects can carry a tag (`Net`, `TopologyNet`, `Copper`, `Pour`, `Route`,
+`Component`, `Circuit`, `Landpattern`, `Pad`, `Via`, `ControlPoint`), container
+inheritance (tagging a landpattern tags its pads), and tagging `self` to tag all
+instances of a class are covered in **jitx-physical-layout** "Layout-intent tags".
+
+### Constraint effects — the full surface
+
+A rule's effects are chainable methods; one rule can set several. The arity
+boundary: unary rules (one condition) chain any effect below *except*
+clearance; binary rules (two conditions) support only `.clearance()`.
+Everything a `design_constraint(...)` can do (all dimensions in mm):
+
+| Effect | Signature | Notes |
+|---|---|---|
+| Trace width | `.trace_width(width)` | example above |
+| Clearance | `.clearance(clearance)` | **binary rules only** — `design_constraint(cond1, cond2)` |
+| Via fencing | `.fence_via(via_cls, ViaFencePattern(...))` | along traces/pour outlines — see "Fenced Pour Outlines" below |
+| Via stitching | `.stitch_via(via_cls, grid)` | grid = `SquareViaStitchGrid(pitch=, inset=)` or `TriangularViaStitchGrid(pitch=, inset=)`; `inset` = boundary-to-outermost-via-center distance |
+| Thermal relief | `.thermal_relief(gap_distance, spoke_width, num_spokes)` | pad-to-pour connections |
+| Serpentine params | `.serpentine_params(min_radius=, min_pitch=)` | bend radius / segment pitch of length-matching serpentines |
+| Coupled-pair params | `.coupled_pair_params(deskew_bump_radius=, skew_tolerance=, min_bump_spacing=, max_bump_length=, long_lookahead=)` | deskew-bump geometry for diff pairs; `skew_tolerance` is in **mm** (distance, not time — the time-domain skew budget lives in `jitx-interconnect-constraints`) |
+| Pour feature size | `.pour_feature_size(min_width)` | clips pour regions not coverable by a circle of `min_width` diameter fully inside the pour (sliver removal; thermal-relief spokes excluded) |
+| Routing structure | `.routing_structure(rs, ...)` | see below |
+
+```python
+from jitx.constraints import design_constraint, SquareViaStitchGrid, IsPour
+
+# Stitch tagged ground pours on a 2 mm square grid:
+self.gnd_stitch = design_constraint(GNDPourTag()).stitch_via(
+    GndVia, SquareViaStitchGrid(pitch=2.0, inset=0.5)
+)
+
+# Board-wide pour sliver removal:
+self.no_slivers = design_constraint(IsPour).pour_feature_size(min_width=0.3)
+```
+
+### Routing structures as a rule effect
+
+`.routing_structure(...)` assigns an impedance-controlled structure (defined on
+this substrate) to every trace matching the condition — including plain `Net`s
+and code-based `Route`s that have no `>>` topology. Reference planes resolve one
+of three ways:
+
+```python
+# (a) one net references every reference layer the structure declares:
+self.hs = design_constraint(HighSpeedTag()).routing_structure(self.RS_50, ref_net=gnd)
+
+# (b) per-layer mapping:
+self.hs = design_constraint(HighSpeedTag()).routing_structure(
+    self.DRS_100, ref_layer_nets={1: gnd, 4: gnd}
+)
+
+# (c) neither argument — requires an active jitx.si.ReferencePlanes context,
+#     else ValueError at rule-construction time.
+```
+
+The keyword names are `ref_net` / `ref_layer_nets` (not `reference_*`); passing
+both raises `ValueError`. For ordered point-to-point paths where the structure
+travels with timing/loss constraints, the topology-based
+`Constrain(...).structure(...)` flow is usually the better fit — the choice is
+covered in **jitx-interconnect-constraints** "Tag-based routing structures".
+
 ## Fenced Pour Outlines (Antipads, RF Cavities, BGA Breakouts)
 
 Trick for placing fence vias along an arbitrary closed shape — antipad rings around signal-via pairs, RF cavity perimeters, BGA breakout boundaries, deskew arc cutouts. Three pieces compose:

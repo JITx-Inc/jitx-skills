@@ -1,7 +1,7 @@
 # Physical Layout — Worked Examples
 
 Real, build-tested patterns. Verify imports with `pyright` against the installed
-package before reusing — JITX moves and some of these APIs are preliminary.
+package before reusing — JITX moves and APIs get renamed across releases.
 
 ## Table of Contents
 

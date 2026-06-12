@@ -92,13 +92,29 @@ Model JITX substrates — stackups, materials, vias, routing structures, and fab
 - **Vias:** All types — through-hole, laser micro, stacked, blind, buried, backdrilled
 - **Routing structures:** Single-ended and differential with NeckDown, via fencing, geometry, reference planes
 - **Fabrication constraints:** Manufacturing rules for any fab house
-- **Design rules:** Tag-based clearance and trace width constraints
+- **Design rules:** Tag-based rules — clearance, trace width, via stitching/fencing, thermal relief, pour feature size, routing structures
 
 **Example triggers:**
 - "Create a 4-layer JLCPCB substrate"
 - "Define a 14-layer RF stackup with via fencing"
 - "Set up 100-ohm differential routing structure"
 - "Add laser microvias to the substrate"
+
+### jitx-physical-layout
+
+Author PCB physical layout from code — the layer between schematic wiring and stackup definition. Covers:
+
+- **Copper:** `Copper` vs `OverlappableCopper` vs `Pour` (antennas, filters, net-ties)
+- **Custom shapes:** shapely CSG feeding any feature (copper, keepouts, board outline, pads)
+- **Pad features:** Soldermask/paste openings, thermal pads with vias
+- **Placement:** Explicit placement, `PortAttachment` of vias/copper/control points
+- **Layout-intent tags:** Fanout/escape, direct-connect selection for design rules
+- **Code-based routing:** `Route` + control points (`RoutePoint`, `PairInsertion`, `PairPoint`) for escape lanes and deskew
+
+**Example triggers:**
+- "Draw an IFA antenna from code"
+- "Create a net tie between AGND and DGND"
+- "Route the BGA escape lanes from code"
 
 ### jitx-interconnect-constraints
 
@@ -117,6 +133,20 @@ Apply signal integrity constraints to JITX designs. Covers:
 - "Match data signals to the clock within 20ps"
 - "Set up PCIe Gen4 constraints"
 
+### jitx-pin-assignment
+
+Flexible pin mapping with provide/require patterns. Covers:
+
+- **Decorators:** `@provide.one_of` / `@provide.subset_of`, programmatic `Provide`
+- **Pin muxing:** MCU peripherals on shared pins, FPGA bank assignment
+- **Protocol flexibility:** DiffPair P/N swapping, PCIe lane ordering, DDR byte/bit swapping
+- **Composition:** Hierarchical providers, topology and SI constraints on assigned ports
+
+**Example triggers:**
+- "Let the tool pick which UART maps to these pins"
+- "Allow P/N swap on the LVDS pairs"
+- "Set up DDR4 byte swapping"
+
 ### jitx-code-review
 
 Same-model self-critique pass on JITX Python code just written in the current workspace. Catches the architectural failure modes that grep gates and static linters miss — parallel string-keyed models, sibling-attribute reflection, substrate-shaped tables duplicated in designs, build-spec-then-iterate, name-construction at module-import time. Produces severity-tagged findings (CRITICAL / WARNING / NOTE) that fold into the task acceptance block.
@@ -129,6 +159,19 @@ Same-model self-critique pass on JITX Python code just written in the current wo
 - "Check this for string-hacking"
 - "Self-critique what I just wrote"
 - "Audit before merge"
+
+### jitx-mechanical
+
+Mechanical CAD interface for JITX designs. Covers:
+
+- **Import:** DXF, EMN, IDF, IDX, BDF via `jitx-mechanical inspect` / `import` (board outline, keepouts, holes with `--hole-policy`)
+- **Export:** JITX board XML to DXF via `jitx-mechanical export-dxf`
+- **3D:** Attach STEP models with `jitx.model3d.Model3D`; export board STEP
+
+**Example triggers:**
+- "Import this EMN as the board outline"
+- "Export my board to DXF for the ME team"
+- "Attach a STEP model to this connector"
 
 ## Project Structure
 
@@ -150,14 +193,25 @@ jitx-skills/
 │       └── advanced-patterns.md  # Provider, pour, placement patterns
 ├── jitx-substrate-modeler/    # Substrate modeling skill
 │   └── SKILL.md
+├── jitx-physical-layout/      # Layout-from-code skill
+│   ├── SKILL.md
+│   └── references/
+│       ├── control-points.md    # Route / control-point API (4.2)
+│       └── layout-examples.md   # Worked thermal-pad / antenna examples
 ├── jitx-interconnect-constraints/  # SI constraints skill
 │   ├── SKILL.md
 │   └── references/
 │       └── protocol-standards.md  # Protocol timing parameters
+├── jitx-pin-assignment/       # Provide/require pin-mapping skill
+│   ├── SKILL.md
+│   └── references/
+│       └── protocol-pin-flexibility.md  # Per-protocol swap rules
 ├── jitx-code-review/             # Same-model self-critique skill
 │   ├── SKILL.md
 │   └── references/
 │       └── checklist.md            # Pattern index over the architecture doctrine
+├── jitx-mechanical/           # Mechanical CAD import/export skill
+│   └── SKILL.md
 └── .claude-plugin/
     └── marketplace.json
 ```

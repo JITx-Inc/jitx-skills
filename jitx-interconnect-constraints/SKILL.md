@@ -380,6 +380,42 @@ self.cst = Constrain(topo).structure(rs50, ref_layers={0: self.GND})
 
 **Important:** If a routing structure has `.reference()` definitions (from substrate-modeler), you MUST provide ReferencePlanes. Without them, the constraint will error at build time.
 
+## Tag-based routing structures (alternative to Constrain)
+
+Since 4.2, a routing structure can also be applied through the **design-rule
+system**: tag the nets/routes, then attach the structure as a rule effect.
+
+```python
+from jitx.constraints import Tag, design_constraint
+
+class HighSpeedTag(Tag):
+    "Nets that route on the 50-ohm structure."
+
+# in the circuit — tag the nets (see jitx-physical-layout "Layout-intent tags"):
+HighSpeedTag().assign(self.clk_net)
+
+# in the rules — attach the structure:
+self.hs_rule = design_constraint(HighSpeedTag()).routing_structure(rs50, ref_net=self.GND)
+```
+
+When to choose which:
+
+- **Topology `Constrain(...).structure(...)`** — an ordered `>>` path exists and
+  SI constraints (timing, skew, insertion loss) travel with the structure. The
+  structure applies to the topology paths you enumerate (`Constrain` takes one
+  topology or a list — see "Multiple signals with same constraint").
+- **Tag-based `design_constraint(...).routing_structure(...)`** — class-of-net
+  rules: every net or code-based `Route` carrying the tag gets the structure,
+  with no per-signal topology authoring. This is also the only way to put a
+  structure on a plain `Net` or a code-based `Route`, neither of which has a
+  `>>` topology.
+
+Reference planes for the rule effect resolve through `ref_net=` (one net for all
+reference layers), `ref_layer_nets={layer: net}`, or an active `ReferencePlanes`
+context — note the kwarg names differ from `Constrain.structure(...,
+ref_layers=)`. Full signature and the three resolution modes:
+`jitx-substrate-modeler` "Routing structures as a rule effect".
+
 ## Building Protocol Constraints (SignalConstraint)
 
 For reusable protocol-specific constraint bundles, subclass `SignalConstraint[T]`:

@@ -39,9 +39,10 @@ if [ ! -f pyproject.toml ] || ! grep -q "jitx" pyproject.toml; then
   # CONFIRM WITH THE USER BEFORE RUNNING in a non-empty directory.
   jitx project layout init
   # Sync project deps. PIP_PRE + extra-index-url are required for `jitxlib-*` to resolve.
-  # Note: pip's resolver may re-pin `jitx` to an older 4.x that satisfies the project's `<5` constraint
-  # (e.g. 4.1.0a11 instead of 4.3.0a0). Both work for `jitx find` / `jitx build`, so don't fight it.
-  # If you specifically need the latest, follow with: `pip install --upgrade jitx` (see below).
+  # Note: pip's resolver may re-pin `jitx` to an older 4.x that satisfies the project's `<5` constraint.
+  # This skills bundle documents the 4.2 API surface (RoutePoint/PairInsertion/PairPoint, runtime
+  # auto-resolution, etc. do not exist below 4.2) — if the resolver lands below 4.2, pin it:
+  #   PIP_PRE=1 pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple "jitx==4.2.*"
   PIP_PRE=1 pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple -e . --quiet 2>&1 | tail -1
 fi
 ```
@@ -78,19 +79,24 @@ elif jitx runtime introspect >/dev/null 2>&1; then
   # Installed but not running — start it.
   jitx runtime start --background
 else
-  # Not installed. Pick a version (see "Runtime version" below) and install it.
-  # `update` is the idempotent variant of `install`; safe in setup scripts.
-  jitx runtime update --version "$JITX_RUNTIME_VERSION"
+  # Not installed. `update` is the idempotent variant of `install`; safe in setup
+  # scripts. Without --version it installs the runtime matching the installed
+  # py-jitx version; pass --version only to honor an explicit pin.
+  jitx runtime update
   jitx runtime start --background
 fi
 ```
 
-**Runtime version.** `jitx runtime install/update` requires `--version` — there is no "latest" mode. Resolve the version in this order:
+**Runtime version.** Since 4.2, `jitx runtime install/update` with `--version`
+omitted asks the backend for the runtime build **matching the installed py-jitx
+version** — that's the right default. (`--progress` follows the download on
+stderr.) Pass `--version` only when the project pins one explicitly:
 1. `$JITX_RUNTIME_VERSION` env var, or a `jitx.version` file in the project root.
 2. A `jitx` runtime version pinned in the project's `mise.toml` or equivalent.
-3. Ask the user — point them at the `jitx-client` release page for a published version (e.g. `4.1.0-rc.7`).
 
-Don't guess a version. If none of (1)–(3) yields one, stop and ask.
+Honor an existing pin; otherwise omit `--version` and let the backend resolve.
+(Pre-4.2 CLIs require `--version` — if `jitx runtime update` errors asking for
+one, resolve it from (1)–(2) or ask the user.)
 
 ### Step 5 — Verify
 
@@ -172,6 +178,12 @@ jitx build <module.path.DesignClass>
 # Build every design in the project
 jitx build-all
 ```
+
+**Parameterized designs:** discovery (`jitx find` / `build-all`) skips `Design`
+subclasses whose `__init__` has required parameters, and building one directly
+fails with `Design is parameterized but no parameters were provided`. To build a
+parameterized design, add a thin module-scope subclass that fills in the
+arguments with concrete values.
 
 **Don't run parallel builds on the same design.** Concurrent JITX builds against the *same design* aren't reliable — cache state, build artifacts, and design-explorer output overlap. Sequence those. Parallel builds of *different designs* in the same project (different test designs, different module paths) share the WebSocket session but are generally safe — the JITX backend serializes internally, possibly with a wait. The skill orchestrator's Phase 1 runs sub-agents in parallel on different test designs; the parallelism is at the design-work level, and concurrent builds on distinct designs are an acceptable consequence.
 
@@ -438,7 +450,7 @@ Covers:
 - Add pad features — soldermask/paste openings, thermal pads with vias
 - Place vias or components from code, or attach a via/copper to a pad (`PortAttachment`)
 - Apply layout-intent tags (fanout/escape, direct-connect / thermal-relief) to layout objects
-- Author code-based routes or control points for escape routing / deskew (advanced, preliminary API)
+- Author code-based routes or control points for escape routing / deskew (advanced)
 
 **How to invoke:** Use the Skill tool with `skill: "jitx-skills:jitx-physical-layout"`
 
@@ -449,7 +461,7 @@ Covers:
 - `PortAttachment` + explicit placement (`Circuit.place`, `.at`), local frames
 - Keepouts that shape pours; local-vs-global pour placement
 - Layout-intent tags for object selection (rule mechanics stay in jitx-substrate-modeler)
-- `Route`, `InsertionControl`, `PairControl` (advanced / preliminary)
+- `Route`, `RoutePoint`, `PairInsertion`, `PairPoint` (advanced; stable as of JITX 4.2)
 
 This skill owns design-side geometry and placement; the substrate owns the via and
 routing-structure *definitions* and the `design_constraint(...)` rules that act on it.
@@ -586,7 +598,7 @@ ruff format path/to/file.py
 |------|-----------------|
 | Scaffold new project | `jitx project layout init` |
 | Auth check / login | `jitx auth show` / `jitx auth login` |
-| Install runtime | `jitx runtime update --version <X.Y.Z>` |
+| Install runtime | `jitx runtime update` (auto-matches py-jitx; `--version <X.Y.Z>` to pin) |
 | Start runtime | `jitx runtime start --background` |
 | Runtime status | `jitx runtime status` |
 | List designs | `jitx find` |
