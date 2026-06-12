@@ -59,7 +59,7 @@ jitx auth show 2>&1 | head -20
 The output has an `Authorized: yes | no` line. Three cases:
 
 1. **`Authorized: yes`.** Done.
-2. **`Authorized: no` (token present but expired/invalid).** Run `jitx auth refresh`. This rotates the refresh token against the JITX server and writes a fresh license — **fully headless**, no user action needed. Re-run `jitx auth show` to confirm.
+2. **`Authorized: no` (token present but expired/invalid).** Run `jitx auth refresh`. This exchanges the on-disk refresh token for a fresh license (and rewrites the refresh token when the server rotates it) — **fully headless**, no user action needed. Re-run `jitx auth show` to confirm.
 3. **No state on disk, or `auth show` reports no account / no token.** STOP and ask the user to sign in. Initial sign-in is NOT headless — pick one path with the user:
    - VSCode JITX sidebar → interactive sign-in (recommended for desktop developers).
    - The bundled launcher binary: `~/.jitx/current/jitx sign-in -email <email>` sends an email link the user must click.

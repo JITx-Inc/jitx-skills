@@ -175,6 +175,11 @@ class _AnchorPad(Pad):
     shape = rectangle(0.6, 0.6)
 
 
+class _AnchorLandpattern(Landpattern):
+    # 1-based pad collection — matches the lp.p[1]/lp.p[2] mapping below.
+    p = {1: _AnchorPad().at(3.25, -4.8), 2: _AnchorPad().at(0.25, -4.8)}
+
+
 class AntennaIFA(jitx.Component):
     """Two anchor pads (feed + short). The radiator copper is added by the enclosing
     circuit as OverlappableCopper — keeping the tunable shape out of the component."""
@@ -183,7 +188,7 @@ class AntennaIFA(jitx.Component):
     reference_designator_prefix = "ANT"
     feed = Port()
     short = Port()
-    landpattern = Landpattern()      # holds the two _AnchorPad()s + a courtyard (elided)
+    landpattern = _AnchorLandpattern()
 
     def __init__(self) -> None:
         lp = self.landpattern
