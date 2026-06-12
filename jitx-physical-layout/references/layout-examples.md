@@ -15,14 +15,15 @@ A cheap-fab alternative to filled via-in-pad: tented vias inside the chip's
 exposed-pad copper, with a thin soldermask "dam" only around each via so reflowed
 solder can't wick down the unfilled barrels. The mask/paste opening is computed with
 shapely CSG (`EP_rect − (perimeter frame ∪ linear webs ∪ circular via dams)`), and
-the vias are placed as explicit `PortAttachment`s at the **same** coordinates the CSG
-used, so the dams land on the vias.
+the vias are placed at the **same** coordinates the CSG used (so the dams land on
+the vias) and joined to the ground net by **net membership** — not
+`PortAttachment`, which is scoped to signal topologies.
 
 ```python
 from collections.abc import Iterable, Sequence
 import shapely
 import jitx
-from jitx.net import Port, PortAttachment
+from jitx import Container
 from jitx.shapes import Shape
 from jitx.shapes.shapely import ShapelyGeometry
 from jitx.via import Via, ViaType
@@ -118,22 +119,26 @@ def soldermask_defined_thermal_pad_config(**kw) -> SMDPadConfig:
     return SMDPadConfig(soldermask=opening, paste=opening)   # each field takes a Shape
 
 
-def attach_thermal_vias(
-    circuit: jitx.Circuit, *, ep_port: Port,
-    positions: Sequence[tuple[float, float]], anchor: tuple[float, float] = (0.0, 0.0),
-    via_class: type[Via] = ThermalStitchVia,
-) -> list[PortAttachment]:
-    """Attach a via to `ep_port` at each (anchor + offset). The list is stored on the
-    circuit so the structural walk picks the attachments up."""
-    ax, ay = anchor
-    circuit.thermal_via_attachments = [
-        PortAttachment(ep_port, via_class().at(ax + dx, ay + dy)) for dx, dy in positions
-    ]
-    return circuit.thermal_via_attachments
+class ThermalViaField(Container):
+    """Placed thermal vias as a composed member. A `Container` subclass is the
+    composition unit — its members are traversed by the structural walk. Do NOT
+    write this as a free function that mutates the circuit
+    (`def attach_thermal_vias(circuit, ...): circuit.xyz = ...` is an
+    anti-pattern — see the base `jitx` skill's Don'ts)."""
+
+    def __init__(
+        self, *, positions: Sequence[tuple[float, float]],
+        anchor: tuple[float, float] = (0.0, 0.0),
+        via_class: type[Via] = ThermalStitchVia,
+    ):
+        ax, ay = anchor
+        self.vias = [via_class().at(ax + dx, ay + dy) for dx, dy in positions]
 ```
 
 Usage — component side builds the pad, circuit side places the chip at the same
-anchor and attaches the vias with the **same** positions:
+anchor, composes the via field as a member, and joins the vias to the ground net
+(thermal/ground vias are plain net membership — `Net` accepts `Via` members;
+`PortAttachment` is reserved for signal topologies):
 
 ```python
 # In the landpattern definition:
@@ -143,7 +148,10 @@ landpattern.thermal_pad(shape=rectangle(3.45, 3.45), config=config)
 
 # In the circuit where the chip is placed:
 self.place(self.amp, (0, 0))
-attach_thermal_vias(self, ep_port=self.amp.EP, positions=positions, anchor=(0.0, 0.0))
+self.GND += self.amp.EP                     # the exposed pad is on ground
+self.thermal_vias = ThermalViaField(positions=positions, anchor=(0.0, 0.0))
+for via in self.thermal_vias.vias:
+    self.GND += via                         # vias join the net — no PortAttachment
 ```
 
 ## OverlappableCopper antenna

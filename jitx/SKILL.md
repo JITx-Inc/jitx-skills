@@ -448,7 +448,7 @@ Covers:
 - Draw copper from code, or create antennas, filters, or net-ties (overlapping copper)
 - Build custom shapes with shapely for any feature (copper, pours, keepouts, board outline, pads)
 - Add pad features — soldermask/paste openings, thermal pads with vias
-- Place vias or components from code, or attach a via/copper to a pad (`PortAttachment`)
+- Place vias or components from code — stitching/thermal vias join nets directly; `PortAttachment` binds signal vias / control points (signal topologies only)
 - Apply layout-intent tags (fanout/escape, direct-connect / thermal-relief) to layout objects
 - Author code-based routes or control points for escape routing / deskew (advanced)
 

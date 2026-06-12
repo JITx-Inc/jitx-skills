@@ -107,7 +107,7 @@ Author PCB physical layout from code — the layer between schematic wiring and 
 - **Copper:** `Copper` vs `OverlappableCopper` vs `Pour` (antennas, filters, net-ties)
 - **Custom shapes:** shapely CSG feeding any feature (copper, keepouts, board outline, pads)
 - **Pad features:** Soldermask/paste openings, thermal pads with vias
-- **Placement:** Explicit placement, `PortAttachment` of vias/copper/control points
+- **Placement:** Explicit placement; net-membership vias for stitching, `PortAttachment` for signal topologies (control points, escape vias)
 - **Layout-intent tags:** Fanout/escape, direct-connect selection for design rules
 - **Code-based routing:** `Route` + control points (`RoutePoint`, `PairInsertion`, `PairPoint`) for escape lanes and deskew
 
