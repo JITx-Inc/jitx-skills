@@ -117,15 +117,18 @@ vertex counts for large numbers of circular features.
 
 ## Copper: Pour vs Copper vs OverlappableCopper
 
-Four ways to put copper on a layer — pick by **net membership** and whether the
+Three ways to put copper on a layer — pick by **net membership** and whether the
 copper is allowed to **overlap** other copper:
 
 | Construct | On a net? | Overlap-exempt? | Use for |
 |---|---|---|---|
 | `Pour(shape, layer, *, rank=0, orphans=True)` | yes (`net += Pour(...)`) | no | filled planes / shaped fills |
 | `Copper(shape, layer)` | yes (`net += Copper(...)` or `a + Copper(...)`) | no | an explicit copper shape on one net |
-| `Copper(shape, layer, exempt=True)` | yes | **yes** | net-tie copper that intentionally bridges/overlaps two nets' copper |
-| `OverlappableCopper(shape, layer)` | **no** (netless) | **yes** | antenna radiators, filter copper, decorative/RF fill that overlaps pads — ignored by the router and overlap checks |
+| `OverlappableCopper(shape, layer)` | **no** (netless) | **yes** | net-tie copper bridging two nets' pads, antenna radiators, filter copper — ignored by the router and overlap checks |
+
+`Copper(..., exempt=True)` was **removed in 4.2.0** — there is no on-net,
+overlap-exempt copper anymore. Overlap-tolerant copper is `OverlappableCopper`,
+which is netless: its connectivity comes from the pads it overlaps.
 
 `Copper` lives in `jitx` (top-level / `jitx.copper`); `OverlappableCopper` lives in
 `jitx.feature`.
@@ -139,7 +142,9 @@ self.SIG += Copper(rectangle(10, 0.5).at(0, 5), layer=0)  # copper shape on a ne
 ```
 
 **OverlappableCopper is netless.** Its electrical connection comes from the **pads it
-overlaps**, not from the copper itself. The antenna pattern: give the structure a
+overlaps**, not from the copper itself. A net-tie is the minimal case: the bridging
+shape is `OverlappableCopper` drawn across pads on the two nets it ties. The
+antenna pattern is the same idea at full size: give the structure a
 small `Component` with anchor pads that *are* on the nets (so the router has
 something to land on), then draw the radiating shape as `OverlappableCopper`
 overlapping those pads:
