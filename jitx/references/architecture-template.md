@@ -83,6 +83,18 @@ List every distinct voltage domain and which components/pins operate in each. Th
 | 1.2V | 1.2V | MCU core |
 | VBUS | 5-20V (variable) | USB connector VBUS, PD controller VIN |
 
+## Object-Hierarchy Decisions
+
+For parametric / generator subsystems (BGA ballout, deskew geometry, antipad fence, N-lane fanout, per-layer table, repeating-block scene graph), commit to the object shape before sub-agents write code. 3–5 lines per major parametric subsystem. The point is to make the structural commitment explicit so that the anti-string-hacking rules in `jitx/SKILL.md` Don'ts have something concrete to enforce.
+
+Example entries (delete this example, fill in for the actual design):
+
+- **BGA escape (`circuits/bga_escape.py`):** 7 differential lanes modeled as `self.lanes: list[EscapeLane]` where `EscapeLane` is a frozen dataclass `{tx_pair: DiffPair, via: Via, antipad: KeepOut, fence: Pour}`. Ballout positions, via choices, and antipad geometry are derived from substrate constants and lane index — no string-keyed lookup tables. No sibling `TX_b0..TX_b6` attributes.
+- **Substrate via map (`substrate.py`):** `Substrate.via[(layer_a, layer_b)]` owns the layer-pair → Via mapping. Design code queries this; no design-level `_SIGNAL_LAYER_TO_VIA` table.
+- **Deskew geometry (`circuits/deskew.py`):** Parameterized by one knob `theta_exit_deg`; emits a typed `DeskewBuild` dataclass. No intermediate "spec" records.
+
+Subsystems that are *not* parametric (one MCU, one buck regulator, one ground pour) do not need an entry — `list`-of-things only matters when N > 1 and the things are siblings.
+
 ## Design Notes
 
 [Any non-obvious design decisions, tradeoffs, or constraints that sub-agents should know about. Examples:]

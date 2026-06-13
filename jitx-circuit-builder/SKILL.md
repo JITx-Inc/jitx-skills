@@ -96,12 +96,20 @@ Device = MyCircuit
 5. **`jitx.Component`** — `import jitx` then `class MyIC(jitx.Component):`.
 6. **Never alias component ports** — `self.x = self.r1.p2` creates multiple parents and fails. To expose a connection point, wire to a class-level Port: `self.r1.insert(gpio, self.output_port)`.
 
+## Anti-string-hacking — read before writing parametric / generator circuits
+
+For circuits that emit N parallel instances (per-lane fanout, per-row ballout, per-channel filter), construct the JITX objects directly inside the Circuit — do not build an intermediate `list[dict[str, Any]]` "spec" model and then walk it to emit JITX calls. If you need to batch parameters, use a frozen dataclass with named fields, not bare `dict[str, Any]`. See `jitx/references/architectural-patterns.md` §§ "Build the scene graph directly" and "Typed records over `dict[str, Any]`" before writing record-then-iterate code.
+
+Likewise, don't add to a circuit from a free function (`def add_x(circuit): circuit.xyz = ...`) — compose a `Container` subclass holding the group and instantiate it as a member (`self.my_x = MyX()`). See `jitx/references/architectural-patterns.md` § "Compose members".
+
+For a same-model self-critique pass on the circuit after writing (catches what these rules don't), invoke `jitx-skills:jitx-code-review`. Optional for single-task use.
+
 ## Net Definitions
 
 Nets can be named in the design when the net is defined. It is good practice to name the net so that the schematic and layout construction are easy to follow. For power and ground nets, it is also useful to provide a symbol definition (i.e. PowerSymbol() or GroundSymbol()) — **at the top-level design only**. `PowerSymbol()` / `GroundSymbol()` outside `TOP_LEVEL_PATH` (default `designs/`) is a hard-fail under `scripts/grep_gates.sh`; the example below shows the *top-level* pattern.
 
 ```python
-# Top-level design (in src/<ns>/designs/...): symbols are legal here.
+# Top-level design (in <ns>/designs/...): symbols are legal here.
 self.my_net = Net(self.a, name = "my_net")
 self.VCC = Net(self.power.Vp, name = "VCC", symbol = PowerSymbol())
 ```
@@ -169,7 +177,7 @@ self.c_hf.insert(self.ic.VCC, self.GND, short_trace=True)
 - RF matching, coupling, or shunt caps (LNA input network, antenna feed) — placement is bookend-specific per the impedance budget
 - Crystal load caps — placed per the crystal datasheet, not as decoupling
 
-The `short_trace=True` rule is gated at the Phase 2 → Phase 3 exit. `bash scripts/grep_gates.sh src/<ns>/` flags every `.insert(...)` call missing `short_trace=` as review-required; the agent dispositions each: fix (add `short_trace=True`) for power-rail caps, accept-with-rationale (`exception: AC coupling`, `exception: RC time constant`, etc.) for non-power-rail caps, or N/A (`not a capacitor — resistor insert`).
+The `short_trace=True` rule is gated at the Phase 2 → Phase 3 exit. `bash scripts/grep_gates.sh <ns>/` flags every `.insert(...)` call missing `short_trace=` as review-required; the agent dispositions each: fix (add `short_trace=True`) for power-rail caps, accept-with-rationale (`exception: AC coupling`, `exception: RC time constant`, etc.) for non-power-rail caps, or N/A (`not a capacitor — resistor insert`).
 
 The skill also documents `ShortTrace(p1, p2)` as an alternative connect-with-short-trace primitive — see https://docs.jitx.com/en/latest/api/jitx.net.html#jitx.net.ShortTrace.
 
@@ -179,6 +187,12 @@ The skill also documents `ShortTrace(p1, p2)` as an alternative connect-with-sho
 For query refinement, voltage divider, pours, copper geometry,
 placement, and a complete application circuit example, see
 [references/advanced-patterns.md](references/advanced-patterns.md).
+
+For the *deep* treatment of physical layout authoring — custom shapes with shapely,
+`OverlappableCopper` (antennas / filters / net-ties), pad features (soldermask / paste /
+thermal pad), code-placed vias and routes, and layout-intent tags — invoke the
+**jitx-physical-layout** subskill (`skill: "jitx-skills:jitx-physical-layout"`). The
+Pours / Copper Geometry / Placement sections below are the basics.
 
 ### Voltage Divider — Critical Rules
 
@@ -249,7 +263,7 @@ class TestDesign(SampleDesign):
 ```
 
 ```bash
-python -m jitx build <module>.design.TestDesign
+jitx build <module>.design.TestDesign
 ```
 
 Don't run parallel JITX builds against the same project — sequence them. See `jitx/SKILL.md` "Build Safety".

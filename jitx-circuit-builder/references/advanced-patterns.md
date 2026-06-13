@@ -78,7 +78,7 @@ self.nets.append(self.fb_div.out + self.buck.FB)
 `GroundSymbol()` / `PowerSymbol()` are **top-level only** — `scripts/grep_gates.sh` hard-fails them outside `TOP_LEVEL_PATH` (default `designs/`). The example below shows the pattern in a top-level design.
 
 ```python
-# Top-level design (in src/<ns>/designs/...) only.
+# Top-level design (in <ns>/designs/...) only.
 from jitx import Net
 from jitxlib.symbols.net_symbols import GroundSymbol, PowerSymbol
 
@@ -96,6 +96,12 @@ For all provide/require patterns (`@provide`, `@provide.one_of`, `@provide.subse
 ## Pours
 
 Pours belong in the **top-level circuit**, not subcircuits. Pour every plane intended as a return path; the reference plane for an outer-layer signal can be an adjacent inner-layer pour (microstrip over an inner ground pour is fine) — what matters is continuity, not which layer the pour sits on. Split or interrupted reference planes underneath high-speed signals are the SI failure, not whether the pour is outer or inner.
+
+> **Exception — local pours/keepouts that track a placed sub-circuit.** A pour or
+> keepout that must follow a self-contained, placed block (e.g. an antenna's ground
+> island that moves with the antenna under interactive placement) lives *inside* that
+> circuit, not top-level. Board-wide return-path pours stay top-level. See the
+> **jitx-physical-layout** subskill ("Keepouts that shape pours").
 
 ```python
 from jitx import Pour, current
@@ -155,6 +161,11 @@ self.nets = [
 ]
 ```
 
+For netless overlapping copper (`OverlappableCopper` — antennas, filters, net-ties;
+`Copper(..., exempt=True)` was removed in 4.2.0) and shapely-built custom shapes, use
+the **jitx-physical-layout** subskill — it has the decision table for `Pour` vs
+`Copper` vs `OverlappableCopper`.
+
 ## Placement
 
 ```python
@@ -168,6 +179,12 @@ self.led3 = LED().at(10.0, 5.0, on=Side.Bottom)
 # Floating (layout engine decides) — Circuit.at() only
 self.subckt = MySubCircuit().at(floating=True)
 ```
+
+Placed `Via` (and `Copper`) instances can join a net directly — `self.GND +=
+via_cls().at(x, y)` — which is the preferred form for ground/power stitching and
+thermal vias. `PortAttachment` is scoped to **signal topologies** (control
+points, signal escape vias) and is expected to be deprecated. For both — and for
+code-based routes / control points — see the **jitx-physical-layout** subskill.
 
 ## Complete Application Circuit
 

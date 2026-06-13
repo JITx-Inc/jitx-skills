@@ -62,7 +62,7 @@ Once the datasheet PDF is available, extract pinout, package dimensions, and pin
 ### Standard Structure
 ```
 project/
-└── src/<namespace>/
+└── <namespace>/
     └── components/
         ├── __init__.py
         ├── <category>/
@@ -72,7 +72,7 @@ project/
             └── ...
 ```
 
-If `src/<namespace>/` doesn't exist, use:
+For a project without a namespace package, place components at the root:
 ```
 project/
 └── components/
@@ -86,6 +86,12 @@ project/
 - `texas_instruments_NE555.py`
 - `raspberry_pi_RP2040.py`
 - `renesas_DA14705.py`
+
+## Anti-string-hacking — read before building arrays of pins / lanes / bundles
+
+For any component with N parallel siblings (BGAs, multi-channel ICs, banked diff-pairs), reach for `self.pins: list[Port]` or `self.lanes: list[DiffPair]` — **never** `self.TX_b0, self.TX_b1, ...` plus `getattr(self, f"TX_b{i}")` to iterate. See `jitx/references/architectural-patterns.md` § "Sibling attributes → array attributes" before writing the constructor. Also: do not assign `refdes=`, net names, or other JITX-assigned values yourself (§ "Don't assign what JITX assigns").
+
+For a same-model self-critique pass on the component after writing (catches what these rules don't), invoke `jitx-skills:jitx-code-review`. Optional for single-task use.
 
 ## Instructions
 
@@ -362,6 +368,10 @@ from jitxlib.landpatterns.pads import SMDPadConfig, WindowSubdivide
 
 ## Multi-Unit Symbols
 
+`BoxSymbol` accepts `BoxConfig` field overrides as keyword arguments — e.g.
+`BoxSymbol(rows=..., orientation=90)` rotates the box symbol (an int multiple
+of 90 degrees; other values raise `ValueError`; jitxlib 4.2+).
+
 Multiple `BoxSymbol` attributes = separate visual boxes:
 
 ```python
@@ -482,7 +492,7 @@ class TestDesign(SampleDesign):
 
 Always use the available virtual environment. If one is not present, stop and ask.
 ```bash
-python -m jitx build <module>.TestDesign
+jitx build <module>.TestDesign
 ```
 
 Don't run parallel JITX builds against the same project — sequence them. See `jitx/SKILL.md` "Build Safety".

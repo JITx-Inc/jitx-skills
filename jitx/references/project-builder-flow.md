@@ -184,8 +184,8 @@ Subcircuits that expose bundles (I2C, ULPI, USB2, etc.) for any signal that will
 - [ ] Provide/require interfaces are consistent across wrapper and consuming circuits
 - [ ] **Interface circuits expose bundle-typed ports** (I2S, I2C, SPI, USB2, GPIO, Power) — not individual signal ports. If a circuit wraps individual-pin components, the bundle wiring happens inside the circuit.
 - [ ] **For any signal that will receive an SI constraint at top level, the subcircuit's bundle wiring uses `>>` (not `+`)** between component pins and bundle sub-ports — see Phase 3 "Topology vs net membership"
-- [ ] **No anonymous `Resistor` / `Capacitor` / `Inductor` `.insert(...)` calls and no bare `+` / `>>` expressions** in the subcircuit — every structural object stored on `self` (see Phase 3 "Silent-drop patterns"). Enforced via `bash scripts/grep_gates.sh src/<ns>/` — hard-fail hits block this gate.
-- [ ] **Every power-rail capacitor `.insert(...)` call uses `short_trace=True`** — decoupling, bypass, bulk, output filter. Non-power-rail caps (AC coupling, RC time constants, RF matching, compensation, crystal load) and non-cap inserts (resistors, inductors) are dispositioned in the task acceptance block as exceptions or N/A. See `jitx-circuit-builder/SKILL.md` "short_trace=True is the default for power-rail capacitors". The grep gate `bash scripts/grep_gates.sh src/<ns>/` flags every `.insert(...)` missing `short_trace=` as review-required.
+- [ ] **No anonymous `Resistor` / `Capacitor` / `Inductor` `.insert(...)` calls and no bare `+` / `>>` expressions** in the subcircuit — every structural object stored on `self` (see Phase 3 "Silent-drop patterns"). Enforced via `bash scripts/grep_gates.sh <ns>/` — hard-fail hits block this gate.
+- [ ] **Every power-rail capacitor `.insert(...)` call uses `short_trace=True`** — decoupling, bypass, bulk, output filter. Non-power-rail caps (AC coupling, RC time constants, RF matching, compensation, crystal load) and non-cap inserts (resistors, inductors) are dispositioned in the task acceptance block as exceptions or N/A. See `jitx-circuit-builder/SKILL.md` "short_trace=True is the default for power-rail capacitors". The grep gate `bash scripts/grep_gates.sh <ns>/` flags every `.insert(...)` missing `short_trace=` as review-required.
 - [ ] Port names and bundle types match between providers and consumers
 - [ ] Power circuit outputs match the voltage/current needs documented in ARCHITECTURE.md
 
@@ -477,7 +477,7 @@ Configure the editor's Python language server to surface unused-expression warni
   [tool.ruff.lint]
   extend-select = ["B018"]
   ```
-- **Pyright / Pylance** (VS Code default): enable `reportUnusedExpression = "warning"` (or `"error"`) in `pyrightconfig.json` or VS Code settings.
+- **Pyright / Pylance**: enable `reportUnusedExpression = "warning"` (or `"error"`) in `pyrightconfig.json` (also picked up by the VS Code Python extension when present).
 - **Pyflakes**: emits `Statement seems to have no effect` by default — also catches bare `+` / `>>` expressions.
 
 These editor-side checks won't catch Pattern 1 (the `.insert(...)` call has a side effect, so it isn't a "useless expression" from the type checker's view), but they cover Pattern 2 cheaply, and any extra signal during code review is worth turning on.
@@ -496,7 +496,7 @@ These editor-side checks won't catch Pattern 1 (the `.insert(...)` call has a si
 - [ ] Board geometry defined (shape, mounting holes, pours)
 - [ ] `capacitor_defaults` and `resistor_defaults` set on Design class to match the design's manufacturing path and circuit role — per-circuit refinements documented for any specialty parts (HV, RF, bulk, precision, hand-build)
 - [ ] **Default design rules set on Design class** — `self.rules` contains a default trace width (`IsTrace`), copper clearance (`IsCopper`, `IsCopper`), thermal relief (`IsPad`), and wider trace rule for tagged power/ground nets (`PowerTag` / `GroundTag` with `priority=1`). Values calibrated to substrate fab class. See "Default design rules" above.
-- [ ] `bash scripts/grep_gates.sh src/<ns>/` reports 0 hard-fail hits; review-required hits dispositioned
+- [ ] `bash scripts/grep_gates.sh <ns>/` reports 0 hard-fail hits; review-required hits dispositioned
 
 **Emit the `Gate: Phase 3 → Phase 3b` block** from `references/completion-blocks.md` before advancing.
 
@@ -581,11 +581,11 @@ Do not accept "noted for future refactoring" — if it's broken, fix it now.
 
 ### Process
 
-1. Run full build: `python -m jitx build <ns>.main.Design`
+1. Run full build: `jitx build <ns>.main.Design`
 2. Check output for:
    - `status: ok` — proceed to verification
    - `status: error` — read traceback, fix, rebuild
-3. Open in JITX UI and verify:
+3. Open the popout viewer (`jitx ui open --board --design <ns>.main.Design` and `jitx ui open --schematic --design <ns>.main.Design`) and verify:
    - Schematic: all connections present, symbols readable
    - Board: components placed (or floating), no overlaps
    - Issues List: SI constraints satisfied or flagged
