@@ -180,9 +180,11 @@ self.led3 = LED().at(10.0, 5.0, on=Side.Bottom)
 self.subckt = MySubCircuit().at(floating=True)
 ```
 
-To attach a via or copper to a port at a fixed location (`PortAttachment`), place
-thermal-via grids, or author code-based routes / control points, use the
-**jitx-physical-layout** subskill.
+Placed `Via` (and `Copper`) instances can join a net directly — `self.GND +=
+via_cls().at(x, y)` — which is the preferred form for ground/power stitching and
+thermal vias. `PortAttachment` is scoped to **signal topologies** (control
+points, signal escape vias) and is expected to be deprecated. For both — and for
+code-based routes / control points — see the **jitx-physical-layout** subskill.
 
 ## Complete Application Circuit
 

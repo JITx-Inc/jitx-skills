@@ -15,6 +15,7 @@ These patterns are the dominant failure mode in AI-generated JITX code. They clu
 7. [Don't pass-through inline-subclass — instantiate](#7-dont-pass-through-inline-subclass--instantiate)
 8. [Don't assign what JITX assigns](#8-dont-assign-what-jitx-assigns)
 9. [Framework boundary — internals don't transfer to design code](#9-framework-boundary--internals-dont-transfer-to-design-code) — the meta-rule the others build to
+10. [Compose members — don't mutate a circuit from a free function](#10-compose-members--dont-mutate-a-circuit-from-a-free-function)
 
 ---
 
@@ -405,6 +406,43 @@ Before accepting any rationalization of a banned pattern, answer:
 5. **If you reach for `getattr` / `type(...)` / `_protected_method()` in design code and none of steps 2–4 apply,** you're committing framework-boundary-bypass. Stop. Add the adapter or escalate.
 
 Wrapping the banned pattern in a helper does not make it allowed. The helper is the rationalization — the boundary is the real test.
+
+---
+
+## 10. Compose members — don't mutate a circuit from a free function
+
+**Failure pattern.** A free function that takes the circuit (or design) and assigns attributes onto it — `def add_thermal_vias(circuit, ...): circuit.thermal_vias = [...]`. The member is created by a side effect at a call site instead of being declared on the class, so neither a reader nor the type checker sees it where the circuit is defined, and helpers grow order-dependence between calls.
+
+**Bad — builder function mutating the passed-in circuit:**
+```python
+def add_thermal_vias(circuit: Circuit, positions: list[tuple[float, float]]) -> None:
+    circuit.thermal_vias = [ThermalStitchVia().at(x, y) for (x, y) in positions]
+
+class AmpCircuit(Circuit):
+    def __init__(self):
+        ...
+        add_thermal_vias(self, positions)   # member appears by side effect elsewhere
+```
+
+**Good — a `Container` subclass owns the group; the circuit composes it as a member:**
+```python
+from jitx import Container
+
+class ThermalViaField(Container):
+    def __init__(self, positions: list[tuple[float, float]]):
+        self.vias = [ThermalStitchVia().at(x, y) for (x, y) in positions]
+
+class AmpCircuit(Circuit):
+    def __init__(self):
+        ...
+        self.thermal_vias = ThermalViaField(positions)   # composed, visible, traversed
+        for via in self.thermal_vias.vias:
+            self.GND += via
+```
+
+The class-attribute form is fine when the contents are static (`class MyX(Container): xyz = <something>`); build in `__init__` when construction is parameterized. Use a `Circuit` subclass instead of `Container` when the group has ports/nets of its own — § 3's dataclass / Container / Composite / Circuit triage picks the right base.
+
+**Why.** Every structural member of a circuit belongs *on the circuit* — class body or `self.` in `__init__` — the single place the structural walk and a human reader both look. A mutating helper is an imperative side door around that declaration point. Compose objects; don't bolt them on. (Build-verified on 4.2.1: `Container` members are traversed and the composed-vias form builds clean.)
 
 ---
 

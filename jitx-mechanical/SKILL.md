@@ -11,19 +11,16 @@ mechanical import/export command to surface is `jitx-mechanical`.
 ## Setup
 
 Environment setup is handled by the base `jitx` skill. Install the mechanical
-package into the project venv when the command is missing:
-
-```bash
-pip install --extra-index-url "https://pypi.jitx.com/jitx/main/+simple" jitx-mechanical
-```
-
-The source repo is at `https://github.com/JITx-Inc/py-jitx-mechanical`. If the
-package index is unavailable and GitHub access is available, install from
-source:
+package into the project venv when the command is missing. The tool installs
+from its public source repo:
 
 ```bash
 pip install git+https://github.com/JITx-Inc/py-jitx-mechanical.git
 ```
+
+(A `jitx-mechanical` wheel is not yet published to the package index; once it
+is, prefer
+`pip install --extra-index-url "https://pypi.jitx.com/jitx/main/+simple" jitx-mechanical`.)
 
 Do not suggest the retired per-format commands or packages. Use
 `jitx-mechanical inspect`, `jitx-mechanical import`, and
@@ -37,7 +34,7 @@ Do not suggest the retired per-format commands or packages. Use
 | Generate a Board-focused JITX Python module from mechanical data | `jitx-mechanical import` |
 | Export JITX XML board data to DXF | `jitx-mechanical export-dxf` |
 | Attach a STEP/STP model to a component | `jitx.model3d.Model3D` |
-| Export a complete board assembly STEP | JITX `export-step()` or UI export |
+| Export a complete board assembly STEP | JITX application UI (no CLI in 4.2.x) |
 
 ## Before Importing Holes
 
@@ -85,14 +82,14 @@ Use import to generate a user-editable Python module and a Markdown/JSON report.
 
 ```bash
 jitx-mechanical import board.dxf \
-  --output src/myproject/board.py \
-  --report src/myproject/board.report.md \
+  --output <ns>/board.py \
+  --report <ns>/board.report.md \
   --class-name ProjectBoard \
   --hole-policy cutout
 
 jitx-mechanical import board.emn \
-  --output src/myproject/board.py \
-  --report src/myproject/board.report.md \
+  --output <ns>/board.py \
+  --report <ns>/board.report.md \
   --class-name ProjectBoard \
   --hole-policy component
 ```
@@ -114,7 +111,7 @@ jitx-mechanical import board.emn \
 When `--hole-policy component` finds mechanical/plated holes,
 `jitx-mechanical import` writes a companion module beside the board module named
 `<output_stem>_components.py`. For example, importing to
-`src/myproject/board.py` writes `src/myproject/board_components.py` when
+`<ns>/board.py` writes `<ns>/board_components.py` when
 component holes are present. The CLI prints a `Components:` line for that file.
 The default `cutout` policy does not create the companion file.
 
@@ -125,7 +122,7 @@ Common DXF layer roles for `--layer-map` are `outline`, `cutout`, `hole`,
 jitx-mechanical import board.dxf \
   --layer-map OUTER_PROFILES=outline DRILL=hole SLOTS=cutout \
   --hole-policy component \
-  --output src/myproject/board.py
+  --output <ns>/board.py
 ```
 
 ### Generated Output Shape
@@ -328,14 +325,14 @@ landpattern object when that is the lighter change.
 
 ## Board STEP Export
 
-Full board STEP export is done through the JITX `export-step()` flow or the JITX
-application UI after the design builds successfully and the 3D view is
-available. The JITX export writes `<design-directory>/step/<design>.step`.
-`jitx-mechanical` does not export STEP.
+Full board STEP export is done through the JITX application UI after the design
+builds successfully and the 3D view is available. Neither py-jitx 4.2.x nor
+`jitx-mechanical` exposes a CLI for board STEP export — do not invent one (the
+Stanza-era `export-step()` does not exist in the Python runtime).
 
 Checklist before exporting:
 
-- Build succeeds with `python -m jitx build <module.path.Design>`.
+- Build succeeds with `jitx build <module.path.Design>`.
 - Board shape and substrate thickness are correct.
 - Important components have reachable `Model3D` entries.
 - 3D view alignment is checked; adjust `Model3D(position=..., rotation=...,

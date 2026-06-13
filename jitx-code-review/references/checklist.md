@@ -91,9 +91,17 @@ If the answer is "outside the owner, copying internals," the finding is `framewo
 
 **Rule source:** `jitx/references/architectural-patterns.md` § 7.
 
+### `imperative-builder-function`
+
+**Look for:** A free function that takes a circuit/design/landpattern and assigns structural members onto it — `def add_x(circuit, ...): circuit.xyz = ...` — instead of a composed member. The fix is a `Container` subclass (class-body members, or `self.` in `__init__`) instantiated on the circuit (`self.my_x = MyX(...)`), or a `Circuit` subclass when the group has its own ports/nets.
+
+**Severity:** CRITICAL when the function assigns structural members by side effect (the member exists nowhere in the class declaration). WARNING for a function that merely *returns* objects the caller assigns (`self.xyz = make_x(...)` is composition, not mutation — usually fine, though a `Container` is better when the group is JITX-structural).
+
+**Rule source:** `jitx/references/architectural-patterns.md` § 10.
+
 ### `manual-jitx-assigned-value`
 
-**Look for:** Code computing `refdes=`, net names, layer indices, or other values JITX assigns automatically. Strings like `f"U1_A1_solderball"` or `f"L{layer}_via"` constructed for the purpose of naming a JITX object.
+**Look for:** Code computing `refdes=`, net names, layer indices, or other values JITX assigns automatically. Strings like `f"U1_A1_solderball"` or `f"L{layer}_via"` constructed for the purpose of naming a JITX object. Carve-out: *owner-side* structural definitions legitimately set layer indices — `start_layer = 0` on a substrate's Via class is the definition, not a duplication (see `jitx/SKILL.md` Don'ts); the smell is *design-side* code computing what the owning object already exposes.
 
 **Severity:** WARNING (often driven by export-pipeline pressure — odb++/HFSS workflows). CRITICAL if it actively breaks JITX's naming/refdes assignment.
 
@@ -161,7 +169,7 @@ Hygiene patterns. Lower priority on their own but they accumulate.
 
 ### `vestigial-construct`
 
-**Look for:** `from __future__ import annotations` on Python 3.10+ where forward refs are auto-deferred; `LEGACY` / `DORMANT` / `OLD` in names that haven't been cleaned up; commented-out code blocks.
+**Look for:** `from __future__ import annotations` on projects pinned to Python 3.14+ (where PEP 649 defers annotations by default — on 3.12/3.13 the import still changes annotation semantics, so don't flag it there); `LEGACY` / `DORMANT` / `OLD` in names that haven't been cleaned up; commented-out code blocks.
 
 **Severity:** NOTE.
 

@@ -77,6 +77,11 @@ pair_point = PairPoint(layer=deskew_layer).at(xy, rotate=90)
 self.attachments = [PortAttachment([tx.n, tx.p], pair_point)]
 ```
 
+Control-point and signal-escape-via bindings like these are exactly the
+**signal-topology scope `PortAttachment` is reserved for** — ground/power
+stitching vias join their `Net` directly instead (`self.GND += via`); see
+`jitx-physical-layout` "Explicit placement & via attachment".
+
 ### Chirality — port order in `PortAttachment`
 
 For `PairInsertion`, the **order** of the two ports in `PortAttachment` is

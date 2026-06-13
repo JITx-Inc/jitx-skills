@@ -195,21 +195,35 @@ datasheet belongs to `jitx-component-modeler`; this skill is the feature mechani
 
 ## Explicit placement & via attachment
 
-`PortAttachment(port_or_ports, attachment)` connects a port (or a sequence of ports)
-to a placed **`Copper` | `Via` | `ControlPoint`** at a fixed location:
+**Scope rule — `PortAttachment` is for signal topologies only**: binding a signal
+port to a control point, or to a signal via in an escape/deskew path. For
+ground/power stitching vias, thermal vias, and anything else that just joins a
+net, add the placed via (or copper) to the **net** — `Net` accepts `Copper | Via`
+members directly. PortAttachment use is deliberately being limited and is
+expected to be deprecated; default to the net form whenever the connection is
+plain net membership.
+
+```python
+# Ground / thermal vias: net membership — NOT PortAttachment.
+# Source the via class from the substrate / JLCPCB library — do NOT redefine vias here:
+via_cls = substrate.signal_via[layer]          # or: from jitxlib.jlcpcb.vias import JLCPCBVias
+self.thermal_vias = [via_cls().at(x, y) for (x, y) in via_positions]   # list, not a string-keyed dict
+for via in self.thermal_vias:
+    self.GND += via
+```
+
+For the signal-topology cases, `PortAttachment(port_or_ports, attachment)` connects
+a port (or a sequence of ports) to a placed **`Copper` | `Via` | `ControlPoint`**
+at a fixed location:
 
 ```python
 from jitx.net import PortAttachment
-# Source the via class from the substrate / JLCPCB library — do NOT redefine vias here:
-via_cls = substrate.signal_via[layer]          # or: from jitxlib.jlcpcb.vias import JLCPCBVias
-self.attachments = [
-    PortAttachment(self.amp.EP, via_cls().at(x, y))
-    for (x, y) in via_positions                 # list, not a string-keyed dict
-]
+# Signal escape via at a fixed location, bound to its signal port:
+self.attachments = [PortAttachment(self.serdes.TX.p, via_cls().at(x, y))]
 ```
 
 **Vias are defined in the substrate**, not here (see `jitx-substrate-modeler`). This
-skill *attaches* placed instances of them. Define a custom module-scope `Via`
+skill *places* instances of them. Define a custom module-scope `Via`
 subclass only with a fab-verified reason — e.g. the tented-unfilled thermal via in
 the thermal-pad example, where JLCPCB charges nothing for tented vias inside a pad.
 

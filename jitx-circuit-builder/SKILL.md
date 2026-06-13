@@ -100,6 +100,8 @@ Device = MyCircuit
 
 For circuits that emit N parallel instances (per-lane fanout, per-row ballout, per-channel filter), construct the JITX objects directly inside the Circuit — do not build an intermediate `list[dict[str, Any]]` "spec" model and then walk it to emit JITX calls. If you need to batch parameters, use a frozen dataclass with named fields, not bare `dict[str, Any]`. See `jitx/references/architectural-patterns.md` §§ "Build the scene graph directly" and "Typed records over `dict[str, Any]`" before writing record-then-iterate code.
 
+Likewise, don't add to a circuit from a free function (`def add_x(circuit): circuit.xyz = ...`) — compose a `Container` subclass holding the group and instantiate it as a member (`self.my_x = MyX()`). See `jitx/references/architectural-patterns.md` § "Compose members".
+
 For a same-model self-critique pass on the circuit after writing (catches what these rules don't), invoke `jitx-skills:jitx-code-review`. Optional for single-task use.
 
 ## Net Definitions
