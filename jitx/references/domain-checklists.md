@@ -43,7 +43,7 @@ Your initial implementation likely missed something. This is expected and normal
 ### Symbol
 - [ ] All ports appear in BoxSymbol
 - [ ] Logical grouping: power pins up, ground pins down, inputs left, outputs right
-- [ ] Multi-unit symbol used if pin count > 40 (split by functional group)
+- [ ] Pin count > ~40: symbol checked for readability — usually split into multiple boxes (by functional group, or by pin-slice for parts with no natural grouping; see `jitx-component-modeler` "Multi-Unit Symbols"), or rationale recorded if kept as one box. Partitioned symbols can go on separate schematic pages via `SchematicGroup`.
 
 ### Build Test
 - [ ] Test harness created using TestDesign pattern
