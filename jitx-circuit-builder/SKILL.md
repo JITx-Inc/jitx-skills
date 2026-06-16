@@ -106,7 +106,7 @@ For a same-model self-critique pass on the circuit after writing (catches what t
 
 ## Net Definitions
 
-Nets can be named in the design when the net is defined. It is good practice to name the net so that the schematic and layout construction are easy to follow. For power and ground nets, it is also useful to provide a symbol definition (i.e. PowerSymbol() or GroundSymbol()) — **at the top-level design only**. `PowerSymbol()` / `GroundSymbol()` outside `TOP_LEVEL_PATH` (default `designs/`) is a hard-fail under `scripts/grep_gates.sh`; the example below shows the *top-level* pattern.
+Nets can be named in the design when the net is defined. It is good practice to name the net so that the schematic and layout construction are easy to follow. Every power and ground net **should** carry a symbol definition (`PowerSymbol()` / `GroundSymbol()`) — **at the top-level design only**. This is not cosmetic: power/ground symbols are what connect a rail across the schematic *without drawn wires*, so the schematic stays legible instead of a rats-nest, and rails join correctly when a design spans multiple schematic pages (see `jitx-component-modeler` "Multi-Unit Symbols" for page splitting). `PowerSymbol()` / `GroundSymbol()` outside `TOP_LEVEL_PATH` (default `designs/`) is a hard-fail under `scripts/grep_gates.sh`; the example below shows the *top-level* pattern.
 
 ```python
 # Top-level design (in <ns>/designs/...): symbols are legal here.

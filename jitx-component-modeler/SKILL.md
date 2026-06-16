@@ -372,7 +372,14 @@ from jitxlib.landpatterns.pads import SMDPadConfig, WindowSubdivide
 `BoxSymbol(rows=..., orientation=90)` rotates the box symbol (an int multiple
 of 90 degrees; other values raise `ValueError`; jitxlib 4.2+).
 
-Multiple `BoxSymbol` attributes = separate visual boxes:
+**Prefer partitioning large symbols into several smaller boxes.** A single box
+with dozens of pins is unreadable; as a rule of thumb, **once a part exceeds
+~40 pins, split it into multiple symbols.** A component may carry more than one
+`BoxSymbol` — each becomes a separate visual box, and the boxes can be placed on
+different schematic pages (see "Splitting across schematic pages" below).
+
+**By functional group** (the usual case — split where the datasheet does: each
+op-amp unit, the power unit, each peripheral block):
 
 ```python
 def __init__(self):
@@ -392,6 +399,50 @@ def __init__(self):
         ),
     )
 ```
+
+**By regular slices** — only when the part has **no** natural functional
+grouping (generic connectors, board-to-board headers, pin arrays). For FPGAs,
+MCUs, and memory, partition by the structure the datasheet already gives you —
+IO bank, power domain, byte lane, peripheral block — *before* falling back to
+arbitrary slices. When slicing is the right call, store the boxes as a **list**
+and slice a `p = [Port() for _ in range(N)]` pin array into fixed-size groups:
+
+```python
+# 100-pin part → ten 10-pin boxes (5 left / 5 right each):
+self.symbols = [
+    BoxSymbol(
+        rows=Row(
+            left=PinGroup(*self.p[i * 10:i * 10 + 5]),
+            right=PinGroup(*self.p[i * 10 + 5:i * 10 + 10]),
+        ),
+    )
+    for i in range(10)
+]
+```
+
+`self.symbols` (a list of `BoxSymbol`) is a recognized structural collection —
+no string-keyed dict, no `getattr` (see `jitx/references/architectural-patterns.md`).
+
+### Splitting across schematic pages
+
+Each symbol can be assigned to its own schematic page by wrapping it in a
+`SchematicGroup`. In the **enclosing circuit/design**, pull the component's
+symbols out with `extract(..., Symbol)` and give each its own group:
+
+```python
+from jitx import extract, Symbol
+from jitx.circuit import SchematicGroup
+
+# In the circuit that instantiates the part:
+self.banks = [SchematicGroup(symbol) for symbol in extract(self.u1, Symbol)]
+```
+
+`extract(self.u1, Symbol)` yields every `Symbol` in `self.u1` (the partitioned
+boxes); each `SchematicGroup` becomes a separately placeable schematic group, so
+a 100-pin part's ten banks can land on ten pages. Rails connect across those
+pages through `PowerSymbol` / `GroundSymbol` net symbols, not drawn wires — see
+`jitx-circuit-builder` "Net Definitions". (`SchematicGroup` is in `jitx.circuit`;
+`extract` and `Symbol` are top-level `jitx` exports.)
 
 ## Pin Naming Best Practices
 
