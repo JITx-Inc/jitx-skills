@@ -180,6 +180,11 @@ self.led3 = LED().at(10.0, 5.0, on=Side.Bottom)
 self.subckt = MySubCircuit().at(floating=True)
 ```
 
+Prefer `.at()` for **direct descendants** — it mutates the instance's own `transform`, so the
+placement is readable on the instance (visible to introspection before the design is built).
+`Circuit.place(child, pos)` instead records a deferred placement request on the parent — reserve it
+for placing relative to **another** instance (`relative_to=`); see **jitx-physical-layout**.
+
 Placed `Via` (and `Copper`) instances can join a net directly — `self.GND +=
 via_cls().at(x, y)` — which is the preferred form for ground/power stitching and
 thermal vias. `PortAttachment` is scoped to **signal topologies** (control

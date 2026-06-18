@@ -146,8 +146,9 @@ positions = grid_thermal_via_positions(ep_size=(3.45, 3.45), via_grid=(4, 4))
 config = soldermask_defined_thermal_pad_config(ep_size=(3.45, 3.45), via_positions=positions)
 landpattern.thermal_pad(shape=rectangle(3.45, 3.45), config=config)
 
-# In the circuit where the chip is placed:
-self.place(self.amp, (0, 0))
+# In the circuit where the chip is placed — pin it at the origin so the thermal-via
+# field (anchored at (0, 0)) lines up with the exposed pad:
+self.amp = PowerAmp().at(0, 0)
 self.GND += self.amp.EP                     # the exposed pad is on ground
 self.thermal_vias = ThermalViaField(positions=positions, anchor=(0.0, 0.0))
 for via in self.thermal_vias.vias:
@@ -215,8 +216,7 @@ class AntennaMatching(Circuit):
         # ... π-network matching components (elided) land RFIO → ANT_FEED ...
 
         # Anchor component at the circuit origin; the radiator copper shares this frame.
-        self.ant = AntennaIFA()
-        self.place(self.ant, (0, 0))
+        self.ant = AntennaIFA().at(0, 0)
         self.ANT_FEED += self.ant.feed     # pads carry the nets
         self.GND      += self.ant.short
 

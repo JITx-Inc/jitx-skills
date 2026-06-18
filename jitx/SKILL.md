@@ -459,7 +459,7 @@ Covers:
 - `Copper` vs `OverlappableCopper` vs `Pour` (net membership + overlap exemption)
 - Shapely (`ShapelyGeometry`) custom shapes feeding any feature; built-in composites
 - Pad features (`Soldermask`, `Paste`, `SMDPadConfig`, `.thermal_pad`)
-- `PortAttachment` + explicit placement (`Circuit.place`, `.at`), local frames
+- `PortAttachment` + explicit placement — `.at()` (default), `Circuit.place` (deferred/relative), local frames
 - Keepouts that shape pours; local-vs-global pour placement
 - Layout-intent tags for object selection (rule mechanics stay in jitx-substrate-modeler)
 - `Route`, `RoutePoint`, `PairInsertion`, `PairPoint` (advanced; stable as of JITX 4.2)
