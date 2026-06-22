@@ -75,7 +75,7 @@ self.nets.append(self.fb_div.out + self.buck.FB)
 
 ## Net Symbols
 
-`GroundSymbol()` / `PowerSymbol()` are **top-level only** — `scripts/grep_gates.sh` hard-fails them outside `TOP_LEVEL_PATH` (default `designs/`). The example below shows the pattern in a top-level design.
+`GroundSymbol()` / `PowerSymbol()` are **top-level only** — `scripts/grep_gates.py` hard-fails them outside `TOP_LEVEL_PATH` (default `designs/`). The example below shows the pattern in a top-level design.
 
 ```python
 # Top-level design (in <ns>/designs/...) only.
@@ -124,7 +124,7 @@ The `Pour(..., isolate=...)` parameter is being removed. Pour clearance is gover
 - For a net class that needs wider keepout (HV creepage, switch-node spacing, RF clearance under an antenna), declare a Tag and apply `design_constraint(<MyTag>(), priority=N).clearance(...)` against tagged nets.
 - For substrate-wide changes, edit the `FabricationConstraints` on the substrate.
 
-New skill examples must not introduce `isolate=`. Existing user code that has it should migrate to `design_constraint(...)` when convenient — `grep_gates.sh` flags it as review-required, dispositioned `fixed (migrated)` or `deferred (legacy file)`.
+New skill examples must not introduce `isolate=`. Existing user code that has it should migrate to `design_constraint(...)` when convenient — `grep_gates.py` flags it as review-required, dispositioned `fixed (migrated)` or `deferred (legacy file)`.
 
 ### Fenced pour outlines (Pour as fence-via trigger)
 
@@ -179,6 +179,11 @@ self.led3 = LED().at(10.0, 5.0, on=Side.Bottom)
 # Floating (layout engine decides) — Circuit.at() only
 self.subckt = MySubCircuit().at(floating=True)
 ```
+
+Prefer `.at()` for **direct descendants** — it mutates the instance's own `transform`, so the
+placement is readable on the instance (visible to introspection before the design is built).
+`Circuit.place(child, pos)` instead records a deferred placement request on the parent — reserve it
+for placing relative to **another** instance (`relative_to=`); see **jitx-physical-layout**.
 
 Placed `Via` (and `Copper`) instances can join a net directly — `self.GND +=
 via_cls().at(x, y)` — which is the preferred form for ground/power stitching and

@@ -67,11 +67,7 @@ from jitx.controlpoint import RoutePoint, PairInsertion, PairPoint
 
 **Do NOT import** (these do not exist): `jitx.copper.OverlappableCopper`
 (it lives in `jitx.feature`), `jitx.shapes.Shapely`, `jitx.geometry`,
-`jitx.layout`, `jitx.routes`. When unsure, search the installed source:
-
-```bash
-grep -rn "class OverlappableCopper\|class Route\|class PortAttachment" .venv/lib/python*/site-packages/jitx/
-```
+`jitx.layout`, `jitx.routes`. When unsure, search the installed source with your **Grep** tool (pattern `class OverlappableCopper|class Route|class PortAttachment`, path `.venv`, glob `*.py`); it recurses and is OS-agnostic. Shell fallback: bash `grep -rn "class OverlappableCopper\|class Route\|class PortAttachment" .venv/lib/python*/site-packages/jitx/` (macOS/Linux); on Windows use the Grep tool, or `Select-String` over `.venv\Lib\site-packages\jitx`.
 
 ## Custom shapes with shapely (general)
 
@@ -150,8 +146,7 @@ something to land on), then draw the radiating shape as `OverlappableCopper`
 overlapping those pads:
 
 ```python
-self.ant = AntennaIFA()                 # component with feed + short anchor pads
-self.place(self.ant, (0, 0))
+self.ant = AntennaIFA().at(0, 0)        # component with feed + short anchor pads, pinned at origin
 self.ANT_FEED += self.ant.feed          # pads carry the nets
 self.GND      += self.ant.short
 # radiator shape is netless copper overlapping the pads — no DRC overlap error:
@@ -227,18 +222,30 @@ skill *places* instances of them. Define a custom module-scope `Via`
 subclass only with a fab-verified reason — e.g. the tented-unfilled thermal via in
 the thermal-pad example, where JLCPCB charges nothing for tented vias inside a pad.
 
-Placement:
+**Placement — place a direct descendant with `.at()`; use `Circuit.place()` sparingly.**
 
 ```python
-self.led = LED().at(10.0, 5.0, rotate=90)          # x, y, rotate (deg), on=Side
+self.led = LED().at(10.0, 5.0, rotate=90)          # x, y, rotate (deg), on=Side — default form
 self.led_b = LED().at(10.0, 5.0, on=Side.Bottom)
-self.place(self.amp, (0, 0))                       # Circuit.place — anchor in local frame
-self.subckt = MySub().at(floating=True)            # layout engine decides position
+self.subckt = MySub().at(floating=True)            # let the layout engine choose the position
+# Circuit.place() — sparingly: records a DEFERRED placement request on the parent (the child's own
+# transform won't reflect it until placement resolves) and force-floats a placed subcircuit. Reserve
+# it for the one thing .at() can't express — placing relative to ANOTHER instance (for a
+# layout-engine-chosen position, use .at(floating=True) as above):
+self.x = MyChip()
+self.place(self.x, (1.0, 0.0), relative_to=self.led)
 ```
 
+`.at()` mutates the instance's own `transform`, so the placement is readable on the instance —
+visible to introspection before the design is built. For a **direct descendant** placed in the
+parent's frame, set the position with `.at()` (chained when you create it, `self.x = Comp().at(x,
+y)`, or `self.x.at(x, y)` if it already exists) — **not** `self.place(self.x, (x, y))`.
+
 When a placed component and the geometry attached to it share the **same local
-frame** (place the anchor at `(0, 0)`, give attachments offsets in that frame), they
-move together under interactive placement. Store attachments/vias/lanes as **list or
+frame** (pin the anchor with `.at(0, 0)`, give attachments offsets in that frame), they
+move together under interactive placement. Use `.at(0, 0)` here, not `place()`: `place()` records a
+deferred placement request (and force-floats a placed *subcircuit*), so the anchor is not pinned in
+the parent frame alongside its copper. Store attachments/vias/lanes as **list or
 dataclass attributes** — never `getattr(self, f"via_{i}")` (see Anti-string-hacking).
 
 ## Keepouts that shape pours

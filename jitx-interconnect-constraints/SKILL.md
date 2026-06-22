@@ -506,11 +506,7 @@ See [jitx_protocols_ext](https://github.com/JITx-Inc/jitx-protocols-ext) for com
 
 ## Working with Built-in Protocols
 
-JITX provides built-in protocol constraints in `jitxlib`. Check your installed version for available protocols:
-
-```bash
-grep -r "class.*Constraint.*SignalConstraint" .venv/lib/python*/site-packages/jitxlib/protocols/
-```
+JITX provides built-in protocol constraints in `jitxlib`. Check your installed version for available protocols with your **Grep** tool (pattern `class.*Constraint.*SignalConstraint`, path `.venv`, glob `*.py`); it recurses and is OS-agnostic. Shell fallback: bash `grep -rn "class.*Constraint.*SignalConstraint" .venv/lib/python*/site-packages/jitxlib/protocols/` (macOS/Linux); on Windows use the Grep tool, or `Select-String` over `.venv\Lib\site-packages\jitxlib\protocols`.
 
 Common built-in protocols:
 

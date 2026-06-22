@@ -69,8 +69,7 @@ parts2jitx-lcsc C165948 --pinout                             # pin labels
 
 # Footprint data ingestion (requires explicit per-project user approval)
 parts2jitx-lcsc C165948 --footprint -o kicad_footprints/usb_c.kicad_mod
-parts2jitx-kicad kicad_footprints/usb_c.kicad_mod --class-name USB_C_16P \
-    --manufacturer "Korean Hroparts Elec" --mpn "TYPE-C-31-M-12"
+parts2jitx-kicad kicad_footprints/usb_c.kicad_mod --class-name USB_C_16P --manufacturer "Korean Hroparts Elec" --mpn "TYPE-C-31-M-12"
 ```
 
 **Skip parts2jitx entirely** when:
@@ -83,9 +82,7 @@ parts2jitx-kicad kicad_footprints/usb_c.kicad_mod --class-name USB_C_16P \
 Users who already have `.kicad_mod` files (from KiCad libraries, vendor downloads, or their own designs) can convert them with `parts2jitx-kicad`:
 
 ```bash
-parts2jitx-kicad my_footprint.kicad_mod --class-name MyConnector \
-    --manufacturer "Amphenol" --mpn "12345" \
-    -o <namespace>/components/connectors/amphenol_12345.py
+parts2jitx-kicad my_footprint.kicad_mod --class-name MyConnector --manufacturer "Amphenol" --mpn "12345" -o <namespace>/components/connectors/amphenol_12345.py
 ```
 
 This works with any `.kicad_mod` file regardless of source — not just LCSC/EasyEDA.

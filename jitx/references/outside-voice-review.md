@@ -73,7 +73,7 @@ The configured outside-voice reviewer in Claude Code is the **codex** skill. Inv
 Skills available in the current session appear in the system reminder Claude receives at startup. To check from the agent's side:
 
 - **Preferred:** look for `codex` in the session's available-skills list (the system reminder lists what's installed); if it's not there, treat the reviewer as unavailable.
-- **Shell-side cross-check:** `command -v codex` returns non-empty if the codex CLI is on `$PATH`. Useful for scripted flows but does not guarantee the wrapping skill is loaded.
+- **Shell-side cross-check:** `command -v codex` (PowerShell: `Get-Command codex`) returns non-empty if the codex CLI is on the `PATH`. Useful for scripted flows but does not guarantee the wrapping skill is loaded.
 
 If neither check passes, record `Outside-voice review: not run: codex skill not available` in the relevant block. Per the rule above, this **blocks complete-board Phase 3b advancement unless the user explicitly approves proceeding**.
 

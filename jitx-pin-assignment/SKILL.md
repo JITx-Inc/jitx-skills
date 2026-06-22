@@ -70,7 +70,7 @@ A **bundle** is a Port subclass that groups related signals. Bundles are the typ
 
 ### Built-in Bundles and Their Sub-Ports
 
-Discover sub-ports by reading the class source: `grep -A 10 "class BundleName" .venv/lib/python*/site-packages/jitx*/`
+Discover sub-ports by reading the class source — use your **Grep** tool (pattern `class BundleName`, path `.venv`, glob `*.py`, ~10 context lines); it recurses and is OS-agnostic. Shell fallback: bash `grep -rn -A 10 "class BundleName" .venv/lib/python*/site-packages/jitx*/` (macOS/Linux); on Windows use the Grep tool, or `Select-String` over `.venv\Lib\site-packages\jitx*`.
 
 | Bundle | Import | Sub-ports | Notes |
 |--------|--------|-----------|-------|

@@ -8,9 +8,7 @@
 > for the same three classes and will no longer import. On a runtime other than
 > 4.2.x, confirm the surface against the installed source:
 >
-> ```bash
-> sed -n '1,130p' .venv/lib/python*/site-packages/jitx/controlpoint.py
-> ```
+> Read the first ~130 lines of the installed source with your **Read** tool — `.venv/lib/python*/site-packages/jitx/controlpoint.py` (Windows: `.venv\Lib\site-packages\jitx\controlpoint.py`); it's OS-agnostic. Shell fallback: bash `sed -n '1,130p' .venv/lib/python*/site-packages/jitx/controlpoint.py` (macOS/Linux); on Windows use the Read tool, or `Get-Content .venv\Lib\site-packages\jitx\controlpoint.py -TotalCount 130`.
 
 ## When to use
 
