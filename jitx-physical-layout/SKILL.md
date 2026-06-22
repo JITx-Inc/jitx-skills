@@ -67,11 +67,7 @@ from jitx.controlpoint import RoutePoint, PairInsertion, PairPoint
 
 **Do NOT import** (these do not exist): `jitx.copper.OverlappableCopper`
 (it lives in `jitx.feature`), `jitx.shapes.Shapely`, `jitx.geometry`,
-`jitx.layout`, `jitx.routes`. When unsure, search the installed source:
-
-```bash
-grep -rn "class OverlappableCopper\|class Route\|class PortAttachment" .venv/lib/python*/site-packages/jitx/
-```
+`jitx.layout`, `jitx.routes`. When unsure, search the installed source with your **Grep** tool (pattern `class OverlappableCopper|class Route|class PortAttachment`, path `.venv`, glob `*.py`); it recurses and is OS-agnostic. Shell fallback: bash `grep -rn "class OverlappableCopper\|class Route\|class PortAttachment" .venv/lib/python*/site-packages/jitx/` (macOS/Linux); on Windows use the Grep tool, or `Select-String` over `.venv\Lib\site-packages\jitx`.
 
 ## Custom shapes with shapely (general)
 

@@ -31,21 +31,11 @@ JITX uses two packages — know which one to import from:
 (use `Circuit`). Passives live in `jitxlib.parts`, bundles in `jitx.common`, protocols in
 `jitxlib.protocols.serial`, `provide` in `jitx.net`.
 
-When unsure, search:
-
-```bash
-grep -r "class ClassName" .venv/lib/python*/site-packages/jitx*/
-grep -r "def function_name" .venv/lib/python*/site-packages/jitxlib*/
-```
+When unsure, search the installed packages with your **Grep** tool (pattern `class ClassName` or `def function_name`, path `.venv`, glob `*.py`); it recurses and is OS-agnostic. Shell fallback: bash `grep -rn "class ClassName" .venv/lib/python*/site-packages/jitx*/` (macOS/Linux); on Windows use the Grep tool, or `Select-String` over `.venv\Lib\site-packages\jitx*`.
 
 ### Finding bundle pins
 
-Read the class definition to discover what pins a bundle has:
-
-```bash
-grep -A 10 "class Power" .venv/lib/python*/site-packages/jitx/common.py
-grep -A 20 "class SPI" .venv/lib/python*/site-packages/jitxlib/protocols/serial.py
-```
+Read the class definition to discover what pins a bundle has — use your **Grep** tool with context (pattern `class Power` / `class SPI`, path `.venv`, glob `*.py`, output mode `content`, ~10–20 lines); it recurses and is OS-agnostic. Shell fallback: bash `grep -A 20 "class SPI" .venv/lib/python*/site-packages/jitxlib/protocols/serial.py` (macOS/Linux); on Windows use the Grep tool, or `Select-String .venv\Lib\site-packages\jitxlib\protocols\serial.py -Pattern "class SPI" -Context 0,20`.
 
 Do not hardcode pin names from memory — verify from source. Bundle constructors
 may have optional pins (e.g., `SPI(cs=True)` to enable chip select).
@@ -106,7 +96,7 @@ For a same-model self-critique pass on the circuit after writing (catches what t
 
 ## Net Definitions
 
-Nets can be named in the design when the net is defined. It is good practice to name the net so that the schematic and layout construction are easy to follow. Every power and ground net **should** carry a symbol definition (`PowerSymbol()` / `GroundSymbol()`) — **at the top-level design only**. This is not cosmetic: power/ground symbols are what connect a rail across the schematic *without drawn wires*, so the schematic stays legible instead of a rats-nest, and rails join correctly when a design spans multiple schematic pages (see `jitx-component-modeler` "Multi-Unit Symbols" for page splitting). `PowerSymbol()` / `GroundSymbol()` outside `TOP_LEVEL_PATH` (default `designs/`) is a hard-fail under `scripts/grep_gates.sh`; the example below shows the *top-level* pattern.
+Nets can be named in the design when the net is defined. It is good practice to name the net so that the schematic and layout construction are easy to follow. Every power and ground net **should** carry a symbol definition (`PowerSymbol()` / `GroundSymbol()`) — **at the top-level design only**. This is not cosmetic: power/ground symbols are what connect a rail across the schematic *without drawn wires*, so the schematic stays legible instead of a rats-nest, and rails join correctly when a design spans multiple schematic pages (see `jitx-component-modeler` "Multi-Unit Symbols" for page splitting). `PowerSymbol()` / `GroundSymbol()` outside `TOP_LEVEL_PATH` (default `designs/`) is a hard-fail under `scripts/grep_gates.py`; the example below shows the *top-level* pattern.
 
 ```python
 # Top-level design (in <ns>/designs/...): symbols are legal here.
@@ -177,7 +167,7 @@ self.c_hf.insert(self.ic.VCC, self.GND, short_trace=True)
 - RF matching, coupling, or shunt caps (LNA input network, antenna feed) — placement is bookend-specific per the impedance budget
 - Crystal load caps — placed per the crystal datasheet, not as decoupling
 
-The `short_trace=True` rule is gated at the Phase 2 → Phase 3 exit. `bash scripts/grep_gates.sh <ns>/` flags every `.insert(...)` call missing `short_trace=` as review-required; the agent dispositions each: fix (add `short_trace=True`) for power-rail caps, accept-with-rationale (`exception: AC coupling`, `exception: RC time constant`, etc.) for non-power-rail caps, or N/A (`not a capacitor — resistor insert`).
+The `short_trace=True` rule is gated at the Phase 2 → Phase 3 exit. `python scripts/grep_gates.py <ns>/` flags every `.insert(...)` call missing `short_trace=` as review-required; the agent dispositions each: fix (add `short_trace=True`) for power-rail caps, accept-with-rationale (`exception: AC coupling`, `exception: RC time constant`, etc.) for non-power-rail caps, or N/A (`not a capacitor — resistor insert`).
 
 The skill also documents `ShortTrace(p1, p2)` as an alternative connect-with-short-trace primitive — see https://docs.jitx.com/en/latest/api/jitx.net.html#jitx.net.ShortTrace.
 
@@ -277,10 +267,7 @@ python -m skill_eval.build_test path/to/circuit.py
 
 If the build fails:
 1. Read the traceback — the error message and the line number in the code indicate what went wrong
-2. Look up the class or method that failed in source:
-   ```bash
-   grep -n "def method_name\|class ClassName" .venv/lib/python*/site-packages/jitx*/**/*.py
-   ```
+2. Look up the class or method that failed in source with your **Grep** tool (pattern `def method_name|class ClassName`, path `.venv`, glob `*.py`); it recurses and is OS-agnostic. Shell fallback: bash `grep -rn "def method_name\|class ClassName" .venv/lib/python*/site-packages/jitx*/` (macOS/Linux); on Windows use the Grep tool, or `Select-String` over `.venv\Lib\site-packages\jitx*`.
 3. Fix the code, re-run pyright, then re-run the build. Repeat until it passes.
 
 ## Formatting
