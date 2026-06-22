@@ -11,22 +11,49 @@ Base skill for JITX hardware design automation. JITX is a Python framework for p
 
 The `jitx` CLI owns project scaffolding, auth, runtime install/start, and design build for VSCode-free workflows. Drive everything through it.
 
+> **Platform note (read once).** These commands run in **your** shell on **your** OS. macOS / Linux / WSL / Git Bash use **bash**; native Windows uses **PowerShell**. Commands identical in both (all `jitx ...`, `pip ...`, `pyright`, `ruff`, every `python scripts/...`) are shown once; where they diverge, a `bash` block and a `powershell` block are given — run the one for your shell.
+>
+> Conventions used throughout this bundle:
+> - **Interpreter:** `python3` on macOS/Linux, `python` on Windows (the launcher there exposes `python`). Note `python scripts/...` runs the same script either way.
+> - **venv activation:** macOS/Linux/WSL bash `source .venv/bin/activate`; Git Bash on Windows `source .venv/Scripts/activate`; PowerShell `.\.venv\Scripts\Activate.ps1` (if blocked by execution policy, run `Set-ExecutionPolicy -Scope Process Bypass` first).
+> - **venv layout:** macOS/Linux `.venv/bin/`, `.venv/lib/python*/site-packages/`; native Windows `.venv\Scripts\`, `.venv\Lib\site-packages\`.
+> - **Inline env vars** (`VAR=value cmd`) are bash-only and one-shot; PowerShell's `$env:VAR="value"; cmd` *persists for the session* — clear it with `Remove-Item Env:VAR` when it should apply to a single command (e.g. `TOP_LEVEL_PATH`).
+> - **Library/source discovery:** prefer your own **Grep**/**Glob** tools (OS-agnostic) over shell `grep` — they handle `lib/`-vs-`Lib/` and path globs for you.
+
 ### Step 1 — Ensure the `jitx` CLI is available
 
 ```bash
+# bash (macOS / Linux / WSL / Git Bash)
 if ! command -v jitx >/dev/null 2>&1; then
   # Bootstrap venv + install jitx from PyPI + the internal index.
   # PIP_PRE / extra-index-url cover the 4.x pre-release line.
   # `click` is a runtime import of the `jitx` CLI but the 4.3.x wheel doesn't declare it — install it explicitly.
-  [ -d .venv ] || python3 -m venv .venv
-  source .venv/bin/activate
+  [ -d .venv ] || python3 -m venv .venv 2>/dev/null || python -m venv .venv
+  # venv layout: .venv/bin on macOS/Linux/WSL, .venv/Scripts under Git Bash (Windows Python).
+  source .venv/bin/activate 2>/dev/null || source .venv/Scripts/activate
   PIP_PRE=1 pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple jitx ruff click --quiet 2>&1 | tail -1
 else
   # `jitx` is on PATH — activate the project venv if one exists so build/runtime calls resolve consistently.
-  [ -d .venv ] && source .venv/bin/activate
+  [ -d .venv ] && { source .venv/bin/activate 2>/dev/null || source .venv/Scripts/activate; }
 fi
 
 jitx --version 2>/dev/null || jitx --help >/dev/null
+```
+```powershell
+# PowerShell (Windows)
+if (-not (Get-Command jitx -ErrorAction SilentlyContinue)) {
+  # Bootstrap venv + install jitx from PyPI + the internal index.
+  # PIP_PRE / extra-index-url cover the 4.x pre-release line.
+  # `click` is a runtime import of the `jitx` CLI but the 4.3.x wheel doesn't declare it — install it explicitly.
+  if (-not (Test-Path .venv)) { python -m venv .venv }
+  .\.venv\Scripts\Activate.ps1
+  $env:PIP_PRE=1; pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple jitx ruff click --quiet 2>&1 | Select-Object -Last 1; Remove-Item Env:PIP_PRE
+} else {
+  # `jitx` is on PATH — activate the project venv if one exists so build/runtime calls resolve consistently.
+  if (Test-Path .venv) { .\.venv\Scripts\Activate.ps1 }
+}
+
+jitx --version 2>$null; if ($LASTEXITCODE -ne 0) { jitx --help | Out-Null }
 ```
 
 If `jitx --version` raises `ModuleNotFoundError: No module named 'click'`, the wheel's missing-dep gap bit you — `pip install click` resolves it.
@@ -34,6 +61,7 @@ If `jitx --version` raises `ModuleNotFoundError: No module named 'click'`, the w
 ### Step 2 — Project layout (scaffold if missing)
 
 ```bash
+# bash (macOS / Linux / WSL / Git Bash)
 if [ ! -f pyproject.toml ] || ! grep -q "jitx" pyproject.toml; then
   # No JITX project here — scaffold the canonical layout.
   # CONFIRM WITH THE USER BEFORE RUNNING in a non-empty directory.
@@ -46,14 +74,34 @@ if [ ! -f pyproject.toml ] || ! grep -q "jitx" pyproject.toml; then
   PIP_PRE=1 pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple -e . --quiet 2>&1 | tail -1
 fi
 ```
+```powershell
+# PowerShell (Windows)
+if ((-not (Test-Path pyproject.toml)) -or (-not (Select-String -Quiet -Pattern "jitx" pyproject.toml))) {
+  # No JITX project here — scaffold the canonical layout.
+  # CONFIRM WITH THE USER BEFORE RUNNING in a non-empty directory.
+  jitx project layout init
+  # Sync project deps. PIP_PRE + extra-index-url are required for `jitxlib-*` to resolve.
+  # Note: pip's resolver may re-pin `jitx` to an older 4.x that satisfies the project's `<5` constraint.
+  # This skills bundle documents the 4.2 API surface (RoutePoint/PairInsertion/PairPoint, runtime
+  # auto-resolution, etc. do not exist below 4.2) — if the resolver lands below 4.2, pin it:
+  #   $env:PIP_PRE=1; pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple "jitx==4.2.*"; Remove-Item Env:PIP_PRE
+  $env:PIP_PRE=1; pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple -e . --quiet 2>&1 | Select-Object -Last 1; Remove-Item Env:PIP_PRE
+}
+```
 
 `jitx project layout init` writes the canonical project skeleton: `pyproject.toml`, a flat `<ns>/` package (NOT `src/<ns>/`) containing `__init__.py` + a `main.py` that already defines a working two-resistor `SampleDesign`, plus `.gitignore` and `.vscode/`. That seeded design is buildable as-is once auth and runtime are up — a useful smoke test before writing real design code. Subcommands `jitx project layout {pyproject,gitignore,settings,vscode}` refresh individual pieces of an existing project.
 
 ### Step 3 — Auth
 
 ```bash
+# bash (macOS / Linux / WSL / Git Bash)
 # Inspect first — `auth show` reads on-disk license state and reports authorization.
 jitx auth show 2>&1 | head -20
+```
+```powershell
+# PowerShell (Windows)
+# Inspect first — `auth show` reads on-disk license state and reports authorization.
+jitx auth show 2>&1 | Select-Object -First 20
 ```
 
 The output has an `Authorized: yes | no` line. Three cases:
@@ -62,16 +110,17 @@ The output has an `Authorized: yes | no` line. Three cases:
 2. **`Authorized: no` (token present but expired/invalid).** Run `jitx auth refresh`. This exchanges the on-disk refresh token for a fresh license (and rewrites the refresh token when the server rotates it) — **fully headless**, no user action needed. Re-run `jitx auth show` to confirm.
 3. **No state on disk, or `auth show` reports no account / no token.** STOP and ask the user to sign in. Initial sign-in is NOT headless — pick one path with the user:
    - VSCode JITX sidebar → interactive sign-in (recommended for desktop developers).
-   - The bundled launcher binary: `~/.jitx/current/jitx sign-in -email <email>` sends an email link the user must click.
+   - The bundled launcher binary: `~/.jitx/current/jitx sign-in -email <email>` (`$HOME\.jitx\current\jitx` on Windows) sends an email link the user must click.
    - `jitx auth login --email <email> --password-stdin` accepts a password on stdin (works for password-bound accounts; some accounts are email-link only).
 
-**`LauncherError: ... did not produce valid JSON` from `auth show` / `auth refresh`** means the CLI is hitting a stale `launcher` binary that predates the `introspect` subcommand. Most common cause: a `JITX_ROOT` env var pointing at a dev build of `jitx-client`. Either `unset JITX_ROOT` so the CLI uses `~/.jitx/current`, or install a fresh runtime (Step 4) and retry. Don't try to script around this — surface it to the user.
+**`LauncherError: ... did not produce valid JSON` from `auth show` / `auth refresh`** means the CLI is hitting a stale `launcher` binary that predates the `introspect` subcommand. Most common cause: a `JITX_ROOT` env var pointing at a dev build of `jitx-client`. Either `unset JITX_ROOT` (PowerShell: `Remove-Item Env:JITX_ROOT`) so the CLI uses `~/.jitx/current`, or install a fresh runtime (Step 4) and retry. Don't try to script around this — surface it to the user.
 
 ### Step 4 — Runtime install + start
 
 The runtime is a daemon (an instance of the bundled `jitx` launcher binary, run with `interactive <project-root>`) that hosts the websocket server `jitx build` and `jitx ui open` talk to. When `jitx runtime start --background` succeeds, the daemon writes `.socket.jitx` into the project root — that's the file every subsequent CLI invocation in that project uses to find the running runtime.
 
 ```bash
+# bash (macOS / Linux / WSL / Git Bash)
 # If a runtime is already running, do nothing.
 if jitx runtime status >/dev/null 2>&1; then
   :
@@ -85,6 +134,26 @@ else
   jitx runtime update
   jitx runtime start --background
 fi
+```
+```powershell
+# PowerShell (Windows)
+# If a runtime is already running, do nothing.
+jitx runtime status 2>$null | Out-Null
+if ($LASTEXITCODE -eq 0) {
+  # already running
+} else {
+  jitx runtime introspect 2>$null | Out-Null
+  if ($LASTEXITCODE -eq 0) {
+    # Installed but not running — start it.
+    jitx runtime start --background
+  } else {
+    # Not installed. `update` is the idempotent variant of `install`; safe in setup
+    # scripts. Without --version it installs the runtime matching the installed
+    # py-jitx version; pass --version only to honor an explicit pin.
+    jitx runtime update
+    jitx runtime start --background
+  }
+}
 ```
 
 **Runtime version.** Since 4.2, `jitx runtime install/update` with `--version`
@@ -217,7 +286,18 @@ jitx ui open --board
 
 The viewer probes `.socket.jitx` in the project root to find the runtime; build it first with `jitx runtime start --background` (Step 4 above). If no runtime is reachable, `jitx ui open` exits with: `Error: no runtime reachable in this project. Start one with \`jitx runtime start --background\`.`
 
-`jitx ui open` runs *foreground* until you close the window. The viewer is a separate child process (`jitx-ui` Electron app) — if you launch it from an agent shell, background it with `&` and remember to `pkill -f "jitx ui open"` (and `pkill -f jitx-ui`) when you're done, or it will keep running after the agent exits.
+`jitx ui open` runs *foreground* until you close the window. The viewer is a separate child process (`jitx-ui` Electron app) — if you launch it from an agent shell, background it and remember to kill it when you're done, or it will keep running after the agent exits.
+
+```bash
+# bash (macOS / Linux / WSL / Git Bash)
+jitx ui open --board &                       # background
+pkill -f "jitx ui open"; pkill -f jitx-ui    # stop when done
+```
+```powershell
+# PowerShell (Windows)
+Start-Process jitx -ArgumentList 'ui','open','--board'             # background
+Get-Process jitx-ui -ErrorAction SilentlyContinue | Stop-Process  # stop when done
+```
 
 Use the popout viewer for visual inspection (DRC review, placement sanity check, schematic walkthrough). It is read-only — live editing (route, place, schematic move) still requires the VSCode extension.
 
@@ -307,10 +387,10 @@ For ad-hoc work outside the project-builder flow: just don't run two `jitx build
 
 ### Grep Gate Enforcement
 
-Copy `scripts/grep_gates.sh` from this skill into the project's `scripts/` directory. Sub-agents (and the orchestrator at every phase exit gate) run it against the project's Python package (e.g. `<ns>/`) to enforce JITX code conventions and top-level-only rules:
+Copy `scripts/grep_gates.py` from this skill into the project's `scripts/` directory. Sub-agents (and the orchestrator at every phase exit gate) run it against the project's Python package (e.g. `<ns>/`) to enforce JITX code conventions and top-level-only rules:
 
 ```bash
-bash scripts/grep_gates.sh <ns>/
+python scripts/grep_gates.py <ns>/
 ```
 
 The script reports hard-fail hits (which block task acceptance and gate transitions) and review-required hits (which need a disposition in the task acceptance block). Pattern set and disposition rules: `references/completion-blocks.md` "Grep Gate Patterns".

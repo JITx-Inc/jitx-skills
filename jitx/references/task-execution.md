@@ -104,7 +104,7 @@ This step typically catches 3-5 issues. Common misses by domain:
 After the domain checklist, run the grep gates:
 
 ```bash
-bash <project>/scripts/grep_gates.sh <ns>/
+python <project>/scripts/grep_gates.py <ns>/
 ```
 
 The script reports hard-fail and review-required hits. Hard-fail hits must be fixed before proceeding. Review-required hits get a disposition (`fixed`, `accepted with rationale: <why>`, or `deferred to <named follow-up>`) when reported in the task acceptance block in Step 6.
@@ -132,7 +132,7 @@ If Step 4 found issues (it usually does — checklist or grep), fix them all and
 jitx build <module.path.TestDesign>
 ```
 
-Verify `status: ok`. Re-run `bash <project>/scripts/grep_gates.sh <ns>/` if any code changed; the hard-fail set must now show 0 hits. Re-run `jitx-code-review` if the fix touched code the previous review flagged.
+Verify `status: ok`. Re-run `python <project>/scripts/grep_gates.py <ns>/` if any code changed; the hard-fail set must now show 0 hits. Re-run `jitx-code-review` if the fix touched code the previous review flagged.
 
 #### Step 6: Emit the Task Acceptance Block
 

@@ -6,7 +6,7 @@ This file holds:
 
 1. **Workflow tiers** — which artifacts apply to which size of job.
 2. **Task acceptance block** — the per-task completion artifact (universal: every tier requires this).
-3. **Grep gate patterns** — what `jitx/scripts/grep_gates.sh` enforces.
+3. **Grep gate patterns** — what `jitx/scripts/grep_gates.py` enforces.
 4. **Phase exit gate blocks** — for complete-board tier transitions (Phase 0→1, 1→2, 2→3, 3→3b, 3b→4).
 5. **Phase 3b design audit block** — read-only audit with CRITICAL / WARNING / NOTE classification.
 6. **Phase 4 verification block** — final JITX UI / Issues / DRC / SI verification with explicit tool-availability handling.
@@ -63,7 +63,7 @@ Copy this template verbatim. Fill every field. Every `N/A` requires a reason.
 - `ruff check`: clean | <N issues, fixed>
 - `ruff format`: applied
 - `pyright`: clean | <N issues, fixed> | not available (<reason>)
-- Grep gates (`bash <project>/scripts/grep_gates.sh <ns>/`): hard-fail 0 hits, review-required <0 | N hits with disposition>
+- Grep gates (`python <project>/scripts/grep_gates.py <ns>/`): hard-fail 0 hits, review-required <0 | N hits with disposition>
 
 **Interface notes:** <compact — only fields downstream tasks need>
 - Ports exposed: <bundle types, e.g. "I2S (out), Power (3V3 in), GPIO (status)">
@@ -117,9 +117,9 @@ The orchestrator (or user) then appends the acceptance decision:
 
 ## Grep Gate Patterns
 
-The `Grep gates:` line in the task acceptance block reports the result of running `jitx/scripts/grep_gates.sh` against the project's source tree. The script is the executable source of truth — copy it into the project's `scripts/` directory. This section summarizes which patterns are checked and why.
+The `Grep gates:` line in the task acceptance block reports the result of running `jitx/scripts/grep_gates.py` against the project's source tree. The script is the executable source of truth — copy it into the project's `scripts/` directory. This section summarizes which patterns are checked and why.
 
-> **Note on table display.** The regex patterns below are rendered inside markdown tables, so `|` in alternations is escaped as `\|` for readability. The script in `jitx/scripts/grep_gates.sh` carries the exact regexes — read it for the runnable form.
+> **Note on table display.** The regex patterns below are rendered inside markdown tables, so `|` in alternations is escaped as `\|` for readability. The script in `jitx/scripts/grep_gates.py` carries the exact regexes — read it for the runnable form.
 
 ### Hard-fail patterns (must report 0 hits)
 
@@ -148,7 +148,7 @@ A review-required hit does not block, but each hit must appear in the task accep
 | 9 | Tag-like f-string — anti-string-hacking theme 1. f-strings (single- or double-quoted, lowercase or uppercase `f`/`F`) starting with an uppercase letter and building names via brace-substitution (`f"TX_b{i}"`, `f'L{n}_via'`, `F"GND_via_{n}"`) are the canonical string-keyed-name failure mode. See `jitx/SKILL.md` Don'ts and `references/architectural-patterns.md` § "String-keyed dicts → structural objects". Disposition: `fix (use structural object)` or `accept (legitimate use: <reason>)`. | `[fF]["'][A-Z][A-Za-z0-9_]*\{` | anywhere in `<ns>/` |
 | 10 | Broader `getattr(` — narrower hard-fail Pattern 3 catches `getattr(self, ...)`. This wider net catches `getattr(other, "...")` where strings are still the indirection mechanism. Most are still smells; legitimate framework uses (e.g., `getattr` on a known-typed external object) are dispositioned per-hit. | `\bgetattr\s*\(` | anywhere in `<ns>/` |
 | 11 | I2C pull-up (`r_sda` / `r_scl`) outside top-level designs — flag for review of bus-aggregation level. Pull-ups belong at the level that composes master + slaves on the bus (usually the top-level design; sometimes a subcircuit that encloses an entire private bus). Pull-up local to a single bus participant is the failure mode. Disposition: `accept (bus-aggregation level: <circuit>)` or `fix (move to <level>)`. | `\br_(sda\|scl)\b` | `<ns>/` excluding `<ns>/designs/` |
-| 12 | `.insert(...)` calls missing `short_trace=` — every power-rail capacitor insert (decoupling, bypass, bulk, output filter) needs `short_trace=True`. Non-power-rail caps and non-cap inserts dispositioned as exception or N/A. See `jitx-circuit-builder/SKILL.md` "short_trace=True is the default for power-rail capacitors" | `\.insert\s*\(` then `grep -v short_trace` | anywhere in `<ns>/` |
+| 12 | `.insert(...)` calls missing `short_trace=` — every power-rail capacitor insert (decoupling, bypass, bulk, output filter) needs `short_trace=True`. Non-power-rail caps and non-cap inserts dispositioned as exception or N/A. See `jitx-circuit-builder/SKILL.md` "short_trace=True is the default for power-rail capacitors" | `\.insert\s*\(` minus lines containing `short_trace` | anywhere in `<ns>/` |
 
 Pattern 8 is intentionally broad; it will match comments and legitimate `isinstance`-adjacent uses. The disposition workflow handles this — review-required is the right severity.
 
@@ -161,13 +161,13 @@ Pattern 10 (broader `getattr(`) is intentionally a wider net than Pattern 3 (`ge
 When the grep gates pass with no hits:
 
 ```
-- Grep gates (`bash scripts/grep_gates.sh <ns>/`): hard-fail 0 hits, review-required 0 hits
+- Grep gates (`python scripts/grep_gates.py <ns>/`): hard-fail 0 hits, review-required 0 hits
 ```
 
 When there are review-required hits:
 
 ```
-- Grep gates (`bash scripts/grep_gates.sh <ns>/`): hard-fail 0 hits, review-required 2 hits:
+- Grep gates (`python scripts/grep_gates.py <ns>/`): hard-fail 0 hits, review-required 2 hits:
     - <ns>/circuits/usb.py:88 — `Pour(..., isolate=0.15)` — deferred to Pass 3 deprecation
     - <ns>/circuits/power.py:42 — `type(x) is Foo` — fixed: changed to `isinstance(x, Foo)`
 ```
@@ -176,10 +176,15 @@ When there are hard-fail hits, the task is not done. Fix and re-run.
 
 ### Project layout override
 
-The script defaults to excluding `**/designs/**` from the top-level-only checks. If a project uses a different convention (e.g. `top/` or `boards/`), set `TOP_LEVEL_PATH=top` before invocation:
+The script defaults to excluding `**/designs/**` from the top-level-only checks. If a project uses a different convention (e.g. `top/` or `boards/`), set `TOP_LEVEL_PATH` before invocation:
 
 ```bash
-TOP_LEVEL_PATH=top bash scripts/grep_gates.sh <ns>/
+# bash (macOS / Linux / WSL / Git Bash)
+TOP_LEVEL_PATH=top python scripts/grep_gates.py <ns>/
+```
+```powershell
+# PowerShell (Windows) — Remove-Item keeps it one-shot (else it persists for the session)
+$env:TOP_LEVEL_PATH="top"; python scripts/grep_gates.py <ns>/; Remove-Item Env:TOP_LEVEL_PATH
 ```
 
 ---
@@ -242,7 +247,7 @@ The criteria mirror the exit-gate bullet lists in `references/project-builder-fl
 **Provide/require interfaces consistent:** confirmed across wrappers and consumers
 **Bundle-typed ports:** every interface circuit exposes bundle-typed ports (I2S, I2C, SPI, USB2, etc.) — not individual signal ports — confirmed by code review
 **Topology vs net wiring:** subcircuits exposing bundles for SI-constrained signals wire bundle sub-ports with `>>` not `+` — confirmed
-**`short_trace=True` on power-rail caps:** every decoupling / bypass / bulk / output-filter capacitor `.insert(...)` uses `short_trace=True`. Non-power-rail caps (AC coupling, RC, RF, crystal load) and non-cap inserts dispositioned in task acceptance blocks. `bash scripts/grep_gates.sh <ns>/` review-required hits all resolved.
+**`short_trace=True` on power-rail caps:** every decoupling / bypass / bulk / output-filter capacitor `.insert(...)` uses `short_trace=True`. Non-power-rail caps (AC coupling, RC, RF, crystal load) and non-cap inserts dispositioned in task acceptance blocks. `python scripts/grep_gates.py <ns>/` review-required hits all resolved.
 **Power circuit outputs match ARCHITECTURE.md:** voltage and current ratings line up with the documented power tree
 
 **Open from this phase:** <list, or "none">
@@ -271,7 +276,7 @@ The criteria mirror the exit-gate bullet lists in `references/project-builder-fl
 
 **Build warnings:** no `Reference to structural object … lost during instantiation` warnings | <list>
 
-**Grep gates (top-level-only enforcement):** `bash scripts/grep_gates.sh <ns>/` — hard-fail 0 hits, review-required <count + disposition>
+**Grep gates (top-level-only enforcement):** `python scripts/grep_gates.py <ns>/` — hard-fail 0 hits, review-required <count + disposition>
 
 **Passive defaults:** `capacitor_defaults` and `resistor_defaults` set on the Design class to match the manufacturing path and circuit role; per-circuit overrides for specialty parts documented
 
