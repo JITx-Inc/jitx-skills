@@ -1,0 +1,4 @@
+interface:
+  display_name: "JITX"
+  short_description: "Build and manage JITX PCB design workflows"
+  default_prompt: "Use $jitx to set up, build, or plan a JITX Python PCB design."

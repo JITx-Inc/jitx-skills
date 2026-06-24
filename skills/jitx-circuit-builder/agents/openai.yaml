@@ -1,0 +1,4 @@
+interface:
+  display_name: "JITX Circuit Builder"
+  short_description: "Wire JITX circuits and passives"
+  default_prompt: "Use $jitx-circuit-builder to wire components, passives, power, and application circuits."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "JITX Code Review"
+  short_description: "Review JITX Python architecture patterns"
+  default_prompt: "Use $jitx-code-review to review JITX Python code for architecture and framework-boundary issues."

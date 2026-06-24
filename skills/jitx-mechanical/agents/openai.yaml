@@ -1,0 +1,4 @@
+interface:
+  display_name: "JITX Mechanical Interface"
+  short_description: "Import, inspect, and export mechanical CAD"
+  default_prompt: "Use $jitx-mechanical to import mechanical CAD, set board outlines, attach STEP, or export DXF."
