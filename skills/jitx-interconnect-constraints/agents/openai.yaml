@@ -1,0 +1,4 @@
+interface:
+  display_name: "JITX Interconnect Constraints"
+  short_description: "Apply SI and topology constraints"
+  default_prompt: "Use $jitx-interconnect-constraints to define topology, differential-pair, timing, or protocol constraints."

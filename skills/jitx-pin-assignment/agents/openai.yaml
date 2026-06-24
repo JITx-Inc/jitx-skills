@@ -1,0 +1,4 @@
+interface:
+  display_name: "JITX Pin Assignment"
+  short_description: "Model flexible provide/require pin mapping"
+  default_prompt: "Use $jitx-pin-assignment to model pin muxing, lane swapping, and flexible provide/require mappings."

@@ -1,0 +1,43 @@
+{
+  "name": "jitx-skills",
+  "version": "1.6.0",
+  "description": "JITX hardware design automation skills for PCB design, component modeling, substrate modeling, circuit creation, physical layout authoring, signal integrity constraints, pin assignment flexibility, code review, and mechanical CAD interchange.",
+  "author": {
+    "name": "JITX Support",
+    "email": "support@jitx.com",
+    "url": "https://www.jitx.com/"
+  },
+  "homepage": "https://github.com/JITx-Inc/jitx-skills",
+  "repository": "https://github.com/JITx-Inc/jitx-skills",
+  "keywords": [
+    "jitx",
+    "pcb",
+    "hardware",
+    "eda",
+    "component-modeling",
+    "signal-integrity"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "JITX Skills",
+    "shortDescription": "Design PCBs with JITX Python workflows",
+    "longDescription": "JITX Skills packages reusable agent workflows for building JITX Python PCB designs, including component modeling, circuit wiring, substrate creation, physical layout, signal-integrity constraints, pin assignment, code review, and mechanical CAD interchange.",
+    "developerName": "JITX Support",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://www.jitx.com/",
+    "privacyPolicyURL": "https://www.jitx.com/privacy-policy",
+    "termsOfServiceURL": "https://www.jitx.com/terms-of-service",
+    "defaultPrompt": [
+      "Use JITX Skills to build a JITX Python PCB design.",
+      "Create a JITX component from a datasheet.",
+      "Review my JITX design code for architecture issues."
+    ],
+    "brandColor": "#0F766E",
+    "screenshots": []
+  }
+}

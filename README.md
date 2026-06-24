@@ -1,224 +1,185 @@
 # JITX Skills
 
-Claude Code skills for JITX hardware design automation. These skills help Claude work effectively with JITX Python projects for PCB design, circuit creation, and component modeling.
+JITX hardware design automation skills for both Claude Code and Codex/GPT. The repo uses one shared `skills/` tree and platform-specific plugin manifests for each agent runtime.
 
 ## Installation
 
-Inside Claude Code, run these slash commands:
+### Claude Code
 
-```
+Install from the Claude marketplace:
+
+```text
 /plugin marketplace add JITx-Inc/jitx-skills
 /plugin install jitx-skills@jitx
 ```
 
+For local development without installing from a marketplace:
+
+```bash
+claude --plugin-dir /absolute/path/to/jitx-skills
+```
+
+Claude plugin skills are namespaced. For example, invoke the base workflow with `/jitx-skills:jitx`.
+
+### Codex / GPT
+
+Codex uses `.codex-plugin/plugin.json` and the shared `skills/` directory. For local development, add a local Codex marketplace entry that points at this plugin root, then install `jitx-skills` from that marketplace.
+
+Example marketplace entry:
+
+```json
+{
+  "name": "jitx-skills",
+  "source": {
+    "source": "local",
+    "path": "./plugins/jitx-skills"
+  },
+  "policy": {
+    "installation": "AVAILABLE",
+    "authentication": "ON_INSTALL"
+  },
+  "category": "Developer Tools"
+}
+```
+
+Codex skills can be invoked explicitly with `$jitx`, `$jitx-component-modeler`, and the other skill names, or selected implicitly from the user request.
+
 ## Updating
 
-### Manual Update
+Claude Code:
 
-To pull the latest version of the plugin:
-
-```
+```text
 /plugin marketplace update jitx
 claude plugin update jitx-skills@jitx
 ```
 
-The first command refreshes the marketplace listing from the GitHub repository. The second command updates the installed plugin to the latest version. Restart Claude Code after updating to load the new version.
+Restart Claude Code or run `/reload-plugins` after local plugin edits.
 
-### Automatic Updates
-
-By default, auto-update is **disabled** for third-party marketplaces. To enable it:
-
-1. Run `/plugin` to open the interactive plugin manager
-2. Select the **Marketplaces** tab
-3. Choose `jitx`
-4. Select **Enable auto-update**
-
-When enabled, Claude Code checks for updates at startup and notifies you to restart if updates were applied.
-
-### Uninstalling
-
-```
-claude plugin uninstall jitx-skills@jitx
-```
+Codex/GPT: update the plugin source, refresh or reinstall the local Codex plugin entry, and start a new thread so Codex reloads the skill list and manifest metadata.
 
 ## Skills
 
-### jitx (Base Skill)
+### jitx
 
-Base workflow skill for JITX projects. Triggers on any JITX-related task and provides:
+Base workflow skill for JITX projects. Triggers on JITX-related tasks and provides environment setup, build commands, project structure guidance, and navigation to specialized skills.
 
-- Automatic environment setup (venv creation, dependency installation)
-- Build commands for designs
-- Project structure guidance
-- Navigation to specialized subskills
+Example triggers:
 
-**Example triggers:**
 - "Build my JITX design"
 - "Set up JITX environment"
-- "Create a circuit for..."
+- "Create a full JITX project"
 
 ### jitx-component-modeler
 
-Generate JITX Python component code from datasheets. Supports:
+Generate JITX Python component code from datasheets, KiCad footprints, or user specifications.
 
-- **Package types:** BGA, QFN, SOIC, SON, SOT
-- **Features:** Multi-unit symbols, thermal pads, complex pin mappings
-- **Batch creation:** Organized component folder structure
+Example triggers:
 
-**Example triggers:**
 - "Create a JITX component from this datasheet"
 - "Model the RP2040 for my project"
 - "Add an LDO component from the TI datasheet"
 
 ### jitx-circuit-builder
 
-Build JITX circuits with wiring, passives, providers, and geometry. Covers:
+Build JITX circuits with wiring, passives, power connections, application circuits, placement, and basic copper geometry.
 
-- **Circuit class:** Net wiring, passive insertion, component instantiation
-- **Provider/require:** Pin assignment patterns for flexible designs
-- **Geometry:** Pours, copper shapes, placement
-- **Solvers:** Voltage divider, query refinement
+Example triggers:
 
-**Example triggers:**
 - "Wire up a buck converter circuit"
 - "Connect the MCU to sensors over I2C"
 - "Add decoupling caps to all power pins"
 
 ### jitx-substrate-modeler
 
-Model JITX substrates — stackups, materials, vias, routing structures, and fabrication constraints. Covers:
+Model JITX substrates: stackups, materials, vias, routing structures, fabrication constraints, and design rules.
 
-- **Stackups:** Symmetric and explicit layer definitions, material properties
-- **Vias:** All types — through-hole, laser micro, stacked, blind, buried, backdrilled
-- **Routing structures:** Single-ended and differential with NeckDown, via fencing, geometry, reference planes
-- **Fabrication constraints:** Manufacturing rules for any fab house
-- **Design rules:** Tag-based rules — clearance, trace width, via stitching/fencing, thermal relief, pour feature size, routing structures
+Example triggers:
 
-**Example triggers:**
 - "Create a 4-layer JLCPCB substrate"
 - "Define a 14-layer RF stackup with via fencing"
 - "Set up 100-ohm differential routing structure"
-- "Add laser microvias to the substrate"
 
 ### jitx-physical-layout
 
-Author PCB physical layout from code — the layer between schematic wiring and stackup definition. Covers:
+Author PCB physical layout from code: copper, custom shapes, pad features, explicit placement, vias, code-based routes, and layout-intent tags.
 
-- **Copper:** `Copper` vs `OverlappableCopper` vs `Pour` (antennas, filters, net-ties)
-- **Custom shapes:** shapely CSG feeding any feature (copper, keepouts, board outline, pads)
-- **Pad features:** Soldermask/paste openings, thermal pads with vias
-- **Placement:** Explicit placement; net-membership vias for stitching, `PortAttachment` for signal topologies (control points, escape vias)
-- **Layout-intent tags:** Fanout/escape, direct-connect selection for design rules
-- **Code-based routing:** `Route` + control points (`RoutePoint`, `PairInsertion`, `PairPoint`) for escape lanes and deskew
+Example triggers:
 
-**Example triggers:**
 - "Draw an IFA antenna from code"
 - "Create a net tie between AGND and DGND"
 - "Route the BGA escape lanes from code"
 
 ### jitx-interconnect-constraints
 
-Apply signal integrity constraints to JITX designs. Covers:
+Apply signal-integrity constraints to JITX designs: topologies, insertion loss, timing, differential pairs, bus matching, pin models, and protocol constraints.
 
-- **Topology:** `>>` operator for SI-aware signal routing vs `+` for nets
-- **Constraints:** Insertion loss, timing, routing structure assignment
-- **Differential pairs:** `ConstrainDiffPair`, `DiffPairConstraint` reusable helper
-- **Bus matching:** `ConstrainReferenceDifference` for clock-to-data skew
-- **Pin models:** `TerminatingPinModel`, `BridgingPinModel` for SI analysis
-- **Protocols:** PCIe, SATA, SFP, Ethernet, RGMII, DDR4, LPDDR4/5, GDDR7
+Example triggers:
 
-**Example triggers:**
 - "Constrain this differential pair with 5ps skew"
 - "Add insertion loss limits to the data bus"
-- "Match data signals to the clock within 20ps"
 - "Set up PCIe Gen4 constraints"
 
 ### jitx-pin-assignment
 
-Flexible pin mapping with provide/require patterns. Covers:
+Model flexible pin mapping with provide/require patterns, pin muxing, P/N swap, lane ordering, byte/bit swapping, and topology constraints on assigned ports.
 
-- **Decorators:** `@provide.one_of` / `@provide.subset_of`, programmatic `Provide`
-- **Pin muxing:** MCU peripherals on shared pins, FPGA bank assignment
-- **Protocol flexibility:** DiffPair P/N swapping, PCIe lane ordering, DDR byte/bit swapping
-- **Composition:** Hierarchical providers, topology and SI constraints on assigned ports
+Example triggers:
 
-**Example triggers:**
 - "Let the tool pick which UART maps to these pins"
 - "Allow P/N swap on the LVDS pairs"
 - "Set up DDR4 byte swapping"
 
 ### jitx-code-review
 
-Same-model self-critique pass on JITX Python code just written in the current workspace. Catches the architectural failure modes that grep gates and static linters miss — parallel string-keyed models, sibling-attribute reflection, substrate-shaped tables duplicated in designs, build-spec-then-iterate, name-construction at module-import time. Produces severity-tagged findings (CRITICAL / WARNING / NOTE) that fold into the task acceptance block.
+Same-model self-critique pass on JITX Python code just written in the current workspace. Catches architectural failure modes that grep gates and static linters miss.
 
-- **Mandatory** for complete-board tier (folds into the Think Twice step at task acceptance, before codex outside-voice).
-- **User-invoked** for single-task work.
+Example triggers:
 
-**Example triggers:**
 - "Review my JITX code"
 - "Check this for string-hacking"
-- "Self-critique what I just wrote"
 - "Audit before merge"
 
 ### jitx-mechanical
 
-Mechanical CAD interface for JITX designs. Covers:
+Mechanical CAD interface for JITX designs: inspect/import DXF, EMN, IDF, IDX, and BDF data; export DXF; attach STEP models; export board STEP.
 
-- **Import:** DXF, EMN, IDF, IDX, BDF via `jitx-mechanical inspect` / `import` (board outline, keepouts, holes with `--hole-policy`)
-- **Export:** JITX board XML to DXF via `jitx-mechanical export-dxf`
-- **3D:** Attach STEP models with `jitx.model3d.Model3D`; export board STEP
+Example triggers:
 
-**Example triggers:**
 - "Import this EMN as the board outline"
 - "Export my board to DXF for the ME team"
 - "Attach a STEP model to this connector"
 
 ## Project Structure
 
-```
+```text
 jitx-skills/
-├── jitx/                      # Base JITX workflow skill
-│   ├── SKILL.md
-│   └── references/
-│       └── docs-index.md      # JITX documentation URL index
-├── jitx-component-modeler/    # Component generation skill
-│   ├── SKILL.md
-│   ├── references/
-│   │   └── package-examples.md  # Package-specific code examples
-│   └── scripts/
-│       └── extract_pages.py   # PDF extraction utility
-├── jitx-circuit-builder/      # Circuit building skill
-│   ├── SKILL.md
-│   └── references/
-│       └── advanced-patterns.md  # Provider, pour, placement patterns
-├── jitx-substrate-modeler/    # Substrate modeling skill
-│   └── SKILL.md
-├── jitx-physical-layout/      # Layout-from-code skill
-│   ├── SKILL.md
-│   └── references/
-│       ├── control-points.md    # Route / control-point API (4.2)
-│       └── layout-examples.md   # Worked thermal-pad / antenna examples
-├── jitx-interconnect-constraints/  # SI constraints skill
-│   ├── SKILL.md
-│   └── references/
-│       └── protocol-standards.md  # Protocol timing parameters
-├── jitx-pin-assignment/       # Provide/require pin-mapping skill
-│   ├── SKILL.md
-│   └── references/
-│       └── protocol-pin-flexibility.md  # Per-protocol swap rules
-├── jitx-code-review/             # Same-model self-critique skill
-│   ├── SKILL.md
-│   └── references/
-│       └── checklist.md            # Pattern index over the architecture doctrine
-├── jitx-mechanical/           # Mechanical CAD import/export skill
-│   └── SKILL.md
-└── .claude-plugin/
-    └── marketplace.json
+├── .claude-plugin/
+│   ├── plugin.json              # Claude Code plugin manifest
+│   └── marketplace.json         # Claude marketplace listing
+├── .codex-plugin/
+│   └── plugin.json              # Codex plugin manifest
+├── skills/
+│   ├── jitx/
+│   │   ├── SKILL.md
+│   │   ├── agents/openai.yaml   # Codex UI metadata
+│   │   ├── references/
+│   │   └── scripts/
+│   ├── jitx-component-modeler/
+│   ├── jitx-circuit-builder/
+│   ├── jitx-substrate-modeler/
+│   ├── jitx-physical-layout/
+│   ├── jitx-interconnect-constraints/
+│   ├── jitx-pin-assignment/
+│   ├── jitx-code-review/
+│   └── jitx-mechanical/
+├── scripts/
+│   └── validate_dual_plugin.py
+└── sample-project.md
 ```
 
 ## Requirements
 
-- A JITX Python project (with `pyproject.toml` containing jitx dependency)
+- A JITX Python project with `pyproject.toml` containing a JITX dependency
 - Python 3.12+
 - For datasheet processing: `pip install pymupdf`
 
@@ -226,16 +187,16 @@ jitx-skills/
 
 ### Generate a Component from Datasheet
 
-```
+```text
 User: Create a JITX component for the NE555 timer from this datasheet
-Claude: [Uses jitx-component-modeler skill to generate component code]
+Agent: uses the jitx-component-modeler skill to generate component code
 ```
 
 ### Build a Design
 
-```
+```text
 User: Build my power supply design
-Claude: [Uses jitx skill to set up environment and run build]
+Agent: uses the jitx skill to set up the environment and run the build
 ```
 
 ### Extract Datasheet Pages
@@ -243,11 +204,8 @@ Claude: [Uses jitx skill to set up environment and run build]
 The `extract_pages.py` script helps extract relevant pages from large datasheets:
 
 ```bash
-# Find pages with package info
-python scripts/extract_pages.py datasheet.pdf --find "pinout" "dimension" "package"
-
-# Extract specific pages
-python scripts/extract_pages.py datasheet.pdf --pages 10 11 12 -o extract.pdf
+python skills/jitx-component-modeler/scripts/extract_pages.py datasheet.pdf --find "pinout" "dimension" "package"
+python skills/jitx-component-modeler/scripts/extract_pages.py datasheet.pdf --pages 10 11 12 -o extract.pdf
 ```
 
 ## Supported Package Generators
@@ -261,11 +219,30 @@ python scripts/extract_pages.py datasheet.pdf --pages 10 11 12 -o extract.pdf
 | QFP | `QFP` | 4-sided gull-wing packages |
 | BGA | `BGA` | Ball grid arrays |
 
+## Validation
+
+Run the repo-local dual validation:
+
+```bash
+python scripts/validate_dual_plugin.py .
+```
+
+Run Codex manifest validation with the Codex plugin-creator validator:
+
+```bash
+python /path/to/plugin-creator/scripts/validate_plugin.py .
+```
+
+Run Claude validation when Claude Code is installed:
+
+```bash
+claude plugin validate .
+```
+
 ## Contributing
 
-Skills follow the Claude Code skill format with:
+Keep the shared instructions in `skills/<skill-name>/SKILL.md`. Use platform-specific metadata only where each runtime expects it:
 
-- `SKILL.md` containing frontmatter (name, description) and instructions
-- Optional `scripts/` for executable utilities
-- Optional `references/` for documentation loaded on demand
-- Optional `assets/` for templates and resources
+- Claude Code: `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`
+- Codex/GPT: `.codex-plugin/plugin.json` and `skills/<skill-name>/agents/openai.yaml`
+- Shared skill content: `skills/<skill-name>/SKILL.md`, `references/`, `scripts/`, and `assets/`
