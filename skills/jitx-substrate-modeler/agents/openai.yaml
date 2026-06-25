@@ -1,0 +1,4 @@
+interface:
+  display_name: "JITX Substrate Modeler"
+  short_description: "Create JITX stackups and via rules"
+  default_prompt: "Use $jitx-substrate-modeler to define a PCB substrate, stackup, vias, and routing structures."
