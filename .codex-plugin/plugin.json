@@ -17,6 +17,7 @@
     "component-modeling",
     "signal-integrity"
   ],
+  "license": "Proprietary",
   "skills": "./skills/",
   "interface": {
     "displayName": "JITX Skills",
