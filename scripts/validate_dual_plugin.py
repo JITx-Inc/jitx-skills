@@ -106,6 +106,15 @@ def validate_manifests(root: Path, errors: list[str]) -> None:
         else:
             errors.append("Codex marketplace must contain exactly one plugin entry")
 
+    versions = {
+        "Claude plugin": claude.get("version") if claude else None,
+        "Claude marketplace": marketplace.get("metadata", {}).get("version") if marketplace else None,
+        "Codex plugin": codex.get("version") if codex else None,
+    }
+    if any(not version for version in versions.values()) or len(set(versions.values())) != 1:
+        rendered = ", ".join(f"{name}={version!r}" for name, version in versions.items())
+        errors.append(f"Plugin versions must match: {rendered}")
+
 
 def parse_frontmatter(path: Path, errors: list[str]) -> dict[str, str]:
     text = path.read_text()
