@@ -276,6 +276,7 @@ class AppCircuit(Circuit):
 ```python
 """MCU with GPIO pin assignment driving 2 LEDs."""
 
+import jitx
 from jitx import Circuit, Net
 from jitx.common import GPIO, Power
 from jitx.net import Port, provide
