@@ -92,6 +92,7 @@ class SoldermaskLayer(Dielectric):
     """Soldermask — typically Er ≈ 3.8"""
     dielectric_coefficient = 3.8
     loss_tangent = 0.02
+    thickness = 0.020              # mm (can also be set at instantiation)
 
 class FR4_Prepreg(Dielectric):
     dielectric_coefficient = 4.4   # Dk (dielectric constant / relative permittivity)
@@ -106,9 +107,6 @@ class Copper1oz(Conductor):
 
 class CopperHalfOz(Conductor):
     thickness = 0.0175  # mm (can also be set at instantiation)
-
-class SoldermaskLayer(Dielectric):
-    thickness = 0.020
 ```
 
 **Terminology:** `dielectric_coefficient` is the JITX attribute name for Dk (dielectric constant, also called relative permittivity or Er). `loss_tangent` is the JITX attribute name for Df (dissipation factor). Datasheets typically specify Dk and Df at a given frequency (e.g., 1 GHz or 10 GHz).

@@ -17,6 +17,7 @@
     "component-modeling",
     "signal-integrity"
   ],
+  "license": "Proprietary",
   "skills": "./skills/",
   "interface": {
     "displayName": "JITX Skills",
@@ -30,8 +31,8 @@
       "Write"
     ],
     "websiteURL": "https://www.jitx.com/",
-    "privacyPolicyURL": "https://www.jitx.com/privacy-policy",
-    "termsOfServiceURL": "https://www.jitx.com/terms-of-service",
+    "privacyPolicyURL": "https://www.jitx.com/legal/privacy",
+    "termsOfServiceURL": "https://www.jitx.com/legal/tos",
     "defaultPrompt": [
       "Use JITX Skills to build a JITX Python PCB design.",
       "Create a JITX component from a datasheet.",

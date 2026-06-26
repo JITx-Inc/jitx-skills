@@ -1,6 +1,6 @@
 ---
 name: jitx-mechanical
-description: "Mechanical CAD interface for JITX designs. Use when the user asks to import DXF, EMN, IDF, IDX, or BDF mechanical data; set a board outline from mechanical CAD; export a JITX board to DXF; attach STEP models; export board STEP; or work with mechanical CAD data."
+description: "Mechanical CAD interface for JITX designs. Use when the user asks to import DXF, EMN, IDF, IDX, or BDF mechanical data; set a board outline from mechanical CAD; export a JITX board to DXF; attach STEP models; or work with mechanical CAD data. Also covers how to export a full board STEP (UI-only in py-jitx 4.2.x — there is no CLI)."
 ---
 
 # JITX Mechanical Interface Skill

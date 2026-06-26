@@ -8,5 +8,13 @@
   },
   "homepage": "https://github.com/JITx-Inc/jitx-skills",
   "repository": "https://github.com/JITx-Inc/jitx-skills",
+  "keywords": [
+    "jitx",
+    "pcb",
+    "hardware",
+    "eda",
+    "component-modeling",
+    "signal-integrity"
+  ],
   "license": "Proprietary"
 }
