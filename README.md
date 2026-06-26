@@ -141,7 +141,7 @@ Example triggers:
 
 ### jitx-mechanical
 
-Mechanical CAD interface for JITX designs: inspect/import DXF, EMN, IDF, IDX, and BDF data; export DXF; attach STEP models; export board STEP.
+Mechanical CAD interface for JITX designs: inspect/import DXF, EMN, IDF, IDX, and BDF data; export DXF; attach STEP models; export a full board STEP via the JITX UI (no CLI in py-jitx 4.2.x).
 
 Example triggers:
 

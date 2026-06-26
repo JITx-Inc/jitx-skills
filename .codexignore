@@ -19,6 +19,7 @@ __pycache__/
 # Internal planning / dev-only docs
 SKILLS_PLAN.md
 
-# Repo dev tooling and the Claude-side manifest are not part of the Codex package
-scripts/
-.claude-plugin/
+# Repo dev tooling and the Claude-side manifest are not part of the Codex package.
+# Anchored to repo root (leading /) so shipped skills/**/scripts/ helpers are NOT excluded.
+/scripts/
+/.claude-plugin/
