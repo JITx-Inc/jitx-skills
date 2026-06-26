@@ -311,7 +311,7 @@ class MCUCircuit(Circuit):
         self.GND += self.power.Vn + self.mcu.GND
 
         self.c_bypass = Capacitor(capacitance=100e-9)
-        self.c_bypass.insert(self.mcu.VCC, self.mcu.GND)
+        self.c_bypass.insert(self.mcu.VCC, self.mcu.GND, short_trace=True)
 
         self.r_reset = Resistor(resistance=10e3)
         self.r_reset.insert(self.mcu.VCC, self.mcu.RESET)

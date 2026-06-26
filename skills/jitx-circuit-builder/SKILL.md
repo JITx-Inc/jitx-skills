@@ -72,7 +72,7 @@ class MyCircuit(Circuit):
 
         # 6. Bypass cap — must also be assigned to self
         self.c_bypass = Capacitor(capacitance=100e-9)
-        self.c_bypass.insert(self.power.Vp, self.power.Vn)
+        self.c_bypass.insert(self.power.Vp, self.power.Vn, short_trace=True)
 
 # Module-level alias for your Circuit — design/build-test code imports this name.
 Device = MyCircuit
