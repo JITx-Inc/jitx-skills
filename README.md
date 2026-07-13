@@ -23,23 +23,22 @@ Claude plugin skills are namespaced. For example, invoke the base workflow with 
 
 ### Codex / GPT
 
-Codex uses `.codex-plugin/plugin.json` and the shared `skills/` directory. For local development, add a local Codex marketplace entry that points at this plugin root, then install `jitx-skills` from that marketplace.
+Codex uses `.codex-plugin/plugin.json` and the shared `skills/` directory. The repo ships its Codex marketplace at `.agents/plugins/marketplace.json`, so the repo itself is a marketplace named `jitx`.
 
-Example marketplace entry:
+This GitHub marketplace layout requires Codex CLI 0.142.0 or newer.
 
-```json
-{
-  "name": "jitx-skills",
-  "source": {
-    "source": "local",
-    "path": "./plugins/jitx-skills"
-  },
-  "policy": {
-    "installation": "AVAILABLE",
-    "authentication": "ON_INSTALL"
-  },
-  "category": "Developer Tools"
-}
+Install from GitHub:
+
+```bash
+codex plugin marketplace add JITx-Inc/jitx-skills
+codex plugin add jitx-skills@jitx
+```
+
+For local development, point the marketplace at a checkout instead:
+
+```bash
+codex plugin marketplace add /absolute/path/to/jitx-skills
+codex plugin add jitx-skills@jitx
 ```
 
 Codex skills can be invoked explicitly with `$jitx`, `$jitx-component-modeler`, and the other skill names, or selected implicitly from the user request.
@@ -53,9 +52,22 @@ Claude Code:
 claude plugin update jitx-skills@jitx
 ```
 
-Restart Claude Code or run `/reload-plugins` after local plugin edits.
+Restart Claude Code or run `/reload-plugins` after local plugin edits. If you previously added this marketplace under the old `jitx-skills` name, migrate it with:
 
-Codex/GPT: update the plugin source, refresh or reinstall the local Codex plugin entry, and start a new thread so Codex reloads the skill list and manifest metadata.
+```text
+/plugin marketplace remove jitx-skills
+/plugin marketplace add JITx-Inc/jitx-skills
+/plugin install jitx-skills@jitx
+```
+
+Codex/GPT:
+
+```bash
+codex plugin marketplace upgrade jitx
+codex plugin add jitx-skills@jitx
+```
+
+For local-path marketplaces, update the checkout instead of running `marketplace upgrade` (it only refreshes Git snapshots). Then start a new thread so Codex reloads the skill list and manifest metadata.
 
 ## Skills
 
@@ -153,6 +165,9 @@ Example triggers:
 
 ```text
 jitx-skills/
+├── .agents/
+│   └── plugins/
+│       └── marketplace.json     # Codex marketplace listing
 ├── .claude-plugin/
 │   ├── plugin.json              # Claude Code plugin manifest
 │   └── marketplace.json         # Claude marketplace listing
@@ -244,5 +259,5 @@ claude plugin validate .
 Keep the shared instructions in `skills/<skill-name>/SKILL.md`. Use platform-specific metadata only where each runtime expects it:
 
 - Claude Code: `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`
-- Codex/GPT: `.codex-plugin/plugin.json` and `skills/<skill-name>/agents/openai.yaml`
+- Codex/GPT: `.codex-plugin/plugin.json`, `.agents/plugins/marketplace.json`, and `skills/<skill-name>/agents/openai.yaml`
 - Shared skill content: `skills/<skill-name>/SKILL.md`, `references/`, `scripts/`, and `assets/`
