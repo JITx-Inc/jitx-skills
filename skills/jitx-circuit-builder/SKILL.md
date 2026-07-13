@@ -27,8 +27,8 @@ JITX uses two packages — know which one to import from:
 
 **These modules DO NOT EXIST — NEVER import from them:**
 `jitx.passives`, `jitx.passive`, `jitx.bundles`, `jitx.bundle`, `jitx.provide`,
-`jitx.providers`, `jitx.symbols`, `jitx.si_units`. There is no `Device` class in jitx
-(use `Circuit`). Passives live in `jitxlib.parts`, bundles in `jitx.common`, protocols in
+`jitx.providers`, `jitx.symbols`, `jitx.si_units`. There is no `Device` base class in jitx —
+subclass `Circuit`; `Device = MyCircuit` is a module-level alias for your circuit (see Key Rules). Passives live in `jitxlib.parts`, bundles in `jitx.common`, protocols in
 `jitxlib.protocols.serial`, `provide` in `jitx.net`.
 
 When unsure, search the installed packages with your **Grep** tool (pattern `class ClassName` or `def function_name`, path `.venv`, glob `*.py`); it recurses and is OS-agnostic. Shell fallback: bash `grep -rn "class ClassName" .venv/lib/python*/site-packages/jitx*/` (macOS/Linux); on Windows use the Grep tool, or `Select-String` over `.venv\Lib\site-packages\jitx*`.
@@ -72,8 +72,9 @@ class MyCircuit(Circuit):
 
         # 6. Bypass cap — must also be assigned to self
         self.c_bypass = Capacitor(capacitance=100e-9)
-        self.c_bypass.insert(self.power.Vp, self.power.Vn)
+        self.c_bypass.insert(self.power.Vp, self.power.Vn, short_trace=True)
 
+# Module-level alias for your Circuit — design/build-test code imports this name.
 Device = MyCircuit
 ```
 
@@ -81,7 +82,7 @@ Device = MyCircuit
 
 1. **EVERY component must be stored as `self.<name>`** — `self.c1 = Capacitor(...)` then `self.c1.insert(...)`. Anonymous `Capacitor().insert()` passes pyright but **fails at build time** with `"Reference to structural object lost during instantiation"`. Component instantiation should not be done at the class level.
 2. **`insert()` belongs to the component** — `self.r1.insert(portA, portB)`. No `self.insert()` or `self.add()` on Circuit.
-3. **Always `class X(Circuit):`** — never `Device`, `JITXDevice`, or any other base class. There is no `Device` class in JITX but `Device` can be used as an alias.
+3. **Define circuits as `class X(Circuit):`** — there is no framework `Device` or `JITXDevice` base class to subclass when *defining* a circuit. Expose the circuit under a module-level alias `Device = MyCircuit` at the end of the file (see the skeleton above). Downstream design/build-test code then imports and subclasses that alias (`from .circuit import Device` → `class circuit(Device)`) — that is expected, since `Device` is just your `Circuit`.
 4. **All wiring in `__init__`** — no `circuit()`, `execute()`, or `build()` methods.
 5. **`jitx.Component`** — `import jitx` then `class MyIC(jitx.Component):`.
 6. **Never alias component ports** — `self.x = self.r1.p2` creates multiple parents and fails. To expose a connection point, wire to a class-level Port: `self.r1.insert(gpio, self.output_port)`.

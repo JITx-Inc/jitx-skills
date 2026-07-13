@@ -159,6 +159,7 @@ self.cst = Constrain(topos).insertion_loss(3.0).structure(rs50)
 ### The DiffPair bundle
 
 ```python
+import jitx
 from jitx.net import DiffPair
 
 class MyComponent(jitx.Component):
