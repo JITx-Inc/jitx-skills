@@ -1,6 +1,6 @@
 {
   "name": "jitx-skills",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "description": "JITX hardware design automation skills for PCB design, component modeling, substrate modeling, circuit creation, physical layout authoring, signal integrity constraints, pin assignment flexibility, code review, and mechanical CAD interchange.",
   "author": {
     "name": "JITX Support",

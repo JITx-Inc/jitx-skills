@@ -178,6 +178,9 @@ jitx-skills/
 │   │   ├── SKILL.md
 │   │   ├── agents/openai.yaml   # Codex UI metadata
 │   │   ├── references/
+│   │   │   ├── domain-checklists.md  # Checklist index
+│   │   │   ├── domains/              # Focused checklist files
+│   │   │   └── net-classes.md        # Cross-domain net taxonomy
 │   │   └── scripts/
 │   ├── jitx-component-modeler/
 │   ├── jitx-circuit-builder/
