@@ -1,14 +1,11 @@
 # Control Points & Code-Based Routes
 
-> **Stable as of JITX 4.2.0.** `Route` lives in `jitx.circuit`; the control-point
+> **Stable as of JITX 4.3.** `Route` lives in `jitx.circuit`; the control-point
 > classes live in `jitx.controlpoint` (`RoutePoint`, `PairInsertion`, `PairPoint` —
-> also re-exported from top-level `jitx`). The classes were **renamed in 4.2.0**:
-> pre-release alphas called them `SingleControl` / `InsertionControl` /
-> `PairControl` — if those names appear in existing code, they are the old names
-> for the same three classes and will no longer import. On a runtime other than
-> 4.2.x, confirm the surface against the installed source:
->
-> Read the first ~130 lines of the installed source with your **Read** tool — `.venv/lib/python*/site-packages/jitx/controlpoint.py` (Windows: `.venv\Lib\site-packages\jitx\controlpoint.py`); it's OS-agnostic. Shell fallback: bash `sed -n '1,130p' .venv/lib/python*/site-packages/jitx/controlpoint.py` (macOS/Linux); on Windows use the Read tool, or `Get-Content .venv\Lib\site-packages\jitx\controlpoint.py -TotalCount 130`.
+> also re-exported from top-level `jitx`). Pre-4.2 alphas called them
+> `SingleControl` / `InsertionControl` / `PairControl` — old names, same classes,
+> no longer import. On an unfamiliar runtime, confirm the surface by Reading the
+> first ~150 lines of the installed `jitx/controlpoint.py`.
 
 ## When to use
 
@@ -19,13 +16,21 @@ to a specific insertion geometry. For ordinary connectivity, wire nets with `+`
 (`jitx-circuit-builder`); for timing/skew/impedance *constraints*, use
 `jitx-interconnect-constraints`.
 
+**The iron rule (4.3): a `Route` that builds is not a route that exists.** Routes
+realize (or silently don't) inside the runtime; `status: ok` says nothing about
+copper. After every build, capture the design and assert `route.traces` on every
+route you authored — the full recipe is in `references/geometry-verification.md`.
+A production board on this exact pattern shipped 48 silently-unrealized fan legs
+that netlist checks and visual inspection both missed; the traces assert catches
+it in seconds.
+
 ## `Route` — code-based route between two endpoints
 
 ```python
 from jitx.circuit import Route
 
 # Route(source, destination, layer, sketch=None)
-#   source / destination : Port | Pad | Via   (not directional)
+#   source / destination : Port | Pad | Via   (not directional — order verified irrelevant)
 #   layer                : int
 #   sketch               : optional list of (x, y) points hinting the routing engine
 r = Route(self.driver.OUT_p, self.rx.IN_p, layer=0)
@@ -33,21 +38,30 @@ self.routes = [r]                      # store on self so the structural walk se
 ```
 
 - **`Via` endpoints** — a placed via instance is a valid route end, so you can route
-  from a pad into a code-placed via (see the BGA example below for placing vias with
-  `PortAttachment`).
+  from a pad into a code-placed via.
 - **No per-route width/clearance overrides.** `Route` carries no configuration —
-  to control width, clearance, or structure of a code route, tag it and write a
-  `design_constraint(...)` rule (rule mechanics in `jitx-substrate-modeler`):
-
-  ```python
-  from jitx.constraints import Tags
-  Tags(PinFanoutTag()).assign(r)       # the rule for PinFanoutTag is defined elsewhere
-  ```
-
+  width/clearance/structure come from `design_constraint(...)` rules keyed on tags
+  (rule mechanics in `jitx-substrate-modeler`). **Where the tag goes matters:**
+  - single-ended fanout: tag the *route* (`Tags(PinFanoutTag()).assign(r)`);
+  - **differential structures: tag the NET, never the individual routes.** Tagging a
+    pair's routes separately lets the two sides of one control point carry different
+    routing structures, deforming the pair-point transition geometry. A net-level tag
+    gives coupled spans the differential structure and the fanned legs automatically
+    pick up its `uncoupled_region`.
 - **`require`-provided ports cannot be route ends.** A port obtained through a
   `require(...)` pin-assignment raises
   `NotImplementedError: Using require ports as route ends ... is not implemented`
   at build time — route the component-side port or the pad instead.
+- **A code `Route` is also a connectivity path.** Combining it with a `>>` topology
+  segment on the same net double-connects the net → invalid physical state. When
+  code-routing a net fully, drop the parallel topology and rely on nets +
+  tag-applied structures. (Conversely, `topology + ConstrainDiffPair` alone routes
+  NO copper — constraints bind auto-routed topologies, they never synthesize
+  geometry for code topologies.)
+- **After capture** (`rd.capture()` — see geometry-verification.md), `route.traces`
+  holds the realized copper (`Route.Trace.shapes`, **design-global coordinates**)
+  and `route.derived` any structure-driven extras (soldermask openings, keepouts).
+  `None`/empty = the route did not realize.
 
 ## Control points — `RoutePoint` / `PairInsertion` / `PairPoint`
 
@@ -56,109 +70,124 @@ All three subclass `ControlPoint` (don't use the base directly), take a keyword-
 
 - **`RoutePoint(layer=..., shape=None, bundle=Port)`** — the single-ended control
   point; its `.port` is the routable endpoint (`Route(some_port, rp.port, layer)`).
-  `shape` optionally gives the control point a geometric shape; `bundle=` types
-  `.port` with a `Port` subclass of your choice.
 - **`PairInsertion(layer=..., bundle=DiffPair)`** — a differential-pair *insertion*
   point: transitions two individual, uncoupled traces into a coupled pair. Its
-  `.coupled` and `.uncoupled` are each a `DiffPair`. It cannot currently be placed
-  in a `Net`/`TopologyNet` directly — connect it with `PortAttachment` and `Route`.
+  `.coupled` and `.uncoupled` are each a `DiffPair`. It cannot be placed in a
+  `Net`/`TopologyNet` directly — connect it with `PortAttachment` and `Route`.
 - **`PairPoint(layer=..., bundle=DiffPair)`** — connects two segments of a
   differential pair *while still paired*, so each segment can be configured
   independently. Its `.pair` is the routable `DiffPair`.
 
-Attach ports to a control point with `PortAttachment` (a control point is a valid
-attachment target alongside `Copper` and `Via`), passing a pair of ports as a list:
+Attach ports with `PortAttachment`, passing the pair as an **ordered list**:
 
 ```python
 from jitx.net import PortAttachment
-pair_point = PairPoint(layer=deskew_layer).at(xy, rotate=90)
-self.attachments = [PortAttachment([tx.n, tx.p], pair_point)]
+self.pa = PortAttachment([tx.p, tx.n], insertion)
 ```
 
-Control-point and signal-escape-via bindings like these are exactly the
-**signal-topology scope `PortAttachment` is reserved for** — ground/power
-stitching vias join their `Net` directly instead (`self.GND += via`); see
-`jitx-physical-layout` "Explicit placement & via attachment".
+**Every pair a control point touches needs an explicit design `Net`.** If the only
+thing connecting a component-internal `DiffPair` to the design is a
+`PortAttachment`, capture crashes with
+`Expected Net for LayoutControlPoint.copper[*].net_id 0, got '<Component>'` —
+declare `self.dsig = Net([comp.sig])` (or unify it with the far end:
+`self.dsig = a.sig + b.sig`). Related: `port + port` needs ≥ 2 members; a
+single-member net is `Net([port])`, not a bare port (a bare `Port` has no
+`.connected` and fails instantiation).
 
-### Chirality — port order in `PortAttachment`
+### The PairInsertion binding map (verified empirically on 4.3)
 
-For `PairInsertion`, the **order** of the two ports in `PortAttachment` is
-geometric, not just logical: the first port connects to the **left** side and the
-second to the **right**, looking from the *uncoupled* side toward the insertion
-point. On the uncoupled side, `uncoupled.n` is the left leg and `uncoupled.p` the
-right leg — when making code routes you may need to connect `n` and `p`
-"crosswise" to make the geometry work, because the two legs are routed in-plane
-and cannot cross. The `coupled` side always routes as a pair; never access
-`coupled.n` / `coupled.p` individually.
+This is the part everyone gets wrong, because the `n`/`p` names on `uncoupled`
+are **positional labels, not net polarity**:
 
-Flip a control point's chirality by **reversing the port order**:
+1. **Binding**: `PortAttachment([first, second], ins)` binds `first → ins.uncoupled.n`
+   and `second → ins.uncoupled.p`. (`uncoupled.n` = the "left" position looking from
+   the coupled side toward the uncoupled side; at `rotate=0` it is the **+Y** side.
+   The whole map rotates rigidly with `rotate=`.)
+2. **Leg routes must target the port each signal is BOUND to**:
+   `Route(first, ins.uncoupled.n, layer)` and `Route(second, ins.uncoupled.p, layer)`.
+   Routing a signal to the port it is *not* bound to does not error — the leg is
+   **silently unrealized** (empty `traces`). This — not geometric crossing — is the
+   usual leg-failure mechanism.
+3. **A coupled trunk between two facing insertions (0°/180°) realizes only with
+   MIRRORED attachment orders** — `[p, n]` on one side, `[n, p]` on the other. Same
+   order on both sides puts the pair's polarity lines on opposite physical sides →
+   the trunk silently doesn't realize. Pad geometry does not change this.
+4. **Pick the mirror sense so each signal's bound side matches its pad side.** Both
+   mirror senses realize; the wrong one realizes with legs wrapped around the
+   insertion (geometrically awful). Realized ≠ sensible — check the trace bounds.
+5. The `coupled` side always routes as a pair (`Route(ins1.coupled, ins2.coupled,
+   layer)`); never access `coupled.n`/`coupled.p` individually. Route coupled ends
+   control-point-to-control-point (`.coupled` ↔ `.coupled` / `.pair`), never onto a
+   feed/bundle port.
+
+`PairPoint` has an analogous orientation dependence: its rotation selects which
+side a coupled route may exit from; a wrong-facing point silently doesn't realize.
+Flip by adding 180° to `rotate=` (position unchanged) and re-verify.
+
+### Circuit ownership — the common-ancestor rule
+
+A code route may reference control points **anywhere in its owning circuit's
+subtree**: a parent-owned trunk between two child-circuit insertions works, and a
+parent-owned `PortAttachment` onto a child component's internal `DiffPair` works.
+What still fails (translate-time
+`Unable to map local reference N, parent X is not an ancestor of child <DiffPair>`)
+is referencing a **sibling** circuit's control point — the route must be hoisted to
+the common ancestor. Store `PortAttachment` objects on `self`, not raw foreign
+component ports (a raw port stored on `self` acquires a second structural parent
+and breaks the ancestor walk).
+
+> **Known bug (4.3.0-develop.25 / py-jitx develop):** fan legs authored *inside a
+> child circuit* (component + insertion + bound-correct legs all local) may silently
+> fail to realize even though the identical geometry realizes at root level, and
+> even though the insertion's own transition copper is placed correctly. Board-scale
+> designs showed one leg per pair dropping. Until fixed: author fans at the circuit
+> level where they verifiably realize, and **always assert `route.traces` on every
+> route after capture** — it is the only reliable detector.
+
+## Worked example — deskew fan
+
+Attachments and routes accumulate in plain **lists** (not string-keyed dicts);
+vias come from the substrate; legs are routed to their *bound* ports:
 
 ```python
-self.insertion1 = PairInsertion(layer=0).at(-2, 0)
-self.insertion2 = PairInsertion(layer=0).at(2, 0, rotate=180)
-self.nets = [
-    Net([self.c1.p1, self.c2.p1]),
-    Net([self.c1.p2, self.c2.p2]),
-]
-self.attachments = [
-    PortAttachment([self.c1.p1, self.c1.p2], self.insertion1),
-    PortAttachment([self.c2.p2, self.c2.p1], self.insertion2),  # flipped order — opposite chirality
-]
-self.routes = [
-    Route(self.insertion1.coupled, self.insertion2.coupled, 0),  # coupled span between the insertions
-]
-```
-
-(The runtime docstring shows passing the control points themselves to `Route`;
-the typed signature is `Port | Pad | Via`, so route the control point's *ports* —
-`.coupled` / `.pair` / `.port` — and pyright stays clean.)
-
-## Worked example — BGA escape lane deskew
-
-Per TX lane: drop signal vias at the BGA pads, place a `PairPoint` at the deskew
-exit and a `PairInsertion` further out, then route the coupled pair into the
-insertion point and the two uncoupled legs out to the test-point pair. Attachments and
-routes accumulate in plain **lists** (not string-keyed dicts).
-
-```python
-from jitx.controlpoint import RoutePoint, PairInsertion, PairPoint
+from jitx.controlpoint import PairInsertion, PairPoint
 from jitx.circuit import Route
 from jitx.net import PortAttachment
 
 self.attachments = []
 self.routes = []
-for index, lane in enumerate(self.escape_lanes):     # escape_lanes is a list
-    via_cls = substrate.signal_via[lane.spec.signal_layer]    # via from the substrate
+for index, lane in enumerate(self.escape_lanes):          # a list, iterated
+    via_cls = substrate.signal_via[lane.spec.signal_layer]
     self.attachments.append(PortAttachment(lane.tx_pair.p, via_cls().at(*lane.p_pad)))
     self.attachments.append(PortAttachment(lane.tx_pair.n, via_cls().at(*lane.n_pad)))
 
-    pair_xy = (
-        0.5 * (lane.deskew.left_exit[0] + lane.deskew.right_exit[0]),
-        0.5 * (lane.deskew.left_exit[1] + lane.deskew.right_exit[1]),
-    )
-    insertion_xy = (pair_xy[0], -15)
-    pair_point = PairPoint(layer=lane.spec.deskew_layer).at(pair_xy, rotate=90)
-    insertion = PairInsertion(layer=lane.spec.deskew_layer).at(insertion_xy, rotate=90)
+    pair_point = PairPoint(layer=lane.spec.deskew_layer).at(lane.exit_xy, rotate=90)
+    insertion = PairInsertion(layer=lane.spec.deskew_layer).at(lane.fan_xy, rotate=90)
 
+    order = [lane.tx_pair.n, lane.tx_pair.p]              # first -> uncoupled.n
     self.attachments.extend([
         PortAttachment([lane.tx_pair.n, lane.tx_pair.p], pair_point),
-        PortAttachment([self.tx_tps[index].pair.n, self.tx_tps[index].pair.p], insertion),
+        PortAttachment(order, insertion),
     ])
     self.routes.extend([
         Route(pair_point.pair, insertion.coupled, lane.spec.deskew_layer),
-        Route(insertion.uncoupled.n, self.tx_tps[index].pair.n, lane.spec.deskew_layer),
-        Route(insertion.uncoupled.p, self.tx_tps[index].pair.p, lane.spec.deskew_layer),
+        Route(order[0], insertion.uncoupled.n, lane.spec.deskew_layer),   # bound port!
+        Route(order[1], insertion.uncoupled.p, lane.spec.deskew_layer),
     ])
 ```
 
-Note the discipline: vias come from the substrate (`substrate.signal_via[...]`),
-lanes are iterated as a list with `enumerate`, and results are collected into
-`self.attachments` / `self.routes` lists — no `getattr(self, f"lane_{i}")`, no
-string-keyed parallel model.
+To replicate a verified cell across N lanes, author it in a local frame and place
+each instance with `.at(pivot, rotate=)` — a rigid rotation preserves internal
+clearances by construction; re-derive the attachment order per placement from the
+binding map (mirroring/rotating flips which physical side each index lands on),
+then verify all N with the traces assert.
 
 ## Verification
 
-`pyright` catches a wrong accessor or constructor immediately. Then **build-test**:
-the runtime ships no test exercising control points, so a successful `jitx build`
-of a small harness design is the only confirmation that your control-point
-geometry (placement, chirality, layer) is accepted end to end.
+`pyright` catches a wrong accessor or constructor immediately. Then verify
+**realized geometry, not build success**: submit + capture through the runtime and
+assert, for every route: (1) `traces` is non-empty (and `== 2` traces for a coupled
+trunk), (2) the net riding each trunk line (`rd.nets().find(trace)`) matches the
+intended polarity, (3) the shapely bounds of the trace shapes are where you meant
+(`shape.to_shapely().g.bounds`). Full recipe, query-vs-visit semantics, and
+coordinate-frame rules: `references/geometry-verification.md`.

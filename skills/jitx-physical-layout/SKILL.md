@@ -1,6 +1,6 @@
 ---
 name: jitx-physical-layout
-description: "Use when the user asks to author PCB physical layout from code: draw copper, antennas, filters, net ties, custom shapes, board outlines, custom pads, soldermask or paste openings, thermal pads with vias, code-placed vias, fanout or escape tags, direct-connect or thermal-relief tags, control points, code-based routes, escape routing, or deskew. Covers shapely geometry, Copper, OverlappableCopper, Pour, pad features, PortAttachment, explicit placement, layout-intent tags, and Route control-point APIs. Use jitx-substrate-modeler for stackups, vias, routing structures, fence-via rules, and fenced pours; use jitx-circuit-builder for net wiring, passives, and basic pours."
+description: "Use when the user asks to author PCB physical layout from code: draw copper, antennas, filters, net ties, custom shapes, board outlines, custom pads, soldermask or paste openings, thermal pads with vias, code-placed vias, fanout or escape tags, direct-connect or thermal-relief tags, control points, code-based routes, diff-pair fans/trunks, escape routing, or deskew — or to inspect/verify realized geometry from python (jitx.query, RuntimeDesign capture, route realization checks). Covers shapely geometry, Copper, OverlappableCopper, Pour, pad features, PortAttachment, explicit placement, layout-intent tags, Route/control-point APIs, and the 4.3 reverse-flow geometry-verification workflow. Use jitx-substrate-modeler for stackups, vias, routing structures, fence-via rules, and fenced pours; use jitx-circuit-builder for net wiring, passives, and basic pours."
 ---
 
 # JITX Physical Layout
@@ -11,10 +11,11 @@ This is the layer **between** schematic-level wiring (`jitx-circuit-builder`) an
 stackup/fab definition (`jitx-substrate-modeler`).
 
 JITX is a moving target — APIs on this page have been renamed across releases
-(most recently the control-point classes in 4.2.0). Do not rely on prior JITX
-knowledge — **verify every import and signature with `pyright` against the
-installed package**, and build-test control-point/route geometry before
-trusting it.
+(the control-point classes in 4.2.0; the reverse-flow inspection surface is new in
+4.3). Do not rely on prior JITX knowledge — **verify every import and signature
+with `pyright` against the installed package**, and verify control-point/route
+geometry by **capturing and asserting the realized copper**
+(`references/geometry-verification.md`), never by build success alone.
 
 ## Scope — what this skill owns vs neighbors
 
@@ -310,28 +311,33 @@ Tags(PinFanoutTag()).assign(r)             # Route is a supported tag target
 `Route` and the control-point types are detailed in
 `references/control-points.md`.
 
-## Control points & code-based routes (ADVANCED)
+## Control points & code-based routes
 
-Stable as of **JITX 4.2.0**. The module is **`jitx.controlpoint`** (the three
-classes are also re-exported from top-level `jitx`). The classes were **renamed in
-4.2.0** — pre-release alphas called them `SingleControl` / `InsertionControl` /
-`PairControl`; those names no longer import.
+Stable as of **JITX 4.3**. The module is **`jitx.controlpoint`** (the three
+classes are also re-exported from top-level `jitx`; pre-4.2 alphas used
+`SingleControl` / `InsertionControl` / `PairControl` — those names no longer
+import).
 
 - `Route(source, destination, layer, sketch=None)` — a code-based route between two
   `Port`/`Pad`/`Via` endpoints (not directional); `sketch` is an optional list of
-  points hinting the routing engine. No per-route width/clearance overrides — tag
-  the route and write a `design_constraint(...)` rule instead.
+  points hinting the routing engine. No per-route width/clearance overrides —
+  single-ended fanout: tag the route; **differential: tag the net** (per-route tags
+  deform pair-point transitions).
 - `RoutePoint(layer=..., shape=None, bundle=Port)` — the **single-ended** control
   point; its `.port` is the routable endpoint.
 - `PairInsertion(layer=..., bundle=DiffPair)` — differential-pair **insertion**
   point (uncoupled legs on one side via `.uncoupled.{n,p}`, coupled pair on the
   other via `.coupled`); `PairPoint(layer=..., bundle=DiffPair)` — joins two
   coupled segments via `.pair`. Both are placed with `.at(point, rotate=)` and
-  wired to ports via `PortAttachment([n, p], control)` — port **order sets
-  chirality** for `PairInsertion`.
+  wired to ports via `PortAttachment([first, second], control)` — the order is a
+  **positional binding** (`first → uncoupled.n`), and leg routes must target the
+  bound port or they silently don't realize.
 
-Full pattern, chirality rules + the real BGA escape/deskew example:
-`references/control-points.md`.
+Routes realize **silently or not at all** — `status: ok` proves nothing. After
+every build, capture and assert `route.traces` on every route (see
+`references/geometry-verification.md`). Full binding map, circuit-ownership
+(common-ancestor) rule, explicit-Net requirement, known nested-circuit
+realization bug + the deskew example: `references/control-points.md`.
 
 ## Anti-string-hacking
 
@@ -350,13 +356,19 @@ pyright path/to/layout.py        # verify imports/signatures against the install
 ruff format path/to/layout.py
 ```
 
-Then build-test with a `SampleDesign` harness (see `jitx-circuit-builder`
-"Verification Process"); sequence builds — don't parallelize against the same
-design. Validate shapely outputs (non-empty `Polygon`/`MultiPolygon`) before they
-reach a fab feature.
+Then verify **realized geometry, not build success** (4.3 reverse flow): submit +
+`capture()` the design through the runtime and assert against the concrete result —
+`route.traces` non-empty for every route, `rd.query(Copper)` bounds where you meant
+them, `rd.nets().find(...)` on every net-bearing feature. The full loop, the
+`query`-vs-`visit` semantics, and the coordinate-frame rules are in
+`references/geometry-verification.md` — this replaces screenshot/viewer checking
+for code-authored layout. Validate shapely outputs (non-empty
+`Polygon`/`MultiPolygon`) before they reach a fab feature. Sequence builds — don't
+parallelize against the same design.
 
 ## API Reference
 
 Complete class definitions and parameters: [JITX Documentation](https://docs.jitx.com).
-Worked examples: `references/layout-examples.md` (thermal-pad CSG, antenna) and
-`references/control-points.md` (Route / control points).
+Worked examples: `references/layout-examples.md` (thermal-pad CSG, antenna),
+`references/control-points.md` (Route / control points), and
+`references/geometry-verification.md` (reverse-flow inspection & geometry checks).
