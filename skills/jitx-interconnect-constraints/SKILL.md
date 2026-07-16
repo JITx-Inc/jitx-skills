@@ -632,6 +632,23 @@ self += self.src >> self.dst
 topo = Topology(self.src, self.dst)
 ```
 
+Three more traps that build `status: ok` and fail silently or cryptically:
+
+- **`>>` + `ConstrainDiffPair(...).structure(DRS)` routes NO copper by itself.**
+  Constraints *bind* routed topologies (auto-router or interactive); they never
+  synthesize geometry. A topology-only diff pair yields an empty layout that only
+  fails downstream (e.g. "No trace on layer" at SI export). Route it — interactive,
+  auto, or code `Route`s (see `jitx-physical-layout`).
+- **A code `Route` and a `>>` segment on the same net double-connect** → invalid
+  physical state. Full code-routing means dropping the parallel topology and
+  applying structures via net tags: `design_constraint(Tag()).routing_structure(DRS,
+  ref_net=GND)` with the tag assigned to the **net** (never per-route for
+  differential — mismatched structures deform control-point transitions; a net tag
+  also gives uncoupled legs the DRS `uncoupled_region` automatically).
+- **`ReferencePlanes(...)` needs a `Net`, not a bare `Port`** — a Port raises the
+  unhelpful `'Port' object has no attribute 'connected'`. Hoist the constraint to
+  the scope where the reference is a `Net` (usually the parent circuit's GND).
+
 ## Verification
 
 ### Step 1: Type Check

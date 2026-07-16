@@ -708,6 +708,28 @@ travels with timing/loss constraints, the topology-based
 `Constrain(...).structure(...)` flow is usually the better fit — the choice is
 covered in **jitx-interconnect-constraints** "Tag-based routing structures".
 
+### Rule sharp edges (verified on real boards)
+
+- **Binary clearance vs the global default:** a
+  `design_constraint(TagA(), TagB()).clearance(x)` must out-rank the board's
+  global `AnyObject` clearance to take effect — pass `priority=1` (higher wins).
+- **Same-tag binary clearance is safe for diff pairs:** both legs of a pair carry
+  the same net tag, but `design_constraint(HsTag(), HsTag(), priority=1)
+  .clearance(0.5)` does NOT forbid the pair's own internal gap — a coupled span is
+  ONE differential trace object whose internal gap is the DRS `pair_spacing`, so
+  the rule only separates *different* pairs.
+- **Fenced differential structures can't use `symmetric_routing_layers`** (seen on
+  4.2: the fence via's layer endpoints can't be mirrored, layers stay a lazy
+  attribute, and applying the DRS via a rule dies with `DesignTranslationContext
+  is not active`). Enumerate the fenced coupled layers explicitly
+  (`layers={0: ..., -1: ..., 1: ..., -2: ...}`); keep `symmetric_routing_layers`
+  for fence-less structures. A module-scope `RoutingStructure` (not an attribute
+  of a Substrate class) hits the same lazy-layers error.
+- **Cannonball-Huray roughness tuples don't fit `Conductor.roughness`** (scalar
+  only — `TypeError: must be real number, not tuple`). Keep a scalar on the
+  substrate; carry the Huray pair as a simulation-side surface-roughness override
+  (e.g. the SI tool's stackup override), not on the jitx stackup.
+
 ## Fenced Pour Outlines (Antipads, RF Cavities, BGA Breakouts)
 
 Trick for placing fence vias along an arbitrary closed shape — antipad rings around signal-via pairs, RF cavity perimeters, BGA breakout boundaries, deskew arc cutouts. Three pieces compose:

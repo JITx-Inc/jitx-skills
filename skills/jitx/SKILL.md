@@ -167,6 +167,12 @@ Honor an existing pin; otherwise omit `--version` and let the backend resolve.
 (Pre-4.2 CLIs require `--version` — if `jitx runtime update` errors asking for
 one, resolve it from (1)–(2) or ask the user.)
 
+**Channels:** development-channel runtime builds (versions like
+`4.3.0-develop.N`) are served by the testing backend — install them with
+`jitx runtime install --version <v> --testing` (the prod backend 404s on them).
+The runtime is **per-project** (discovered by walking up from CWD); each project
+you build or capture from needs its own `jitx runtime start --background`.
+
 ### Step 5 — Verify
 
 ```bash
@@ -262,10 +268,47 @@ arguments with concrete values.
 
 **Structured output:** pass `--format json` on any subcommand for machine-readable output (the JSON shape is part of the public contract — what VSCode reads).
 
+**Non-interactive shells:** some rebuilds ask `[Y/n]` (stale-instance /
+component-removal confirmation) and die with `EOF when reading a line` without a
+TTY — pipe assent: `yes | jitx build <design>`.
+
 **Output files** (in `designs/<design_name>/`):
 - `cache/netlist.json` - JSON netlist for verification
 - `cache/design-explorer.json` - Design hierarchy
 - `design-info/stable.design` - Design snapshot
+
+**`design-info/` is encoding-versioned state**, not a disposable cache: it holds
+interactive placements AND is written in the current py-jitx/runtime encoding. A
+build that fails with a cryptic `No field with key '$_...' under O.../C...` after
+a py-jitx or runtime version change means the on-disk design-info is unreadable by
+the new pairing — restore `design-info/` from git and restart the project runtime.
+Never `rm -rf designs/<design>` casually (placements live there).
+
+**`status: ok` does not mean code routes realized copper.** Route realization is
+silent; verify it programmatically via the 4.3 reverse flow (submit + `capture()` +
+assert `route.traces`) — see `jitx-physical-layout`
+`references/geometry-verification.md`.
+
+### Programmatic iteration & exports (4.3 reverse flow)
+
+For geometry-heavy iteration, skip the build CLI entirely: `with jitx.runtime as
+r: rd = r.submit(DesignClass); rd.capture()` gives python the *realized* design
+(route copper, computed pours, placements, nets) for direct assertion — the loop
+is ~10–15 s per design and needs no TTY. Details:
+`jitx-physical-layout/references/geometry-verification.md`.
+
+Exports are **plugins** (entry-point group `jitx-plugin`), invoked as:
+
+```bash
+jitx design export <plugin> <module.path.DesignClass> [plugin options]
+# e.g. jitx design export hfss my.designs.Board --output out/board   (jitxlib-ansys)
+#      jitx design export legacy-odb++ my.designs.Board
+```
+
+`legacy-kicad` / `legacy-altium` / `legacy-edx` / `legacy-odb++` / `legacy-step`
+run through the runtime (useful as a runtime-side cross-check of realized copper);
+new-style plugins (e.g. `hfss` from `jitxlib-ansys`) consume the captured
+`RuntimeDesign` in python.
 
 ## Visualizers (Board / Schematic Popout)
 
