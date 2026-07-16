@@ -124,6 +124,15 @@ are **positional labels, not net polarity**:
 side a coupled route may exit from; a wrong-facing point silently doesn't realize.
 Flip by adding 180° to `rotate=` (position unchanged) and re-verify.
 
+6. **A `PairPoint` → `PairInsertion` trunk additionally requires the two
+   endpoints' control points to be attached to DIFFERENT port pairs of the net**
+   (e.g. the pair point on the source component's pair, the insertion on the
+   destination component's pair — the net is unified either way). With both
+   attached to the same pair, the trunk silently never realizes under any
+   order/rotation combination. Insertion↔insertion trunks tolerate same-pair
+   attachments (mirrored orders still required). When a trunk resists every
+   order/flip lever, swap one endpoint's attachment to the far pair.
+
 ### Circuit ownership — the common-ancestor rule
 
 A code route may reference control points **anywhere in its owning circuit's
