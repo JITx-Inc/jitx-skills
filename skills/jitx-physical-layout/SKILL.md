@@ -81,6 +81,12 @@ Reach for a **built-in composite first** for common shapes — they stay exact
 `equilateral_triangle`, …). Use **shapely** when you need CSG (union / difference /
 intersection), buffering, fillets, or arbitrary polygons.
 
+Two shape-API gotchas: `jitx.Point` is a bare `tuple[float, float]` alias, not a
+constructor — waypoints/vertices are plain `(x, y)` tuples. And there is no
+per-axis reflection: `.at(scale=(1, -1))` crashes (`can't multiply sequence …`) —
+mirror by transforming the geometry itself (shapely `scale`/affine, or negate arc
+math), not via `.at(scale=)`.
+
 ```python
 import shapely
 from jitx.shapes.shapely import ShapelyGeometry
