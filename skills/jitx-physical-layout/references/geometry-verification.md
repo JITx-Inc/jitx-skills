@@ -108,7 +108,10 @@ For any authored layout, the minimum battery (each is 1–3 lines):
 4. **Net membership** — pours/vias/copper added to nets resolve to the right net.
 5. **Presence in export** (when exporting to EDB/HFSS via jitxlib-ansys): reopen the
    `.aedb` read-only and assert the geometry survived (netless copper lands as
-   net `<NO-NET>`; primitive bboxes are in meters).
+   net `<NO-NET>`; primitive bboxes are in meters; count `layout.padstack_instances`
+   for vias). The known drop: any via/copper reachable only through a `Net` or
+   `PortAttachment` (build warning "not assigned to a circuit … deprecated") is
+   SILENTLY ABSENT from the EDB — store instances structurally on the circuit.
 
 Structure them as a plain script (`python -m myproj.checks`) or pytest module in
 the design project; print `[PASS]/[FAIL]` per check and exit nonzero on failure.

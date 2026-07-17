@@ -197,6 +197,16 @@ datasheet belongs to `jitx-component-modeler`; this skill is the feature mechani
 
 ## Explicit placement & via attachment
 
+**Structural-membership rule (CRITICAL for export):** every placed via (or
+copper) must be **assigned to a circuit as a structural attribute** — stored on
+`self`, directly or in a list. Geometry reachable ONLY through a `Net` or a
+`PortAttachment` builds with the warning
+`N object(s) appear in nets or port attachments but are not assigned to a
+circuit … deprecated` — and on the 4.3 EDB/HFSS export path that geometry is
+**silently DROPPED from the export** (verified: 485 flagged vias absent from
+the EDB; 0 flagged and all present after storing the instances on `self`).
+Treat that warning as a hard error: store the instance, then attach/net it.
+
 **Scope rule — `PortAttachment` is for signal topologies only**: binding a signal
 port to a control point, or to a signal via in an escape/deskew path. For
 ground/power stitching vias, thermal vias, and anything else that just joins a
@@ -206,12 +216,18 @@ expected to be deprecated; default to the net form whenever the connection is
 plain net membership.
 
 ```python
-# Ground / thermal vias: net membership — NOT PortAttachment.
+# Ground / thermal vias: structural list on self + net membership.
 # Source the via class from the substrate / JLCPCB library — do NOT redefine vias here:
 via_cls = substrate.signal_via[layer]          # or: from jitxlib.jlcpcb.vias import JLCPCBVias
-self.thermal_vias = [via_cls().at(x, y) for (x, y) in via_positions]   # list, not a string-keyed dict
+self.thermal_vias = [via_cls().at(x, y) for (x, y) in via_positions]   # structural: stored on self
 for via in self.thermal_vias:
     self.GND += via
+
+# Signal vias (escape/deskew): ALSO store the instances, then PortAttachment:
+self.sig_vias = [via_cls().at(*pad_xy) for pad_xy in ball_positions]
+self.sig_via_attach = [
+    PortAttachment(port, via) for port, via in zip(ports, self.sig_vias)
+]
 ```
 
 For the signal-topology cases, `PortAttachment(port_or_ports, attachment)` connects
