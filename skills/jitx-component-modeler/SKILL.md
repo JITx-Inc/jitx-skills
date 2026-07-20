@@ -565,7 +565,7 @@ Don't run parallel JITX builds against the same project — sequence them. See `
 
 ### Verification Report
 
-Emit the **task acceptance block** from `jitx/references/completion-blocks.md` "Task Acceptance Block". For a component task, the block's `Primary source` field cites the datasheet pages with the pinout and mechanical drawing; the `Footprint source` field names the JITX generator used (or KiCad import with reason); the `Checks run` field includes the Component checklist from `domain-checklists.md` with N/N items and any issues fixed (pin count vs datasheet, pad count vs landpattern, dimensions vs datasheet mechanical drawing). The acceptance block is the report; do not invent a parallel format.
+Emit the **task acceptance block** from `jitx/references/completion-blocks.md` "Task Acceptance Block". For a component task, the block's `Primary source` field cites the datasheet pages with the pinout and mechanical drawing; the `Footprint source` field names the JITX generator used (or KiCad import with reason); the `Checks run` field includes the Component checklist from `jitx/references/domains/component-modeling.md` with N/N items and any issues fixed (pin count vs datasheet, pad count vs landpattern, dimensions vs datasheet mechanical drawing). The acceptance block is the report; do not invent a parallel format.
 
 ## Step 5: Capture Application Circuit
 

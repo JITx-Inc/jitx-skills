@@ -343,7 +343,7 @@ class Design(...):
 
 **Calibrate to fab capability.** The 0.125 mm trace width / clearance and 0.4 mm power width above are typical JLC04161H-class defaults — adjust for the actual substrate's `FabricationConstraints` minimums. Heavier copper (2 oz, 3 oz) allows narrower traces at the same current; tighter fab classes allow narrower clearance.
 
-**Non-default net classes (RF, switch node, sensitive analog, HV) get higher-priority rules.** See `references/domain-checklists.md` "Net Class Taxonomy" — those rules go in the same `self.rules` list with `priority >= 2`.
+**Non-default net classes (RF, switch node, sensitive analog, HV) get higher-priority rules.** See `references/net-classes.md` — those rules go in the same `self.rules` list with `priority >= 2`.
 
 ### Topology vs net membership (CRITICAL)
 

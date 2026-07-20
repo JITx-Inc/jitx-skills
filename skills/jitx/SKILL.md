@@ -416,7 +416,7 @@ A task without an acceptance block is `in-progress`, not done. Phase gates only 
 
 For the full protocol: read `references/task-execution.md`
 For block templates: read `references/completion-blocks.md`
-For domain checklists: read `references/domain-checklists.md`
+For domain checklists: read `references/domain-checklists.md`, then open every linked checklist that applies. Net-class guidance lives in `references/net-classes.md`.
 
 ### Exit Gates
 

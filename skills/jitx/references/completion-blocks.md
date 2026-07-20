@@ -58,7 +58,7 @@ Copy this template verbatim. Fill every field. Every `N/A` requires a reason.
 **Footprint source:** <KiCad file path + origin> | <JITX standard generator: QFN/SOIC/etc.> | <vendor mechanical drawing — for pad-only / mechanical footprints>
 
 **Checks run:**
-- <Domain checklist name from domain-checklists.md>: N/N items, M issues fixed, K items N/A (with reasons)
+- <Domain checklist name linked from domain-checklists.md>: N/N items, M issues fixed, K items N/A (with reasons)
 - General Gotcha Scrub: N/N items
 - `ruff check`: clean | <N issues, fixed>
 - `ruff format`: applied

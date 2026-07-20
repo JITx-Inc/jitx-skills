@@ -83,7 +83,7 @@ If it fails, fix errors and rebuild until `status: ok`. Do not proceed to Step 4
 
 **STOP. Do not return yet.**
 
-Open `references/domain-checklists.md` and find the checklist(s) for your task type. Go through EVERY item:
+Open `references/domain-checklists.md`, then open the linked checklist(s) for your task type. Go through EVERY item:
 
 1. For each item, re-examine the datasheet or specification — do not check from memory.
 2. If there is a discrepancy, fix it now.
