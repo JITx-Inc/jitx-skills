@@ -504,7 +504,7 @@ For provide/require pin assignment patterns, use `jitx-pin-assignment` instead.
 - `JLC04161H_7628` — 4-layer, 7628 prepreg, RS_50/DRS_90/DRS_100
 - `JLC06161H_7628` — 6-layer, 7628 prepreg, RS_50/DRS_100
 
-Import: `from jitxlib.jlcpcb import JLC04161H_1080`. These include stackup, fab rules, 11 via definitions, and routing structures.
+Import: `from jitxlib.jlcpcb import JLC04161H_1080`. These include stackup, fab rules, 9 via definitions, and routing structures.
 
 **Invoke this subskill** to create a custom substrate (the default path unless user opts into a predefined one):
 - User has not confirmed JLCPCB as fab house
