@@ -74,6 +74,8 @@ def validate_manifests(root: Path, errors: list[str]) -> None:
         errors.append("Claude plugin name must be jitx-skills")
 
     marketplace = load_json(root / ".claude-plugin" / "marketplace.json", errors)
+    if marketplace and marketplace.get("name") != "jitx":
+        errors.append("Claude marketplace name must be jitx")
     plugins = marketplace.get("plugins") if marketplace else None
     if isinstance(plugins, list) and plugins:
         skill_paths = plugins[0].get("skills")
@@ -82,6 +84,36 @@ def validate_manifests(root: Path, errors: list[str]) -> None:
             errors.append("Claude marketplace skill paths must point at ./skills/<skill>")
     else:
         errors.append("Claude marketplace must contain at least one plugin entry")
+
+    codex_marketplace = load_json(root / ".agents" / "plugins" / "marketplace.json", errors)
+    if codex_marketplace:
+        if codex_marketplace.get("name") != "jitx":
+            errors.append("Codex marketplace name must be jitx")
+        entries = codex_marketplace.get("plugins")
+        if isinstance(entries, list) and len(entries) == 1:
+            entry = entries[0]
+            if entry.get("name") != "jitx-skills":
+                errors.append("Codex marketplace plugin entry must be named jitx-skills")
+            if entry.get("source") != {"source": "local", "path": "./"}:
+                errors.append("Codex marketplace plugin source must be local at ./")
+            policy = entry.get("policy") or {}
+            if policy.get("installation") != "AVAILABLE":
+                errors.append("Codex marketplace installation policy must be AVAILABLE")
+            if policy.get("authentication") != "ON_INSTALL":
+                errors.append("Codex marketplace authentication policy must be ON_INSTALL")
+            if entry.get("category") != "Developer Tools":
+                errors.append("Codex marketplace category must be Developer Tools")
+        else:
+            errors.append("Codex marketplace must contain exactly one plugin entry")
+
+    versions = {
+        "Claude plugin": claude.get("version") if claude else None,
+        "Claude marketplace": marketplace.get("metadata", {}).get("version") if marketplace else None,
+        "Codex plugin": codex.get("version") if codex else None,
+    }
+    if any(not version for version in versions.values()) or len(set(versions.values())) != 1:
+        rendered = ", ".join(f"{name}={version!r}" for name, version in versions.items())
+        errors.append(f"Plugin versions must match: {rendered}")
 
 
 def parse_frontmatter(path: Path, errors: list[str]) -> dict[str, str]:
