@@ -17,7 +17,7 @@ If the user has confirmed they are targeting **JLCPCB** as their fabrication hou
 | `JLC04161H_7628` | 4 | 7628 | RS_50, DRS_90, DRS_100 | `from jitxlib.jlcpcb import JLC04161H_7628` |
 | `JLC06161H_7628` | 6 | 7628 | RS_50, DRS_100 | `from jitxlib.jlcpcb import JLC06161H_7628` |
 
-Each includes: Symmetric stackup, JLCPCBRules (FabricationConstraints), 11 JLCPCB via definitions (StdVia, StdViaPreferred, MultiLayerVia1-3 + Preferred variants, StdViaTentedFilled for via-in-pad), and routing structures for 50/90/100 ohm impedance targets.
+Each includes: Symmetric stackup, JLCPCBRules (FabricationConstraints), 9 JLCPCB via definitions (StdVia, StdViaPreferred, MultiLayerVia1-3 + Preferred variants, StdViaTentedFilled for via-in-pad), and routing structures for 50/90/100 ohm impedance targets.
 
 **Use directly** — no substrate file needed:
 ```python
@@ -83,7 +83,7 @@ Everything goes in **one Python file** per substrate:
 
 ## Materials
 
-Set properties as **class attributes**, instantiate with thickness.
+Set properties as **class attributes**. Thickness goes on the class (fixed-thickness materials like copper foils) **or** is passed at instantiation (per-stackup dielectric thickness) — **never both**: `Material.__init__` raises `ValueError` if thickness is set as a class attribute and also passed to the constructor.
 
 Soldermask is a `Dielectric` — define it like any other dielectric material:
 
@@ -92,7 +92,7 @@ class SoldermaskLayer(Dielectric):
     """Soldermask — typically Er ≈ 3.8"""
     dielectric_coefficient = 3.8
     loss_tangent = 0.02
-    thickness = 0.020              # mm (can also be set at instantiation)
+    # no thickness here — passed per-stackup at instantiation
 
 class FR4_Prepreg(Dielectric):
     dielectric_coefficient = 4.4   # Dk (dielectric constant / relative permittivity)
@@ -103,10 +103,10 @@ class FR4_Core(Dielectric):
     loss_tangent = 0.0168          # Df
 
 class Copper1oz(Conductor):
-    thickness = 0.035  # mm (can also be set at instantiation)
+    thickness = 0.035  # mm
 
 class CopperHalfOz(Conductor):
-    thickness = 0.0175  # mm (can also be set at instantiation)
+    thickness = 0.0175  # mm
 ```
 
 **Terminology:** `dielectric_coefficient` is the JITX attribute name for Dk (dielectric constant, also called relative permittivity or Er). `loss_tangent` is the JITX attribute name for Df (dissipation factor). Datasheets typically specify Dk and Df at a given frequency (e.g., 1 GHz or 10 GHz).
