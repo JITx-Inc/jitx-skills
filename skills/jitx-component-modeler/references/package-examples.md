@@ -604,7 +604,7 @@ Device: type[WirelessSoC] = WirelessSoC
 
 ## BGA-Specific Notes
 
-1. **Row naming convention**: BGA rows use letters A-Z (skipping I and O). For a 12-row BGA: A, B, C, D, E, F, G, H, J, K, L, M.
+1. **Row naming convention**: Row letters come from `ABCDEFGHJKLMNPRTUVWY` — I, O, Q, S, X, and Z are skipped — rolling over to two letters (`AA`, `AB`, …) past row 19. Row index 0 is `A`, so a 12-row BGA is A, B, C, D, E, F, G, H, J, K, L, M.
 
 2. **Grid planner**: Use `is_active()` returning `False` for depopulated positions, `None` to defer to default.
 
@@ -671,4 +671,4 @@ class CustomBGA(A1, AlphaDictNumbering, CustomBGA_Base):
     pass
 ```
 
-**Key:** Row 0 = TOP row (M in 12-row BGA), row 11 = BOTTOM (A).
+**Key:** Row index 0 = TOP row (`A`), row 11 = BOTTOM (`M` in a 12-row BGA). The `(center_row - r)` term is what puts row 0 at the largest y.
