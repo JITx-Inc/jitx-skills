@@ -199,6 +199,14 @@ Rules learned in production (saturn-ethernet, 4.3.0-rc.3):
   `PinModel(delay=, loss=)` declared per leg, a `ConstrainDiffPair` /
   `DiffPairConstraint` topology spans the authored copper end to end — this
   is how an authored deskew fan participates in intra-pair skew matching.
+- **The topology itself must be `>>` TopologyNets, never `+` Nets.** A
+  constrained path is valid only when every pad-to-pad segment is declared
+  with `>>` (docs: essentials/SI/topology): one plain `+` tie anywhere in
+  the chain is an "invalid segment" and the walker reports NO PATH for the
+  whole topology — the VC/pin-model machinery never even gets asked.
+  Series components (AC caps) are crossed by their `BridgingPinModel`;
+  `TopologyNet` sequences also accept `Via` and `ControlPoint` elements,
+  and TopologyNets are tag-able (routing-structure rules carry over).
 - **Model MEASURED delay, not drawn length.** On curved/wrapped legs the
   drawn centreline over-states delay (a verified deskew hook measured
   ~0.07 ps of real skew where drawn lengths implied ~2 ps). Encode the
