@@ -163,6 +163,54 @@ self.copper_radiator = OverlappableCopper(radiator_shape, layer=0)
 Note `OverlappableCopper` is **not** in the set of tag-able objects (see Tags below).
 The full antenna example is in `references/layout-examples.md`.
 
+### Declaring the connection: `VirtualConnection` (4.3.0-rc.3+)
+
+Overlap alone is a *physical* connection the tools can't reason about: the
+topology walker doesn't see it, so ratsnest/unrouted warnings fire and no SI
+constraint can span the authored copper. `jitx.virtual.VirtualConnection`
+closes that gap — a user-declared assertion that two endpoints are
+electrically connected, **with known electrical properties**:
+
+```python
+from jitx.si import PinModel
+from jitx.toleranced import Toleranced
+from jitx.virtual import VirtualConnection
+
+# deskew-fan leg: authored OverlappableCopper from a BGA ball pad to a
+# PairPoint's front-side leg — declare it, with its electrical model:
+self.leg_vc = VirtualConnection(
+    self.bcm.mtx[0].p,          # single-pin Port (or Pad, or Via)
+    self.cvg.front.p,           # a control point's per-leg endpoint
+    source_layer=0,
+    destination_layer=0,
+    pin_model=PinModel(delay=Toleranced(10.9e-12, 35e-15), loss=0.06),
+)
+```
+
+Rules learned in production (saturn-ethernet, 4.3.0-rc.3):
+
+- **Endpoints are single electrical targets**: a single-pin `Port`, `Pad`,
+  `Via`, or a non-coupled `ConnectionEndpoint` (e.g. `pair_point.front.p`).
+  Bundle ports — including a combined `DiffPair` — are rejected; name the
+  leg (`pair.p` / `pair.n`).
+- **A pin model is what completes a CONSTRAINED topology.** A model-less
+  VirtualConnection suppresses ratsnest/unrouted warnings but cannot satisfy
+  skew / timing / insertion-loss constraints routed through it. With
+  `PinModel(delay=, loss=)` declared per leg, a `ConstrainDiffPair` /
+  `DiffPairConstraint` topology spans the authored copper end to end — this
+  is how an authored deskew fan participates in intra-pair skew matching.
+- **Model MEASURED delay, not drawn length.** On curved/wrapped legs the
+  drawn centreline over-states delay (a verified deskew hook measured
+  ~0.07 ps of real skew where drawn lengths implied ~2 ps). Encode the
+  electrical truth: equal mean delays with the measured residual as a
+  `Toleranced` spread; use drawn length for loss and for the mean only.
+- **Constraint endpoints must be COMPONENT ports.** Control-point `.port`
+  bundles do not id-map as `Topology` begin/end at translation
+  ("parent ... is not an ancestor of child <<Port>>") — constrain from
+  component port to component port (e.g. BGA pair -> connector pair) and
+  let control points sit mid-topology.
+- The API is marked experimental in `jitx.virtual` — expect change.
+
 ## Pad features (soldermask / paste / thermal pad)
 
 Custom `Pad` subclasses (KiCad-converted footprints, mechanical pads) get **no
