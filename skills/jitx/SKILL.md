@@ -585,7 +585,8 @@ Covers:
 - `PortAttachment` + explicit placement — `.at()` (default), `Circuit.place` (deferred/relative), local frames
 - Keepouts that shape pours; local-vs-global pour placement
 - Layout-intent tags for object selection (rule mechanics stay in jitx-substrate-modeler)
-- `Route`, `RoutePoint`, `PairInsertion`, `PairPoint` (advanced; stable as of JITX 4.2)
+- `Route`, `RoutePoint`, `PairInsertion`, `PairPoint` (advanced; surface reshaped in
+  JITX 4.3.0-rc.3+ — netting/routing split, `PairPoint.pair` removed, `invert=` chirality)
 
 This skill owns design-side geometry and placement; the substrate owns the via and
 routing-structure *definitions* and the `design_constraint(...)` rules that act on it.

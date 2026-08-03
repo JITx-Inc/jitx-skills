@@ -1,11 +1,16 @@
 # Control Points & Code-Based Routes
 
-> **Stable as of JITX 4.3.** `Route` lives in `jitx.circuit`; the control-point
-> classes live in `jitx.controlpoint` (`RoutePoint`, `PairInsertion`, `PairPoint` —
-> also re-exported from top-level `jitx`). Pre-4.2 alphas called them
-> `SingleControl` / `InsertionControl` / `PairControl` — old names, same classes,
-> no longer import. On an unfamiliar runtime, confirm the surface by Reading the
-> first ~150 lines of the installed `jitx/controlpoint.py`.
+> **Surface reshaped in JITX 4.3.0-rc.3+ (py-jitx ≥ 4.3.0a17).** `Route` lives in
+> `jitx.circuit`; the control-point classes live in `jitx.controlpoint`
+> (`RoutePoint`, `PairInsertion`, `PairPoint` — also re-exported from top-level
+> `jitx`). Pre-4.2 alphas called them `SingleControl` / `InsertionControl` /
+> `PairControl` — old names, same classes, no longer import. **The routing vs.
+> netting split is new in 4.3.0-rc.3:** control points now separate the port used
+> for *netting* (`.port`) from the endpoint(s) used for *routing* (`RoutePoint.pad`;
+> `PairPoint.front`/`.back`; `PairInsertion.coupled`/`.uncoupled`). `PairPoint.pair`
+> was **removed** and `RoutePoint.connection_point` was **renamed `.pad`**. On an
+> unfamiliar runtime, confirm the surface by Reading the first ~200 lines of the
+> installed `jitx/controlpoint.py`.
 
 ## When to use
 
@@ -30,9 +35,12 @@ it in seconds.
 from jitx.circuit import Route
 
 # Route(source, destination, layer, sketch=None)
-#   source / destination : Port | Pad | Via   (not directional — order verified irrelevant)
+#   source / destination : Port | Pad | Via | RouteConnectionEndpoint | RoutePoint
+#                          (not directional — order verified irrelevant. A RoutePoint
+#                          is unwrapped to its .pad automatically.)
 #   layer                : int
-#   sketch               : optional list of (x, y) points hinting the routing engine
+#   sketch               : optional routing-engine hint — a plain list of (x, y) points
+#                          (verified: still accepted) or a Route.Sketch (start/turns/end)
 r = Route(self.driver.OUT_p, self.rx.IN_p, layer=0)
 self.routes = [r]                      # store on self so the structural walk sees it
 ```
@@ -69,14 +77,23 @@ All three subclass `ControlPoint` (don't use the base directly), take a keyword-
 `layer=`, and are placed with `.at(point, rotate=)`:
 
 - **`RoutePoint(layer=..., shape=None, bundle=Port)`** — the single-ended control
-  point; its `.port` is the routable endpoint (`Route(some_port, rp.port, layer)`).
-- **`PairInsertion(layer=..., bundle=DiffPair)`** — a differential-pair *insertion*
-  point: transitions two individual, uncoupled traces into a coupled pair. Its
-  `.coupled` and `.uncoupled` are each a `DiffPair`. It cannot be placed in a
-  `Net`/`TopologyNet` directly — connect it with `PortAttachment` and `Route`.
-- **`PairPoint(layer=..., bundle=DiffPair)`** — connects two segments of a
-  differential pair *while still paired*, so each segment can be configured
-  independently. Its `.pair` is the routable `DiffPair`.
+  point. **`.pad`** is the routing endpoint (`Route(some_port, rp.pad, layer)`); you
+  may also pass the `RoutePoint` itself and `Route` unwraps it to `.pad`. **`.port`**
+  is the (separate) netting port. (4.3.0-rc.3+: the old single `.port` that served
+  both roles was split; the routing field was called `.connection_point` before the
+  rename to `.pad`.)
+- **`PairInsertion(layer=..., bundle=DiffPair, invert=False)`** — a differential-pair
+  *insertion* point: transitions two individual, uncoupled traces into a coupled pair.
+  For routing, `.coupled` is a `CoupledRouteConnectionEndpoint` (routes as a pair) and
+  `.uncoupled` is an `UncoupledConnectionEndpoint` whose `.p`/`.n` are the two
+  single-leg routing endpoints; `.port` is the netting `DiffPair`. It can also be
+  netted directly (via `Net`/`TopologyNet`) now, in addition to `PortAttachment` +
+  `Route`. `invert=True` mirrors the chirality (see below).
+- **`PairPoint(layer=..., bundle=DiffPair, invert=False)`** — connects two segments of
+  a differential pair *while still paired*, so each segment can be configured
+  independently. **4.3.0-rc.3+: the old single `.pair` field is gone.** For routing use
+  `.front` and `.back` (each a `CoupledRouteConnectionEndpoint`); for netting use
+  `.port` (the `DiffPair`). `invert=True` mirrors the chirality (see below).
 
 Attach ports with `PortAttachment`, passing the pair as an **ordered list**:
 
@@ -116,13 +133,40 @@ are **positional labels, not net polarity**:
    mirror senses realize; the wrong one realizes with legs wrapped around the
    insertion (geometrically awful). Realized ≠ sensible — check the trace bounds.
 5. The `coupled` side always routes as a pair (`Route(ins1.coupled, ins2.coupled,
-   layer)`); never access `coupled.n`/`coupled.p` individually. Route coupled ends
-   control-point-to-control-point (`.coupled` ↔ `.coupled` / `.pair`), never onto a
-   feed/bundle port.
+   layer)`); never access `coupled.p`/`coupled.n` individually. Route coupled ends
+   control-point-to-control-point (insertion `.coupled` ↔ pair-point `.front`/`.back`,
+   or `.coupled` ↔ `.coupled`), never onto a feed/bundle port.
 
-`PairPoint` has an analogous orientation dependence: its rotation selects which
-side a coupled route may exit from; a wrong-facing point silently doesn't realize.
-Flip by adding 180° to `rotate=` (position unchanged) and re-verify.
+> **4.3.0-rc.3+ — reach for `invert=` before the attachment-order hack.** Chirality is
+> now a first-class constructor argument: `PairInsertion(...)`/`PairPoint(...)` take
+> `invert: bool`, which mirrors the p/n handedness of the control point directly.
+> This is the intended mechanism for the "mirrored attachment orders" trunk fix in
+> point 3 and the "which physical side each leg lands on" problem — flip `invert=`
+> instead of hand-swapping the `PortAttachment` order. `invert=` mirrors handedness
+> only (it does **not** rotate the point; a facing insertion still needs
+> `rotate=180`). The positional-label mechanics above still describe what happens per
+> attachment order; `invert=` is the cleaner lever. Verify realization either way
+> with the `route.traces` assert.
+
+**Coupled-connection rules (4.3.0-rc.3+, from the `controlpoint.py` docstrings).** With
+the routing endpoints now explicit (`PairPoint.front`/`.back`, `PairInsertion.coupled`)
+and chirality carried by `invert=`, the legal coupled connections are:
+
+- **Pair-point → pair-point chain** routes `.front → .back` when *neither or both*
+  endpoints are inverted; to connect an inverted point to a non-inverted one, join
+  `.front ↔ .front` or `.back ↔ .back`.
+- **Insertion → pair-point:** a *non-inverted* insertion's `.coupled` connects to the
+  pair point's `.back`; an *inverted* insertion connects to the `.front`. The two
+  relationships swap if the pair point itself is inverted.
+- **Insertion → insertion** requires exactly *one* of the two insertions inverted.
+
+`invert=` mirrors the control point's chirality (its p/n handedness) *without*
+rotating it — the ASCII diagram in `PairInsertion`'s docstring shows why an
+insertion facing another must be both inverted **and** rotated 180°. `PairPoint`
+also has an orientation dependence: its rotation selects which side a coupled route
+may exit from; a wrong-facing point silently doesn't realize. Flip by adding 180° to
+`rotate=` (position unchanged), or set `invert=True` to mirror handedness, and
+re-verify.
 
 6. **A `PairPoint` → `PairInsertion` trunk additionally requires the two
    endpoints' control points to be attached to DIFFERENT port pairs of the net**
@@ -179,7 +223,10 @@ for index, lane in enumerate(self.escape_lanes):          # a list, iterated
         PortAttachment(order, insertion),
     ])
     self.routes.extend([
-        Route(pair_point.pair, insertion.coupled, lane.spec.deskew_layer),
+        # 4.3.0-rc.3+: pair point exposes .front/.back (not .pair). A non-inverted
+        # insertion's .coupled joins the pair point's .back (see connection rules above);
+        # if a coupled trunk won't realize, try .front or flip a point's invert=.
+        Route(pair_point.back, insertion.coupled, lane.spec.deskew_layer),
         Route(order[0], insertion.uncoupled.n, lane.spec.deskew_layer),   # bound port!
         Route(order[1], insertion.uncoupled.p, lane.spec.deskew_layer),
     ])

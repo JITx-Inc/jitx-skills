@@ -335,25 +335,30 @@ Tags(PinFanoutTag()).assign(r)             # Route is a supported tag target
 
 ## Control points & code-based routes
 
-Stable as of **JITX 4.3**. The module is **`jitx.controlpoint`** (the three
-classes are also re-exported from top-level `jitx`; pre-4.2 alphas used
-`SingleControl` / `InsertionControl` / `PairControl` — those names no longer
-import).
+Surface reshaped in **JITX 4.3.0-rc.3+** (control points split netting from routing;
+`PairPoint.pair` removed). The module is **`jitx.controlpoint`** (the three classes
+are also re-exported from top-level `jitx`; pre-4.2 alphas used `SingleControl` /
+`InsertionControl` / `PairControl` — those names no longer import).
 
-- `Route(source, destination, layer, sketch=None)` — a code-based route between two
-  `Port`/`Pad`/`Via` endpoints (not directional); `sketch` is an optional list of
-  points hinting the routing engine. No per-route width/clearance overrides —
+- `Route(source, destination, layer, sketch=None)` — a code-based route (not
+  directional) between two endpoints, each a `Port` / `Pad` / `Via` /
+  `RouteConnectionEndpoint` / `RoutePoint` (a `RoutePoint` is unwrapped to its
+  `.pad`); `sketch` is an optional routing hint — a plain list of `(x, y)` points
+  (still accepted) or a `Route.Sketch`. No per-route width/clearance overrides —
   single-ended fanout: tag the route; **differential: tag the net** (per-route tags
   deform pair-point transitions).
 - `RoutePoint(layer=..., shape=None, bundle=Port)` — the **single-ended** control
-  point; its `.port` is the routable endpoint.
-- `PairInsertion(layer=..., bundle=DiffPair)` — differential-pair **insertion**
-  point (uncoupled legs on one side via `.uncoupled.{n,p}`, coupled pair on the
-  other via `.coupled`); `PairPoint(layer=..., bundle=DiffPair)` — joins two
-  coupled segments via `.pair`. Both are placed with `.at(point, rotate=)` and
-  wired to ports via `PortAttachment([first, second], control)` — the order is a
-  **positional binding** (`first → uncoupled.n`), and leg routes must target the
-  bound port or they silently don't realize.
+  point; **`.pad`** is the routing endpoint (`.port` is the separate netting port).
+- `PairInsertion(layer=..., bundle=DiffPair, invert=False)` — differential-pair
+  **insertion** point (uncoupled legs on one side via `.uncoupled.{n,p}`, coupled
+  pair on the other via `.coupled`; `.port` nets the pair); `PairPoint(layer=...,
+  bundle=DiffPair, invert=False)` — joins two coupled segments via **`.front`/`.back`**
+  (routing) with `.port` for netting (the old `.pair` field is gone). Both are placed
+  with `.at(point, rotate=)` and wired to ports via
+  `PortAttachment([first, second], control)` — the order is a **positional binding**
+  (`first → uncoupled.n`), and leg routes must target the bound port or they silently
+  don't realize. `invert=True` is the first-class chirality mirror (prefer it over
+  hand-swapping attachment order to fix p/n side).
 
 Routes realize **silently or not at all** — `status: ok` proves nothing. After
 every build, capture and assert `route.traces` on every route (see
