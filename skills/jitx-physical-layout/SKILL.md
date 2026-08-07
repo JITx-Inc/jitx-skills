@@ -413,14 +413,31 @@ are also re-exported from top-level `jitx`; pre-4.2 alphas used `SingleControl` 
   with `.at(point, rotate=)` and wired to ports via
   `PortAttachment([first, second], control)` — the order is a **positional binding**
   (`first → uncoupled.n`), and leg routes must target the bound port or they silently
-  don't realize. `invert=True` is the first-class chirality mirror (prefer it over
-  hand-swapping attachment order to fix p/n side).
+  don't realize.
+
+**Attachment order is ELECTRICAL, not geometric — chirality is `invert=`, never a
+swapped attachment (4.3.0-rc.3+).** Always attach in the canonical order for the
+bundle (`[p, n]`) and express p/n handedness with `invert=True` on the control point.
+This is not a style preference: the linker enforces **per-conductor net consistency**
+(p↔p, n↔n), so an attachment written in the reverse order to "flip" a pair no longer
+produces crossed geometry — it produces a route with no consistent conductor path,
+which **silently does not realize**. Older code that crossed the order to get the
+geometry it wanted still builds `status: ok` and emits nothing. Measured on a real
+migration: **109 of 128 routes dead**, every one of them passing every build gate,
+found only by an external `route.traces` check. If you inherit a design that swaps
+attachment order for chirality, treat every such site as a dead route until proven
+otherwise.
 
 Routes realize **silently or not at all** — `status: ok` proves nothing. After
 every build, capture and assert `route.traces` on every route (see
 `references/geometry-verification.md`). Full binding map, circuit-ownership
 (common-ancestor) rule, explicit-Net requirement, known nested-circuit
 realization bug + the deskew example: `references/control-points.md`.
+
+**A `KeepOut` is not copper.** Like a via it must be a **structural** member (stored
+on `self`) to reach the export, but unlike a via it must **never** be added to a net —
+it carries no conductor. Adding one to a `Net` is a category error the build does not
+reject.
 
 ## Anti-string-hacking
 

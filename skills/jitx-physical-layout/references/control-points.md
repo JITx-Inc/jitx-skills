@@ -168,6 +168,26 @@ may exit from; a wrong-facing point silently doesn't realize. Flip by adding 180
 `rotate=` (position unchanged), or set `invert=True` to mirror handedness, and
 re-verify.
 
+**`invert=` is the ONLY way to express chirality. Reversing attachment order is now a
+dead route, not a mirror.** The linker enforces per-conductor net consistency (p↔p,
+n↔n), so `PortAttachment([pair.n, pair.p], cvg)` — the pre-4.3 idiom for flipping a
+pair — no longer crosses the geometry; it asks for a conductor path that does not
+exist, and the route silently produces nothing while the build still reports
+`status: ok`. The rule to write, and to review against:
+
+```python
+# ALWAYS this, on every lane, whatever the geometry is doing:
+PortAttachment([pair.p, pair.n], cvg)      # canonical, ELECTRICAL order
+cvg = PairInsertion(layer=0, invert=flip)  # chirality lives HERE
+```
+
+Measured on one migration to 4.3.0-rc.3: **109 of 128 routes dead**, all of them
+passing `jitx build`, found only by asserting `route.traces` afterwards. When a design
+predates this rule, crossed attachments are the first thing to look for — and each one
+needs its chirality re-expressed as `invert=`, not merely re-ordered, because which
+endpoint a trunk may exit from (`.front` vs `.back`) is keyed to `invert` per the table
+above.
+
 6. **A `PairPoint` → `PairInsertion` trunk additionally requires the two
    endpoints' control points to be attached to DIFFERENT port pairs of the net**
    (e.g. the pair point on the source component's pair, the insertion on the
