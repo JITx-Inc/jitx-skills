@@ -279,7 +279,9 @@ self.thermal_vias = [via_cls().at(x, y) for (x, y) in via_positions]   # structu
 for via in self.thermal_vias:
     self.GND += via
 
-# Signal vias (escape/deskew): ALSO store the instances, then PortAttachment:
+# Signal vias (escape/deskew): ALSO store the instances, then PortAttachment.
+# ball_positions: compose each pad's frame — visit() + trace.transform * pad.transform
+# (references/geometry-verification.md § Coordinate frames). NEVER pad.transform alone.
 self.sig_vias = [via_cls().at(*pad_xy) for pad_xy in ball_positions]
 self.sig_via_attach = [
     PortAttachment(port, via) for port, via in zip(ports, self.sig_vias)
@@ -316,7 +318,11 @@ self.place(self.x, (1.0, 0.0), relative_to=self.led)
 ```
 
 `.at()` mutates the instance's own `transform`, so the placement is readable on the instance —
-visible to introspection before the design is built. For a **direct descendant** placed in the
+visible to introspection before the design is built — in the **immediate container's** frame, which
+for a direct descendant is exactly the parent frame you placed it in. Reading that transform as a
+**board/global** position is the frame bug, and a pad nests deeper still (landpattern, and one more
+level for a composite): compose down instead — see `references/geometry-verification.md`
+§ Coordinate frames. For a **direct descendant** placed in the
 parent's frame, set the position with `.at()` (chained when you create it, `self.x = Comp().at(x,
 y)`, or `self.x.at(x, y)` if it already exists) — **not** `self.place(self.x, (x, y))`.
 

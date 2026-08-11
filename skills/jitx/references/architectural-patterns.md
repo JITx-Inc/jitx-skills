@@ -105,7 +105,7 @@ for pair in self.bga.TX:
 
 **Why.** "Why isn't this an array of arrays?". Sibling attributes are the failure mode when the underlying collection is homogeneous (same type, same role). Reach for `list` / `dict` / `PinGroup` directly. If you need a programmatic collection, `getattr(self, ...)` is the wrong answer; the right answer is to declare the collection.
 
-If you genuinely need to introspect children (across heterogeneous types, e.g., "give me every pad on this Component"), use JITX's inspection API — never name-reconstruction with `getattr`.
+If you genuinely need to introspect children (across heterogeneous types, e.g., "give me every pad on this Component"), use JITX's inspection API — never name-reconstruction with `getattr`. When you want *positions* out of that walk, compose `trace.transform * element.transform`; an element's own `transform` is local to its immediate container and is not a coordinate on its own (see `jitx-physical-layout/references/geometry-verification.md` § "Coordinate frames").
 
 ---
 

@@ -220,7 +220,14 @@ and breaks the ancestor walk).
 ## Worked example — deskew fan
 
 Attachments and routes accumulate in plain **lists** (not string-keyed dicts);
-vias come from the substrate; legs are routed to their *bound* ports:
+vias come from the substrate; legs are routed to their *bound* ports.
+
+The per-lane pad coordinates (`lane.p_pad` / `lane.n_pad` below) are **composed**, not read
+off `pad.transform` — `PadMapping` resolves port → pad, then `visit` plus
+`trace.transform * pad.transform` gives the coordinate in the frame you want. Raise on an
+unresolved frame rather than skipping, since these lists are consumed positionally. Recipe
+and the composite-landpattern trap: `references/geometry-verification.md`
+§ "Coordinate frames".
 
 ```python
 from jitx.controlpoint import PairInsertion, PairPoint

@@ -111,6 +111,18 @@ If the answer is "outside the owner, copying internals," the finding is `framewo
 
 Patterns where the substrate / routing-structure / framework API is being misused.
 
+### `local-frame-transform-as-position`
+
+**Look for:** a structural element's own `.transform` read as if it were a board/global coordinate — `pad.transform`, `component.transform`, `via.transform` feeding an x/y; a helper that returns pad coordinates without composing (a `_port_pad_xy(pad_mapping, port)` shape); a structural `visit` walk that uses only `element.transform` or only `trace.transform` where the product is meant. Also: a `None`-transform branch that `continue`s instead of raising, feeding a positional consumer like `zip(ports, vias)`.
+
+**Discriminator:** `.transform` is local to the element's **immediate container**. Wrong for anything nested — and a `Component` declaring multiple landpatterns is combined into a *composite* landpattern, so its pads are nested one level deeper than they look. The fix is `trace.transform * element.transform` from a `visit`, which is what the framework does internally (`jitx/landpattern.py::_pad_to_copper`). Resolving port → pad through `PadMapping` is *not* the smell; only the coordinate half is.
+
+**Carve-out:** reading `.transform` is correct when the frame you want *is* the element's immediate parent frame — `self.led.transform` in the circuit that did `self.led = LED().at(x, y)`. Also correct: applying `trace.transform` alone to a **`query`** result, because `query`'s transformers already fold the source element's transform into the trace — the per-target rules (`Route.Trace.shapes` already design-global, `ControlPoint.traces` local) are in `geometry-verification.md`, and flagging those is a false positive.
+
+**Severity:** CRITICAL when the coordinate drives placement or geometry (via positions, escape/fanout targets, keepout bounds). WARNING when it only feeds a log or assert message.
+
+**Rule source:** `jitx-physical-layout/references/geometry-verification.md` § "Coordinate frames".
+
 ### `coplanar-feature-misplaced`
 
 **Look for:** Reference planes, keepouts, or fence definitions bolted onto a routing structure via a tag-based `design_constraint(...)` rule when they belong inside the routing structure's layer entry (`DifferentialRoutingStructure.Layer(...).reference(...).fence(...)`).
@@ -204,4 +216,4 @@ These are general cross-cutting tags that translate cleanly to JITX-Python targe
 - `internal-inconsistency` — the same concept named differently across files in the design.
 - `stale-reference` — code refers to a file / class that no longer exists.
 - `example-shaped-rule` — a constant / function that's overfit to one specific instance (rather than parametric).
-- `compliance-theater` — a claim made without backing evidence (e.g., "datasheet says X" with no page/figure reference; "tested clean" with no test file). Includes a code comment or docstring asserting a fact the code doesn't support ("optimized for HFSS extraction", "matches the reference stackup") — facts not in evidence.
+- `compliance-theater` — a claim made without backing evidence (e.g., "datasheet says X" with no page/figure reference; "tested clean" with no test file). Includes a code comment or docstring asserting a fact the code doesn't support ("optimized for HFSS extraction", "matches the reference stackup") — facts not in evidence. Frame and coordinate claims fall under this too: calling a value `resolved` / `global` / `absolute` obliges the code to show what it resolved *against* — a transform composition, or a realized-geometry check. A docstring that asserts two frames at once (`"local (x, y) … from the resolved transform"`) has stated no verifiable frame at all.

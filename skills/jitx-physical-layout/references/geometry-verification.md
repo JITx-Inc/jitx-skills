@@ -73,19 +73,66 @@ So: **`visit(design, Copper)` does NOT see route/pad/via copper — use `query`.
 Use `visit` when you want the authored objects themselves (e.g. every `Route` to
 assert realization: `for trace, route in visit(rd.root, Route)`).
 
-Both yield `(trace, obj)` where `trace.path` is the ref path and
-`trace.transform` the accumulated transform. Two frame rules that will bite you:
+Both yield `(trace, obj)` where `trace.path` is the ref path and `trace.transform`
+the accumulated transform — read "Coordinate frames" below before you use it.
+
+`query` also takes `opaque=` to stop transformers from firing (e.g.
+`query(root, Copper, opaque=Via | Pad)` to get non-pad copper only) and
+`through=` / `filter=` / `refs=` like `visit`.
+
+## Coordinate frames
+
+**An element's own `transform` is not a position.** `pad.transform`,
+`component.transform`, `via.transform` are each local to that element's *immediate
+container* — read in isolation they are neither board coordinates nor coordinates in
+whatever frame you actually asked for. To get a position, walk to the element and
+compose:
+
+```python
+from jitx import visit
+from jitx.landpattern import Pad
+
+pad_xy: dict[Pad, tuple[float, float]] = {}
+for trace, pad in visit(component, Pad):     # or visit(rd.root, Pad) for design-global
+    if trace.transform is None or pad.transform is None:
+        raise ValueError(f"unresolved frame for pad {trace.path}")
+    pad_xy[pad] = (trace.transform * pad.transform).translation
+```
+
+**Raise, don't skip, on an unresolved frame.** A `continue` here silently drops pads, and
+the consumers of these coordinates are positional — `zip(ports, self.sig_vias)` in an
+escape fan will happily pair port *n* with the via for port *n+1*. Key the result by the
+`Pad` object, not by an assembled name (see the base skill's anti-string-hacking rules),
+and let `PadMapping` carry you from port → pad → coordinate.
+
+`trace.transform` is everything *above* the element and excludes the element's own, so
+the composition is always `trace.transform * element.transform`. The frame you land in
+is the frame of **the root you passed to `visit`**. This is exactly what the framework
+does internally (`jitx/landpattern.py::_pad_to_copper`).
+
+**Pads specifically.** `PadMapping` (`component.mappings`) resolves port → pad and is
+the right tool for that half; the *coordinate* is the half that needs composing. A
+`Component` declaring more than one landpattern is silently combined into a single
+**composite landpattern**, and each `Pad.transform` is then local to its own
+sub-landpattern. Verified on a two-landpattern component whose second landpattern sits
+at `(5, 3)`: for a pad authored `.at(2, 0)` inside it, `pad.transform` alone reads
+`(2.0, 0.0)` while the composed frame is `(7.0, 3.0)` — and the pad's realized copper
+lands there too (`rd.query(Copper)` bbox centre `(7.0027, 3.0)`; the 0.0027 is the
+circle-to-polygon bbox artifact, not a frame difference). Pads in the *flat*
+landpattern read identically either way. So `pad.transform` alone is right for a single flat landpattern and
+silently wrong for a composite, which is exactly what makes it dangerous: it passes
+every test you write against a simple part. Don't special-case it — always compose.
+
+`trace.transform` may be a `Placement` (a `Transform` carrying `side`), which already
+accounts for bottom-side mirroring — don't hand-roll that. Either transform may be
+`None` when the frame couldn't be determined; guard before composing.
+
+Two realized-geometry frames that will also bite you:
 
 - **`Route.Trace.shapes` are already DESIGN-GLOBAL** (verified against export
   output) — do not re-apply the query transform to them.
 - **`ControlPoint.traces` shapes are LOCAL to the control point** — apply the
   query `trace.transform` (it correctly composes nested-circuit placements).
-- For `visit` generally, `trace.transform` excludes the found element's own
-  transform (`Via`, `Component`): compose `trace.transform * element.transform`.
-
-`query` also takes `opaque=` to stop transformers from firing (e.g.
-`query(root, Copper, opaque=Via | Pad)` to get non-pad copper only) and
-`through=` / `filter=` / `refs=` like `visit`.
 
 ## Net resolution
 
