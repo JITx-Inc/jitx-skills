@@ -521,6 +521,12 @@ Use `.narrow()` for standard narrow-body SOICs. Use `.package_body()` for wide-b
   - Multiple ports map to same pad
   - Pin 1 is not the first declared port
 
+A `PadMapping` resolves port → pad, and nothing more. It carries **no coordinate** — and a component
+declaring more than one landpattern is combined into a single *composite* landpattern, so each
+`Pad.transform` is local to its own sub-landpattern rather than to the component. Pad coordinates
+must be composed from a `visit` (`trace.transform * pad.transform`), never read off `Pad.transform`
+alone; see `jitx-physical-layout/references/geometry-verification.md` § "Coordinate frames".
+
 ## Verification Process
 
 ### Step 4: Test Harness
