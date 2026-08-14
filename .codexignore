@@ -23,3 +23,6 @@ SKILLS_PLAN.md
 # Anchored to repo root (leading /) so shipped skills/**/scripts/ helpers are NOT excluded.
 /scripts/
 /.claude-plugin/
+
+# Skill eval harnesses are repo-only dev tooling, not shipped skill content.
+evals/
