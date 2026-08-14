@@ -430,6 +430,10 @@ velocity = phase_velocity(4.2)  # returns ~1.46e11 mm/s
 
 **Other routing-structure units:** `insertion_loss` is dB/mm; `pair_spacing` (differential) is the edge-to-edge gap between P and N.
 
+### From a fab impedance table
+
+One structure per controlled impedance target, with a layer entry for every layer/geometry the table lists — the same target needs a different width on surface microstrip than on inner stripline, keyed by conductor index (see the fab-CSV schema's `IMPEDANCE` conventions). Include neck-down and uncoupled-region entries where the table quotes them, and only there — never borrow a neck geometry from another row. Rows with no controlled target are documentation, not structures.
+
 ### symmetric_routing_layers()
 
 Define top half only — mirrors to bottom using `-layer - 1` index:
