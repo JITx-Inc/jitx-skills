@@ -1,6 +1,6 @@
 ---
 name: jitx-substrate-modeler
-description: "Use when the user asks to create a substrate, define a stackup, add via definitions, set up routing structures, configure impedance control, define differential pairs, set fabrication rules, ring a shape with fence vias, fence a pour outline, fence an antipad, model a PCB layer structure, or model a substrate from a fabrication house's stackup report (CSV, PDF, or quote). Ask which fabrication house is targeted. If JLCPCB is confirmed, use available jitxlib.jlcpcb predefined substrates; otherwise create a custom substrate. Covers Stackup, Symmetric, materials, vias, routing structures, differential routing structures, NeckDown, via fencing, fenced pours, geometry, reference planes, and FabricationConstraints."
+description: "Use when the user asks to create a substrate, define a stackup, add via definitions, set up routing structures, configure impedance control, define differential pairs, set fabrication rules, ring a shape with fence vias, fence a pour outline, fence an antipad, model a PCB layer structure, model a substrate from a fabrication house's stackup report (CSV, PDF, or quote), or verify a substrate against its source report. Ask which fabrication house is targeted. If JLCPCB is confirmed, use available jitxlib.jlcpcb predefined substrates; otherwise create a custom substrate. Covers Stackup, Symmetric, materials, vias, routing structures, differential routing structures, NeckDown, via fencing, fenced pours, geometry, reference planes, and FabricationConstraints."
 ---
 
 # JITX Substrate Modeler
@@ -83,6 +83,20 @@ Everything goes in **one Python file** per substrate:
 #    - DifferentialRoutingStructure instances
 ```
 
+## Source Documents
+
+When the substrate comes from a source document — a fab's stackup report or quote, a laminate datasheet, a written spec — the document is **ground truth**: transcribe it, and trace every value in the substrate to a row, table cell, or field of the source. The only derived values are this skill's named engineering defaults (e.g. the reference-plane width default), each labeled at its call site and in the completeness check's Provenance row; anything else the source doesn't state is a question for the user, not an estimate. Parse the document and restate it to the user before writing code — layer count and construction, each dielectric's Dk/Df and their quoted frequency, foil weights and Rz, the via inventory, the impedance targets, the fab rules — and flag anything ambiguous; everything downstream is a transcription of that reading. Where the source disagrees with this skill's reference tables (a Dk, an Rz), the source wins. A format not listed below (a PDF report, an HFSS 3D Layout stackup XML) gets the same treatment: find the document's own structure, then map it onto the sections of this skill.
+
+### Fab stackup report CSV
+
+The JITX-recommended layout for a fab's impedance-controlled stackup report as CSV — the JumpStart kits ship one, and a fab's own export can be annotated into it. It is organized as `SECTION` blocks: `DOCUMENT` (quote metadata, board size, thickness totals, tolerances, finishes, the primary-units declaration), `REVISION_HISTORY`, `MATERIALS_DIELECTRIC`, `MATERIALS_COPPER`, `STACKUP`, `VIAS`, `IMPEDANCE`, `FAB_RULES`, `NOTES`. A differently shaped export gets mapped onto these concepts, not forced through this parsing. Conventions that matter:
+
+- **Dual unit columns.** Dimensions carry `_mil` and `_mm` columns; the schema declares the mm values controlling where the two disagree (JITX is mm-native). Some rows populate only one column, so parse per cell, not per column.
+- **`FAB_RULES` maps by the `JITX_attribute` column, not row order.** A row naming an attribute maps onto a mandatory `FabricationConstraints` field (see Fabrication Constraints for the full set). A row with an empty `JITX_attribute` is a capability limit (drill minimums, aspect-ratio ceilings, stacked-microvia counts, minimum dielectric between coppers): read it as written and check it by hand — some state an `N:1` string or a bare count, so they must not go through the same numeric parsing as the mappable rules. See "Capability limits and derived checks" under Fabrication Constraints.
+- **`IMPEDANCE` quotes each controlled target once per geometry** — surface microstrip and inner stripline need different widths for the same impedance — with the modelled `eps_eff`, the loss, and a `Ref_layers` column naming that line's reference planes. A row with `Controlled = No` is the fab's default line/space: documentation, not a routing structure.
+- **`NOTES` states the depth basis per drill type** (laser and mechanical depths are not measured the same way) — read it before deriving any aspect ratio.
+- **`REVISION_HISTORY` is the re-issue signal.** On a revised report, re-derive everything that is arithmetic over a changed row (annular ring, aspect ratio) and re-run the capability hand-checks rather than carrying stale figures.
+
 ## Materials
 
 Set properties as **class attributes**. Thickness goes on the class (fixed-thickness materials like copper foils) **or** is passed at instantiation (per-stackup dielectric thickness) — **never both**: `Material.__init__` raises `ValueError` if thickness is set as a class attribute and also passed to the constructor.
@@ -116,6 +130,12 @@ class CopperHalfOz(Conductor):
 ```
 
 **`Conductor.roughness` is slated for deprecation — the durable home for roughness data is the material docstring.** Fab reports state roughness as Rz in **micrometres**, matte and drum side separately; record both sides in the docstring in the source's own units (the matte side faces the dielectric and dominates conductor loss) so simulation-side tools can consume them. On versions that still carry the field, you may also set the scalar (read as mm: matte-side Rz ÷ 1000) — but don't build logic on it, and never drop the source's roughness data just because the field is going away.
+
+**Unit conversions — JITX is mm throughout; convert as you transcribe:**
+
+- **mils → mm**: × 0.0254. When a source gives both units, follow the unit it declares controlling; absent a declaration, prefer the mm figure (JITX is mm-native) and use the other column as a cross-check.
+- **Copper weight (oz) → mm**: prefer the source's **finished** thickness where it states one — outer layers gain panel plating past the nominal foil weight (1 oz ≈ 0.035 mm base foil), and `Conductor` has no copper-weight field, so the finished thickness is the number the stackup actually sums to. Record the nominal weight in the docstring.
+- **Rz (µm) → mm**: ÷ 1000, matte side, if setting the deprecated `roughness` scalar (see above).
 
 **Terminology:** `dielectric_coefficient` is the JITX attribute name for Dk (dielectric constant, also called relative permittivity or Er). `loss_tangent` is the JITX attribute name for Df (dissipation factor). Datasheets typically specify Dk and Df at a given frequency (e.g., 1 GHz or 10 GHz).
 
@@ -366,6 +386,8 @@ class ModeledVia(Via):
     }
 ```
 
+Add `models=` only from simulated or measured data. A fab report contains no electrical models — with no `models=`, JITX inserts placeholders that correctly flag SI constraints until simulated ones exist. That is the right signal, not a gap to paper over with invented numbers.
+
 ## Routing Structures
 
 ### Single-Ended (RoutingStructure)
@@ -386,6 +408,8 @@ RS_50 = RoutingStructure(
 
 ### Velocity Calculation
 
+**When the source's impedance table quotes a modelled `eps_eff`, use it directly — `phase_velocity(eps_eff)`.** The fab's field-solved figure already includes what closed forms only approximate (a coated microstrip's eps_eff folds in the soldermask and varies with line width), so no single formula reproduces it. The formulas below are fallbacks for when no modelled figure exists:
+
 ```python
 from jitxlib.physics import phase_velocity
 
@@ -403,6 +427,8 @@ velocity = 1.5e8  # m/s — DO NOT USE
 # CORRECT — always use phase_velocity() which returns mm/s
 velocity = phase_velocity(4.2)  # returns ~1.46e11 mm/s
 ```
+
+**Other routing-structure units:** `insertion_loss` is dB/mm; `pair_spacing` (differential) is the edge-to-edge gap between P and N.
 
 ### symmetric_routing_layers()
 
@@ -590,6 +616,13 @@ class MyFabRules(FabricationConstraints):
 ```
 
 Custom attributes are allowed for fab-house-specific rules that are genuinely numeric lengths in mm (not engine-enforced, but shaped like the 19 real fields). **Capability limits that are not mm lengths — `N:1` aspect-ratio ceilings, stacked-microvia counts, available-on-request options — go in the class docstring, not as class attributes**: an unenforced count sitting in the same namespace as engine-enforced floats reads as enforced when it isn't. `FabricationConstraints` declares exactly 19 fields; a missing mandatory field fails translation.
+
+### Capability limits and derived checks
+
+Capability limits are verified by review and by tests against the area they govern — drill and aspect-ratio limits against the via inventory, minimum-dielectric limits against the stackup — the engine does not enforce them. The two standard derivations:
+
+- **Annular ring** = `(pad − hole) / 2`, checked against the source's minimum annular ring.
+- **Aspect ratio** = drill depth ÷ finished hole diameter, **on the depth basis the source states for that drill type** — laser depths are typically the ablated dielectric span, mechanical depths the full drilled depth; one convention applied to both gives wrong ratios.
 
 ## Design Constraints (Tags)
 
@@ -835,24 +868,63 @@ class SubstrateB(Substrate, MyVias):
     constraints = RulesB()
 ```
 
+## Smoke-Test Wiring (Board and Design)
+
+The minimum design that proves a substrate builds. Full Design assembly is the base `jitx` skill's territory; the substrate-relevant facts are: the substrate binds on the `Design`, not the `Board`, and `Board` holds only `shape` and `signal_area` — via availability is not a Board concern, because every `Via` class on the substrate registers automatically off the substrate walk:
+
+```python
+from jitx.board import Board
+from jitx.design import Design
+from jitx.shapes.composites import rectangle
+
+# The source's stated board size, when it gives one (DOCUMENT section).
+BOARD_W, BOARD_H, CORNER_R = 80.0, 80.0, 4.0
+EDGE_KEEPOUT = MyFabRules.min_copper_edge_space
+
+class MyBoard(Board):
+    shape = rectangle(BOARD_W, BOARD_H, radius=CORNER_R)
+    # Inset by the fab rule rather than a picked number: the engine enforces
+    # min_copper_edge_space on copper anyway, so the placement/routing area
+    # stays consistent with what it will enforce.
+    signal_area = rectangle(BOARD_W - 2 * EDGE_KEEPOUT, BOARD_H - 2 * EDGE_KEEPOUT,
+                            radius=CORNER_R - EDGE_KEEPOUT)
+
+class MyDesign(Design):
+    board = MyBoard()
+    substrate = MySubstrate()
+    circuit = MyCircuit()  # an empty Circuit suffices for a substrate smoke test
+```
+
 ## Layer Index Convention
 
+- Indices count **conductors only** — dielectrics and soldermask are not indexed. For an N-copper stackup: `0`…`N-1` from the top, `-1`…`-N` from the bottom (20 copper: `0` is L1, `-1` is L20).
 - `0` / `Side.Top` = top conductor
 - `1` = second conductor from top
 - `-1` / `Side.Bottom` = bottom conductor
 - `-2` = second from bottom
 - `symmetric_routing_layers` maps layer `i` to `-i - 1`
 
+## Verifying a Substrate Against Its Source
+
+For a report-driven substrate, back the completeness check with tests that **parse the source and compare it to the built design** — layer order and names, thicknesses, Dk/Df, via spans and geometry, every `FabricationConstraints` field, per-layer widths, reference planes — so a re-issued report fails the suite instead of drifting past it. Compare reference-plane *identities* against the source; assert any skill-default widths against the default's own formula (3× dielectric height) — the source never stated them, so testing them against the source would be circular.
+
+**Tests must subclass `jitx.test.TestCase`, never plain `unittest.TestCase`** (verified on jitx 4.2.2–4.4.0rc1). It activates the JITX instantiation context, and needs no runtime — instantiating a design works offline. Without the context the design does not error, it **reads as empty**: `decompose(stackup, Material)` returns zero layers and raises nothing, and iterating `stackup.conductors` hangs. Defend in depth:
+
+- assert the layer count against the source's row count **before** any per-row comparison, and
+- pass `strict=True` to every `zip` of source rows against design elements.
+
+A suite that zipped a full report against an empty layer list and compared nothing at all would otherwise report green.
+
 ## Workflow
 
-1. **Gather specs** — stackup cross-section, dielectric properties (Dk, Df), copper weights, fab house rules, impedance targets
+1. **Gather specs** — from the source document when one exists (see Source Documents — it is ground truth): stackup cross-section, dielectric properties (Dk, Df), copper weights, fab house rules, impedance targets
 2. **Define materials** — `Dielectric` and `Conductor` subclasses with Dk/Df/roughness
 3. **Build stackup** — explicit `Stackup` whenever the source names both halves (fab reports do); `Symmetric` only for boards symmetric by construction
 4. **Set fab constraints** — `FabricationConstraints` with all manufacturing rules
 5. **Define vias** — all via types needed (through, micro, stacked, blind, buried, backdrilled)
 6. **Add routing structures** — `RoutingStructure` and `DifferentialRoutingStructure` for each impedance target
 7. **Add design rules** — Tags and `design_constraint()` for clearances if needed
-8. **Verify** — `pyright` type check, then `jitx build` with a test design (sequence builds — don't parallelize against the same project; see `jitx/SKILL.md` "Build Safety"), then fill the **Substrate completeness check** below. No filled block, no "done".
+8. **Verify** — `pyright` type check, then `jitx build` with a test design (sequence builds — don't parallelize against the same project; see `jitx/SKILL.md` "Build Safety"); for a report-driven substrate add source-driven tests (see "Verifying a Substrate Against Its Source"); then fill the **Substrate completeness check** below. No filled block, no "done".
 
 ## Substrate completeness check — run before calling it done
 
