@@ -1,0 +1,17 @@
+// Routing fixtures for jitx-substrate-modeler: should-trigger / should-not-trigger phrasings.
+// Positives paraphrase real user phrasing, including the jumpstart-kit shape
+// ("model this substrate from the csv"); negatives are near-misses that share
+// substrate vocabulary but belong to a sibling skill.
+{"intent": "model this substrate from the csv", "expected_skill": "jitx-substrate-modeler"}
+{"intent": "Turn this fab stackup report into a JITX substrate — 20 layer HDI, the PDF is from our fab's quote", "expected_skill": "jitx-substrate-modeler"}
+{"intent": "define a 6-layer JLCPCB stackup with 100 ohm diff pairs", "expected_skill": "jitx-substrate-modeler"}
+{"intent": "set up impedance controlled routing structures for DDR4 on layers 3 and 5", "expected_skill": "jitx-substrate-modeler"}
+{"intent": "add stacked microvia definitions L1-L3 and a buried via to the substrate", "expected_skill": "jitx-substrate-modeler"}
+{"intent": "i need fence vias ringing the antipad outline on my RF board", "expected_skill": "jitx-substrate-modeler"}
+{"intent": "what fab rules should I set for a 0.35mm pitch BGA board at JLC?", "expected_skill": "jitx-substrate-modeler"}
+// Negatives: substrate-adjacent but another skill's lane.
+{"intent": "place vias to fan out this BGA escape and route the escapes", "expected_skill": "jitx-physical-layout"}
+{"intent": "add a ground pour on layer 2 and stitch it to the GND net", "expected_skill": "jitx-circuit-builder"}
+{"intent": "constrain the PCIe diff pairs to 5ps skew and 85 ohm with reference planes", "expected_skill": "jitx-interconnect-constraints"}
+{"intent": "model this part from the datasheet — QFN-48, thermal pad", "expected_skill": "jitx-component-modeler"}
+{"intent": "export the board stackup to a STEP file for the ME team", "expected_skill": "jitx-mechanical"}

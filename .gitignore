@@ -1,5 +1,9 @@
 .socket.jitx
 SKILLS_PLAN.md
+
+# Eval run outputs (receipts, raw judge output) are regenerable local
+# artifacts — only the harness (cases, contract, routing fixtures) is tracked.
+skills/*/evals/receipts/
 .DS_Store
 __pycache__/
 .venv/
