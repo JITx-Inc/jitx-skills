@@ -160,7 +160,7 @@ Worked examples:
 | 49.9 kΩ | 49.9 kΩ | 499 | 2 | `4992` |
 | 9.99 kΩ | 9.99 kΩ | 999 | 1 | `9991` |
 | **9.995 kΩ** | **10.0 kΩ** | **100** | **2** | **`1002`** — carries; not `9995`, not `9991` |
-| 2.20 MΩ | 2.20 MΩ | 220 | 4 | `2204` |
+| 2.21 MΩ | 2.21 MΩ | 221 | 4 | `2214` |
 
 **Complete ordering examples:**
 
@@ -169,7 +169,7 @@ Worked examples:
 | `APR-0603FK-1002T` | 0603 case, ± 1 %, ± 100 ppm/°C, 10.0 kΩ, 7-inch paper tape |
 | `APR-2512JL-1000R` | 2512 case, ± 5 %, ± 200 ppm/°C, 100 Ω, 13-inch paper tape |
 | `APR-0402FK-4992R` | 0402 case, ± 1 %, ± 100 ppm/°C, 49.9 kΩ, 13-inch paper tape |
-| `APR-2010DM-2204E` | 2010 case, ± 0.5 %, ± 50 ppm/°C, 2.20 MΩ, 7-inch embossed tape |
+| `APR-2010DM-2214E` | 2010 case, ± 0.5 %, ± 50 ppm/°C, 2.21 MΩ, 7-inch embossed tape |
 | `APR-0075JL-1004T` | 0075 case, ± 5 %, ± 200 ppm/°C, 1.00 MΩ, 7-inch paper tape |
 
 Reference designator prefix: **R**.
