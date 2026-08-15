@@ -7,7 +7,7 @@ description: "Create JITX Python component code from datasheets, KiCad footprint
 
 Generate JITX Python component code from datasheets, user-provided KiCad footprints, or specifications. Data can come from multiple sources — always prefer user-provided data over automated lookups.
 
-A component task is **not complete** until the **Component completeness check** block (near the end of this skill) is filled out, row by row, in your completion summary. Prose that paraphrases some of its rows is not the block. It is the component-specific expansion of the base `jitx` skill's task-acceptance block, not a rival to it — embed it under that block's `Checks run` field rather than producing two competing completion artifacts. No filled block, no "done".
+A component task is **not complete** until the **Component completeness check** block (near the end of this skill) is filled out, row by row, **as a written artifact alongside the code** — a `COMPLETION.md` next to the components, or the equivalent your project already uses. Prose that paraphrases some of its rows is not the block, and neither is a filled block that exists only in the chat you are having: the next person to open the directory, human or agent, sees the files. A block nobody can find later did not happen. It is the component-specific expansion of the base `jitx` skill's task-acceptance block, not a rival to it — embed it under that block's `Checks run` field rather than producing two competing completion artifacts. No filled block, no "done".
 
 ## No fabrication — source authority for geometry and pinout
 
@@ -710,8 +710,10 @@ Landpattern: <generator + args> from <page/figure>; <N> pads; dimensions transcr
         body <L/D> <W/E> <H/A>, <pitch | n/a>, lead/termination <length> <width>,
         each cited; Toleranced from the drawing's min/max, not nominal-only
 Library defaults: generator/table defaults relied on: <list | none> — each checked
-        against the source's own dimensions where the source publishes them;
-        agreements <list>, overrides <item + reason | none>
+        against the source where the source speaks to it; agreements <list>,
+        overrides <item + reason | none>
+        Density level: <A | B | C> — <set explicitly because the source asks for it |
+        left at the JITX default C (IPC least), and the source states no preference>
 Value / BOM: .value renders as "<string>" — asserted in a test | n/a (<reason>)
 No-field walk: datasheet-stated facts with no JITX field, recorded in the docstring: <list>
 Provenance: values traceable to no datasheet page: NONE | <list + the labeled rule backing each>
@@ -728,6 +730,8 @@ Row-by-row intent — the *why*, so the block stays evidence rather than ceremon
 - **Pins** — count first, then compare row by row. A ports-vs-pads mismatch is the one component error the build reliably catches; everything below this row is the class of error the build does not catch.
 - **Landpattern** — dimensions come from the mechanical drawing, not the overview page or the ordering table, and carry the drawing's tolerances. Where the generator could not express the package, the fallback and its reason belong here.
 - **Library defaults** — a generator default is a convenience, not an authority. Wherever the datasheet publishes the same dimension, transcribe it anyway and check the two against each other; where they disagree, override from the datasheet and say so. The whole risk of taking a default is that nobody transcribed the number that would have caught a bad one. A default you took without checking is indistinguishable, in the output, from one you verified.
+
+  **Defaults are not only dimensions.** The one that gets missed is **density level**, because it never appears as a number in your code. JITX's `DensityLevelContext` global default is `DensityLevel.C` — IPC *least* material condition, the tightest of the three (verified on jitx 4.2.2–4.4.0rc3; on `BigRectangularLeads` that is a 0.15 mm toe fillet and a **negative** 0.05 mm side fillet, against 0.35 / 0.0 at `B` and 0.55 / 0.05 at `A`). A datasheet that recommends land patterns "per IPC-7351 **nominal** density" is asking for `B`, and taking the default silently gives it something else. Read what the source asks for and set it explicitly — `DensityLevel` from `jitxlib.landpatterns.ipc`, either on the generator or via the surrounding context — or state in this row that the source expresses no preference and the default stands.
 - **Value / BOM** — no build, type check or land-pattern test looks at the rendered value string. If this row says anything other than an asserted literal, nothing is checking what the BOM will print.
 - **Provenance** — if the datasheet doesn't state a value, ask the user or document the omission. Never invent a number to satisfy a type checker or complete a table; suppress the type error with a comment saying why instead.
 
