@@ -40,6 +40,11 @@
       "cmd": "cd <output> && jitx build --dry <target>"
     },
     {
+      "text": "the completion block was written to <output>/COMPLETION.md, not only reported in chat",
+      "check": "deterministic",
+      "cmd": "test -s <output>/COMPLETION.md"
+    },
+    {
       "text": "every mechanical dimension in the file traces to a cited datasheet page and figure, and none is a value the model could have written from memory — spot-check span, pitch, lead length and both thermal-pad dimensions against the drawing",
       "check": "judge"
     },

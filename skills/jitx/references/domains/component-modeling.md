@@ -34,6 +34,23 @@
 
 ---
 
+## Two-Terminal Chip Components (Additional)
+
+Chip resistors, MLCCs, chip inductors, ferrite beads. Run the base Component checklist above FIRST,
+then verify these — each is a failure that leaves a land pattern valid, building, and wrong:
+
+- [ ] Size key matched to the standard chip table by body L × W, not by the vendor's size label
+- [ ] Termination length taken from the band dimensioned on the **seating plane**, not the end-face
+      wrap-up band
+- [ ] Where the standard table's dimensions were used, they are asserted against the datasheet per
+      size, with any override commented
+- [ ] Density level set to what the datasheet asks for, or the default recorded as deliberate — the
+      JITX global default is `DensityLevel.C` (IPC least), not nominal
+- [ ] Two ports declared in pad order; standard two-pin symbol, not a `BoxSymbol`
+- [ ] `.value` renders as the value asked for, asserted in a test
+
+---
+
 ## MCU / FPGA Components (Additional)
 
 Run the base Component checklist above FIRST, then verify these:

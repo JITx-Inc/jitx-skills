@@ -56,6 +56,16 @@
       "cmd": "cd <output> && python3 -m pytest -q -k 'value_label or label or renders' && python3 <skill>/evals/checks/float_noise.py <output>"
     },
     {
+      "text": "density level is addressed, not silently defaulted — the resistor fixture asks for IPC-7351 nominal (DensityLevel.B) and JITX's global default is DensityLevel.C (IPC least), so the code must either set it explicitly or say in the completeness block why the default stands",
+      "check": "deterministic",
+      "cmd": "grep -rqE 'DensityLevel|density_level' <output> --include='*.py' || grep -qiE 'density' <output>/COMPLETION.md"
+    },
+    {
+      "text": "the completion block was written to <output>/COMPLETION.md, not only reported in chat",
+      "check": "deterministic",
+      "cmd": "test -s <output>/COMPLETION.md"
+    },
+    {
       "text": "the 2512 land pattern is not built from the standard table's 2.0 mm termination band — the realized pad extent along the part axis must reflect the fixture's 0.60 mm band",
       "check": "judge"
     },
