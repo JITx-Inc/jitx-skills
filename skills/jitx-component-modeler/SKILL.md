@@ -394,6 +394,8 @@ if size not in DIMENSIONS:
 
 Validate the **cross-axis** rules too, not only the individual ones. The combinations a catalog does not offer — a tolerance grade available at only one temperature coefficient, a packaging code available on only two sizes, a dielectric absent from the smallest case — are where a generated part number turns into a part nobody sells, and each axis on its own looks fine.
 
+**Key a coded axis on the datasheet's own code, not on a float.** A tolerance table maps `F` to ±1 %, so a `dict[float, str]` keyed on `0.01` makes the public constructor depend on float equality — `1/100` and `0.010000000000000002` are different keys, and the failure is a spurious "unsupported tolerance". Take the code as the argument, or key the dict on it, and convert to a number for display only.
+
 **Put the checks where they will actually run.** Validation reached only through `__init__` does nothing outside a JITX instantiation context, because `__init__` does not run there — see "Verifying a component with tests". A pure classmethod that builds and validates the part number, which `__init__` then calls, runs in both places and is the more testable shape.
 
 ### Value-code encoders — round before you encode
@@ -675,6 +677,8 @@ class TestDesign(SampleDesign):
     class circuit(jitx.Circuit):
         dut = Device()
 ```
+
+**Put the harness where `jitx find` can see it.** The CLI's project scanner imports candidate modules by their top-level name, so a design that only exists inside a `tests/` package — or in any directory the project doesn't make importable — is not discovered, and `jitx find` reports `designs: []` with a `ModuleNotFoundError` per file rather than saying the design is missing. Confirm with `jitx find` before `jitx build`, and **take the build target verbatim from what `jitx find` prints** rather than composing it from the module path yourself. A `jitx.test.TestCase` suite is the offline check; it does not substitute for the build, and a design the CLI cannot find has not been built.
 
 ### Verifying a component with tests
 
