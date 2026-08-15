@@ -1,0 +1,31 @@
+# Eval contract for jitx-component-modeler.
+# The dimensions mirror the SKILL.md "Component completeness check" categories —
+# the skill's own definition of what a good component has is the rubric its
+# outputs are judged against. That block cites, rather than restates, the base
+# skill's jitx/references/domains/component-modeling.md checklist, so the
+# checklist keeps a single owner and the block stays the completion gate.
+goal: |
+  An engineer hands the skill a datasheet — one named part, or a manufacturer's whole
+  catalog family — and gets back JITX component code in which every dimension, pin label
+  and pad assignment traces to a cited page or figure of that datasheet: the right
+  land-pattern generator, one Port per physical pin, library-table defaults checked against
+  the source rather than assumed, and for a parameterized family the vendor's own value and
+  part-number grammar, reproduced against the datasheet's own worked ordering examples.
+  Excellent = a reviewer can put the generated file next to the datasheet and reconcile it
+  figure by figure, with nothing left over and nothing invented — and a weaker agent model
+  (customers run Sonnet-class agents and tools like Devin) still gets there by following the
+  skill, because the skill carries the checks rather than assuming a strong model.
+dimensions:
+  - "SOURCE_AUTHORITY — does every dimension, pin label and pad assignment cite the datasheet page or figure it came from, with nothing written from memory, 'typical', 'approximate' or 'refine later', and no library-table default accepted where the source publishes the number?"
+  - "PIN_COMPLETENESS — one Port per physical pin, pad or ball including NC pins that have pads and the thermal pad; datasheet-primary names; incrementing names as indexed arrays rather than sibling attributes; no duplicates; an explicit PadMapping wherever declaration order is not pad order or a pad is shared?"
+  - "LANDPATTERN_FIDELITY — correct generator for the package family; dimensions from the mechanical drawing as Toleranced min/typ/max rather than bare nominals; thermal pad written as rectangle(E2, D2) with paste subdivision where the area warrants it; termination or lead extents taken from the band the drawing dimensions on the seating plane; documented constructor signatures only, no invented parameters?"
+  - "PARAMETERIZATION_DISCIPLINE — for a family: fail-fast validation placed where it actually runs, messages that list the valid options, round-before-encode so decade carries propagate, per-vendor tables and part-number grammar kept unshared, shared helpers extracted only once a second consumer exists. For a single part: constructor arguments validated, and no parameterization invented beyond what the datasheet offers."
+  - "VERIFICATION_INTEGRITY — does the code parse, type-check and build; do tests subclass jitx.test.TestCase rather than plain unittest.TestCase; is a direct construction wrapped in a substrate context where the generator needs one; is each datasheet worked ordering example cross-checked; and is every library-table default the code relies on asserted against the source per size?"
+  - "BOM_METADATA_FIDELITY — mpn, manufacturer, datasheet, reference_designator_prefix and value all set and correct, including the human-readable value label that no build, type check or land-pattern test ever looks at?"
+hard_fails:
+  - "A dimension, pin label or pad assignment on a part with a real MPN that traces to no cited datasheet page or figure and carries no user-recorded authorization for a generic placeholder (a fabricated value). This is the failure the skill's no-fabrication rule exists to prevent. A parameterized catalog family computing its MPN from a transcribed ordering scheme is NOT this — the datasheet is still the source for every table it holds."
+  - "A library-table default (SMT_CHIP_DEFS, a generator default, a standard lead profile) relied on without being checked against the source's own dimensions, where the source publishes them."
+  - "Fail-fast validation written where it cannot run — outside the instantiation context — or negative tests that pass because nothing was ever constructed."
+  - "The generated code fails Python syntax or type checking, when the environment can run those checks."
+  - "The component is presented as complete without the SKILL.md Component completeness check block."
+  - "The component fails jitx build when a build environment is available; an unavailable environment must be declared as an open item in the completion block, never silently skipped."

@@ -1,0 +1,66 @@
+{
+  "name": "lm1117mp-son8-thermal-pad",
+  "prompt": "model the TI LM1117 in the 8-pin WSON package from the datasheet — it's got a thermal pad",
+  "inputs": {
+    "datasheet_url": "https://www.ti.com/lit/ds/symlink/lm1117.pdf",
+    "notes": "This case is the skill's original lane — one named IC from a real manufacturer PDF — and it exists so that absorbing parameterized-family instruction into SKILL.md cannot regress that lane invisibly. It is deliberately the ONLY network-dependent case: the family case is offline and synthetic, and this one carries the path the family case cannot, namely scripts/extract_pages.py against a real multi-page PDF where the mechanical drawing has to be located before it can be read. Preconditions, and the reason this case is not part of the offline gate: the runner needs network reach to ti.com and pymupdf installed. If the URL is unreachable or serves non-PDF content, record 'not run: datasheet unreachable' rather than substituting a distributor mirror — a mirror is a different document, and mirrors are exactly where bot-block HTML arrives under a .pdf name. The datasheet covers several packages; the skill's own rule is to ask which, so a runner that silently picks one has already failed SOURCE_AUTHORITY before any dimension is written.",
+    "offline": false
+  },
+  "reference": {
+    "file": "evals/cases/reference/texas_instruments_LM1117MP_reference.py",
+    "notes": "Verbatim copy (79 lines) of a shipped LM1117MP component model. It shows one known-good shape — SON generator with LeadProfile/SONLead, RectanglePackage, a thermal pad with WindowSubdivide paste subdivision, a BoxSymbol with power routed down via Column, and a PadMapping tying the output to three lead pads plus thermal_pads[0] — not the only acceptable one. Judges verify the candidate against the datasheet first. Keep runner directories free of this file.",
+    "excluded_from_runner": true
+  },
+  "runner_models": [
+    "sonnet"
+  ],
+  "runner_rationale": "Same rationale as the family case: customers drive this skill with mixed-strength agents, so the eval runs the skill under a Sonnet-class runner and holds the judges at frontier tier. This case additionally probes whether the skill's no-fabrication ladder binds a weaker model that has seen thousands of LM1117 land patterns in training and will otherwise write one from memory.",
+  "expected_output": "A single component file under a components/<category>/ folder: mpn, manufacturer, datasheet and reference_designator_prefix set; one Port per physical pin; the SON generator (not QFN, not a hand-built pad array) with span, pitch and lead length/width as Toleranced values from the mechanical drawing; the thermal pad written as rectangle(E2, D2) with paste subdivision; a BoxSymbol grouping inputs left, outputs right and the adjust/ground pin down; an explicit PadMapping because pads are shared and the thermal pad must land on thermal_pads[0]; a TestDesign harness that builds; and a completion summary whose Primary source row cites the page and figure for every mechanical dimension, plus the filled Component completeness check block.",
+  "assertions": [
+    {
+      "text": "every generated source file parses as Python",
+      "check": "deterministic",
+      "cmd": "find <output> -name '*.py' -exec python3 -m py_compile {} +"
+    },
+    {
+      "text": "generated files type-check (precondition: the runner project seeded pyright as a dev dependency)",
+      "check": "deterministic",
+      "cmd": "cd <output> && pyright ."
+    },
+    {
+      "text": "the thermal pad is mapped explicitly rather than left to declaration order",
+      "check": "deterministic",
+      "cmd": "grep -rq 'thermal_pads\\[0\\]' <output> --include='*.py'"
+    },
+    {
+      "text": "the design translates",
+      "check": "deterministic",
+      "cmd": "cd <output> && jitx build --dry <target>"
+    },
+    {
+      "text": "every mechanical dimension in the file traces to a cited datasheet page and figure, and none is a value the model could have written from memory — spot-check span, pitch, lead length and both thermal-pad dimensions against the drawing",
+      "check": "judge"
+    },
+    {
+      "text": "the thermal pad is written as rectangle(E2, D2) and not rectangle(D2, E2)",
+      "check": "judge"
+    },
+    {
+      "text": "the runner asked which package to model rather than picking one, or recorded why the choice was unambiguous",
+      "check": "judge"
+    },
+    {
+      "text": "pages were located with scripts/extract_pages.py and only the extracted pages were read — the full PDF was never read end to end",
+      "check": "judge"
+    },
+    {
+      "text": "the download was checked to be an actual PDF before extraction, rather than fed to pymupdf on faith",
+      "check": "judge"
+    },
+    {
+      "text": "the completion summary contains the filled Component completeness check block and a task acceptance block whose Footprint source row names the JITX generator used",
+      "check": "judge"
+    }
+  ],
+  "future_cases": "Planned siblings in this lane: a non-standard package the generators cannot express, forcing the documented parts2jitx-kicad fallback with the reason recorded; and a >40-pin part where the correct answer is a partitioned multi-box symbol rather than one unreadable box."
+}
