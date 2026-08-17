@@ -1,6 +1,6 @@
 ---
 name: jitx-component-modeler
-description: "Create JITX Python component code from datasheets, KiCad footprints, or user specifications. ALWAYS use this skill when user asks to \"create a component\", \"model a part\", \"generate a component\", \"add a component\", or \"make a JITX component\" - even without a datasheet. Also triggers on part numbers (NE555, LM1117, RP2040, etc.), package types (SOIC, QFN, BGA, SON, SOT), and two-terminal chip sizes (0402, 0603, 2512). Supports user-provided data, JITX generators for standard packages, and optional LCSC/EasyEDA fallback for non-standard footprints. Supports multi-unit symbols, thermal pads, and complex pin mappings. Also covers parameterized catalog families — one class standing in for a manufacturer's whole series (chip resistors, MLCCs) with the part number computed per instance and no parts-database query — and verifying a component against its datasheet with jitx.test.TestCase. For choosing and placing an ordinary queried passive, use jitx-circuit-builder instead."
+description: "Create JITX Python component code from datasheets, KiCad footprints, or user specifications. ALWAYS use this skill when user asks to \"create a component\", \"model a part\", \"generate a component\", \"add a component\", or \"make a JITX component\" - even without a datasheet. Also triggers on part numbers (NE555, LM1117, RP2040, etc.), package types (SOIC, QFN, BGA, SON, SOT), and two-terminal chip sizes (0402, 0603, 2512). Supports user-provided data, JITX generators for standard packages, and optional LCSC/EasyEDA fallback for non-standard footprints. Supports multi-unit symbols, thermal pads, and complex pin mappings. Also covers parameterized catalog families — one class standing in for a manufacturer's whole series (chip resistors, MLCCs) with the part number computed per instance and no parts-database query — and verifying a component against its datasheet with jitx.test.TestCase. Also covers generating a component from a vendor's machine-readable package pinout file rather than a drawing (\"generate the FPGA from the pin file\", \"parse the package pinout file\", \"model this 1000-ball BGA\"): parse-don't-transcribe, reconcile the ball inventory before emitting, and a committed generator with a regenerate-and-diff check. For choosing and placing an ordinary queried passive, use jitx-circuit-builder instead."
 ---
 
 # JITX Component Generation Skill
@@ -18,16 +18,27 @@ A component task is **not complete** until the **Component completeness check** 
 > For every named component (anything with an MPN, distributor part number, or user-supplied datasheet), before writing landpattern dimensions or pin labels, work down this ladder until you have a source:
 >
 > 1. **Manufacturer's current datasheet** — open the mechanical drawing page (use `extract_pages.py` to pull only those pages — do not read the full PDF). Cite the page/figure where you got each dimension.
-> 2. **Sourcing-channel lookup** — if the user has named LCSC/JLCPCB, `parts2jitx-lcsc <C-number>` (stock, lifecycle, datasheet URL) and `parts2jitx-lcsc <C-number> --pinout` (pin labels). Use it as channel evidence and as a pin-label cross-check. Datasheet remains higher authority where they disagree; document the conflict.
-> 3. **Ask the user** — for an LCSC C-number, a user-supplied `.kicad_mod`, or the datasheet itself.
+> 2. **Manufacturer's machine-readable pin file** — where the vendor publishes the pin map as data rather than as a drawing (FPGAs, large SoCs, most high-ball-count BGAs). It is the authority for **names, balls and banks only**; geometry still comes from the packaging document, and the two never substitute for each other. Parse it — do not transcribe it, and do not read a sample and extrapolate. See "Generating a component from a machine-readable vendor pin file".
+> 3. **Sourcing-channel lookup** — if the user has named LCSC/JLCPCB, `parts2jitx-lcsc <C-number>` (stock, lifecycle, datasheet URL) and `parts2jitx-lcsc <C-number> --pinout` (pin labels). Use it as channel evidence and as a pin-label cross-check. Datasheet remains higher authority where they disagree; document the conflict.
+> 4. **Ask the user** — for an LCSC C-number, a user-supplied `.kicad_mod`, or the datasheet itself.
 >
-> If none of the three produce a source, the component is **blocked**. Do not proceed by estimating. The only way out is for the user to explicitly authorize a non-MPN generic component (e.g. "use a typical 0.4 mm pitch QFN-56, this is a placeholder"). Record that authorization in the task acceptance block under `Notes`.
+> If none of the four produce a source, the component is **blocked**. Do not proceed by estimating. The only way out is for the user to explicitly authorize a non-MPN generic component (e.g. "use a typical 0.4 mm pitch QFN-56, this is a placeholder"). Record that authorization in the task acceptance block under `Notes`.
 >
 > **Carve-out — parameterized catalog families.** A class that models a manufacturer's whole catalog series has no single MPN by construction: it *computes* one per instance from the datasheet's own part-numbering scheme. That is not the fabrication this rule forbids, and it needs no user authorization — the source authority is the same datasheet, and every dimension, code table and range still traces to a page of it. What the rule still forbids is a family with no datasheet behind it: a size table from memory, a "typical" termination band, an ordering scheme inferred from one example part. In place of the single MPN, a family owes one extra piece of evidence — a generated part number reproduced against the datasheet's own worked ordering example. See "Parameterized Component Families".
 >
 > The rule is also about values that could be wrong, not about labels the source never supplied. A two-terminal chip datasheet does not name its terminations, so `p1`/`p2` with declaration-order pad mapping is the framework's sanctioned idiom, not an invented pin label.
 >
 > This callout exists because a test session of this skill loaded this very file, said "I have the patterns, I'll proceed without invoking the modeler skill further — writing each component directly with reasonable typical dimensions" — and then fabricated nine components. That is the failure this rule forbids.
+
+### When no document states an MPN
+
+`mpn` is identity: it drives sourcing, and the source-authority ladder above keys on "anything with an MPN". So it is not a field to fill in on the way past — and there are real parts whose ground-truth documents do not contain one.
+
+A pin file's header typically gives a **device string** (`xcvp1002nfvi1369`), and a packaging manual gives a package. Neither is an orderable part number: a real one usually also encodes **speed grade and temperature range**, which are procurement decisions, not properties of the silicon or the package. The governing rule applies unchanged — if the data doesn't say it, ask.
+
+**Raise it at a gate, not at the end.** Where the user is already confirming device and package, ask what to use as the MPN in the same breath, and say what the documents do and do not identify. Then set it to what was agreed, with a comment recording what it identifies.
+
+The reason this needs saying: an orderable part number is highly *guessable in shape*, which is exactly what makes a fabricated one dangerous — it looks right. And nothing downstream catches it. `pyright`, `pytest`, the build and `jitx-code-review` all pass on a wrong MPN, while every other unknown in a component (a pin, a bank, a dimension) is gated by a reconciliation or a human check. This is the one place where "estimate nothing" has no corresponding checkpoint unless you add one.
 
 ## Environment
 
@@ -63,6 +74,31 @@ head -c 5 datasheets/<mpn>.pdf   # expect: %PDF-
 **Unreachable is not the same as dead.** A manufacturer URL the user gave you, or one printed in a catalog, is canonical: a timeout or TLS failure on it is more likely your egress path — proxy, sandbox, geo-block — than a moved file. Say which one you hit. Never silently substitute an aggregator's copy for a manufacturer URL that merely didn't answer; if the document really has moved, find the current equivalent on the manufacturer's own site and tell the user which URL you used and why.
 
 **Catalog filenames are dated per revision.** Where the only link you have embeds a date or revision in the filename, record the manufacturer's catalog index page in the component docstring alongside the direct link — the direct link rots at the next revision, the index does not.
+
+### Cite by caption first, figure number second
+
+**Figure and table numbers move between editions of a living document.** Large packaging and pinout
+manuals are revised continuously at a stable URL, and a revision that inserts one figure renumbers
+every figure after it.
+
+This is worse than a dead reference, and the difference matters. A dead link fails loudly. A drifted
+figure number still **resolves** — to a *different* figure, often of the same kind, for a different
+part in a different package. Jump to the number without reading the caption and you get plausible
+geometry with no signal that anything is wrong: every dimension downstream is then silently wrong,
+and a geometry cross-check still passes, because it compares the land pattern against whatever the
+package spec was populated with.
+
+So write the citation with the **caption as the primary key**:
+
+> the figure captioned *Package Dimensions for NFVI1369* — Figure 273 in AM013 v1.10; the number
+> moves between editions
+
+and when you locate it, **grep for the caption, not the number**. Record caption, edition and page
+in the code next to the values it sourced, so the next reader can re-locate it after the next
+revision rather than re-deriving which figure was meant.
+
+Any citation of a living document by bare number has a shelf life. Treat one you were *handed* the
+same way: verify the caption matches before you use the number, and say so if it doesn't.
 
 **AVOID REDUNDANT WEB SEARCHES**
 
@@ -115,6 +151,43 @@ project/
 For any component with N parallel siblings (BGAs, multi-channel ICs, banked diff-pairs), reach for `self.pins: list[Port]` or `self.lanes: list[DiffPair]` — **never** `self.TX_b0, self.TX_b1, ...` plus `getattr(self, f"TX_b{i}")` to iterate. See `jitx/references/architectural-patterns.md` § "Sibling attributes → array attributes" before writing the constructor. Also: do not assign `refdes=`, net names, or other JITX-assigned values yourself (§ "Don't assign what JITX assigns").
 
 For a same-model self-critique pass on the component after writing (catches what these rules don't), invoke `jitx-code-review`. Optional for single-task use.
+
+## A `Port` has exactly one home
+
+**Never store a collection of the component's own ports as a second attribute.** A `Port` belongs to
+exactly one place in the object tree, and stashing the same ports under a second name — `self.bank_groups = [...]`, `self.rails = {...}` — fails translation with:
+
+```
+Child object encountered multiple times
+```
+
+The grouping itself is usually a legitimate thing to want: a bank roster, a lane grouping, a list of
+supply rails to tie. Expose it as a **method returning fresh records**, not as stored state:
+
+```python
+def bank_pins(self) -> dict[int, list[Port]]:      # computed per call
+    return {700: [self.IO_0_700, self.IO_1_700, ...], ...}
+```
+
+The distinction is ownership, not syntax. `self.symbols = [BoxSymbol(...), ...]` is fine — the
+component owns those symbols and nothing else does. `self.bank_groups = [[self.IO_0_700, ...]]` is
+not — those ports already have a home.
+
+Design the groupings as methods from the start. Retrofitting this after the fact means unpicking
+every consumer, and the error message names the symptom rather than the attribute that caused it.
+
+## Generating a component from a machine-readable vendor pin file
+
+When the vendor publishes the pin map as data — FPGAs, large SoCs, most high-ball-count BGAs — do not
+transcribe it. Write a small standard-library generator that parses the vendor file, **reconciles the
+inventory before any component code exists**, and emits the component module as Python. Commit the
+generator and the emitted module; the vendor file stays in the gitignored scratch directory, recorded
+by sha256 and URL in the emitted header.
+
+See [references/pin-file-generation.md](references/pin-file-generation.md) for the full pattern:
+reconcile-before-emit and the partition property, the `--report` / `--check` generator shape,
+deterministic *and* formatter-stable emission, provenance, coordinates-not-ball-strings, where the
+human gates go, and what to test.
 
 ## Instructions
 
@@ -424,6 +497,11 @@ For complete examples of each package type (SOIC, SOT, SON, QFN, QFP, BGA), incl
 port arrays, inactive positions, and non-uniform BGA grids, see
 [references/package-examples.md](references/package-examples.md).
 
+Its **BGA-Specific Notes** carry two things worth reading before any BGA, not just an unusual one:
+`ball_diameter` sets the **PCB land** diameter and not the package's physical ball (the drawing gives
+you both, adjacent, and the wrong one builds fine), and the public `get_pad` adapter for reaching
+pads from test and verification code.
+
 ## Dimension Mapping Reference
 
 | Datasheet Symbol | Description | JITX Parameter |
@@ -512,6 +590,27 @@ with dozens of pins is unreadable; as a rule of thumb, **once a part exceeds
 ~40 pins, split it into multiple symbols.** A component may carry more than one
 `BoxSymbol` — each becomes a separate visual box, and the boxes can be placed on
 different schematic pages (see "Splitting across schematic pages" below).
+
+**At four figures' worth of pins the partition becomes the schematic.** Past a
+few hundred pins there is no "the symbol" left to split — the partition *is* the
+part's readable form, and it needs stating as a property rather than a habit:
+
+- **Every port in exactly one partition**, and the partition count reconciles
+  against the total pin count. Same property the pin inventory owes (see
+  `pin-file-generation.md`), asserted the same way. A port in two boxes and a
+  port in none both draw without complaint.
+- **One box per structural group** the vendor already defined — IO bank,
+  transceiver quad, power domain. Do not invent a grouping the datasheet doesn't
+  have.
+- **A per-box ceiling for the groups that have no natural size** — the large
+  rails, where one box per net would mean a single box of several hundred pins.
+  Chunk them at a stated ceiling and say what it is. Somewhere near 64 keeps a
+  box printable; the number matters less than that it is stated and enforced.
+- Singletons — the dedicated and analog pins that belong to no bank — get their
+  own box rather than being distributed by convenience.
+
+Build the boxes from a **method returning fresh partitions**, never a stored
+attribute holding the ports a second time; see "A `Port` has exactly one home".
 
 **By functional group** (the usual case — split where the datasheet does: each
 op-amp unit, the power unit, each peripheral block):
@@ -662,6 +761,25 @@ declaring more than one landpattern is combined into a single *composite* landpa
 must be composed from a `visit` (`trace.transform * pad.transform`), never read off `Pad.transform`
 alone; see `jitx-physical-layout/references/geometry-verification.md` § "Coordinate frames".
 
+**Both of these need narrowing before a type checker will accept them**, which matters because a
+"pyright clean" gate and an un-narrowed lookup contradict each other:
+
+- `PadMapping.__getitem__` returns `Pad | Sequence[Pad]` — a port may map to several pads — so
+  `mapping[port][0]` is a `reportIndexIssue`, and `len(mapping[port])` fails on the `Pad` arm.
+- `Pad.transform` is `Placement | None`, so `pad.transform.translation` is a
+  `reportOptionalMemberAccess`.
+
+Both are three-line helpers once you know:
+
+```python
+def one_pad(mapping: PadMapping, port: Port) -> Pad:
+    pads = mapping[port]
+    return pads if isinstance(pads, Pad) else pads[0]
+```
+
+Write the helper rather than suppressing the error. A `pyright: ignore` here hides the composite-
+landpattern case the union exists to flag.
+
 ## Verification Process
 
 ### Step 4: Test Harness
@@ -711,6 +829,10 @@ Direct construction is what `@pytest.mark.parametrize` forces, since a parametri
 - **The value encoder as a unit test, with decade-carry cases** alongside the ordinary ones.
 - **That validation raises** on each invalid axis *and* on the invalid cross-axis combinations.
 - **Library defaults against the datasheet, per size**, wherever the land pattern took them — dimensions *and* density level. Pin a known-bad entry as still-wrong, so the override is removed when the table is fixed.
+
+**For a generated component**, add the assertions in `pin-file-generation.md` § "Testing a generated component" — counts as literals, hand-read spot checks, mapping bijectivity, symbol coverage, the generator's pure functions against a synthetic fixture, and the regeneration-idempotency check. Note that a spot-check expression indexing a `PadMapping` needs the narrowing in "PadMapping Requirements"; written literally it does not type-check, and a suite gated on "pyright clean" will contradict itself.
+
+Where a test is skipped unless a source file is present — the idempotency check usually is, since the vendor file cannot be committed — **confirm it actually ran** when you are relying on it. A skipped test is green.
 
 **Assert the value label — scaling to an SI prefix reintroduces float noise on exactly the values a passive library uses most.** `PlainQuantity.to_compact()` divides by a power of ten, so an exactly specified `100e-9 F` comes back as `99.99999999999999 nanofarad`, and `2.2e6 Ω` as `2.1999999999999997 megaohm` (verified on jitx 4.2.2). Nothing else catches it: `pyright` sees a well-typed quantity, `pytest` never touches `.value` unless you tell it to, `jitx build` reports `status: ok` — and the string goes to the BOM. Round the scaled magnitude back to significant figures before assigning `.value`, and assert the rendered string. Assert it the way the translator renders it (`f"{value:g~P}"`), not through a bespoke format spec — a spec of your own can hide the noise it is supposed to catch.
 
@@ -876,7 +998,7 @@ Verdict: complete | open items: <list>   (any non-clean check, or build not run,
 Row-by-row intent — the *why*, so the block stays evidence rather than ceremony:
 
 - **Source** — a page or figure per claim, not one URL for the whole component. "Datasheet (from memory)" and "typical dimensions" are invalid for a real MPN; see "No fabrication — source authority for geometry and pinout".
-- **Identity** — a part number is a claim about the manufacturer's numbering scheme. Where it is a literal from the ordering table, cite that table. Where the class *computes* it, the only thing that tests the claim is reproducing a part number the manufacturer itself printed — one cross-check per scheme.
+- **Identity** — a part number is a claim about the manufacturer's numbering scheme. Where it is a literal from the ordering table, cite that table. Where the class *computes* it, the only thing that tests the claim is reproducing a part number the manufacturer itself printed — one cross-check per scheme. Where **no source document states one** — which happens for parts whose ground truth is a pin file and a packaging manual — this row records what was agreed with the user and what the value does and does not identify. It is never a value you chose yourself; see "When no document states an MPN".
 - **Pins** — count first, then compare row by row. A ports-vs-pads mismatch is the one component error the build reliably catches; everything below this row is the class of error the build does not catch.
 - **Landpattern** — dimensions come from the mechanical drawing, not the overview page or the ordering table, and carry the drawing's tolerances. Where the generator could not express the package, the fallback and its reason belong here.
 - **Library defaults** — a generator default is a convenience, not an authority. Wherever the datasheet publishes the same dimension, transcribe it anyway and check the two against each other; where they disagree, override from the datasheet and say so. The whole risk of taking a default is that nobody transcribed the number that would have caught a bad one. A default you took without checking is indistinguishable, in the output, from one you verified.
