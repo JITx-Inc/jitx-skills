@@ -18,7 +18,9 @@
   "runner_models": ["sonnet"],
   "runner_rationale": "Same as the sibling cases: customers drive this skill with mixed-strength agents, so the runner is Sonnet-class and the judges stay at frontier tier. This case additionally probes whether the skill's instruction is strong enough to stop a capable model doing the plausible-but-wrong thing — reading a few hundred rows and transcribing them, or sampling and extrapolating — which is exactly what a strong model is most tempted by.",
   "runner_isolation": "Start the runner in a scratch directory with the skill, the pinout fixture and a writable output directory, and nothing else. No access to a repository containing a shipped solution of this shape. Reading the installed jitx/jitxlib source is allowed and expected — the BGA notes tell the runner to go read the generator to find out what ball_diameter drives.",
-  "runner_artifacts": "The runner MUST write its completion summary to <output>/COMPLETION.md, the generator to <output>/tools/, and the generated module next to the other component sources. Judges score what is in <output>; anything only in the chat did not happen.",
+  "runner_artifacts": "The runner MUST write its completion summary to <output>/COMPLETION.md, the generator to exactly <output>/tools/generate_pinout.py, and the emitted module to exactly <output>/components/acme_fx500.py. Judges score what is in <output>; anything only in the chat did not happen. The two exact paths are fixed so the deterministic assertions below can address the emitted module specifically rather than grepping the whole output tree — a grep across <output> also matches the generator's own emitter strings, COMPLETION.md prose and comments, which would pass while the emitted declarations were wrong.",
+  "runner_phases": "Run the case in two recorded phases so the report-before-emit gate is observable rather than inferred. PHASE 1: give the runner the fixture and stop it after it presents the inventory; capture its transcript to <output>/phase1-inventory.md. PHASE 2: resume with approval and let it emit. A single-phase run cannot evidence the ordering, because the final artifacts look identical either way.",
+  "substitutions": "<output> = the runner's writable output directory. <fixture> = the absolute path to inputs.pinout_file as staged for the run. Both are substituted by the harness before the cmd strings below are executed.",
   "runner_build": "No geometry is supplied, so a full land pattern cannot be built from the fixture alone. The correct behavior is to ask for the packaging document (or record its absence as an open item) rather than invent dimensions — do NOT prompt the runner toward either branch. Tell it to run `jitx find` and build whatever target it prints if a buildable design exists.",
   "expected_output": "A committed standard-library generator with a pure-function core and --report / --check modes, plus the module it emits. The emitted module carries one Port per ball: 322 unique names as scalar attributes, the repeated names (GND 50, VCC_CORE 41, NC 16, VCCO_0..3 at 3 each) as indexed lists, coordinates as zero-indexed (row, col) with ball reference strings appearing only in comments, and a header recording the source file name, its sha256 and where it came from. NC balls are no_connect(). The inventory printed before any component code partitions the 441 balls into non-overlapping groups. VCC_AUX, VREF_SENSE and VCC_BATT appear as scalar ports and are still named as supplies. Geometry is asked for rather than invented.",
   "assertions": [
@@ -28,33 +30,43 @@
       "cmd": "find <output> -name '*.py' -exec python3 -m py_compile {} +"
     },
     {
-      "text": "the generator has a --check mode that regenerates and diffs, and it passes against the committed module",
+      "text": "the generator has a --check mode that regenerates and diffs, and it passes against the emitted module",
       "check": "deterministic",
-      "cmd": "cd <output> && python3 tools/*.py <fixture> --check"
+      "cmd": "cd <output> && python3 tools/generate_pinout.py <fixture> --check"
     },
     {
       "text": "the generator has a --report mode that prints an inventory",
       "check": "deterministic",
-      "cmd": "cd <output> && python3 tools/*.py <fixture> --report"
+      "cmd": "cd <output> && python3 tools/generate_pinout.py <fixture> --report"
     },
     {
       "text": "the emitted module declares exactly 441 ports across scalars and rail lists",
       "check": "judge"
     },
     {
-      "text": "rail list lengths match the fixture exactly: GND 50, VCC_CORE 41, NC 16, VCCO_0/1/2/3 3 each",
+      "text": "rail list lengths in the EMITTED MODULE match the fixture exactly: GND 50, VCC_CORE 41, NC 16, VCCO_0/1/2/3 3 each. Tolerates a type annotation, a multiline comprehension, and no_connect() elements — the naive regex form rejects the very shape the NC assertion below requires.",
       "check": "deterministic",
-      "cmd": "cd <output> && python3 -c \"import re,sys,glob; s=open(glob.glob('**/*.py',recursive=True) and [f for f in glob.glob('**/*.py',recursive=True) if 'GND' in open(f).read()][0]).read(); [sys.exit(f'{n} wrong') for n,k in (('GND',50),('VCC_CORE',41),('NC',16)) if not re.search(rf'{n}\\s*=\\s*\\[Port\\(\\)\\s*for\\s+_\\s+in\\s+range\\({k}\\)', s)]\""
+      "cmd": "python3 <skill>/evals/checks/rail_counts.py <output>/components GND=50 VCC_CORE=41 NC=16 VCCO_0=3 VCCO_1=3 VCCO_2=3 VCCO_3=3"
     },
     {
-      "text": "the 16 NC balls are declared with no_connect(), not as plain Port()",
+      "text": "the 16 NC balls are declared with no_connect() in the emitted module — not merely mentioned somewhere in the output tree",
       "check": "deterministic",
-      "cmd": "grep -rq 'no_connect' <output>"
+      "cmd": "python3 -c \"import ast,sys; from pathlib import Path; src=Path('<output>/components/acme_fx500.py').read_text(); t=ast.parse(src); n=[x for x in ast.walk(t) if isinstance(x,ast.Attribute) and x.attr=='no_connect']; sys.exit(0 if n else 'no no_connect() call in the emitted module')\""
     },
     {
-      "text": "VCC_AUX, VREF_SENSE and VCC_BATT are all present as scalar ports — the single-ball-supply trap",
+      "text": "VCC_AUX, VREF_SENSE and VCC_BATT are each declared as a scalar assignment in the emitted module — the single-ball-supply trap. Checked as assignment targets via AST, because a bare grep also matches comments and the coordinate table.",
       "check": "deterministic",
-      "cmd": "for n in VCC_AUX VREF_SENSE VCC_BATT; do grep -rq \"$n\" <output> || exit 1; done"
+      "cmd": "python3 -c \"import ast,sys; from pathlib import Path; t=ast.parse(Path('<output>/components/acme_fx500.py').read_text()); names={x.id for s in ast.walk(t) if isinstance(s,(ast.Assign,ast.AnnAssign)) for x in ast.walk(s.target if isinstance(s,ast.AnnAssign) else s.targets[0]) if isinstance(x,ast.Name)}; missing=[n for n in ('VCC_AUX','VREF_SENSE','VCC_BATT') if n not in names]; sys.exit('; '.join(missing) if missing else 0)\""
+    },
+    {
+      "text": "the emitted module type-checks",
+      "check": "deterministic",
+      "cmd": "cd <output> && pyright components/acme_fx500.py"
+    },
+    {
+      "text": "the generator's pure-function tests exist and pass",
+      "check": "deterministic",
+      "cmd": "cd <output> && python3 -m pytest -q tests/"
     },
     {
       "text": "ball reference strings decode correctly past the row-letter rollover: AA1 is row 20 (not 26), and the module's coordinate for AA1 reflects that",
@@ -65,7 +77,7 @@
       "check": "judge"
     },
     {
-      "text": "reconciliation happened BEFORE component code was written, not after: the runner presented the inventory and the parsed-vs-footer count as a gate, rather than emitting the module and then checking it",
+      "text": "reconciliation happened BEFORE component code was written: <output>/phase1-inventory.md exists, contains the partitioned inventory and the parsed-vs-footer reconciliation line, and NO component module existed at the end of phase 1. Judged from the phase-1 artifact, not from the final tree — final artifacts look the same whichever order they were produced in.",
       "check": "judge"
     },
     {

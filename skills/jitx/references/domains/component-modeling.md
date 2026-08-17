@@ -84,12 +84,12 @@ Run the base Component checklist above FIRST, then verify these:
       a roster built by walking the lists drops these silently, and the count still looks plausible.
       Where such a rail carries its own dedicated return, that return is a **separate ground domain**
       and must not be merged into the main one.
-- [ ] **Transceiver analog rails grouped, not per-lane.** Vendors supply transceivers in groups
-      (AVCC / AVTT / AVCCAUX per group, plus one calibration pair serving the whole group), so bias
-      and calibration pins belong to the *group*, not to an individual quad or lane — modeling them
-      as per-quad members produces quads that have none. The group-to-lane assignment lives in the
-      packaging manual's bank diagram, not in the pin file; you cannot infer it from pin-name
-      suffixes or ball proximity.
+- [ ] **Transceiver analog and bias rails modeled at the hierarchy the vendor states.** These are
+      often shared above the lane — a supply group or bank spanning several lanes, with one
+      calibration pair serving all of them — but the level varies by device family, so read it off
+      the packaging manual's bank/power diagram rather than assuming any particular one. Two rules
+      hold regardless: the assignment is **not** inferable from pin-name suffixes or ball proximity,
+      and modeling a shared rail as a per-lane member produces lanes that have none.
 - [ ] **Bonded-but-unused rails identified.** A package may bond a supply group whose consumer is
       not bonded in that package. Those pins are real and belong in the component and its roster —
       expose them like any other rail and say so, rather than dropping them or inventing a

@@ -497,10 +497,9 @@ For complete examples of each package type (SOIC, SOT, SON, QFN, QFP, BGA), incl
 port arrays, inactive positions, and non-uniform BGA grids, see
 [references/package-examples.md](references/package-examples.md).
 
-Its **BGA-Specific Notes** carry two things worth reading before any BGA, not just an unusual one:
-`ball_diameter` sets the **PCB land** diameter and not the package's physical ball (the drawing gives
-you both, adjacent, and the wrong one builds fine), and the public `get_pad` adapter for reaching
-pads from test and verification code.
+Read its **BGA-Specific Notes** before any BGA, not just an unusual one — in particular what
+`ball_diameter` actually sets, and the public `get_pad` adapter for reaching pads from test and
+verification code. Both are places where the obvious reading is the wrong one.
 
 ## Dimension Mapping Reference
 
@@ -599,15 +598,19 @@ part's readable form, and it needs stating as a property rather than a habit:
   against the total pin count. Same property the pin inventory owes (see
   `pin-file-generation.md`), asserted the same way. A port in two boxes and a
   port in none both draw without complaint.
-- **One box per structural group** the vendor already defined — IO bank,
-  transceiver quad, power domain. Do not invent a grouping the datasheet doesn't
-  have.
+- **One box per structural group the source itself defines.** Take the grouping
+  from the datasheet's own organizing axis and do not invent one — on an FPGA
+  that is typically the IO bank, transceiver quad or power domain; on other
+  parts it is whatever the pin table is organized by. If you cannot name the
+  document that defines your grouping, it is invented.
 - **A per-box ceiling for the groups that have no natural size** — the large
   rails, where one box per net would mean a single box of several hundred pins.
-  Chunk them at a stated ceiling and say what it is. Somewhere near 64 keeps a
-  box printable; the number matters less than that it is stated and enforced.
-- Singletons — the dedicated and analog pins that belong to no bank — get their
-  own box rather than being distributed by convenience.
+  Chunk them at a stated ceiling and say what it is. The right number is
+  whatever keeps a box readable at your schematic's page size; state it, enforce
+  it in a test, and revisit it by looking at the rendered sheet rather than
+  trusting the number.
+- Pins belonging to no group get their own box rather than being distributed by
+  convenience.
 
 Build the boxes from a **method returning fresh partitions**, never a stored
 attribute holding the ports a second time; see "A `Port` has exactly one home".
@@ -769,16 +772,35 @@ alone; see `jitx-physical-layout/references/geometry-verification.md` § "Coordi
 - `Pad.transform` is `Placement | None`, so `pad.transform.translation` is a
   `reportOptionalMemberAccess`.
 
-Both are three-line helpers once you know:
+Each is a small helper once you know — write both; they narrow different unions:
 
 ```python
+from jitx.landpattern import Pad, PadMapping
+from jitx.transform import Placement
+
+
 def one_pad(mapping: PadMapping, port: Port) -> Pad:
+    """The single pad for a port. Raises if the port maps to several."""
     pads = mapping[port]
-    return pads if isinstance(pads, Pad) else pads[0]
+    if isinstance(pads, Pad):
+        return pads
+    if len(pads) != 1:
+        raise AssertionError(f"expected one pad for {port}, got {len(pads)}")
+    return pads[0]
+
+
+def placement_of(pad: Pad) -> Placement:
+    """A pad's own placement. Raises rather than returning a silent default."""
+    if pad.transform is None:
+        raise AssertionError(f"pad {pad} has no placement")
+    return pad.transform
 ```
 
-Write the helper rather than suppressing the error. A `pyright: ignore` here hides the composite-
-landpattern case the union exists to flag.
+Write the helpers rather than suppressing the errors. A `pyright: ignore` on the first hides the
+composite-landpattern case the union exists to flag; one on the second turns a missing placement into
+an `AttributeError` at some later line instead of a named failure here. And note `placement_of` gives
+you the pad's *local* transform — for a coordinate in the component's frame, compose it from a
+`visit`, per the paragraph above.
 
 ## Verification Process
 
@@ -830,7 +852,7 @@ Direct construction is what `@pytest.mark.parametrize` forces, since a parametri
 - **That validation raises** on each invalid axis *and* on the invalid cross-axis combinations.
 - **Library defaults against the datasheet, per size**, wherever the land pattern took them — dimensions *and* density level. Pin a known-bad entry as still-wrong, so the override is removed when the table is fixed.
 
-**For a generated component**, add the assertions in `pin-file-generation.md` § "Testing a generated component" — counts as literals, hand-read spot checks, mapping bijectivity, symbol coverage, the generator's pure functions against a synthetic fixture, and the regeneration-idempotency check. Note that a spot-check expression indexing a `PadMapping` needs the narrowing in "PadMapping Requirements"; written literally it does not type-check, and a suite gated on "pyright clean" will contradict itself.
+**For a generated component**, add the assertions in `pin-file-generation.md` § "Testing a generated component". Note that a spot-check expression indexing a `PadMapping` needs the narrowing in "PadMapping Requirements"; written literally it does not type-check, and a suite gated on "pyright clean" will contradict itself.
 
 Where a test is skipped unless a source file is present — the idempotency check usually is, since the vendor file cannot be committed — **confirm it actually ran** when you are relying on it. A skipped test is green.
 

@@ -643,14 +643,21 @@ Device: type[WirelessSoC] = WirelessSoC
    ```python
    class MyBGA(BGA):
        def get_pad(self, row: int, column: int) -> Pad:
-           """row 0-indexed, column 1-indexed: ball A1 is get_pad(0, 1)."""
-           return self._get_pad(row, column)
+           """Both 0-indexed, matching emitted coordinates: ball A1 is get_pad(0, 0)."""
+           return self._get_pad(row, column + 1)
    ```
 
-   Pick one indexing convention, state it in the docstring, and let the `+ 1` live in exactly one
-   place. Design code never reaches into `_`-prefixed framework members directly — the adapter is
-   the sanctioned boundary, and it gives the convention a single home instead of scattering
-   off-by-one risk across every call site.
+   Design code never reaches into `_`-prefixed framework members directly — the adapter is the
+   sanctioned boundary.
+
+   **Make the adapter's convention the same one your coordinates use.** The framework numbers
+   columns from 1 (matching the ball reference "A1"), while a generated module carries fully
+   zero-indexed `(row, col)` coordinates. Those differ by one, and the whole value of the adapter is
+   that it absorbs that difference *once* — so take 0-indexed arguments and do the `+ 1` inside.
+   Write it the other way, taking a 1-indexed column, and every call site converts instead
+   (`get_pad(row, col + 1)`), which is the same off-by-one risk you added the adapter to remove, now
+   scattered. State the convention in the docstring either way, because a reader cannot tell from
+   the signature.
 
 ## Non-Uniform BGAs (CRITICAL)
 

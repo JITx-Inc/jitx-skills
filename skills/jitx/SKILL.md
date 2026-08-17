@@ -269,12 +269,15 @@ Durable rules for JITX Python user code. The architectural rules below protect a
     `GND = [Port() for _ in range(689)]` in a class body is flagged as `Mutable default value for
     class attribute`, and on a large component that is one finding per rail. It is the exact form the
     Don'ts above bless ("Class-body structural collections … are fine — they're the actual object
-    model"). Ruff cannot know that. **Both remedies it suggests break JITX:** moving the ports into
-    `__init__` abandons the declaration model, and `typing.ClassVar` misrepresents what they are. The
-    danger is not the warning, it's what happens next — an agent that obeys the linter converts a
-    working component into a broken one, and the breakage surfaces far away, at translation. Silence
-    it per-file in `[tool.ruff.lint.per-file-ignores]` for the design package, with a comment saying
-    why.
+    model"). Ruff cannot know that. Neither remedy it offers is right here, but they are wrong in
+    different ways and it matters which: moving the ports into `__init__` **abandons the declaration
+    model** and is the dangerous one — an agent that takes it converts a working component into a
+    broken one, and the breakage surfaces far away, at translation. Annotating `typing.ClassVar` is
+    **runtime-neutral** — the component still instantiates and its ports are still found (verified on
+    4.4.0rc3) — but it misdescribes what the attribute is, since these are the object model rather
+    than shared class state, so it buys silence at the cost of a false statement in the source.
+    Prefer neither: silence the rule per-file in `[tool.ruff.lint.per-file-ignores]` for the design
+    package, with a comment saying why.
 - **Run `ruff format`** for style consistency.
   - **Set `[tool.ruff] line-length` explicitly if anything in the project *emits* Python.** A code
     generator has to agree with the formatter about when a collection fits on one line, so the
