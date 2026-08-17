@@ -347,13 +347,15 @@ landpattern = SMT("0603").lead_profile(
         type=SMDLead(
             length=band,                   # the seating-plane termination band — see below
             width=body_width,
-            lead_type=BigRectangularLeads if body_width.typ > 0.8 else SmallRectangularLeads,
+            lead_type=protrusion,          # see below — pick it, don't guess a threshold
         ),
     )
 ).package_body(RectanglePackage(width=body_width, length=body_length, height=body_height))
 ```
 
-`SMT_CHIP_DEFS` is keyed by case size and each entry carries `.length`, `.width`, `.lead_length` and `.lead_width` as `Toleranced`. `BigRectangularLeads` / `SmallRectangularLeads` are protrusion *instances*, not classes — pass them, don't call them. Declare two ports, `p1` and `p2`, in that order; declaration-order mapping handles the rest and no `PadMapping` is needed. Use `ResistorSymbol` / `CapacitorSymbol` / `InductorSymbol` from `jitxlib.symbols`, not a `BoxSymbol`.
+`SMT_CHIP_DEFS` is keyed by case size and each entry carries `.length`, `.width`, `.lead_length` and `.lead_width` as `Toleranced`. Declare two ports, `p1` and `p2`, in that order; declaration-order mapping handles the rest and no `PadMapping` is needed. Use `ResistorSymbol` / `CapacitorSymbol` / `InductorSymbol` from `jitxlib.symbols`, not a `BoxSymbol`.
+
+**Choosing the protrusion.** `SmallRectangularLeads` and `BigRectangularLeads` (from `jitxlib.landpatterns.leads.protrusions`) are protrusion *instances*, not classes — pass them, don't call them. They carry different fillet goals, so the choice moves copper, and it belongs in the `Library defaults` row like any other. `jitxlib` publishes no size threshold for picking between them: read the two protrusions' own fillet values and choose against what the package actually is, or take the choice from a land-pattern recommendation the datasheet gives. **Do not copy a body-width cutoff from another model** — a bare `width > 0.8` in a geometry path is exactly the uncited constant the no-fabrication rule forbids everywhere else, and it is easy to inherit without noticing.
 
 ### Matching a vendor size label to the generator's size key
 
