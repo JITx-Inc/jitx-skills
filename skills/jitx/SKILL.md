@@ -184,6 +184,19 @@ Also probe the target substrate package if known (e.g., `python -c "import jitxl
 
 **Missing-dependency rule:** if `jitx runtime status` fails, `jitx find` errors, or a required import is missing, stop and surface it to the user as a blocker. Do NOT remove or substitute design requirements as a workaround (e.g. dropping controlled-impedance routing because `jitxlib` didn't import). See `references/project-builder-flow.md` Recovery Procedures → "Missing dependency escalation".
 
+**`--dry` is not a substitute for a build.** With no runtime reachable, `jitx build` fails with an
+error that offers `--dry` as the alternative — and `--dry` "works", which is the trap. It translates
+the design without the runtime, so it cannot see the whole class of failures that only the full build
+reports: `Public name already in use` (a named net colliding with a public port name) is the standard
+example. Taking that branch to get past a red step silently skips exactly the checks the step was
+there for. `--dry` is for translating without a runtime on purpose; it never satisfies a gate that
+asks for a build.
+
+**Setting up the runtime is this skill's job, and it happens before any subskill runs.** A task that
+drives the component modeler or the substrate modeler still needs steps 1–4 first — the subskills say
+so, but only in text the agent reads *after* a smoke build has already failed. Invoke the base `jitx`
+skill first, then the subskill.
+
 Skip steps 1–4 on subsequent runs once everything is in place — only step 5 (a status probe) needs to run every time. Don't ask the user to do manual setup.
 
 ## Python Linting Setup (Recommended)
@@ -203,6 +216,21 @@ npm install -g pyright
 ```bash
 pyright <ns>/
 ```
+
+**Point pyright at the virtual environment, or every JITX import reads as unresolved.** `jitx project
+layout init` does not seed a `[tool.pyright]` block, and pyright does not find `.venv` on its own — so
+a freshly scaffolded project reports `Import "jitx" could not be resolved` (and one per `jitxlib.*`
+import) before you have written a line. Add to `pyproject.toml`:
+
+```toml
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
+```
+
+Every one of those errors is spurious, and "pyright clean" is a gate several workflows require, so
+without this the gate is unreachable. Worth knowing the failure shape: the errors say the imports are
+wrong, and an agent that believes them starts rewriting correct imports.
 
 ## JITX Python Code Conventions
 
@@ -237,7 +265,22 @@ Durable rules for JITX Python user code. The architectural rules below protect a
 
 - **Run pyright** for type checking and language-server diagnostics.
 - **Run `ruff check`** for common-mistake analysis (the `ruff` package is already installed by the environment-setup step).
+  - **`RUF012` is a false positive against JITX's port-array declaration — ignore it, don't "fix" it.**
+    `GND = [Port() for _ in range(689)]` in a class body is flagged as `Mutable default value for
+    class attribute`, and on a large component that is one finding per rail. It is the exact form the
+    Don'ts above bless ("Class-body structural collections … are fine — they're the actual object
+    model"). Ruff cannot know that. **Both remedies it suggests break JITX:** moving the ports into
+    `__init__` abandons the declaration model, and `typing.ClassVar` misrepresents what they are. The
+    danger is not the warning, it's what happens next — an agent that obeys the linter converts a
+    working component into a broken one, and the breakage surfaces far away, at translation. Silence
+    it per-file in `[tool.ruff.lint.per-file-ignores]` for the design package, with a comment saying
+    why.
 - **Run `ruff format`** for style consistency.
+  - **Set `[tool.ruff] line-length` explicitly if anything in the project *emits* Python.** A code
+    generator has to agree with the formatter about when a collection fits on one line, so the
+    configured length becomes load-bearing on files it does not obviously touch. See
+    `jitx-component-modeler/references/pin-file-generation.md` § "Deterministic and formatter-stable
+    output".
 - **Run `jitx-code-review`** as a same-model self-critique pass before declaring a task complete. Mandatory for complete-board tier (folds into Phase 1+ Think Twice); user-invoked for single-task work. See the subskill description below.
 
 ## Running JITX Designs
