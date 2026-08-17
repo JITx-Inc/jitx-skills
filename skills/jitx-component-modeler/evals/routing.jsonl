@@ -1,8 +1,9 @@
 // Routing fixtures for jitx-component-modeler: should-trigger / should-not-trigger phrasings.
-// Positives paraphrase real user phrasing across both lanes the skill owns — the
-// single-named-part lane, and the parameterized-family lane where one class stands
-// in for a catalog series ("the class is the data, no parts DB"). Negatives are
-// near-misses that share
+// Positives paraphrase real user phrasing across the three lanes the skill owns — the
+// single-named-part lane, the parameterized-family lane where one class stands
+// in for a catalog series ("the class is the data, no parts DB"), and the
+// generated-from-a-pin-file lane for parts whose ball map ships as data rather than
+// as a drawing. Negatives are near-misses that share
 // component vocabulary but belong to a sibling skill. Line 2 is byte-identical to the
 // negative the substrate-modeler's fixtures already route here; the two files must agree.
 {"intent": "build me parameterized component families from these two datasheets — no parts DB, the class should be the data so I can ask for any part in the catalog and get the MPN", "expected_skill": "jitx-component-modeler"}
@@ -14,10 +15,15 @@
 {"intent": "generate the RP2040 component, all 56 pins plus the exposed pad", "expected_skill": "jitx-component-modeler"}
 {"intent": "make a JITX component for C165948, LCSC has the footprint", "expected_skill": "jitx-component-modeler"}
 {"intent": "convert this .kicad_mod into a JITX landpattern for a board-to-board connector the generators can't express", "expected_skill": "jitx-component-modeler"}
+{"intent": "the vendor ships the ball map as a text file — parse it and generate the component instead of me typing 1369 rows", "expected_skill": "jitx-component-modeler"}
+{"intent": "generate this FPGA from the package pinout file, and reconcile the ball count against the file's own footer before writing any component code", "expected_skill": "jitx-component-modeler"}
+{"intent": "model this 1000-ball BGA — I have the pinout txt and the packaging manual for the geometry", "expected_skill": "jitx-component-modeler"}
+{"intent": "write me a committed generator that emits the component module and can regenerate-and-diff to prove the checked-in file is current", "expected_skill": "jitx-component-modeler"}
 // Negatives: component-adjacent but another skill's lane.
 {"intent": "transcribe the laminate datasheet's Dk/Df table into JITX materials for our 6-layer stack", "expected_skill": "jitx-substrate-modeler"}
 {"intent": "drop a 100 nF decoupling cap on every VDD pin and add a ground pour under the part", "expected_skill": "jitx-circuit-builder"}
 {"intent": "stitch vias into the QFN's thermal pad and fan the escapes out to layer 3", "expected_skill": "jitx-physical-layout"}
+{"intent": "the 1369-ball BGA component already exists — escape the inner rows out to layer 6 and fan the diff pairs", "expected_skill": "jitx-physical-layout"}
 {"intent": "this MCU can bring SPI out on two different pin groups — let the assignment pick which", "expected_skill": "jitx-pin-assignment"}
 {"intent": "attach the STEP model to this connector and export the board outline to DXF for the ME team", "expected_skill": "jitx-mechanical"}
 {"intent": "I just generated nine component classes — check them for string-hacking before I merge", "expected_skill": "jitx-code-review"}

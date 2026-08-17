@@ -1,0 +1,98 @@
+{
+  "name": "component-from-pin-file",
+  "prompt": "Model the ACME FX500 in the BGA441 package. The ball map is in the attached package pinout file — that file is the only authority for pin names, balls and banks. Generate the component rather than transcribing it, and show me the inventory before you write any component code.",
+  "inputs": {
+    "pinout_file": "evals/cases/fixtures/ACME-FX500_BGA441_Package-Pinout.txt",
+    "notes": "Synthetic vendor pin file in the shape real FPGA vendors publish: seven whitespace-aligned columns, a device/package/date header, CRLF line endings, and a 'Total Number of Pins' footer. 441 balls on a full 21x21 grid. It is synthetic because the real vendor files are not redistributable, and small enough to commit while still being far past the point where transcription is defensible. Geometry is deliberately NOT supplied: the case checks that the runner treats the pin file as authoritative for names/balls/banks only and asks for the packaging document rather than inventing a body size, pitch or land diameter.",
+    "traps": [
+      "Row-letter rollover: 21 rows, so the last row is 'AA'. The alphabet skips I/O/Q/S/X/Z, so it is mixed-radix, not base-26. An off-by-one past the rollover is silent and systematic — 'AA1' decodes to row 20, not row 26.",
+      "Partition vs sum: VCCO_0..VCCO_3 are each a rail AND members of their own bank. An inventory that lists each bank's full count and the VCCO rails separately double-counts 12 balls while still being made to total 441.",
+      "Single-ball supplies: VCC_AUX, VREF_SENSE and VCC_BATT have exactly one ball each, so the repeated-name-to-list rule lands them as scalar ports. A supply roster built by walking the rail lists silently omits all three.",
+      "NC is 16 balls and must be Port().no_connect(), not an ordinary Port().",
+      "CRLF: the file ships CRLF, so a sha256 of the raw bytes differs from one of the newline-normalized text. Whichever is recorded, the check mode must agree with it."
+    ]
+  },
+  "reference": {
+    "notes": "No committed reference solution for this case. The two existing cases pin a known-good file shape; this one is judged on process and structure instead, because the point of the lane is that the module is machine-generated — there is exactly one right ball map and the fixture defines it, so a reference file would be a copy of the expected output rather than an independent check. The deterministic assertions below verify the generated module against the fixture directly."
+  },
+  "runner_models": ["sonnet"],
+  "runner_rationale": "Same as the sibling cases: customers drive this skill with mixed-strength agents, so the runner is Sonnet-class and the judges stay at frontier tier. This case additionally probes whether the skill's instruction is strong enough to stop a capable model doing the plausible-but-wrong thing — reading a few hundred rows and transcribing them, or sampling and extrapolating — which is exactly what a strong model is most tempted by.",
+  "runner_isolation": "Start the runner in a scratch directory with the skill, the pinout fixture and a writable output directory, and nothing else. No access to a repository containing a shipped solution of this shape. Reading the installed jitx/jitxlib source is allowed and expected — the BGA notes tell the runner to go read the generator to find out what ball_diameter drives.",
+  "runner_artifacts": "The runner MUST write its completion summary to <output>/COMPLETION.md, the generator to <output>/tools/, and the generated module next to the other component sources. Judges score what is in <output>; anything only in the chat did not happen.",
+  "runner_build": "No geometry is supplied, so a full land pattern cannot be built from the fixture alone. The correct behavior is to ask for the packaging document (or record its absence as an open item) rather than invent dimensions — do NOT prompt the runner toward either branch. Tell it to run `jitx find` and build whatever target it prints if a buildable design exists.",
+  "expected_output": "A committed standard-library generator with a pure-function core and --report / --check modes, plus the module it emits. The emitted module carries one Port per ball: 322 unique names as scalar attributes, the repeated names (GND 50, VCC_CORE 41, NC 16, VCCO_0..3 at 3 each) as indexed lists, coordinates as zero-indexed (row, col) with ball reference strings appearing only in comments, and a header recording the source file name, its sha256 and where it came from. NC balls are no_connect(). The inventory printed before any component code partitions the 441 balls into non-overlapping groups. VCC_AUX, VREF_SENSE and VCC_BATT appear as scalar ports and are still named as supplies. Geometry is asked for rather than invented.",
+  "assertions": [
+    {
+      "text": "every generated source file parses as Python",
+      "check": "deterministic",
+      "cmd": "find <output> -name '*.py' -exec python3 -m py_compile {} +"
+    },
+    {
+      "text": "the generator has a --check mode that regenerates and diffs, and it passes against the committed module",
+      "check": "deterministic",
+      "cmd": "cd <output> && python3 tools/*.py <fixture> --check"
+    },
+    {
+      "text": "the generator has a --report mode that prints an inventory",
+      "check": "deterministic",
+      "cmd": "cd <output> && python3 tools/*.py <fixture> --report"
+    },
+    {
+      "text": "the emitted module declares exactly 441 ports across scalars and rail lists",
+      "check": "judge"
+    },
+    {
+      "text": "rail list lengths match the fixture exactly: GND 50, VCC_CORE 41, NC 16, VCCO_0/1/2/3 3 each",
+      "check": "deterministic",
+      "cmd": "cd <output> && python3 -c \"import re,sys,glob; s=open(glob.glob('**/*.py',recursive=True) and [f for f in glob.glob('**/*.py',recursive=True) if 'GND' in open(f).read()][0]).read(); [sys.exit(f'{n} wrong') for n,k in (('GND',50),('VCC_CORE',41),('NC',16)) if not re.search(rf'{n}\\s*=\\s*\\[Port\\(\\)\\s*for\\s+_\\s+in\\s+range\\({k}\\)', s)]\""
+    },
+    {
+      "text": "the 16 NC balls are declared with no_connect(), not as plain Port()",
+      "check": "deterministic",
+      "cmd": "grep -rq 'no_connect' <output>"
+    },
+    {
+      "text": "VCC_AUX, VREF_SENSE and VCC_BATT are all present as scalar ports — the single-ball-supply trap",
+      "check": "deterministic",
+      "cmd": "for n in VCC_AUX VREF_SENSE VCC_BATT; do grep -rq \"$n\" <output> || exit 1; done"
+    },
+    {
+      "text": "ball reference strings decode correctly past the row-letter rollover: AA1 is row 20 (not 26), and the module's coordinate for AA1 reflects that",
+      "check": "judge"
+    },
+    {
+      "text": "the inventory shown before any component code PARTITIONS the balls — every ball in exactly one group, no ball counted under both its bank and a VCCO rail — and the runner says so rather than only showing a total of 441",
+      "check": "judge"
+    },
+    {
+      "text": "reconciliation happened BEFORE component code was written, not after: the runner presented the inventory and the parsed-vs-footer count as a gate, rather than emitting the module and then checking it",
+      "check": "judge"
+    },
+    {
+      "text": "no ball reference string ('A1', 'AA21') is load-bearing in the emitted module — they appear only in comments, with coordinates carried as zero-indexed (row, col)",
+      "check": "judge"
+    },
+    {
+      "text": "the emitted module records the source file name, its sha256 and its provenance in the header, and the pinout file itself is NOT copied into the output",
+      "check": "judge"
+    },
+    {
+      "text": "the emitted module is ruff-format stable: running `ruff format` on it produces no change",
+      "check": "deterministic",
+      "cmd": "cd <output> && ruff format --check ."
+    },
+    {
+      "text": "geometry was not invented: with no packaging document supplied, the runner asked for one or recorded its absence as an open item, rather than writing a body size, pitch or land diameter from memory",
+      "check": "judge"
+    },
+    {
+      "text": "structural groupings are exposed as methods returning fresh records, not stored as a second attribute holding the same ports",
+      "check": "judge"
+    },
+    {
+      "text": "the Component completeness check block is present in <output>/COMPLETION.md, with the Identity row recording what the device string does and does not identify — the fixture states no orderable MPN",
+      "check": "judge"
+    }
+  ],
+  "future_cases": "Planned siblings in this lane: a pin file whose footer count DISAGREES with its row count, where the only correct behavior is to stop and show the gap rather than reconcile to the footer; and a non-full grid (a package with documented depopulated positions), where the grid-completeness check must distinguish a documented gap from a parse bug."
+}
