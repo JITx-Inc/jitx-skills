@@ -101,13 +101,20 @@ This makes the project's configured line length load-bearing on a file that does
 on it. Say so in the generator's docstring.
 
 **Compile the emitted text before writing it.** `compile(source, path, "exec")` on the generated
-string, and refuse to write if it raises. This costs one line and catches the entire class of
-emitter bug where a value lands in the wrong syntactic position — a raw vendor name interpolated
-into an assignment target rather than a trailing comment, say, which produces
-`VCC_ (VCC+) = [Port() ...]`. That kind of defect hides in whichever branch your own input never
-exercises, so no amount of care on the input you have will surface it; only the compile will. Do the
-same in `--check` mode, so a module that somehow got written broken is reported as broken rather
-than merely as differing.
+string, and refuse to write if it raises — naming the group whose declaration failed.
+
+This costs one line and catches the class of emitter bug where a value lands in the wrong syntactic
+position: a raw vendor name interpolated into an assignment target rather than a trailing comment
+produces `VCC_ (VCC+) = [Port() ...]`, which is not Python. Such a defect hides in whichever branch
+your own input never exercises — if no repeated name in your file needs sanitizing, that path never
+runs — so care on the input you have cannot surface it.
+
+If you pipe the output through a formatter before writing, the formatter's parser will also reject
+it, so the failure is loud either way and nothing broken reaches disk. The compile is still worth
+having, for two reasons: it does not depend on a formatter being in the path, and it fails at the
+point where you still know *which pin group* you were emitting. A formatter reports a line and
+column in generated text, which is a considerably worse place to start debugging. Do the same in
+`--check` mode.
 
 ## Provenance
 
