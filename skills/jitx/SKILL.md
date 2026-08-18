@@ -279,6 +279,13 @@ Durable rules for JITX Python user code. The architectural rules below protect a
     Prefer neither: silence the rule per-file in `[tool.ruff.lint.per-file-ignores]` for the design
     package, with a comment saying why.
 - **Run `ruff format`** for style consistency.
+  - **Commit a ruff config, and run ruff from the project directory.** Config discovery walks up
+    from the working directory, so a check run from somewhere else silently resolves *that* tree's
+    settings. An agent working in a scratch directory under a repo has had `ruff check` report clean
+    against the repo's narrower `select`, then surface 13 real findings when run from the right
+    place. A committed config anchors the result so it does not depend on where the command was
+    typed — which also means "ruff clean" in a completion block is a reproducible claim rather than
+    an artifact of one shell's cwd.
   - **Set `[tool.ruff] line-length` explicitly if anything in the project *emits* Python.** A code
     generator has to agree with the formatter about when a collection fits on one line, so the
     configured length becomes load-bearing on files it does not obviously touch. See

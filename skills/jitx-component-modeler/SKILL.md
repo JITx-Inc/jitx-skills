@@ -840,6 +840,19 @@ with SubstrateContext(SampleSubstrate()):
     part = MyPart(size="0402", ...)
 ```
 
+**Declare every JITX class at module scope, never inside a test method.** Defining one while an
+instantiation context is active raises (verified on 4.4.0rc3):
+
+```
+TypeError: Creating new JITX classes dynamically during instantiation is not supported,
+please create new classes separately.
+```
+
+So a `SampleDesign`, a `Circuit` harness, or a throwaway component built to exercise one case all
+belong at module scope, even when only one test uses them. This is the same instantiation-tracking
+rule as the base skill's "no subclassing JITX classes inside functions or methods"; it bites here
+because a test method is the natural place to reach for a one-off fixture.
+
 Direct construction is what `@pytest.mark.parametrize` forces, since a parametrized case cannot drive a class-body `SampleDesign`. The chip land-pattern generator reads fabrication values off the active substrate — silkscreen-to-soldermask spacing, via `jitx.current.substrate.constraints` — so with no substrate active it raises instead of building. **Never rely on a context an earlier test left set**: that passes in suite order and fails when the test runs alone, which is the order a bisect or a `-k` filter uses.
 
 **What a component test asserts,** beyond `status: ok` from the build:
@@ -855,6 +868,10 @@ Direct construction is what `@pytest.mark.parametrize` forces, since a parametri
 **For a generated component**, add the assertions in `pin-file-generation.md` § "Testing a generated component". Note that a spot-check expression indexing a `PadMapping` needs the narrowing in "PadMapping Requirements"; written literally it does not type-check, and a suite gated on "pyright clean" will contradict itself.
 
 Where a test is skipped unless a source file is present — the idempotency check usually is, since the vendor file cannot be committed — **confirm it actually ran** when you are relying on it. A skipped test is green.
+
+**"The environment can't run this" is a claim to test, not to assert.** Before recording a check as unavailable, try it. The completion block's hard-fail is on an *undeclared* unavailable environment, which makes declaring feel like the safe move — but a declaration that turns out to be wrong is worse than a failing check, because it reads as diligence while hiding the result.
+
+The specific trap: a missing `pyproject.toml` looks like "no project, so no build," and it is four lines away from being a project. In one run an agent declared `jitx build` unrunnable for exactly that reason; adding a minimal `pyproject.toml` made `jitx build --dry` run, and it reported `translation failed: <Component> does not have a landpattern` — a fact about the delivered artifact that the completion block never stated. Cheap to check, and `--dry` needs no runtime. If the check then fails for a reason you already know and accepted (geometry deliberately absent, say), record the actual message; "cannot be placed on a board" and "cannot be translated into any design" are different claims, and the second is the one the reader needs.
 
 **Assert the value label — scaling to an SI prefix reintroduces float noise on exactly the values a passive library uses most.** `PlainQuantity.to_compact()` divides by a power of ten, so an exactly specified `100e-9 F` comes back as `99.99999999999999 nanofarad`, and `2.2e6 Ω` as `2.1999999999999997 megaohm` (verified on jitx 4.2.2). Nothing else catches it: `pyright` sees a well-typed quantity, `pytest` never touches `.value` unless you tell it to, `jitx build` reports `status: ok` — and the string goes to the BOM. Round the scaled magnitude back to significant figures before assigning `.value`, and assert the rendered string. Assert it the way the translator renders it (`f"{value:g~P}"`), not through a bespoke format spec — a spec of your own can hide the noise it is supposed to catch.
 
@@ -1008,7 +1025,8 @@ Library defaults: generator/table defaults relied on: <list | none> — each che
         overrides <item + reason | none>
         Density level: <A | B | C> — <what the source asks for, or "no preference stated">;
         installed default is <level> — <set explicitly | default already matches>
-Value / BOM: .value renders as "<string>" — asserted in a test | n/a (<reason>)
+Value / BOM: .value renders as "<string>" — asserted in a test
+        | n/a (<reason>) — AND pinned by a test asserting it is unset
 No-field walk: datasheet-stated facts with no JITX field, recorded in the docstring: <list>
 Provenance: values traceable to no datasheet page: NONE | <list + the labeled rule backing each>
 Checks: pyright <clean | N errors>; pytest <N passed | not run: <reason>>;
@@ -1027,6 +1045,10 @@ Row-by-row intent — the *why*, so the block stays evidence rather than ceremon
 
   **Defaults are not only dimensions.** The one that gets missed is **density level**, because it never appears as a number in your code. The levels are IPC-7351's land-protrusion goals — `A` most, `B` median/nominal, `C` least — and the choice moves real copper: on `BigRectangularLeads`, a 0.55 mm toe fillet at `A`, 0.35 at `B`, 0.15 with a **negative** 0.05 mm side fillet at `C`. The default has changed between versions (`C` on 4.2.2 and 4.4.0rc3, `B` later), so assume neither: read what the source asks for, check what your installed `DensityLevelContext` defaults to, and either set the level explicitly (`DensityLevel` from `jitxlib.landpatterns.ipc`, on the generator or via the surrounding context) or record in this row that the default already matches.
 - **Value / BOM** — no build, type check or land-pattern test looks at the rendered value string. If this row says anything other than an asserted literal, nothing is checking what the BOM will print.
+
+  **`n/a` is a claim, and it needs a test like any other.** For an IC there is often no value in the passive sense, and leaving `.value` unset is right — but "right" and "checked" are different, and an unpinned `n/a` is indistinguishable from having forgotten the field. Treat it exactly as you would any other deliberate absence: a component that deliberately ships without a land pattern gets a test asserting no land pattern is present, so a component that deliberately ships without a value gets a test asserting `value is None`. Then the decision cannot silently rot when someone later sets it.
+
+  This row is the one most often filled by declaring rather than checking, which is why it says so twice.
 - **Provenance** — if the datasheet doesn't state a value, ask the user or document the omission. Never invent a number to satisfy a type checker or complete a table; suppress the type error with a comment saying why instead.
 
 ## Output Format
