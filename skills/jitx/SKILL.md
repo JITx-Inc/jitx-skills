@@ -212,25 +212,37 @@ or
 npm install -g pyright
 ```
 
-**Verify:** Ask the agent to "check for type errors" or run manually:
+**Verify:** Ask the agent to "check for type errors" or run manually, **from inside the project's
+virtual environment**:
 ```bash
+source .venv/bin/activate      # or: hatch run types:check, uv run pyright, etc.
 pyright <ns>/
 ```
 
-**Point pyright at the virtual environment, or every JITX import reads as unresolved.** `jitx project
-layout init` does not seed a `[tool.pyright]` block, and pyright does not find `.venv` on its own — so
-a freshly scaffolded project reports `Import "jitx" could not be resolved` (and one per `jitxlib.*`
-import) before you have written a line. Add to `pyproject.toml`:
+**Run pyright in the environment the project's dependencies are installed in. Every rule below that
+asks for "pyright clean" means clean *in that environment*.** Pyright type-checks against a Python
+interpreter, and it resolves imports from that interpreter's site-packages. Run it against one where
+`jitx` is not installed — a system Python, a different venv, a shell where nothing was activated —
+and it reports:
 
-```toml
-[tool.pyright]
-venvPath = "."
-venv = ".venv"
+```
+error: Import "jitx" could not be resolved (reportMissingImports)
+error: Import "jitxlib.landpatterns.generators.bga" could not be resolved
 ```
 
-Every one of those errors is spurious, and "pyright clean" is a gate several workflows require, so
-without this the gate is unreachable. Worth knowing the failure shape: the errors say the imports are
-wrong, and an agent that believes them starts rewriting correct imports.
+**Those errors are about the interpreter, not the code.** Verified by running one pyright binary
+against two interpreters on the same file: with an interpreter lacking `jitx`, two unresolved-import
+errors; with the project's own, the imports resolve and pyright goes on to find a real type error the
+first run never reached. The failure mode to guard against is an agent believing the message and
+"fixing" correct imports — and worse, the run that reports only import errors has type-checked almost
+nothing, so a clean-looking follow-up is not evidence.
+
+If a tool must launch pyright from outside the environment — an editor, a CI step that does not
+activate — point it at the interpreter rather than working around the message. `[tool.pyright]`'s
+`venvPath` / `venv` in `pyproject.toml` does that, as does `pyright --pythonpath <path-to-python>`.
+Neither is needed when pyright already runs in the right environment: this project's own
+`pyproject.toml` sets no `venvPath`, because `hatch run types:check` runs pyright inside an
+environment where `jitx` is installed.
 
 ## JITX Python Code Conventions
 
