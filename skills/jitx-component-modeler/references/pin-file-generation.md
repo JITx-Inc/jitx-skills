@@ -100,6 +100,15 @@ Two sub-cases account for most of the churn:
 This makes the project's configured line length load-bearing on a file that does not obviously depend
 on it. Say so in the generator's docstring.
 
+**Compile the emitted text before writing it.** `compile(source, path, "exec")` on the generated
+string, and refuse to write if it raises. This costs one line and catches the entire class of
+emitter bug where a value lands in the wrong syntactic position — a raw vendor name interpolated
+into an assignment target rather than a trailing comment, say, which produces
+`VCC_ (VCC+) = [Port() ...]`. That kind of defect hides in whichever branch your own input never
+exercises, so no amount of care on the input you have will surface it; only the compile will. Do the
+same in `--check` mode, so a module that somehow got written broken is reported as broken rather
+than merely as differing.
+
 ## Provenance
 
 The emitted module's header records what it was generated from:
@@ -144,6 +153,13 @@ data model. See the main skill's "Anti-string-hacking" rule, which this is a spe
   identifier, fail loudly rather than silently dropping a pin; and the **exact vendor name preserved**
   in a comment or a lookup so the mapping back to the datasheet survives. Do not quietly rewrite a
   name you could not use.
+
+  **Emit every declaration through one function.** A generator naturally grows a branch per shape —
+  scalar port, indexed rail list, coordinate row — and sanitization then has to be right in each of
+  them independently. It won't be: the branch you exercise on your own input gets it right, and the
+  one that only fires on a name you happen not to have stays wrong. Route the identifier and its
+  raw-name annotation through a single helper that every branch calls, so there is one place to be
+  correct rather than one per shape.
 
   Note the consequence for supplies: a rail the vendor gives exactly one pin lands as a *scalar*,
   not a one-element list. The base skill's **MCU / FPGA Components** checklist owns what follows
