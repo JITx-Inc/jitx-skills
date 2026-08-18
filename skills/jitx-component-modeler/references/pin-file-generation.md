@@ -147,6 +147,23 @@ This is the difference between a structural model and a string-keyed one. A down
 has to parse `"AB34"` to find a neighbour has inherited the vendor's serialization format as its
 data model. See the main skill's "Anti-string-hacking" rule, which this is a special case of.
 
+**No runtime ball-reference table**, even a private one — not `_BALL_REF_BY_COORD`, not a
+`# fmt: off` block of them. A ball reference is *derivable* from `(row, col)` by the same encoder the
+generator already has, so a stored copy is a second source of truth for a fact you can compute, and
+the two can drift. Emit the encoder if callers need the string; do not emit the table.
+
+**The governing distinction — preserve by lookup only what you cannot recompute.** This is why the
+rule here differs from the one for vendor *names* above, which explicitly allows a lookup:
+sanitization is lossy, so `VCC+` genuinely cannot be recovered from `VCC_` and the mapping has to be
+stored. A ball reference loses nothing, so it never does. Read the two rules together and the
+apparent inconsistency resolves: it is not "strings in comments good, strings in data bad," it is
+"store what is irrecoverable, compute what is not."
+
+(Both readings have actually happened. Two reviewers of the same generated module reached opposite
+conclusions about whether such a table was permitted, one citing this section and one citing
+"coordinate tables under a formatter-off guard" below — which sanctions the **coordinate** tables,
+the `(row, col)` data itself, not a parallel table of the strings those coordinates replace.)
+
 ## What the emitted module holds
 
 - One `Port` per pin. Unique names become scalar attributes; repeated names (rails, grounds,
@@ -177,6 +194,21 @@ data model. See the main skill's "Anti-string-hacking" rule, which this is a spe
 - **Structural groupings as methods returning fresh records** — never as stored attributes. See the
   main skill's "A `Port` has exactly one home".
 - No-connects declared per the **BGA-Specific Notes** in `package-examples.md`.
+
+**Declaration order is not pad order, and this bites later.** A generated module declares in whatever
+order the generator walks — rails first, then IO by bank, typically — which is nowhere near ball
+order. JITX maps ports to pads **in declaration order** by default, so the moment a land pattern is
+added that default is silently wrong: ports land on the wrong pads, the build still succeeds, and
+nothing in the emitted module says otherwise.
+
+So the emitted module owes an **explicit `PadMapping`** built from the coordinate table rather than
+left to declaration order — see the main skill's "PadMapping Requirements", whose "ports declared out
+of pin order" case this always is.
+
+Where geometry is not yet available and the module ships without a land pattern, put that warning
+**in the module**, next to the blocked-geometry note. Whoever adds the land pattern later is the
+person who needs it, and they will not be reading this page; a blocked note saying only "geometry
+missing" hands them a trap.
 
 ## The human gates
 
