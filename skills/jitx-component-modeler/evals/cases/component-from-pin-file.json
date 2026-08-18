@@ -17,9 +17,9 @@
   },
   "runner_models": ["sonnet"],
   "runner_rationale": "Same as the sibling cases: customers drive this skill with mixed-strength agents, so the runner is Sonnet-class and the judges stay at frontier tier. This case additionally probes whether the skill's instruction is strong enough to stop a capable model doing the plausible-but-wrong thing — reading a few hundred rows and transcribing them, or sampling and extrapolating — which is exactly what a strong model is most tempted by.",
-  "runner_isolation": "Start the runner in a scratch directory with the skill, the pinout fixture and a writable output directory, and nothing else. No access to a repository containing a shipped solution of this shape. Reading the installed jitx/jitxlib source is allowed and expected — the BGA notes tell the runner to go read the generator to find out what ball_diameter drives.",
+  "runner_isolation": "Start the runner in a scratch directory with the skill, the pinout fixture and a writable output directory, and nothing else. No access to a repository containing a shipped solution of this shape. Reading the installed jitx/jitxlib source is allowed and expected — the BGA notes tell the runner to go read the generator to find out what ball_diameter drives.\n\nSTAGE THE GRADING ARTIFACTS OUTSIDE THE RUNNER'S PERMITTED TREE. The expected-output description, the contract and the judge prompt between them give away every planted trap, so a run with them reachable cannot evidence independence even if the runner ignores them — and note that `atime` is unreliable on macOS, so after-the-fact proof of non-access is not available. Put them in a sibling directory the runner is not pointed at. (Learned the hard way: a run staged them one level above the input directory, inside the tree the runner was told it could read. That run's receipt carries the caveat.)",
   "runner_artifacts": "The runner MUST write its completion summary to <output>/COMPLETION.md, the generator to exactly <output>/tools/generate_pinout.py, and the emitted module to exactly <output>/components/acme_fx500.py. Judges score what is in <output>; anything only in the chat did not happen. The two exact paths are fixed so the deterministic assertions below can address the emitted module specifically rather than grepping the whole output tree — a grep across <output> also matches the generator's own emitter strings, COMPLETION.md prose and comments, which would pass while the emitted declarations were wrong.",
-  "runner_phases": "Run the case in two recorded phases so the report-before-emit gate is observable rather than inferred. PHASE 1: give the runner the fixture and stop it after it presents the inventory; capture its transcript to <output>/phase1-inventory.md. PHASE 2: resume with approval and let it emit. A single-phase run cannot evidence the ordering, because the final artifacts look identical either way.",
+  "runner_phases": "Run the case in two recorded phases so the report-before-emit gate is observable rather than inferred. PHASE 1: give the runner the fixture and stop it after it presents the inventory; capture its transcript to <output>/phase1-inventory.md. PHASE 2: resume with approval and let it emit. A single-phase run cannot evidence the ordering, because the final artifacts look identical either way.\n\nDo NOT combine this with a 'work autonomously to completion' instruction — the two contradict, and the runner will reasonably resolve it by writing the inventory file and proceeding, which is a self-approved gate. If a single-phase run is unavoidable, score the gate on whether the runner NAMED the contradiction and said what it would have waited for, and record in the receipt that the gate itself was not exercised.",
   "substitutions": "<output> = the runner's writable output directory. <fixture> = the absolute path to inputs.pinout_file as staged for the run. Both are substituted by the harness before the cmd strings below are executed.",
   "runner_build": "No geometry is supplied, so a full land pattern cannot be built from the fixture alone. The correct behavior is to ask for the packaging document (or record its absence as an open item) rather than invent dimensions — do NOT prompt the runner toward either branch. Tell it to run `jitx find` and build whatever target it prints if a buildable design exists.",
   "expected_output": "A committed standard-library generator with a pure-function core and --report / --check modes, plus the module it emits. The emitted module carries one Port per ball: 322 unique names as scalar attributes, the repeated names (GND 50, VCC_CORE 41, NC 16, VCCO_0..3 at 3 each) as indexed lists, coordinates as zero-indexed (row, col) with ball reference strings appearing only in comments, and a header recording the source file name, its sha256 and where it came from. NC balls are no_connect(). The inventory printed before any component code partitions the 441 balls into non-overlapping groups. VCC_AUX, VREF_SENSE and VCC_BATT appear as scalar ports and are still named as supplies. Geometry is asked for rather than invented.",
@@ -30,12 +30,12 @@
       "cmd": "find <output> -name '*.py' -exec python3 -m py_compile {} +"
     },
     {
-      "text": "the generator has a --check mode that regenerates and diffs, and it passes against the emitted module",
+      "text": "the generator has a regenerate-and-diff check mode, and it passes against the emitted module. Accepts either a bare flag or one taking the module path — the skill specifies the behavior, not the CLI grammar, so pinning one spelling would fail a correct implementation.",
       "check": "deterministic",
-      "cmd": "cd <output> && python3 tools/generate_pinout.py <fixture> --check"
+      "cmd": "cd <output> && (python3 tools/generate_pinout.py <fixture> --check || python3 tools/generate_pinout.py <fixture> --check components/acme_fx500.py)"
     },
     {
-      "text": "the generator has a --report mode that prints an inventory",
+      "text": "the generator has a report mode that prints an inventory without emitting",
       "check": "deterministic",
       "cmd": "cd <output> && python3 tools/generate_pinout.py <fixture> --report"
     },
@@ -59,9 +59,9 @@
       "cmd": "python3 -c \"import ast,sys; from pathlib import Path; t=ast.parse(Path('<output>/components/acme_fx500.py').read_text()); names={x.id for s in ast.walk(t) if isinstance(s,(ast.Assign,ast.AnnAssign)) for x in ast.walk(s.target if isinstance(s,ast.AnnAssign) else s.targets[0]) if isinstance(x,ast.Name)}; missing=[n for n in ('VCC_AUX','VREF_SENSE','VCC_BATT') if n not in names]; sys.exit('; '.join(missing) if missing else 0)\""
     },
     {
-      "text": "the emitted module type-checks",
+      "text": "the emitted module type-checks — OR, where pyright is not installed in the harness, its absence is DECLARED in COMPLETION.md rather than silently skipped. The contract hard-fails on an unavailable environment that was not declared, so an environment without the tool still tests something.",
       "check": "deterministic",
-      "cmd": "cd <output> && pyright components/acme_fx500.py"
+      "cmd": "cd <output> && (command -v pyright >/dev/null && pyright components/acme_fx500.py || grep -qi 'pyright' COMPLETION.md)"
     },
     {
       "text": "the generator's pure-function tests exist and pass",
@@ -89,9 +89,9 @@
       "check": "judge"
     },
     {
-      "text": "the emitted module is ruff-format stable: running `ruff format` on it produces no change",
+      "text": "the emitted module is ruff-format stable: running `ruff format` on it produces no change. Invoke the ruff BINARY, not `python -m ruff` — a venv can have jitx importable without ruff installed as a module, and that failure looks identical to an unstable emitter.",
       "check": "deterministic",
-      "cmd": "cd <output> && ruff format --check ."
+      "cmd": "cd <output> && \"$(command -v ruff)\" format --check ."
     },
     {
       "text": "geometry was not invented: with no packaging document supplied, the runner asked for one or recorded its absence as an open item, rather than writing a body size, pitch or land diameter from memory",
