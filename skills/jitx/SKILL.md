@@ -352,13 +352,16 @@ project/
 ├── pyproject.toml          # Project config with JITX deps
 ├── <namespace>/            # Flat package (NOT src/<namespace>/)
 │   ├── __init__.py
-│   ├── main.py             # Seeded Design class lives here
+│   ├── main.py             # Seeded Design class; the top-level design for a single-design project
+│   ├── substrate.py        # Substrate definition, or the predefined-class import (add as needed)
 │   ├── components/         # Custom component definitions (add as needed)
 │   │   ├── <category>/     # mcus, connectors, power, etc.
 │   │   │   └── <mfr>_<mpn>.py
 │   │   └── __init__.py
 │   ├── circuits/           # Reusable circuit blocks (add as needed)
-│   └── designs/            # Top-level designs (add as needed)
+│   │   └── power/          # One module per rail or power group
+│   ├── constraints/        # SI constraint classes, one module per protocol (add as needed)
+│   └── designs/            # Additional top-level designs, when a project carries more than one
 ├── designs/                # Build output directory (created on first build)
 ├── .socket.jitx            # Written by `jitx runtime start --background`
 ├── .jitx/logs/             # Runtime logs (written by the daemon)
@@ -496,10 +499,10 @@ For details: read `references/parts-sourcing.md`
 
 ### Shared State Documents
 
-The orchestrator creates and maintains these in the project root:
+The orchestrator creates and maintains these in the project root. Give every fact one owner and refer to the owning document by section name instead of copying it:
 
-- **PLAN.md** — Task registry with status, dependencies, and acceptance verdicts. Single source of truth. Enables session resumption.
-- **ARCHITECTURE.md** — Power tree, interface map, module hierarchy. Gives sub-agents the big picture.
+- **PLAN.md** — Owns the requirements lock, approved data sources, task graph and statuses, gate outcomes with deferred/blocking items, and one-line modification history. It is the resumable source of truth for the work.
+- **ARCHITECTURE.md** — Owns the power tree, interface map, board and mechanical constraints, parametric object-hierarchy commitments, and non-derivable design notes. It is the source of design context for sub-agents.
 
 ## Subskills
 

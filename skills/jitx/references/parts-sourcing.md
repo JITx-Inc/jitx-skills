@@ -124,11 +124,11 @@ The datasheet remains the higher authority for dimensions, pin labels, and pad a
 
 3. **Identify data source** for each part: does the user have a datasheet? A footprint? Or should we search/download?
 
-4. **Record chosen parts in PLAN.md** with MPN, package, key specs, data source, and the **component-choice rationale table** below.
+4. **Record chosen parts in PLAN.md** `Data Sources`: MPN, package, data source, and the one-line `Chosen over` outcome. The full **component-choice rationale table** below is presented at the audit in chat, not filed in PLAN.md.
 
 ### Component-Choice Rationale Table
 
-For every part the orchestrator proposes, record the rationale. This is the table the user reviews at the Phase 0 data source audit. Filling it forces the agent to justify each choice against the locked requirements, not just availability.
+For every part the orchestrator proposes, record the rationale. **Present this table to the user in chat at the Phase 0 data source audit; it does not go into PLAN.md.** What PLAN.md keeps afterwards is the `Data Sources` row: the chosen part, its approved sources, and the `Chosen over` cell. Filling this table forces the agent to justify each choice against the locked requirements, not just availability.
 
 | Field | What to capture |
 |-------|-----------------|
@@ -138,7 +138,7 @@ For every part the orchestrator proposes, record the rationale. This is the tabl
 | **Stock / availability** | Stock level at the chosen distributor; lead time if not in stock |
 | **Fabrication risk** | Package class fab requires (e.g. "0.5 mm pitch BGA — needs ≥6-layer w/ microvias"), any DRC concerns |
 | **Thermal / power** | Worst-case dissipation, whether package can handle it, ambient assumption |
-| **Why this part over alternatives** | Concrete: which 1–2 alternatives were considered and why rejected (cost, availability, package, feature gap, EOL, etc.) |
+| **Why this part over alternatives** | Concrete: one rejected alternative and why (cost, availability, package, feature gap, EOL). A second only when it changed the decision; a list of three is padding, not rigour. |
 
 A row without a real "rejected alternatives" entry is a flag — it usually means the agent took the first hit from a query without weighing tradeoffs. The user can challenge any row at the data source audit.
 

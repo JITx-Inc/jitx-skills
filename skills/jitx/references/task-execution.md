@@ -17,35 +17,29 @@ The output of Part A is a **task acceptance block** (template in `references/com
 #### Step 1: Receive Task
 
 Read your task definition from PLAN.md. Note:
-- **Description**: what to build, including file path and class name
-- **Inputs / Datasheet**: datasheets, specs, or outputs from prior tasks
-- **Skill**: which sub-skill to invoke
+- **Task heading / phase**: task ID, name, and phase
+- **Type / skill / deps**: task type, sub-skill, and accepted prerequisites
+- **Data**: approved sources, specifications, and upstream outputs
+- **Specifics**: task-specific design facts. The file path and class name come from the `Verify` module path, not from prose here
 - **Checklist**: which domain checklist(s) apply
-- **Verification**: build command for testing
+- **Verify**: build command for testing
+- **Status**: current resumable state. `blocked: OQ-n` means do not start; return it unstarted and say which question is open
+- **Questions**: engineering questions for every circuit and architectural questions only for parametric tasks
 
 #### Step 2: Invoke Sub-Skill, Read the Datasheet, and Implement
 
 **You MUST invoke the sub-skill and read the actual datasheet.** Do NOT design circuits from memory. The datasheet's application circuit is the ground truth — see `references/parts-sourcing.md` "Evidence Hierarchy and Conflict Resolution" for source ranking when sources disagree (datasheet > errata > app notes > vendor reference design > user-supplied known-good > prior internal project > community).
 
-| Task Type | Skill | Datasheet Requirement |
-|-----------|-------|-----------------------|
-| Component | `jitx-component-modeler` | Download and extract pinout + mechanical drawing |
-| Circuit | `jitx-circuit-builder` + `jitx-component-modeler` | **Read the application circuit from every IC's datasheet.** Follow it. |
-| Assembly | `jitx-circuit-builder` | Review all subcircuit ports and ARCHITECTURE.md |
-| Substrate | `jitx-substrate-modeler` (only if custom needed — check `jitxlib.jlcpcb` predefined substrates first) | Reference design spec for impedance targets |
-| SI constraints | `jitx-interconnect-constraints` | Protocol spec for timing/impedance |
-| Pin assignment | `jitx-pin-assignment` | Datasheet for mux options |
-| Verify | No skill — orchestrator runs build | N/A |
-
-**For circuit tasks specifically:**
-
-1. Download the datasheet for every IC in the circuit to `datasheets/<mpn>.pdf` — get the ENGLISH version from the manufacturer's site (ti.com, espressif.com, etc.), not LCSC which may have Chinese-only versions
-2. Use the component modeler skill's `extract_pages.py` to extract the application circuit pages from the PDF — do not try to read the entire datasheet
-3. Read the "Typical Application Circuit" or "Application Information" section
-4. The datasheet application circuit shows required external components (transistors, resistors, capacitors, inductors) — implement ALL of them. Count them. If the datasheet shows 8 external components and you have 4, you're missing half.
-5. If the datasheet shows a PMOS switch, include a PMOS switch. If it shows output filter inductors, include them. If it shows a bootstrap cap, include it. Do not simplify or omit components.
-6. Invoke the component modeler skill (Step 5: Capture Application Circuit) for the IC — this is NOT optional in the project builder workflow
-7. Invoke the circuit builder skill for the wiring patterns
+| Task type | Skill / source | Standing instructions |
+|-----------|----------------|-----------------------|
+| `component` | `jitx-component-modeler`; approved datasheet | Checklists: Component Modeling, plus MCU/FPGA where the part is one. Invoke the skill. Use its `extract_pages.py` for the pinout and mechanical drawing, and capture the IC's application circuit in Step 5. |
+| `circuit` | `jitx-circuit-builder` + `jitx-component-modeler`; every IC's datasheet | Checklists: Power Circuit or Interface Circuit as applicable, Datasheet Compliance, General Gotcha Scrub. Answer every engineering question with datasheet evidence. Save the English datasheet for every IC to `datasheets/<mpn>.pdf` from the manufacturer's site, not LCSC, which may carry a Chinese-only version; use `extract_pages.py` on the application pages; read, count, and implement every required external component without simplification; capture each application circuit in component-modeler Step 5 before wiring. Expose bundle-typed ports, use `>>` through paths constrained at top level, and place shared-bus pull-ups or termination only at the bus-aggregation level. |
+| `assembly` | `jitx-circuit-builder` + `jitx-interconnect-constraints`; accepted subcircuits and ARCHITECTURE.md | Checklists: General Gotcha Scrub. Instantiate every subcircuit; connect power and ground with `PowerSymbol` / `GroundSymbol`; tag those nets with `PowerTag` / `GroundTag`; wire bundles with `require()`; add shared-bus parts at the aggregation level; apply every SI constraint inside `ReferencePlanes(...)`; define board geometry; set manufacturing-appropriate `capacitor_defaults` / `resistor_defaults` and document specialty refinements; set `self.rules` with default `IsTrace` width, `IsCopper` clearance, `IsPad` thermal relief, and a wider tagged power/ground trace rule calibrated to the substrate. See `project-builder-flow.md` Phase 3. |
+| `substrate` | `jitx-substrate-modeler` when custom; board specification | Checklists: Substrate. If JLCPCB is approved, check `JLC04161H_1080` (4L/1080, RS_50/DRS_90/DRS_100), `JLC04161H_7628` (4L/7628, RS_50/DRS_90/DRS_100), and `JLC06161H_7628` (6L/7628, RS_50/DRS_100); each includes its stackup, fab rules, and vias. Import the suitable class directly. Otherwise invoke the skill. Ensure the layer count, routing structures, and vias fit the interface speeds and component packages. |
+| `constraint` | `jitx-interconnect-constraints`; protocol spec and substrate | Checklists: Substrate, General Gotcha Scrub. Define the protocol constraint classes from the timing/impedance limits; use `ConstrainDiffPair` for differential pairs and the substrate's routing structure. Define here, but apply constraints only in top-level assembly. |
+| `pin-assignment` | `jitx-pin-assignment`; IC datasheet and ARCHITECTURE.md `Interface Map` | Checklists: General Gotcha Scrub. Define the required provides and allowed mux flexibility; do not hardcode a pin choice that the provider should solve. |
+| `audit` | No skill; the orchestrator plus the outside voice in `outside-voice-review.md` | Checklists: the four Phase 3b passes in `project-builder-flow.md`. Run the four passes, then the outside-voice review; a same-model `clean` verdict is not a verification. |
+| `verify` | No skill; top-level design and build artifacts | Checklists: the Phase 4 verification block in `completion-blocks.md`. Run the full build, inspect DRC and SI constraints in the Issues List, iterate on failures, and emit the Phase 4 verification block. |
 
 **Parts not in jitxlib:** If a passive or simple component (LED, TVS diode, ferrite bead) is not available from jitxlib queries, check if the user provided a KiCad footprint or ask them for one. If the user has named LCSC/JLCPCB as the sourcing channel, `parts2jitx-lcsc` *lookup/evidence* (stock, lifecycle, datasheet URL, pinout) is implied — install `parts2jitx` and run it. **Footprint data ingestion** via `parts2jitx-lcsc --footprint` + `parts2jitx-kicad` still requires explicit per-project approval (EasyEDA terms-of-use). See `references/parts-sourcing.md` "LCSC / JLCPCB via parts2jitx" for the split-consent table. Do not give up on a component because it's not in the standard library.
 

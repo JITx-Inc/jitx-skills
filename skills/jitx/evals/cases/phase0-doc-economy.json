@@ -1,0 +1,12 @@
+{
+  "name": "phase0-doc-economy",
+  "prompt": "Build me a board. STM32U575 MCU, USB-C for 5V input and USB 2.0 data, a 5V to 3.3V buck plus a filtered analog rail, an ICM-42688-P IMU on SPI, an SHT40 on I2C, a microSD socket on SDIO, one WS2812B LED, a user button, and a Tag-Connect TC2050 footprint. 4-layer JLCPCB, 90 ohm USB pair. 40 x 60 mm with four M2 holes.",
+  "expected_output": "PLAN.md and ARCHITECTURE.md only. ARCHITECTURE.md near 60 lines carrying the power tree, interface map, board, any parametric object-hierarchy commitments and non-derivable design notes. PLAN.md carrying the requirements lock, approved data sources, the task graph with a verification command per task, open questions, gate status and modifications. The Phase 0 gate block emitted in chat, not written into either document.",
+  "assertions": [
+    {"text": "the plan template no longer carries an Architecture Summary section duplicating ARCHITECTURE.md's power tree, interface map and board", "check": "deterministic", "cmd": "! grep -q 'Architecture Summary' skills/jitx/references/plan-template.md"},
+    {"text": "the architecture template no longer carries a Module Hierarchy tree, a separate Voltage Domains table, or standalone Sequencing / Thermal / Clock Distribution prose sections", "check": "deterministic", "cmd": "! grep -qE 'Module Hierarchy|Voltage Domains|Sequencing Requirements|Thermal Notes|Clock Distribution' skills/jitx/references/architecture-template.md"},
+    {"text": "both templates carry the delete-it-if-it-reads-the-same-for-any-board rule, the single highest-leverage economy rule", "check": "deterministic", "cmd": "grep -q 'would read identically for any board' skills/jitx/references/plan-template.md && grep -q 'would read identically for any board' skills/jitx/references/architecture-template.md"},
+    {"text": "ARCHITECTURE.md comes in near its stated budget for a board of this size", "check": "judge"},
+    {"text": "every line present carries a fact rather than restating a table, a rule, or an instruction the skill already loads", "check": "judge"}
+  ]
+}

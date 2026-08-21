@@ -1,139 +1,166 @@
 # PLAN.md Template
 
-Copy this into the project root and fill in task details. The orchestrator maintains this file as the single source of truth for project state.
+PLAN.md owns the work: the requirements lock, the approved data sources, the task graph and its state, gate outcomes, and the modification history. ARCHITECTURE.md owns the design. Copy the fenced block into the project root and fill it in.
+
+Everything above that block is guidance for filling it, and none of it belongs in the file you write. The fenced block carries headings, table skeletons, field names and placeholders and nothing else, because a sentence that reads identically for any board is boilerplate every sub-agent already has.
+
+## How to fill it
+
+**Economy**
+
+- Five bullet lines per ordinary task, plus the engineering questions on circuit tasks and a `Shape` line on parametric ones.
+- **If a sentence would read identically for any board, delete it.** The skill and its references are already loaded for every sub-agent: a design rule, a banned form, a naming prohibition, or a procedure recital costs lines here and teaches nothing. Write the decision this board made, not the rule the decision obeyed.
+- Checklists are not a per-task field. They are fixed per task type in `references/task-execution.md`, which every sub-agent reads. Give a task a `Checklist:` line only to override its type's default.
+
+**Ownership**
+
+- **Never write a value a table already owns.** Name the row or the section instead. The generic instruction to cross-reference proved not to be enough on its own, so the list is explicit: MPN and package belong to `Data Sources`; rail voltage, load and current to ARCHITECTURE.md `Power Tree`; protocol, impedance and routing structure to `Interface Map`; board dimensions, layer count, stackup order and mechanical constraints to `Board`; parametric shape commitments to `Object-Hierarchy Decisions`. A task body that repeats any of them has created a second owner, even when the two copies agree today.
+- `Data` names the rows and sections a task reads. It does not reproduce their contents.
+- `Specifics` carries only what no table owns and no task of the same type shares: the one gotcha, the topology choice, the exception.
+- The `Verify` module path is where the task's file lives: `jitx build <ns>.circuits.usb.TestDesign` commits the task to `<ns>/circuits/usb.py`. That gives the path one owner, so no task restates it and no two sub-agents place the same module differently. `jitx/SKILL.md` "Project Structure" gives the directory shape.
+
+**Requirements Lock**
+
+- Each row records **who settled the item**, not the value. That is the payload: a design cannot fake the difference between something the user required and something the orchestrator assumed, which is what makes the lock hold. Write one of:
+  - `user-stated` plus the constraint, when no other document owns it (programming path, UI count, assembly tier, RF policy).
+  - `user-stated — see ARCHITECTURE.md <Section>`, when a table owns the realization (rails, fab house, mechanical). The provenance claim is the row's content; the value stays with its owner.
+  - `not specified — assuming: X`, where the assumption is the content and has no other owner, so it is written out in full and is challengeable at the audit.
+  - `no constraint`.
+- An earlier revision filled these rows with a bare `locked — see ARCHITECTURE.md ...`, which asserted nothing about who decided and was therefore satisfied by any self-consistent design. A later one quoted the request verbatim, which reproduced the dimensions, layer count, impedances and fab house that ARCHITECTURE.md owns. Naming the source and pointing at the owner is what avoids both.
+- **A design fact that a datasheet or a specification settles is never an assumption.** It is an Open Questions row with an owner and a resolution path, and the tasks it gates read `blocked: OQ-n`. The `assuming: X` form is only for a requirement the user did not state, never for a value nobody has looked up yet.
+
+**Data Sources**
+
+- Every row reads `ready` before the Phase 0 gate opens. A `needs input` row is a blocker and gets an Open Questions row.
+- `Chosen over` is the surviving record of the component-choice rationale: one rejected part and why, in a few words. The full rationale table in `parts-sourcing.md` is presented to the user in chat at the data source audit, not filed here.
+
+**Open Questions**
+
+- One row per unresolved decision that blocks work. Record the decision and what closes it, never the argument that produced it. Delete the section when empty; a question answered during Phase 0 becomes a Requirements Lock row instead.
+- If another task's `Verify` or `Data` depends on it, it is a task with an id, not an Open Questions row.
+
+**Tasks**
+
+- Engineering questions: one test decides whether a question belongs on a task. Could the sub-agent answer it by reading the datasheet's own application circuit, or does it already appear on a checklist for this task type? Then it is checklist work with a second owner, not a question. Write at most three, name the datasheet section or specification that settles each, and give a part whose application circuit answers everything none at all.
+- The `Shape` line is for parametric or generator tasks only (BGA ballout, deskew geometry, antipad fence, N-lane fanout, per-layer table, repeating-block scene graph) and states the collection or typed object committed to. The three questions behind it are in `decomposition-guide.md` Step 3b: record the answer, never the prohibitions the questions enforce.
+- `Status` is one of `pending`, `blocked: OQ-n`, `in-progress`, `review`, `accepted`, `rework`, `rejected`. Blocking is transitive: a task whose dependency is blocked is blocked, not pending. A resumed session reads Status first, so blocked state belongs there and not only in the Open Questions `Blocks` column.
+
+**State**
+
+- Mandatory blocks are emitted in chat (`completion-blocks.md`). `Gate status` takes one row per gate; `Modifications` takes one row per modification batch, never a re-narration of the work.
+- Replace every placeholder and delete every unused heading or example row.
 
 ---
 
 ```markdown
 # Project Plan: [Project Name]
 
-## Architecture Summary
+## Requirements Lock
 
-### Power Tree
-| Rail | Voltage | Source | Regulator | Load | Current |
-|------|---------|--------|-----------|------|---------|
-| VCC_CORE | 0.8V | 12V_IN | TPS62933 | MCU core | 2A |
-| VCC_IO | 3.3V | 12V_IN | LM1117 | MCU IO, peripherals | 500mA |
+| Item | Source | Where it lives |
+|------|--------|----------------|
+| Programming / debug path | [user-stated: the constraint \| not specified — assuming: X \| no constraint] | this row |
+| UI count and class | [user-stated: the constraint \| not specified — assuming: X \| no constraint] | this row |
+| Power rails | [user-stated \| not specified — assuming: X] | ARCHITECTURE.md `Power Tree` |
+| Assembly cost target / tier | [user-stated: the tier \| not specified — assuming: X] | this row |
+| RF / wireless module policy | [user-stated: the policy \| no RF] | this row |
+| Connector UX | [user-stated: the constraint \| not specified — assuming: X \| no constraint] | this row |
+| Fab house / process | [user-stated \| not specified — recommending X, treated as an assumption] | ARCHITECTURE.md `Board` |
+| Mechanical / enclosure constraint | [user-stated \| not specified — assuming: X \| no constraint] | ARCHITECTURE.md `Board` |
 
-### Interface Map
-| Interface | From | To | Protocol | SI Constrained | Impedance |
-|-----------|------|----|----------|----------------|-----------|
-| DDR5 | FPGA bank A | Memory U2 | DDR5-4800 | Yes | 40/80 ohm |
-| USB | MCU USB_DP/DM | Connector J1 | USB 2.0 HS | Yes | 90 ohm diff |
-| SPI | MCU SPI1 | Sensor U3 | SPI 10MHz | No | — |
+## Design Reference
 
-### Board
-- Dimensions: [width x height mm]
-- Layers: [count]
-- Material: [FR-4 / Megtron 6 / etc.]
+See ARCHITECTURE.md sections `Power Tree`, `Interface Map`, `Board`, and, when present, `Object-Hierarchy Decisions` and `Design Notes`.
 
 ## Data Sources (approved by user)
 
-| Component | MPN | Package | Datasheet Source | Footprint Method |
-|-----------|-----|---------|-----------------|------------------|
-| MCU | STM32H753 | QFP-100 | User-provided PDF | JITX QFP generator |
-| USB-C connector | TYPE-C-31-M-12 | Non-std | Manufacturer site | User-provided .kicad_mod |
-| LDO | LM1117 | SOT-223 | ti.com download | JITX SOT generator |
-| Buck converter | TPS62933 | SOT-23-6 | User-provided PDF | JITX SOT23_6 generator |
+| Component | MPN | Package | Datasheet source | Footprint method | Chosen over | Status |
+|-----------|-----|---------|------------------|------------------|-------------|--------|
+| [component] | [MPN] | [package] | [approved source] | [generator or approved file/source] | [one rejected part, and why] | [ready \| needs input: what is missing] |
 
----
+## Open Questions
+
+| Question | Blocks | Owner | Resolution path |
+|----------|--------|-------|-----------------|
+| [the decision, in one line] | [task ids or gate] | [user \| orchestrator] | [what closes it] |
 
 ## Phase 1: Substrate + Components
 
-### [sub-01] Substrate
-- **Type:** substrate
-- **Skill:** jitx-substrate-modeler (only if custom substrate needed)
-- **Description:** [If user confirmed JLCPCB as fab house, predefined substrates from jitxlib.jlcpcb are available — JLC04161H_1080 (4L/1080), JLC04161H_7628 (4L/7628), JLC06161H_7628 (6L/7628) — with stackup, fab rules, vias, and routing structures (RS_50, DRS_90, DRS_100). Import directly: `from jitxlib.jlcpcb import JLC04161H_1080`. Otherwise (default), invoke `jitx-substrate-modeler` to create a custom substrate for the target fab house. Consider whether component packages (e.g., high-pin-count BGAs) require more layers than a simple 4-layer stackup.]
-- **Inputs:** [reference design, spec document, or requirements section]
-- **Checklist:** Substrate
-- **Verification:** `jitx build <ns>.substrate.TestDesign` (skip if using predefined — no separate file to test)
+### [sub-01] [Substrate]
+- **Type / skill / deps:** substrate | [jitx-substrate-modeler, or `—` for a predefined class] | —
+- **Data:** [ARCHITECTURE.md `Board`; the predefined class or the stackup source]
+- **Specifics:** [via choices and package-density constraints this board imposes]
+- **Verify:** `jitx build <ns>.substrate.TestDesign`
 - **Status:** pending
 
-### [comp-01] [Component Name]
-- **Type:** component
-- **Skill:** jitx-component-modeler
-- **Data source:** [from approved data source table — e.g., "User-provided datasheet + JITX QFP generator"]
-- **Description:** Invoke `jitx-component-modeler` skill. [MPN, manufacturer, package, pin count, key features]. Use extract_pages.py for pinout and mechanical drawing. Capture application circuit (Step 5).
-- **Inputs:** [datasheet path, footprint path if applicable]
-- **Checklist:** Component + [MCU/FPGA if applicable]
-- **Verification:** `jitx build <ns>.components.<name>.TestDesign`
+### [comp-01] [Component name]
+- **Type / skill / deps:** component | jitx-component-modeler | —
+- **Data:** [`Data Sources` row for this part; any task-only input]
+- **Specifics:** [pin count, and the one gotcha that matters for this part]
+- **Verify:** `jitx build <ns>.components.<category>.<name>.TestDesign`
 - **Status:** pending
-
-### [comp-02] [Component Name]
-- **Type:** component
-- **Skill:** jitx-component-modeler
-- **Data source:** [from approved data source table]
-- **Description:** [MPN, manufacturer, package, pin count, key features]
-- **Inputs:** [datasheet path, footprint path if applicable]
-- **Checklist:** Component
-- **Verification:** `jitx build <ns>.components.<name>.TestDesign`
-- **Status:** pending
-
----
 
 ## Phase 2: Constraints + Circuits + Pin Assignment
 
-### [pin-01] [IC Name] Pin Assignment
-- **Type:** pin-assignment
-- **Skill:** jitx-pin-assignment
-- **Dependencies:** [comp-01]
-- **Description:** Invoke `jitx-pin-assignment` skill. [which provides to declare, what flexibility is needed]
-- **Inputs:** [component model from comp-01, ARCHITECTURE.md interface map]
-- **Checklist:** General Gotcha Scrub
-- **Verification:** `jitx build <ns>.circuits.<wrapper>.TestDesign`
+### [pin-01] [IC name] Pin Assignment
+- **Type / skill / deps:** pin-assignment | jitx-pin-assignment | [component task id]
+- **Data:** [component model; ARCHITECTURE.md `Interface Map`]
+- **Specifics:** [the provides and the flexibility unique to this IC]
+- **Verify:** `jitx build <ns>.circuits.<wrapper>.TestDesign`
 - **Status:** pending
 
 ### [cst-01] [Protocol] Constraints
-- **Type:** constraint
-- **Skill:** jitx-interconnect-constraints
-- **Dependencies:** [sub-01]
-- **Description:** Invoke `jitx-interconnect-constraints` skill. Define constraint classes for [protocol]. Use `ConstrainDiffPair` for differential pairs (USB, Ethernet, etc.) with the routing structure from the substrate. These constraints are applied at top-level assembly (Phase 3), but the constraint definitions must exist first.
-- **Inputs:** [protocol spec, substrate routing structures from sub-01]
-- **Checklist:** Substrate + General Gotcha Scrub
-- **Verification:** `jitx build <ns>.constraints.<name>.TestDesign`
+- **Type / skill / deps:** constraint | jitx-interconnect-constraints | [substrate task id]
+- **Data:** [protocol specification; ARCHITECTURE.md `Interface Map` row]
+- **Specifics:** [limits this protocol imposes that the Interface Map does not carry]
+- **Verify:** `jitx build <ns>.constraints.<name>.TestDesign`
 - **Status:** pending
 
-### [cir-01] [Circuit Name]
-- **Type:** circuit
-- **Skill:** jitx-circuit-builder
-- **Dependencies:** [comp-01, comp-02, cst-01]
-- **Description:** Invoke `jitx-circuit-builder` skill. Also invoke `jitx-component-modeler` Step 5 to capture each IC's application circuit from the datasheet BEFORE writing code. [what it connects, passives needed, topology vs net, constraints to apply]. Expose bundle-typed ports (I2S, I2C, SPI, USB2, GPIO, Power) for upstream require(). Do NOT put I2C pull-ups or shared-bus termination here unless this circuit is the bus-aggregation level (encloses both master and slaves on a private bus). Pull-ups belong wherever the bus is composed across participants — usually the top-level design.
-- **Inputs:** [datasheet PDF for every IC in this circuit — download English version from manufacturer site, use extract_pages.py, read the application circuit]
-- **Checklist:** [Power Circuit / Interface Circuit] + Datasheet Compliance + General Gotcha Scrub
-- **Engineering questions** (orchestrator writes these per-circuit):
-  - [What voltage domains exist? Where do pull-ups go?]
-  - [Are there external transistors in the datasheet app circuit?]
-  - [Which pins are dual-function? How are they configured?]
-  - [What happens during power sequencing / startup?]
-- **Architectural questions** (required for *parametric / generator* tasks only — BGA ballout, deskew geometry, antipad fence, N-lane fanout, per-layer table, repeating-block scene graph. Skip for one-off circuits.):
-  - [How are N parallel things structured? `list[T]` / `dict[StructuralKey, T]` / typed dataclass — *not* sibling attributes plus `getattr(self, f"X_{i}")`.]
-  - [Where does substrate-shaped data live? On the substrate, queried by the design — *not* duplicated as a design-level constant table.]
-  - [Are intermediate "spec" records needed, or can JITX objects be constructed directly? Default: direct construction. If a `@dataclass(frozen=True)` is needed, name its fields explicitly — *not* `dict[str, Any]`.]
-  - [Does any iteration use `getattr(self, f"...")`? It must not — see `jitx/SKILL.md` Don'ts and `references/architectural-patterns.md`.]
-- **Verification:** `jitx build <ns>.circuits.<name>.TestDesign`
+### [cir-01] [Circuit name]
+- **Type / skill / deps:** circuit | jitx-circuit-builder + jitx-component-modeler | [task ids]
+- **Data:** [`Data Sources` rows for every IC; upstream task outputs]
+- **Specifics:** [topology, passives, and bundle ports unique to this circuit]
+- **Engineering questions:**
+  - [question, and the datasheet section or specification that settles it]
+- **Shape:** [parametric tasks only — the collection or typed object committed to]
+- **Verify:** `jitx build <ns>.circuits.<name>.TestDesign`
 - **Status:** pending
-
----
 
 ## Phase 3: Top-Level Assembly
 
 ### [asm-01] Top-Level Design
-- **Type:** assembly
-- **Skill:** jitx-circuit-builder
-- **Dependencies:** [all Phase 2 task IDs]
-- **Description:** Invoke `jitx-circuit-builder` skill. Also invoke `jitx-interconnect-constraints` skill for applying SI constraints. Instantiate all subcircuits, connect power/ground nets (GroundSymbol, PowerSymbol), tag power and ground nets with `PowerTag` / `GroundTag` for wider-trace rules, wire interfaces via require(), add I2C pull-ups and shared-bus termination at this level, apply ALL SI constraints from cst-* tasks within `ReferencePlanes(...)` context, define board geometry. **Set `capacitor_defaults` and `resistor_defaults` on the Design class** to match the design's manufacturing path and circuit role; per-circuit refinements documented for any specialty parts. **Set `self.rules` on the Design class** with the four default design constraints — `IsTrace` trace width, `IsCopper`/`IsCopper` clearance, `IsPad` thermal relief, and tagged power/ground wider traces — values calibrated to the substrate fab class. See `references/project-builder-flow.md` Phase 3 → "Passive query defaults" and "Default design rules".
-- **Checklist:** General Gotcha Scrub
-- **Verification:** `jitx build <ns>.main.Design`
+- **Type / skill / deps:** assembly | jitx-circuit-builder + jitx-interconnect-constraints | [every Phase 2 id, listed out]
+- **Data:** [accepted Phase 2 outputs; ARCHITECTURE.md sections by name]
+- **Specifics:** [assembly decisions no other document owns]
+- **Verify:** `jitx build <ns>.main.Design`
 - **Status:** pending
 
----
+## Phase 3b: Design Review and Loopback
+
+### [aud-01] Design-level audit
+- **Type / skill / deps:** audit | — (orchestrator plus the outside voice) | [assembly task id]
+- **Data:** [top-level design; accepted task acceptance blocks; ARCHITECTURE.md]
+- **Specifics:** [the design-level risks this board raises]
+- **Verify:** `python scripts/grep_gates.py <ns>/` exits 0, and the audit block carries all four passes plus the outside-voice findings and their disposition
+- **Status:** pending
 
 ## Phase 4: Build + Verify + Iterate
 
 ### [ver-01] Final Verification
-- **Type:** verify
-- **Dependencies:** [asm-01]
-- **Description:** Full build, check DRC, verify SI constraints in Issues List, iterate on failures
-- **Verification:** `jitx build <ns>.main.Design`
+- **Type / skill / deps:** verify | — | [audit task id]
+- **Data:** [top-level design; required verification artifacts]
+- **Specifics:** [board-specific checks or tool constraints]
+- **Verify:** `jitx build <ns>.main.Design`
 - **Status:** pending
+
+## Gate status
+
+| Gate | Verdict | Date | Deferred / blocking |
+|------|---------|------|---------------------|
+| 0 → 1 | advance | YYYY-MM-DD | — |
+
+## Modifications
+
+| ID | Change | Files | Verdict |
+|----|--------|-------|---------|
 ```

@@ -4,9 +4,9 @@ How to analyze requirements and break a hardware design into a parallelizable ta
 
 ## Step 0: Requirements Lock (do this before any decomposition)
 
-Before proposing subsystems or components, force the user to answer the requirements that drive part selection, mechanical fit, and assembly cost. Without these locked, every later proposal is guesswork and will need rework when the user pushes back. The Encore audit found the agent designed an ESP32 + USB-C input only to be told "no, that triggers the assembly cost I wanted to avoid" — the assembly-cost target wasn't locked before parts were chosen.
+Before proposing subsystems or components, force the user to answer the requirements that drive part selection, mechanical fit, and assembly cost. Without these locked, every later proposal is guesswork and will need rework when the user pushes back. An audit of an earlier board found the agent designed an ESP32 + USB-C input only to be told "no, that triggers the assembly cost I wanted to avoid" — the assembly-cost target wasn't locked before parts were chosen.
 
-Lock these answers in PLAN.md before Phase 0 closes:
+Lock these answers in PLAN.md before Phase 0 closes. Each row records who settled the item: `user-stated`, or `not specified — assuming: X`, or `no constraint`. That provenance is what holds the design to the user, and no self-consistent design can manufacture it. Where a table owns the realized value (rail voltages, stackup, outline), the row names the source and points at the owning section rather than copying the value; where nothing else owns it (programming path, UI count, assembly tier, RF policy), the row carries the constraint itself. A value a datasheet settles is not an assumption: that is an open question with an owner.
 
 | Lock item | Why it matters | Example answers |
 |-----------|---------------|-----------------|
@@ -36,8 +36,8 @@ Parse the requirements and categorize everything needed:
 | Peripherals | Sensors, drivers, transceivers, ADC/DAC | One task per IC |
 | Passives | Resistors, caps, inductors | No task needed — these come from jitxlib at circuit build time |
 
-### Substrate (one task — or use SampleDesign / predefined substrate)
-- If the design has **no SI constraints** (no differential pairs, no impedance control) **and** the layer count is appropriate for the routing density: `SampleDesign` from jitx.sample may be sufficient — skip the substrate task. However, `SampleDesign` uses a fixed layer count that may not match the design's complexity. A high-pin-count BGA or dense routing topology will require more layers than SampleDesign provides.
+### Substrate (always one task; what varies is whether it models or only selects)
+- If the design has **no SI constraints** (no differential pairs, no impedance control) **and** the layer count is appropriate for the routing density: `SampleDesign` from jitx.sample may be sufficient. The task still exists: it selects, records the choice, and verifies that a design importing it builds. However, `SampleDesign` uses a fixed layer count that may not match the design's complexity. A high-pin-count BGA or dense routing topology will require more layers than SampleDesign provides.
 - If the design has **SI constraints** (USB, Ethernet, DDR, PCIe, etc.): a substrate with routing structures is required. **Ask the user which fab house they are targeting:**
 
   **If user confirms JLCPCB**, predefined substrates from `jitxlib.jlcpcb` are available:
@@ -87,7 +87,11 @@ Components (all independent of each other) ────┤
          Build + Verify
 ```
 
-Key insight: **substrate and most components are independent** and can run in parallel. This is where the biggest parallelism win comes from. However, note that this independence is not absolute — a high-pin-count BGA may require a substrate with enough layers and microvia capability, and power supply complexity can be driven by the aggregate requirements of individual components. The orchestrator should identify these coupling points during Phase 0 and document them in ARCHITECTURE.md.
+Key insight: **substrate and most components are independent** and can run in parallel. This is where the biggest parallelism win comes from. However, note that this independence is not absolute — a high-pin-count BGA may require a substrate with enough layers and microvia capability, and power supply complexity can be driven by the aggregate requirements of individual components. Identify these coupling points during Phase 0 and record only the non-derivable constraints in ARCHITECTURE.md `Design Notes`.
+
+### Check the data flow, not just the declared edges
+
+A dependency list can be acyclic while the work is not. If a task's `Data` or `Specifics` names a decision another task makes — "the variant cir-04 picks", "the mode cir-05 selects" — that is a real edge. Declare it, or move the decision earlier, or raise it as an Open Question that blocks both. A graph whose declared edges are acyclic and whose data flow is not will deadlock the first time two sub-agents wait on each other.
 
 ## Step 3: Assign to Phases
 
@@ -107,8 +111,8 @@ All of these are independent and spawn as parallel sub-agents.
 ### Phase 2: Constraints + Circuits + Pin Assignment (partially parallel)
 Group into independent clusters that can run in parallel:
 - Cluster A: Pin assignment wrappers (depend on central IC component — other clusters may need these)
-- Cluster B: Power circuits (depend on power components only). For complex power trees (3+ regulators, mixed switching/linear, sequencing requirements), this cluster may need iterative design: regulator type selection (buck, boost, LDO, hybrid) depends on efficiency targets, noise budgets, and thermal constraints. Document the power plan in ARCHITECTURE.md including load current per rail, noise/ripple requirements, transient load handling, and sequencing order.
-- Cluster C: Interface circuits + constraints (depend on central IC, connectors, substrate, and possibly Cluster A). Include clock distribution planning here — protocols like PCIe require shared reference clocks with jitter budgets.
+- Cluster B: Power circuits (depend on power components only). For complex power trees (3+ regulators, mixed switching/linear, sequencing requirements), this cluster may need iterative design: regulator type selection (buck, boost, LDO, hybrid) depends on efficiency targets, noise budgets, and thermal constraints. Record each rail's source, regulator, load current, noise/ripple requirement, and order in ARCHITECTURE.md `Power Tree`; put a transient, dependency, or thermal constraint in `Design Notes` only when the table cannot express it.
+- Cluster C: Interface circuits + constraints (depend on central IC, connectors, substrate, and possibly Cluster A). Record each clock source in ARCHITECTURE.md `Interface Map`; put a shared-clock or jitter constraint in `Design Notes` only when the table cannot express it.
 
 Within each cluster, tasks may need to be sequential (e.g., constraints before circuits that use them). Between clusters, tasks can run in parallel.
 
@@ -129,39 +133,35 @@ Within each cluster, tasks may need to be sequential (e.g., constraints before c
 
 ## Step 3b: Architectural decomposition for parametric tasks
 
-For any task that is *parametric* or *generator-shaped* — BGA ballout, deskew geometry, antipad fence pattern, N-lane fanout, per-layer table, repeating-block scene graph — the task description in PLAN.md must commit to an **object shape** before any code is written. This is the decision point where the dominant AI failure mode (parallel string-keyed models — see `jitx/SKILL.md` Don'ts and `references/architectural-patterns.md`) becomes hard to reverse later.
+For any task that is *parametric* or *generator-shaped* — BGA ballout, deskew geometry, antipad fence pattern, N-lane fanout, per-layer table, repeating-block scene graph — ask the conditional architectural questions in the PLAN.md task before any code is written, then commit the answers once in ARCHITECTURE.md `Object-Hierarchy Decisions`. This is the decision point where the dominant AI failure mode (parallel string-keyed models — see `jitx/SKILL.md` Don'ts and `references/architectural-patterns.md`) becomes hard to reverse later.
 
-Trigger questions the orchestrator answers at decomposition time, recorded in PLAN.md (Architectural questions) and ARCHITECTURE.md (Object-Hierarchy Decisions):
+Trigger questions the orchestrator asks in PLAN.md; record the resulting commitments only in ARCHITECTURE.md `Object-Hierarchy Decisions`:
 
 - **How are N parallel things structured?** `list[T]` / `dict[StructuralKey, T]` / typed dataclass — *not* sibling attributes plus `getattr(self, f"X_{i}")`.
 - **Where does the substrate-shaped data live?** On the substrate (`self.substrate.via[(a, b)]`-style) — *not* duplicated as a design-level constant table.
 - **Are intermediate "spec" records needed, or can the JITX objects be constructed directly?** Default: direct construction. If a `@dataclass(frozen=True)` is needed, name its fields explicitly — *not* `dict[str, Any]`.
 
-These decisions are not implementation detail — they are architectural commitments. Recording them in PLAN.md and ARCHITECTURE.md gives the sub-agent a hard contract, and gives `jitx-code-review` something to check against at task acceptance.
+These decisions are not implementation detail — they are architectural commitments. Keeping the questions with the work and the answers with the design gives the sub-agent a hard contract without creating a second owner, and gives `jitx-code-review` something to check against at task acceptance.
 
 ## Step 4: Write Task Definitions
 
-Each task in PLAN.md needs these fields:
+Each task in PLAN.md needs these fields; the phase heading owns `phase`, and the task heading owns `id` and `name`:
 
 | Field | Description |
 |-------|-------------|
-| `id` | Unique identifier (e.g., `comp-fpga`, `cir-ddr5`, `sub-01`) |
-| `phase` | Which phase (0, 1, 2, 3, 4) |
-| `type` | `component`, `substrate`, `circuit`, `constraint`, `pin-assignment`, `assembly`, `verify` |
-| `name` | Human-readable name |
-| `description` | What to build — be specific about part numbers, interfaces, features |
-| `skill` | Which sub-skill to invoke |
-| `dependencies` | List of task IDs this depends on |
-| `inputs` | Datasheets (path or URL), specs, or outputs from dependencies (labeled `Inputs` or `Datasheet` in template) |
-| `checklist` | Which domain checklist(s) to apply |
-| `verification` | Build command for testing |
-| `status` | `pending` / `in-progress` / `review` / `accepted` / `rework` / `rejected` |
+| Task heading | Unique `id` and human-readable `name` (for example, `[cir-ddr5] DDR5 interface`) |
+| `Type / skill / deps` | Task type, sub-skill, and dependency task IDs |
+| `Data` | Approved datasheets, specifications, or outputs from dependencies |
+| `Specifics` | Only design facts this task's agent cannot derive; omit standing instructions shared by the task type |
+| `Checklist` | Domain checklist(s) to apply |
+| `Verify` | Build command for testing |
+| `Status` | `pending` / `blocked: OQ-n` / `in-progress` / `review` / `accepted` / `rework` / `rejected` |
 
-Be specific in descriptions. "Model the power regulator" is too vague. "Model TPS62933DRLR: 3.8-36V input, adjustable output buck, SOT-583 package, 6 pins + thermal pad" gives the sub-agent what they need.
+Be specific on `Specifics`. "Model the power regulator" is too vague. "TPS62933DRLR: 3.8-36V input, adjustable output buck, SOT-583 package, 6 pins + thermal pad" gives the sub-agent what it needs. If a sentence would be true of every task of that type, use the standing instructions in `references/task-execution.md` instead.
 
 ### Engineering Questions (circuit tasks only)
 
-For every circuit task, the orchestrator MUST write 3-5 specific engineering questions that force the sub-agent to think about the actual design. These are NOT generic checklist items — they are specific to this circuit's IC and application.
+For every circuit task, the orchestrator writes the engineering questions that force the sub-agent to think about the actual design. Apply one test to each candidate: if the sub-agent could answer it by reading the datasheet's application circuit, or if it already appears on a checklist the task names, it is not an engineering question — it is checklist work with a second owner, and it goes in the task as neither. Write at most three, and give a part whose application circuit answers everything none at all. The examples below are the shape to aim for: each one turns on a value or a conflict the application circuit alone does not settle.
 
 **Example for a USB PD sink circuit (HUSB238):**
 ```
@@ -208,7 +208,7 @@ Top-level: i2s = self.esp32.require(I2S)
            self += i2s.sck + self.amp.i2s.sck  # solver picks pins
 ```
 
-When writing PLAN.md task descriptions for circuit tasks:
+When writing PLAN.md task `Specifics` for circuit tasks:
 - Describe interfaces as bundles: "Expose I2S bundle port", not "Expose SCLK, LRCLK, SDIN"
 - If the downstream circuit wraps a component with individual pins, the circuit must still expose a bundle port and wire the bundle sub-ports to the component pins internally
 - The top-level assembly uses `require()` from the MCU/FPGA wrapper and wires to circuit bundle ports — never hardcode GPIO numbers
