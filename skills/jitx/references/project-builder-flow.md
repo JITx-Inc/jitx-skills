@@ -32,13 +32,14 @@ Phase 4: Build + Verify + Iterate
 
 ```
 pending → in-progress → review → accepted
-                          │
-                          ├→ rework → review → accepted (max 2 cycles)
+   ↑                      │
+blocked: OQ-n             ├→ rework → review → accepted (max 2 cycles)
                           │
                           └→ rejected (replan or escalate to user)
 ```
 
-- `pending`: not started
+- `pending`: not started, and startable
+- `blocked: OQ-n`: not startable until open question n closes. Blocking is transitive: a task whose dependency is blocked is blocked, not pending. The Status field is the first thing a resumed session reads, so blocked state belongs there and not only in the Open Questions table's Blocks column
 - `in-progress`: sub-agent working
 - `review`: sub-agent returned task acceptance block, awaiting orchestrator review
 - `accepted`: orchestrator verified, ready for downstream tasks
@@ -61,15 +62,15 @@ pending → in-progress → review → accepted
 
 4. **Plan the power tree**: trace power from input through regulators to every load. Note voltage, current, and sequencing requirements.
 
-5. **Assess substrate needs**: based on interface speeds, routing density, and component package complexity (e.g., high-pin-count BGAs require more layers), determine layer count, material class, and via technology. **Ask the user which fab house they are targeting.** If they confirm JLCPCB and need standard 4-layer or 6-layer FR-4 with 50/90/100 ohm impedance, predefined substrates from `jitxlib.jlcpcb` (JLC04161H_1080, JLC04161H_7628, JLC06161H_7628) are available — no substrate modeling task needed. Otherwise, create a custom substrate (the default path).
+5. **Assess substrate needs**: based on interface speeds, routing density, and component package complexity (e.g., high-pin-count BGAs require more layers), determine layer count, material class, and via technology. **Ask the user which fab house they are targeting.** If they confirm JLCPCB and need standard 4-layer or 6-layer FR-4 with 50/90/100 ohm impedance, predefined substrates from `jitxlib.jlcpcb` (JLC04161H_1080, JLC04161H_7628, JLC06161H_7628) are available — no substrate *modeling* is needed, and sub-01 narrows to selection and verification rather than disappearing. Otherwise, create a custom substrate (the default path).
 
 6. **Data source audit**: for every component, identify where its data will come from. Present a table to the user for approval **before proceeding**. See the Data Source Audit section below.
 
 7. **Decompose into tasks**: follow `references/decomposition-guide.md` to create the task graph.
 
-8. **Write PLAN.md**: use `references/plan-template.md` as the starting point. Fill in every task with specific details. Include the approved data sources.
+8. **Write PLAN.md**: use `references/plan-template.md` as the starting point. Lock the requirements, include the approved data sources, and define the task graph and initial statuses. Keep design facts in ARCHITECTURE.md.
 
-9. **Write ARCHITECTURE.md**: use `references/architecture-template.md` as the starting point. Include module hierarchy, power tree (with noise/ripple requirements and sequencing), interface map (with clock distribution), voltage domains, and mechanical constraints. This gives sub-agents the big picture.
+9. **Write ARCHITECTURE.md**: use `references/architecture-template.md` as the starting point. Fill `Power Tree`, `Interface Map`, and `Board`; add `Object-Hierarchy Decisions` only for parametric subsystems and `Design Notes` only for non-derivable constraints. This gives sub-agents the design context without duplicating PLAN.md.
 
 ### Data Source Audit
 
@@ -117,6 +118,7 @@ Please confirm data sources or provide alternatives (datasheets, footprints, spe
 - [ ] Dependencies are acyclic
 - [ ] No ambiguous requirements remain (ask user if unclear)
 - [ ] User has reviewed and approved the plan
+- [ ] Planning document line counts are measured and within the template budgets, or the overage has a one-line justification
 
 **Emit the `Gate: Phase 0 → Phase 1` block** from `references/completion-blocks.md` before advancing.
 
@@ -617,7 +619,7 @@ A "builds clean" claim alone is not the criterion — the block is.
 
 If the orchestrator session is interrupted, a new session can resume:
 
-1. Read PLAN.md to see the current state of all tasks.
+1. Read PLAN.md to see task statuses, gate outcomes, deferrals, blockers, and modification history.
 2. Read ARCHITECTURE.md for the design context.
 3. Identify the current phase based on task statuses.
 4. Continue from where the previous session left off.
@@ -632,7 +634,7 @@ This is why PLAN.md must be kept up-to-date with every status change.
 
 When a required dependency is missing — `jitxlib` doesn't import, the target substrate package isn't available, `parts2jitx` returns broken output that can't be patched in a smoke build, the datasheet PDF the user said they'd provide hasn't arrived — that is a **blocker**, not a license to drop the design requirement.
 
-The Encore failure mode: `jitxlib` failed to import, so the agent silently dropped controlled-impedance routing from the design rather than fix the environment. **Do not do this.**
+A failure seen in practice: `jitxlib` failed to import, so the agent silently dropped controlled-impedance routing from the design rather than fix the environment. **Do not do this.**
 
 Concrete rule:
 

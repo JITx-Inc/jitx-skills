@@ -13,6 +13,14 @@ This file holds:
 
 ---
 
+## Where Blocks Live
+
+Emit every mandatory block in chat. Chat is the block's home. Never paste a task acceptance block, phase gate block, Phase 3b audit block, or Phase 4 verification block into PLAN.md.
+
+Record only the resumable outcome in PLAN.md: update the task status after acceptance; add one row to `Gate status` after a gate or final verification; and carry forward any deferred or blocking item that a later phase or resumed session must know. A fresh session reading PLAN.md must be able to identify accepted tasks, passed gates, deferrals, and blockers. Record that state, not the checklist that produced it.
+
+---
+
 ## Workflow Tiers
 
 The first decision in any JITX work is which tier applies. The tier names which blocks are required, not which work is done. Every tier requires the **task acceptance block** for each unit of work.
@@ -201,11 +209,13 @@ The criteria mirror the exit-gate bullet lists in `references/project-builder-fl
 ## Gate: Phase 0 → Phase 1
 
 **Environment probe:** all of `jitx`, `jitxlib`, `jitxlib.parts`, `jitxlib.symbols.box`, `jitxlib.voltage_divider` import; target substrate package imports (e.g. `jitxlib.jlcpcb` for JLCPCB). See `jitx/SKILL.md` "Environment Setup".
-**Requirements lock complete:** yes — see `decomposition-guide.md` "Requirements Lock" — programming path, UI count, rails, assembly-cost target, RF/module policy, connector UX, fab house all answered in PLAN.md
+**Requirements lock complete:** yes — see `decomposition-guide.md` "Requirements Lock" — all eight rows in PLAN.md name their source. Rows reading `not specified` are listed here with the assumption standing in for them: <list, or "none">. No row states a value ARCHITECTURE.md owns, and no row records a datasheet-settled fact as an assumption rather than an open question
 **PLAN.md exists:** yes — `<path>` (referenced)
-**ARCHITECTURE.md exists:** yes — `<path>` (power tree, interface map, voltage domains, board)
+**ARCHITECTURE.md exists:** yes — `<path>` (`Power Tree`, `Interface Map`, `Board`, and applicable `Object-Hierarchy Decisions` / `Design Notes`)
+**No fact copied between documents:** <N> task bodies checked against `Data Sources` and ARCHITECTURE.md for repeated MPNs, packages, rail values, impedances, routing structures, board dimensions and layer counts — <clean | list each copy and the owner it belongs to>
+**Planning docs within budget:** ARCHITECTURE.md <N> lines; PLAN.md <N> lines for <N> tasks — <within budget | over budget: one-line justification>
 **Data source audit completed:** yes — table presented to user, user approved on <date>
-**Component-choice rationale documented:** yes — see `parts-sourcing.md` "Component-Choice Rationale Table" — every proposed part has assembly tier, stock, package, fabrication risk, rejected alternatives
+**Component-choice rationale documented:** yes — table presented at the data source audit per `parts-sourcing.md` "Component-Choice Rationale Table"; every proposed part has assembly tier, stock, package, fabrication risk, and a named rejected alternative, with the outcome recorded in PLAN.md `Data Sources`
 **All datasheets and reference materials identified:** <yes | partial — list missing items>
 **Dependencies acyclic:** yes (verified by reading PLAN.md task graph)
 **No ambiguous requirements:** yes | <list of open questions for user>
@@ -221,7 +231,7 @@ The criteria mirror the exit-gate bullet lists in `references/project-builder-fl
 
 **Tasks accepted:** <count> / <total in phase>
 - Component tasks: <list of task IDs with `accept` verdicts>
-- Substrate task: <task ID with verdict, or "predefined — no task needed">
+- Substrate task: <task ID with verdict — a predefined class still gets a task, scoped to selection and verification rather than modeling>
 
 **Build status:** every task's test harness produced `status: ok`
 

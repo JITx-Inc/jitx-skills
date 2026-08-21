@@ -1,0 +1,33 @@
+{
+  "name": "structural-templates",
+  "prompt": "Same board. Fill in PLAN.md and ARCHITECTURE.md from the templates, then hand the plan to a fresh session and ask it which tasks are startable.",
+  "expected_output": "Neither document contains a sentence that would read identically for a different board. Checklists come from the task type, not from a line repeated on every task. Tasks gated by an open question read `blocked: OQ-n` in Status, and so do tasks whose dependencies are blocked, so the fresh session can answer without reversing the Open Questions table.",
+  "assertions": [
+    {"text": "the copied block in each template carries structure only: headings, tables, field names, placeholders. Authoring prose inside the fence lands in the delivered document by construction, which is the mechanism behind the restates-process-instructions hard fail.",
+     "check": "deterministic",
+     "cmd": "for f in plan-template architecture-template; do n=$(awk '/^```markdown$/{f=1;next} /^```$/{f=0} f' skills/jitx/references/$f.md | grep -vcE '^\\||^#|^- \\*\\*|^$|^  - |^- \\[|^See ARCHITECTURE'); [ \"$n\" -eq 0 ] || exit 1; done"},
+    {"text": "blocked is a real status in every place the status set is defined, not prose bolted onto pending",
+     "check": "deterministic",
+     "cmd": "grep -q 'blocked: OQ-n' skills/jitx/references/plan-template.md && grep -q 'blocked: OQ-n' skills/jitx/references/decomposition-guide.md && grep -q 'blocked: OQ-n' skills/jitx/references/project-builder-flow.md"},
+    {"text": "blocking is transitive, so a task waiting on a blocked dependency is not advertised as startable",
+     "check": "deterministic",
+     "cmd": "grep -q 'Blocking is transitive' skills/jitx/references/plan-template.md && grep -q 'Blocking is transitive' skills/jitx/references/project-builder-flow.md"},
+    {"text": "checklists are owned per task type in task-execution.md, covering all eight types, rather than repeated on every task entry",
+     "check": "deterministic",
+     "cmd": "test $(grep -c 'Checklists:' skills/jitx/references/task-execution.md) -eq 8"},
+    {"text": "no task entry in the template's copied block carries a Checklist line, since the type owns it and only an override belongs there",
+     "check": "deterministic",
+     "cmd": "test $(awk '/^```markdown$/{f=1;next} /^```$/{f=0} f' skills/jitx/references/plan-template.md | grep -c '^- \\*\\*Checklist') -eq 0"},
+    {"text": "the ownership rule enumerates what each table owns, because the generic cross-reference instruction demonstrably failed to bind",
+     "check": "deterministic",
+     "cmd": "grep -q 'MPN and package belong to' skills/jitx/references/plan-template.md"},
+    {"text": "the component task no longer invites restating the MPN and package that Data Sources owns",
+     "check": "deterministic",
+     "cmd": "! awk '/\\[comp-01\\]/,/Status:/' skills/jitx/references/plan-template.md | grep -q 'MPN, package'"},
+    {"text": "the Phase 0 gate has to look for copied facts before it can advance",
+     "check": "deterministic",
+     "cmd": "grep -q 'No fact copied between documents' skills/jitx/references/completion-blocks.md"},
+    {"text": "no fact appears twice across the produced pair, and no task body restates a table", "check": "judge"},
+    {"text": "a fresh session can name the startable tasks from the Status column alone", "check": "judge"}
+  ]
+}
