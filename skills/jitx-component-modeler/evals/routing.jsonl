@@ -1,0 +1,26 @@
+// Routing fixtures for jitx-component-modeler: should-trigger / should-not-trigger phrasings.
+// Positives paraphrase real user phrasing across both lanes the skill owns — the
+// single-named-part lane, and the parameterized-family lane where one class stands
+// in for a catalog series ("the class is the data, no parts DB"). Negatives are
+// near-misses that share
+// component vocabulary but belong to a sibling skill. Line 2 is byte-identical to the
+// negative the substrate-modeler's fixtures already route here; the two files must agree.
+{"intent": "build me parameterized component families from these two datasheets — no parts DB, the class should be the data so I can ask for any part in the catalog and get the MPN", "expected_skill": "jitx-component-modeler"}
+{"intent": "model this part from the datasheet — QFN-48, thermal pad", "expected_skill": "jitx-component-modeler"}
+{"intent": "one class per manufacturer family — every case size in the series, tolerance and packaging axes, and the vendor's own part-number encoder", "expected_skill": "jitx-component-modeler"}
+{"intent": "add an MLCC family on the same helpers so I can ask for 100 nF X7R 0603 50 V and get an orderable part number", "expected_skill": "jitx-component-modeler"}
+{"intent": "which of the two termination bands on this chip resistor outline drawing goes in the land pattern?", "expected_skill": "jitx-component-modeler"}
+{"intent": "I need an LM1117 in the 8-pin WSON — here's the TI datasheet", "expected_skill": "jitx-component-modeler"}
+{"intent": "generate the RP2040 component, all 56 pins plus the exposed pad", "expected_skill": "jitx-component-modeler"}
+{"intent": "make a JITX component for C165948, LCSC has the footprint", "expected_skill": "jitx-component-modeler"}
+{"intent": "convert this .kicad_mod into a JITX landpattern for a board-to-board connector the generators can't express", "expected_skill": "jitx-component-modeler"}
+// Negatives: component-adjacent but another skill's lane.
+{"intent": "transcribe the laminate datasheet's Dk/Df table into JITX materials for our 6-layer stack", "expected_skill": "jitx-substrate-modeler"}
+{"intent": "drop a 100 nF decoupling cap on every VDD pin and add a ground pour under the part", "expected_skill": "jitx-circuit-builder"}
+{"intent": "stitch vias into the QFN's thermal pad and fan the escapes out to layer 3", "expected_skill": "jitx-physical-layout"}
+{"intent": "this MCU can bring SPI out on two different pin groups — let the assignment pick which", "expected_skill": "jitx-pin-assignment"}
+{"intent": "attach the STEP model to this connector and export the board outline to DXF for the ME team", "expected_skill": "jitx-mechanical"}
+{"intent": "I just generated nine component classes — check them for string-hacking before I merge", "expected_skill": "jitx-code-review"}
+// Genuinely ambiguous: the datasheet is open and this skill's Step 5 hands the
+// application circuit off, so both are defensible depending on what already exists.
+{"intent": "capture the typical application circuit from this datasheet too — the input caps and the feedback divider", "expected_skill": "jitx-circuit-builder", "ambiguous_with": ["jitx-component-modeler"]}

@@ -7,6 +7,8 @@ description: "Create JITX Python component code from datasheets, KiCad footprint
 
 Generate JITX Python component code from datasheets, user-provided KiCad footprints, or specifications. Data can come from multiple sources — always prefer user-provided data over automated lookups.
 
+A component task is **not complete** until the **Component completeness check** block (near the end of this skill) is filled out, row by row, **as a written artifact alongside the code** — a `COMPLETION.md` next to the components, or the equivalent your project already uses. Prose that paraphrases some of its rows is not the block, and neither is a filled block that exists only in the chat you are having: the next person to open the directory, human or agent, sees the files. A block nobody can find later did not happen. It is the component-specific expansion of the base `jitx` skill's task-acceptance block, not a rival to it — embed it under that block's `Checks run` field rather than producing two competing completion artifacts. No filled block, no "done".
+
 ## No fabrication — source authority for geometry and pinout
 
 > **Do not write dimensions, pin labels, or pad assignments from memory.**
@@ -40,6 +42,23 @@ This ensures:
 - Datasheet is available for future reference
 - Consistent file paths for extraction scripts
 - No repeated downloads
+
+If the project keeps a gitignored scratch directory for source documents, save there instead and do not commit the PDF. Either way the component's `datasheet` attribute and its module docstring carry the URL — that is the durable record, not the file.
+
+### Verify the download is a datasheet
+
+**Check the file's magic bytes before extracting anything from it.** A PDF begins `%PDF-`. Distributor mirrors and CDN edges serve bot-block or consent-wall HTML under a `.pdf` URL with a 200 status, and PyMuPDF will not tell you: it either raises a generic "cannot open broken document" or opens the markup as a one-page render and hands back an empty page list. A 12 kB "datasheet" is the other tell.
+
+`scripts/extract_pages.py` enforces this itself — it checks the magic bytes and exits non-zero with the reason before touching PyMuPDF, so a mirror page fails loudly instead of extracting nothing. Fetching by hand, check it by hand:
+
+```bash
+file datasheets/<mpn>.pdf        # expect: PDF document, version 1.x
+head -c 5 datasheets/<mpn>.pdf   # expect: %PDF-
+```
+
+**Unreachable is not the same as dead.** A manufacturer URL the user gave you, or one printed in a catalog, is canonical: a timeout or TLS failure on it is more likely your egress path — proxy, sandbox, geo-block — than a moved file. Say which one you hit. Never silently substitute an aggregator's copy for a manufacturer URL that merely didn't answer; if the document really has moved, find the current equivalent on the manufacturer's own site and tell the user which URL you used and why.
+
+**Catalog filenames are dated per revision.** Where the only link you have embeds a date or revision in the filename, record the manufacturer's catalog index page in the component docstring alongside the direct link — the direct link rots at the next revision, the index does not.
 
 **AVOID REDUNDANT WEB SEARCHES**
 
@@ -571,7 +590,9 @@ Don't run parallel JITX builds against the same project — sequence them. See `
 
 ### Verification Report
 
-Emit the **task acceptance block** from `jitx/references/completion-blocks.md` "Task Acceptance Block". For a component task, the block's `Primary source` field cites the datasheet pages with the pinout and mechanical drawing; the `Footprint source` field names the JITX generator used (or KiCad import with reason); the `Checks run` field includes the Component checklist from `jitx/references/domains/component-modeling.md` with N/N items and any issues fixed (pin count vs datasheet, pad count vs landpattern, dimensions vs datasheet mechanical drawing). The acceptance block is the report; do not invent a parallel format.
+Emit the **task acceptance block** from `jitx/references/completion-blocks.md` "Task Acceptance Block", with the **Component completeness check** (below) filled in under its `Checks run` field. For a component task, the block's `Primary source` field cites the datasheet pages with the pinout and mechanical drawing; the `Footprint source` field names the JITX generator used (or KiCad import with reason); the `Checks run` field includes the Component checklist from `jitx/references/domains/component-modeling.md` with N/N items and any issues fixed (pin count vs datasheet, pad count vs landpattern, dimensions vs datasheet mechanical drawing). The acceptance block is the report; do not invent a parallel format.
+
+The checklist and the completeness check are complementary, not interchangeable. The **domain checklist is the per-pin / per-pad enumeration you walk while writing** the component; the **completeness check is the evidence you present when claiming it is done**, one row per way a component fails quietly. Report each build, type check and test run **once** — the completeness check's `Checks` row is where they live, and it satisfies the checklist's Build Test items.
 
 ## Step 5: Capture Application Circuit
 
@@ -671,6 +692,48 @@ components/
 │   ├── texas_instruments_TPS62933DRLR.py      # Component
 │   └── texas_instruments_TPS62933DRLR_circuit.py  # Application circuit
 ```
+
+## Component completeness check — run before calling it done
+
+A component is judged by whether every value in it traces back to a source — the manufacturer's datasheet, a vendor mechanical drawing, or the user's explicit specification. The predictable failure mode is not a missing feature; it is a **plausible number sitting where it looks authoritative**: a termination band read off the wrong dimension line, a library-table default nobody checked, a value label the BOM will print that no test ever read. Before presenting a component as complete, fill this block in the completion summary, each row with its evidence (datasheet page / table / figure → class or attribute). A row you cannot check is an open item to name to the user — not a silent pass.
+
+```
+## Component check
+Source: <manufacturer + document number + revision/date>; page/figure cited per claim below
+        (+ channel evidence where the user named a sourcing channel)
+Identity: <class name> — mpn <literal | computed from <scheme>, cross-checked against
+        <the datasheet's ordering example or a real catalog part>>; manufacturer,
+        refdes prefix and datasheet URL set on the class
+Pins: <N> ports / <N> physical pins or pads on the drawing — every power, ground,
+        NC-with-pad and thermal pad present; names from the datasheet's own pin table
+Landpattern: <generator + args> from <page/figure>; <N> pads; dimensions transcribed —
+        body <L/D> <W/E> <H/A>, <pitch | n/a>, lead/termination <length> <width>,
+        each cited; Toleranced from the drawing's min/max, not nominal-only
+Library defaults: generator/table defaults relied on: <list | none> — each checked
+        against the source where the source speaks to it; agreements <list>,
+        overrides <item + reason | none>
+        Density level: <A | B | C> — <set explicitly because the source asks for it |
+        left at the JITX default C (IPC least), and the source states no preference>
+Value / BOM: .value renders as "<string>" — asserted in a test | n/a (<reason>)
+No-field walk: datasheet-stated facts with no JITX field, recorded in the docstring: <list>
+Provenance: values traceable to no datasheet page: NONE | <list + the labeled rule backing each>
+Checks: pyright <clean | N errors>; pytest <N passed | not run: <reason>>;
+        build <status: ok via <command> | not run: <reason>>
+Verdict: complete | open items: <list>   (any non-clean check, or build not run, is an
+        open item — "complete" with a failing or unrun check is not a valid combination)
+```
+
+Row-by-row intent — the *why*, so the block stays evidence rather than ceremony:
+
+- **Source** — a page or figure per claim, not one URL for the whole component. "Datasheet (from memory)" and "typical dimensions" are invalid for a real MPN; see "No fabrication — source authority for geometry and pinout".
+- **Identity** — a part number is a claim about the manufacturer's numbering scheme. Where it is a literal from the ordering table, cite that table. Where the class *computes* it, the only thing that tests the claim is reproducing a part number the manufacturer itself printed — one cross-check per scheme.
+- **Pins** — count first, then compare row by row. A ports-vs-pads mismatch is the one component error the build reliably catches; everything below this row is the class of error the build does not catch.
+- **Landpattern** — dimensions come from the mechanical drawing, not the overview page or the ordering table, and carry the drawing's tolerances. Where the generator could not express the package, the fallback and its reason belong here.
+- **Library defaults** — a generator default is a convenience, not an authority. Wherever the datasheet publishes the same dimension, transcribe it anyway and check the two against each other; where they disagree, override from the datasheet and say so. The whole risk of taking a default is that nobody transcribed the number that would have caught a bad one. A default you took without checking is indistinguishable, in the output, from one you verified.
+
+  **Defaults are not only dimensions.** The one that gets missed is **density level**, because it never appears as a number in your code. JITX's `DensityLevelContext` global default is `DensityLevel.C` — IPC *least* material condition, the tightest of the three (verified on jitx 4.2.2–4.4.0rc3; on `BigRectangularLeads` that is a 0.15 mm toe fillet and a **negative** 0.05 mm side fillet, against 0.35 / 0.0 at `B` and 0.55 / 0.05 at `A`). A datasheet that recommends land patterns "per IPC-7351 **nominal** density" is asking for `B`, and taking the default silently gives it something else. Read what the source asks for and set it explicitly — `DensityLevel` from `jitxlib.landpatterns.ipc`, either on the generator or via the surrounding context — or state in this row that the source expresses no preference and the default stands.
+- **Value / BOM** — no build, type check or land-pattern test looks at the rendered value string. If this row says anything other than an asserted literal, nothing is checking what the BOM will print.
+- **Provenance** — if the datasheet doesn't state a value, ask the user or document the omission. Never invent a number to satisfy a type checker or complete a table; suppress the type error with a comment saying why instead.
 
 ## Output Format
 
