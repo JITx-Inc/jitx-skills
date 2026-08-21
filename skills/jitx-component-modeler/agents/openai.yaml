@@ -1,4 +1,4 @@
 interface:
   display_name: "JITX Component Modeler"
-  short_description: "Create JITX components from part data"
-  default_prompt: "Use $jitx-component-modeler to create a JITX component from a datasheet or part number."
+  short_description: "Create JITX components and catalog families from part data"
+  default_prompt: "Use $jitx-component-modeler to create a JITX component from a datasheet or part number, or a parameterized family from a manufacturer's catalog series."
