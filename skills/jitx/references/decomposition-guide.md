@@ -47,7 +47,7 @@ Parse the requirements and categorize everything needed:
   | `JLC04161H_7628` | 4 | 7628 | RS_50, DRS_90, DRS_100 | `from jitxlib.jlcpcb import JLC04161H_7628` |
   | `JLC06161H_7628` | 6 | 7628 | RS_50, DRS_100 | `from jitxlib.jlcpcb import JLC06161H_7628` |
 
-  These include stackup, fabrication constraints, vias (11 via definitions including tented/filled for via-in-pad), and impedance-matched routing structures:
+  These include stackup, fabrication constraints, vias (9 via definitions including tented/filled for via-in-pad), and impedance-matched routing structures:
   ```python
   from jitxlib.jlcpcb import JLC04161H_1080
   substrate = JLC04161H_1080()
