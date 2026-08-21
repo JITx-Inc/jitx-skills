@@ -604,7 +604,7 @@ Device: type[WirelessSoC] = WirelessSoC
 
 ## BGA-Specific Notes
 
-1. **Row naming convention**: BGA rows use letters A-Z (skipping I and O). For a 12-row BGA: A, B, C, D, E, F, G, H, J, K, L, M.
+1. **Row naming convention**: Row letters come from `ABCDEFGHJKLMNPRTUVWY` — I, O, Q, S, X, and Z are skipped — rolling over to two letters (`AA`, `AB`, …) past row 19. Row index 0 is `A`, so a 12-row BGA is A, B, C, D, E, F, G, H, J, K, L, M.
 
 2. **Grid planner**: Use `is_active()` returning `False` for depopulated positions, `None` to defer to default.
 
@@ -614,7 +614,50 @@ Device: type[WirelessSoC] = WirelessSoC
    - **NC**: Physical ball exists but not connected. Use `Port().no_connect()`, include in symbol.
    - **Depopulated**: No physical ball. Mark inactive in grid planner, no port needed.
 
+   `no_connect()` works from the component's `__init__`, which is where it belongs for a ball the
+   vendor defines as NC — that is a property of the part, not of a board that uses it. (The docstring
+   shows it called from the enclosing circuit; that is the *other* case, a pin this design leaves
+   open.) On a large BGA the NC group runs to dozens of balls, and leaving them as ordinary ports
+   makes "intentionally open per the vendor" and "the board designer forgot to wire it"
+   indistinguishable to every downstream unconnected-port check.
+
 5. **Package dimensions**: Body size is overall package. Ball array centered within.
+
+6. **`ball_diameter` is the PCB land diameter, not the package's ball.** This is the one BGA
+   parameter whose name points at the wrong document. The mechanical drawing gives you a ball
+   diameter — often as a min/nom/max triple, sitting right next to the pitch, which is exactly where
+   you are already reading — and it is *not* what this argument wants. The land diameter comes from
+   the manual's **PCB design-rule table**, keyed by pitch, and it is a different number.
+
+   **Don't take that on trust: open `jitxlib/landpatterns/generators/bga.py` and read what the
+   parameter drives** (`self.pad_shape(Circle(diameter=ball_diameter))`) before you pass anything to
+   it. Reading the source for yourself is what makes this stick — an assertion here reads like
+   trivia and gets skipped.
+
+   Passing the physical ball builds a valid, plausible, silently oversized land pattern. Record in a
+   comment which document each number came from.
+
+7. **Reaching pads: add a public adapter, don't touch `_`-prefixed members.** Verification code needs
+   pad-by-position access, and the framework's accessor is internal. Wrap it once in a subclass:
+
+   ```python
+   class MyBGA(BGA):
+       def get_pad(self, row: int, column: int) -> Pad:
+           """Both 0-indexed, matching emitted coordinates: ball A1 is get_pad(0, 0)."""
+           return self._get_pad(row, column + 1)
+   ```
+
+   Design code never reaches into `_`-prefixed framework members directly — the adapter is the
+   sanctioned boundary.
+
+   **Make the adapter's convention the same one your coordinates use.** The framework numbers
+   columns from 1 (matching the ball reference "A1"), while a generated module carries fully
+   zero-indexed `(row, col)` coordinates. Those differ by one, and the whole value of the adapter is
+   that it absorbs that difference *once* — so take 0-indexed arguments and do the `+ 1` inside.
+   Write it the other way, taking a 1-indexed column, and every call site converts instead
+   (`get_pad(row, col + 1)`), which is the same off-by-one risk you added the adapter to remove, now
+   scattered. State the convention in the docstring either way, because a reader cannot tell from
+   the signature.
 
 ## Non-Uniform BGAs (CRITICAL)
 
@@ -671,4 +714,4 @@ class CustomBGA(A1, AlphaDictNumbering, CustomBGA_Base):
     pass
 ```
 
-**Key:** Row 0 = TOP row (M in 12-row BGA), row 11 = BOTTOM (A).
+**Key:** Row index 0 = TOP row (`A`), row 11 = BOTTOM (`M` in a 12-row BGA). The `(center_row - r)` term is what puts row 0 at the largest y.

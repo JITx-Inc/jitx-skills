@@ -16,11 +16,51 @@ import argparse
 import sys
 from pathlib import Path
 
+# Kept above the PyMuPDF import, and importable without it, so the integrity
+# check is testable in an environment that has no pymupdf.
+PDF_MAGIC = b"%PDF-"
+
+
+def check_is_pdf(path: str | Path) -> str | None:
+    """Return None if the file really is a PDF, else a human-readable reason.
+
+    A URL ending in `.pdf` that returns HTTP 200 is not evidence: distributor
+    mirrors and CDN edges serve bot-block or consent-wall HTML under a `.pdf`
+    name, and PyMuPDF does not report that usefully -- it either raises a
+    generic "cannot open broken document" or opens the markup as a one-page
+    render and hands back an empty page list. Check the magic bytes instead.
+    """
+    p = Path(path)
+    if not p.exists():
+        return f"file not found: {p}"
+    with p.open("rb") as handle:
+        head = handle.read(1024)
+    if head.startswith(PDF_MAGIC):
+        return None
+    size_kb = p.stat().st_size / 1024
+    lowered = head.lstrip().lower()
+    if lowered.startswith((b"<!doctype", b"<html", b"<?xml")):
+        return (
+            f"{p} is HTML/XML, not a PDF ({size_kb:.1f} KB) -- almost certainly a "
+            f"bot-block or consent page served under a .pdf name. Re-fetch from the "
+            f"manufacturer's own site; do not feed this to a PDF reader."
+        )
+    return (
+        f"{p} does not start with {PDF_MAGIC.decode()} ({size_kb:.1f} KB); "
+        f"first bytes: {head[:16]!r}"
+    )
+
+
 try:
     import fitz  # PyMuPDF
-except ImportError:
-    print("PyMuPDF not installed. Run: pip install pymupdf")
-    sys.exit(1)
+except ImportError:  # pragma: no cover - exercised only without pymupdf
+    fitz = None  # type: ignore[assignment]
+
+
+def _require_fitz() -> None:
+    if fitz is None:
+        print("PyMuPDF not installed. Run: pip install pymupdf", file=sys.stderr)
+        sys.exit(1)
 
 
 def find_pages_with_keywords(input_pdf: str, keywords: list[str]) -> dict[int, list[str]]:
@@ -142,9 +182,14 @@ Examples:
 
     args = parser.parse_args()
 
-    if not Path(args.input_pdf).exists():
-        print(f"Error: File not found: {args.input_pdf}", file=sys.stderr)
+    # Fail closed before any page work: a non-PDF here is the failure mode that
+    # otherwise surfaces as an empty extraction nobody questions.
+    problem = check_is_pdf(args.input_pdf)
+    if problem:
+        print(f"Error: {problem}", file=sys.stderr)
         sys.exit(1)
+
+    _require_fitz()
 
     # Show PDF info
     if args.info:

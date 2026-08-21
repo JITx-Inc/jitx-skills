@@ -1,0 +1,28 @@
+# OS / editor cruft
+.DS_Store
+
+# Python caches & virtual environments
+__pycache__/
+*.pyc
+.venv/
+
+# JITX runtime artifacts
+.socket.jitx
+.jitx/
+
+# Version control & local tooling
+.git/
+.github/
+.conductor/
+.context/
+
+# Internal planning / dev-only docs
+SKILLS_PLAN.md
+
+# Repo dev tooling and the Claude-side manifest are not part of the Codex package.
+# Anchored to repo root (leading /) so shipped skills/**/scripts/ helpers are NOT excluded.
+/scripts/
+/.claude-plugin/
+
+# Skill eval harnesses are repo-only dev tooling, not shipped skill content.
+evals/
