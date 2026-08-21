@@ -78,6 +78,23 @@ Run the base Component checklist above FIRST, then verify these:
 - [ ] PLL/analog supply pins (VCCA, VCCPLL) — separate from digital
 - [ ] Transceiver supply pins (VCC_XCVR, VCCR, VCCT) if applicable
 - [ ] Auxiliary supply pins (VCCAUX) if present
+- [ ] **Single-pin supplies counted as supplies.** Sense, calibration and battery-backup rails
+      (VCCINT_SENSE, VCCAUX_SMON, VCC_BATT, VCC_FUSE) often get exactly one pin. Enumerate the
+      supply roster from the pin inventory, not from whichever rails happen to be multi-pin lists —
+      a roster built by walking the lists drops these silently, and the count still looks plausible.
+      Where such a rail carries its own dedicated return, that return is a **separate ground domain**
+      and must not be merged into the main one.
+- [ ] **Transceiver analog and bias rails modeled at the hierarchy the vendor states.** These are
+      often shared above the lane — a supply group or bank spanning several lanes, with one
+      calibration pair serving all of them — but the level varies by device family, so read it off
+      the packaging manual's bank/power diagram rather than assuming any particular one. Two rules
+      hold regardless: the assignment is **not** inferable from pin-name suffixes or ball proximity,
+      and modeling a shared rail as a per-lane member produces lanes that have none.
+- [ ] **Bonded-but-unused rails identified.** A package may bond a supply group whose consumer is
+      not bonded in that package. Those pins are real and belong in the component and its roster —
+      expose them like any other rail and say so, rather than dropping them or inventing a
+      termination. What to *do* with them is a power-integrity question the packaging manual does
+      not answer; it belongs to the vendor's PCB/power design guidance.
 
 ### Boot and Configuration
 - [ ] Boot mode pins present (BOOT0, BOOT1 for STM32; MSEL for Intel FPGAs)
