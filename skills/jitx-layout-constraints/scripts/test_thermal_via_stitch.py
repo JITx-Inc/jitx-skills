@@ -8,6 +8,8 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
+from shapely.geometry import MultiPolygon
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from thermal_via_stitch import (  # noqa: E402
@@ -126,7 +128,7 @@ class OpeningTests(unittest.TestCase):
     def test_webs_and_frame_enclose_all_cells(self) -> None:
         opening = self.opening(fillet_radius=0.0)
         cells = (
-            list(opening.geoms) if opening.geom_type == "MultiPolygon" else [opening]
+            list(opening.geoms) if isinstance(opening, MultiPolygon) else [opening]
         )
 
         self.assertEqual(len(cells), 9)
@@ -149,7 +151,8 @@ class OpeningTests(unittest.TestCase):
     def test_fillet_off_preserves_raw_cells(self) -> None:
         raw = self.opening(fillet_radius=0.0)
 
-        self.assertEqual(raw.geom_type, "MultiPolygon")
+        self.assertIsInstance(raw, MultiPolygon)
+        assert isinstance(raw, MultiPolygon)
         self.assertEqual(len(raw.geoms), 9)
 
     def test_fillet_on_rounds_cells_without_invalidating_them(self) -> None:
