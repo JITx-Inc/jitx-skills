@@ -246,6 +246,14 @@ the line where they appear in code: a `FabricationConstraints` field, a
 datasheet or standard with a name, the Bogatin tier, or `skill default` with
 the value.
 
+When no source exists for a clearance (a keep-away for a sensitive net, a
+switch-node pullback, a sense-to-power gap), do not write an assumption. Two
+legal moves: derive it from a value that has a source and label the
+derivation on the line (`2 * DEFAULT_CLEARANCE  # skill default: twice the
+board default`), or leave it as an open item that the check script fails
+loudly on until the user supplies the number. An assumption dressed as a
+constant passes every check and ships.
+
 Tag hierarchy does the bookkeeping: `class RailTag(PowerTag)` picks up the
 power width rule automatically, and a `Rail12VTag(RailTag)` with its own
 `priority=2` width rule overrides it where that rail differs.
@@ -298,7 +306,11 @@ Detail and worked derivations: `references/power-and-pours.md`.
   then write a per-index rule with the fab's heavy-copper spacing row:
   `BinaryDesignConstraint(IsCopper & OnLayer(2), IsCopper, priority=1).clearance(c)`.
   `OnLayer.internal()` matches every inner layer, so it is the wrong selector
-  for one heavy layer.
+  for one heavy layer. The walk only finds what the substrate models: the
+  predefined JLCPCB substrates carry 1 oz outer and half-ounce inner copper,
+  so a quoted 2 oz layer that is not in the stackup is a substrate task first
+  (`jitx-substrate-modeler`, from the fab's report), and until then the
+  heavy-copper rule is an open item, not a guess at a layer index.
 - Sliver removal: `design_constraint(IsPour).pour_feature_size(min_width)`.
 - Thermal relief is the `IsPad` default above. A solid connection for a
   high-current pad has no dedicated effect; whether the rule system can
@@ -311,6 +323,9 @@ Detail and worked derivations: `references/power-and-pours.md`.
 
 A 0.5 mm power trace does not fit a 0.25 mm QFN pad at 0.5 mm pitch. The
 class rule stays; a specific escape rule takes over for the last segment.
+Compute first: if the class width fits the pad and keeps the fab floor to the
+neighboring pads, there is no step-down and no escape rule (a 0.5 mm trace
+into a 0.6 mm pad at 0.95 mm pitch is such a case).
 Neckdown is not used for this: `RoutingStructure.NeckDown` parameters take
 effect only through the UI, and a specific tag carries the intent in a way a
 reader and a rule can see.
@@ -390,6 +405,20 @@ constraint-specific checks, packaged in `scripts/layout_checks.py`:
   copper on a layer is at or above the binary rule.
 - Route realization: `route.traces` is non-empty for every escape route you
   authored; a silently unrealized route is the common failure.
+
+What capture cannot show on the 4.4 line: a `Pour` comes back as its input
+outline before voiding, so trace-to-pour clearance, thermal relief, and
+sliver removal are not measurable from `rd.query`; the runtime-side
+cross-check is the legacy ODB++ export (`jitx-physical-layout`
+`references/geometry-verification.md`, "Interop notes"). Report those rules
+as not verified from capture unless you read the export.
+
+A measured width below the winning rule is a failure, never a note: a route
+that realizes at the via pad diameter because it runs via to via has not met
+its rule (route pad to point, or use a via whose pad matches the width). A
+rule with no copper to witness it is not verified; the check output must
+count those separately and never print zero failures while any declared rule
+went unexercised.
 
 A rule set is done when these checks pass on the built design, or when the
 missing runtime is named as an open item in the completion block. Never
