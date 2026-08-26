@@ -5,7 +5,7 @@ This is the worked detail for `SKILL.md`, "Routed power" and "Pours". Use
 surface. Rules remain structural (`jitx/_translate/design.py:187`). Higher priorities win when several rules match (`jitx/constraints.py:802`, `jitx/constraints.py:860`).
 
 Engineering basis: Eric Bogatin, ["Seven Habits of Successful 2-Layer Board Designers"](https://www.signalintegrityjournal.com/blogs/12-fundamentals/post/1207-seven-habits-of-successful-2-layer-board-designers),
-Signal Integrity Journal, 2019-04-23. This reference uses only the source brief.
+Signal Integrity Journal, 2019-04-23. Only claims that article makes are attributed to it.
 
 ## 1. Width tiers as tags
 
@@ -22,7 +22,7 @@ from jitx.constraints import IsTrace, Tag, UnaryDesignConstraint
 DEFAULT_PRIORITY = 0  # skill default: board-default priority 0
 POWER_PRIORITY = 1  # skill default: shared power priority 1
 CLASS_PRIORITY = 2  # skill default: rail and class priority 2
-ESCAPE_PRIORITY = 3  # skill default: tagged escape priority 3
+ESCAPE_PRIORITY = 4  # skill default: tagged escape priority 4, above every class rule and override
 
 SIGNAL_WIDTH = 0.15  # Bogatin 2019 tier: 0.15 mm signal width, 1 oz copper
 POWER_WIDTH = 0.5  # Bogatin 2019 tier: 0.5 mm power width, 1 oz copper
@@ -66,8 +66,9 @@ fab's capability table or a measured temperature rise is the only reason to
 change them. Record that replacement source on the same line as the new width.
 Do not use an IPC current-carrying chart, formula, or coefficient here.
 
-The class width stays on the trunk. A short tagged escape can take priority 3 (skill default)
-when the landpattern requires it. Use a tag on a `Route` segment, never
+The class width stays on the trunk. A short tagged escape takes `ESCAPE_PRIORITY`
+when the landpattern requires it (see `fanout.md`; when the class width fits the
+pad there is no escape rule). Use a tag on a `Route` segment, never
 `RoutingStructure.NeckDown`.
 
 ## 2. Power as traces
@@ -196,7 +197,7 @@ Bogatin recommends top-layer components, signals, and power traces over a
 continuous ground return. Do not rely on a top-layer ground fill as the return.
 
 ```python
-from jitx import Pour
+from jitx import Pour, current
 from jitx.constraints import (
     BinaryDesignConstraint,
     IsHole,
@@ -205,11 +206,9 @@ from jitx.constraints import (
     IsTrace,
     OnLayer,
 )
-def add_board_ground_return(design, return_layer: int) -> Pour:
-    pour = Pour(design.board.shape, layer=return_layer)
-    design.circuit.ground_return = pour
-    design.circuit.GND += pour
-    return pour
+# Inside the top-level circuit's __init__: the circuit owns its pour.
+self.ground_return = Pour(current.design.board.shape, layer=return_layer)
+self.GND += self.ground_return
 fab = self.substrate.constraints
 TRACE_POUR_MARGIN = 0.11  # skill default: 0.11 mm beyond the fab floor
 trace_pour_clearance = fab.min_copper_copper_space + TRACE_POUR_MARGIN  # FabricationConstraints floor plus skill default margin
@@ -367,6 +366,11 @@ The test must first prove that one surface exposes voids, gaps, and spokes. A su
 
 ## 9. Power puddle from a pad list
 
+This pattern has not yet been exercised against a runtime in a reference
+design; treat it as the intended shape, and verify the puddle's copper after
+capture before relying on it (the decoupling reference is where it is
+exercised first).
+
 Make a local puddle from pads in the circuit that owns them. `query` runs the
 Pad-to-Copper transformer, and that transformer composes the accumulated frame
 with `pad.transform` before yielding copper (`jitx/landpattern.py:173`,
@@ -398,7 +402,10 @@ def add_power_puddle(
     layer: int,
     buffer_mm: float,
 ) -> Pour:
-    """buffer_mm is supplied by the design and labeled at the call site."""
+    """Return the puddle Pour; the caller stores it and adds it to ``rail``.
+
+    buffer_mm is supplied by the design and labeled at the call site.
+    """
     wanted = set(pads)
     owner_from_design = ~_owner_to_design(design, owner)
     pad_geometries = []
@@ -418,11 +425,10 @@ def add_power_puddle(
     )
     if geometry.is_empty or geometry.geom_type not in ("Polygon", "MultiPolygon"):
         raise ValueError(f"invalid puddle geometry: {geometry.geom_type}")
-    puddle = Pour(ShapelyGeometry(geometry), layer=layer)
-    owner.power_puddle = puddle
-    rail += puddle
-    return puddle
+    return Pour(ShapelyGeometry(geometry), layer=layer)
 PUDDLE_BUFFER = 0.5  # skill default: 0.5 mm pad-union buffer
+# The owning circuit stores the pour and adds it to the rail; the helper only
+# computes geometry (a free function must not mutate a circuit).
 self.power_puddle = add_power_puddle(
     current.design,
     self,
@@ -431,6 +437,7 @@ self.power_puddle = add_power_puddle(
     self.power_layer,
     PUDDLE_BUFFER,
 )
+self.VDD += self.power_puddle
 ```
 
 `query` yields transformed targets while preserving `trace.transform`

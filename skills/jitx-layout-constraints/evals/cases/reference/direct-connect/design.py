@@ -1,8 +1,5 @@
 """Minimal direct-connect candidates for JITX 4.4 capture and ODB++ checks."""
 
-from importlib import import_module
-from typing import Any, cast
-
 from jitx import (
     Board,
     Circuit,
@@ -18,10 +15,9 @@ from jitx import (
 from jitx.constraints import IsPad, Tag, design_constraint
 from jitx.shapes.composites import rectangle
 from jitx.shapes.primitive import Circle
+from jitxlib.jlcpcb import JLC04161H_7628
+from jitxlib.jlcpcb.rules import JLCPCBRules
 from jitxlib.symbols.box import BoxSymbol
-
-JLC04161H_7628 = cast(Any, import_module("jitxlib.jlcpcb")).JLC04161H_7628
-JLCPCBRules = cast(Any, import_module("jitxlib.jlcpcb.rules")).JLCPCBRules
 
 
 TEST_PAD_DIAMETER = 1.6  # skill default: 1.6 mm test-pad diameter
