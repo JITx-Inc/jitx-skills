@@ -456,9 +456,12 @@ Check in this order:
    apply.
 7. Below the floor: a rule looser than a `FabricationConstraints` minimum is
    overridden by the floor.
-8. Via class not found: `stitch_via` and `fence_via` take the via class; a
-   class reached only through a mixin has failed to resolve on some builds.
-   Declare the via class where the rule can see it.
+8. Via class not found: `stitch_via` and `fence_via` take the via class
+   object. On 4.4 a class reached through the substrate's mixin, one
+   re-declared as a substrate attribute, and one at module scope all
+   generate vias (verified in `evals/cases/reference/stitch-via/`); a failure
+   to resolve was seen on 4.0 builds. If vias are missing, check the tag
+   assignment and the rule's reachability before suspecting the via class.
 9. The object is not taggable: `OverlappableCopper` cannot carry a tag.
 
 Behaviors settled by a built design are recorded, with the design that
