@@ -280,14 +280,13 @@ with CapacitorQuery.refine(type="tantalum", case="1210"):
 
 ### Default design rules (set on the Design class)
 
-Every Design declares four canonical rules on `self.rules` so the router and
-DRC have production-friendly defaults above the fab floor: default trace
-width (`IsTrace`), copper-to-copper clearance (`IsCopper`, `IsCopper`),
-thermal relief on pads (`IsPad`), and a wider trace rule for tagged power and
-ground rails (`PowerTag() | GroundTag()`, `priority=1`). The pattern, the
-priority ladder, calibration to the substrate's floors, and the non-default
-net classes that go in the same list at `priority >= 2` are owned by the
-`jitx-layout-constraints` skill ("Board-wide defaults" and "Net classes").
+Every Design declares four canonical rules on `self.rules` (default trace
+width, copper-to-copper clearance, thermal relief on pads, wider power and
+ground traces) so the router and DRC have production-friendly defaults above
+the fab floor. The rule shapes, the priority ladder, calibration to the
+substrate's floors, and the non-default net classes that go in the same list
+at `priority >= 2` are owned by the `jitx-layout-constraints` skill
+("Board-wide defaults" and "Net classes: tag, derive, express").
 Invoke it for Phase 3 assembly; the Phase 3 gate checks that the four rules
 are present.
 
@@ -441,7 +440,7 @@ These editor-side checks won't catch Pattern 1 (the `.insert(...)` call has a si
 - [ ] `ReferencePlanes(...)` context wraps all constraint applications
 - [ ] Board geometry defined (shape, mounting holes, pours)
 - [ ] `capacitor_defaults` and `resistor_defaults` set on Design class to match the design's manufacturing path and circuit role — per-circuit refinements documented for any specialty parts (HV, RF, bulk, precision, hand-build)
-- [ ] **Default design rules set on Design class** — `self.rules` contains a default trace width (`IsTrace`), copper clearance (`IsCopper`, `IsCopper`), thermal relief (`IsPad`), and wider trace rule for tagged power/ground nets (`PowerTag` / `GroundTag` with `priority=1`). Values calibrated to substrate fab class. See "Default design rules" above.
+- [ ] **Default design rules set on Design class**: the four canonical rules are present on `self.rules`, values calibrated to the substrate's fab floors (see "Default design rules" above and the `jitx-layout-constraints` skill)
 - [ ] `python scripts/grep_gates.py <ns>/` reports 0 hard-fail hits; review-required hits dispositioned
 
 **Emit the `Gate: Phase 3 → Phase 3b` block** from `references/completion-blocks.md` before advancing.

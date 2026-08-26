@@ -1,6 +1,6 @@
 ---
 name: jitx
-description: "Base skill for JITX Python hardware design projects, PCB design, circuit creation, board builds, and JITX CLI workflows. Use when the user asks to build a JITX design, set up the environment, create circuits, design a PCB from requirements, or create a full project. Route component modeling to jitx-component-modeler, substrate or stackup work to jitx-substrate-modeler, physical layout code to jitx-physical-layout, design rules, clearances, power trace width, decoupling, and fanout step-down to jitx-layout-constraints, and mechanical CAD import/export work to jitx-mechanical."
+description: "Base skill for JITX Python hardware design projects, PCB design, circuit creation, board builds, and JITX CLI workflows. Use when the user asks to build a JITX design, set up the environment, create circuits, design a PCB from requirements, or create a full project. Route component modeling to jitx-component-modeler, substrate or stackup work to jitx-substrate-modeler, physical layout code to jitx-physical-layout, design rules, clearances, power trace width, decoupling placement and routing, and fanout step-down to jitx-layout-constraints, and mechanical CAD import/export work to jitx-mechanical."
 ---
 
 # JITX Workflow Skill
@@ -594,7 +594,7 @@ Supports:
 - "Wire up" or "connect" components
 - Build application circuits from datasheets
 - Work with passives (resistors, capacitors, inductors)
-- Set up power connections or decoupling
+- Set up power connections or decoupling (part selection and wiring; placement and routing → jitx-layout-constraints)
 - Add basic top-level pours or simple net copper (custom/overlapping/shapely geometry, antennas, filters, pad features, code-placed vias/routes → jitx-physical-layout)
 
 **How to invoke:** Use the `jitx-circuit-builder` skill
@@ -651,7 +651,7 @@ Covers:
 - Pad features (`Soldermask`, `Paste`, `SMDPadConfig`, `.thermal_pad`)
 - `PortAttachment` + explicit placement — `.at()` (default), `Circuit.place` (deferred/relative), local frames
 - Keepouts that shape pours; local-vs-global pour placement
-- Layout-intent tags for object selection (rule mechanics stay in jitx-substrate-modeler)
+- Layout-intent tags for object selection (rule mechanics in jitx-layout-constraints)
 - `Route`, `RoutePoint`, `PairInsertion`, `PairPoint` (advanced; surface reshaped in
   JITX 4.3.0-rc.3+ — netting/routing split, `PairPoint.pair` removed, `invert=` chirality)
 

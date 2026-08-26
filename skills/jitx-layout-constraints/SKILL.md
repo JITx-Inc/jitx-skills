@@ -148,7 +148,8 @@ floor_space = fab.min_copper_copper_space
 - A same-tag binary clearance is safe for differential pairs: a coupled span
   is one trace object whose internal gap is the structure's `pair_spacing`,
   so `design_constraint(HsTag(), HsTag(), priority=1).clearance(0.5)` only
-  separates different pairs.
+  separates different pairs (observed on a shipped board; not yet reproduced
+  as a reference case here).
 - A `RoutingStructure` declared at module level is not part of the design
   tree and cannot be applied by a rule; build it as a substrate attribute or
   inside the consuming circuit.
@@ -167,9 +168,11 @@ uses the fab minimums, which are too narrow for power and put no thermal
 relief on pads.
 
 ```python
+from jitx import Circuit, Net
 from jitx.constraints import (
     BinaryDesignConstraint, IsCopper, IsPad, IsTrace, Tag, UnaryDesignConstraint,
 )
+from jitxlib.symbols.net_symbols import GroundSymbol, PowerSymbol
 
 
 class PowerTag(Tag):
@@ -261,9 +264,13 @@ current-carrying charts or formulas at all.
   priority) and label each width `Bogatin 2019 tier`. Adjust only when the
   fab's capability table or a measured temperature rise says otherwise, and
   say which.
-- Route power as traces, never as copper fill. A trace's width is visible
-  and its connectivity is checkable; a fill's is neither. The one exception
-  is the local power puddle under a decoupling bank (Decoupling below).
+- Route power as traces, never as copper fill (Bogatin's habit 7: a routed
+  trace keeps the current path explicit and its width visible; a fill hides
+  both). A `Pour` on a rail net is a net member and its connectivity is
+  checkable in JITX, so this is a legibility and current-path decision, not a
+  tool limit. The one exception is the local power puddle under a decoupling
+  bank (Decoupling below); a wider power pour needs its reason (a datasheet or
+  a current requirement) on the line that creates it.
 - Pad-to-via: a power pad that changes layers needs vias sized and counted
   for the tier (one via per tier step is the default; label it). Set
   `via_in_pad = True` on the via class only when the fab's via-in-pad row
@@ -294,8 +301,9 @@ Detail and worked derivations: `references/power-and-pours.md`.
   for one heavy layer.
 - Sliver removal: `design_constraint(IsPour).pour_feature_size(min_width)`.
 - Thermal relief is the `IsPad` default above. A solid connection for a
-  high-current pad has no dedicated effect; the tested pattern for it is in
-  `references/power-and-pours.md`.
+  high-current pad has no dedicated effect; whether the rule system can
+  express it is settled by the direct-connect test recorded in
+  `references/power-and-pours.md`, and nothing here assumes the answer.
 - `Pour(..., isolate=)` is deprecated in 4.4; express pour clearance with the
   binary rules above.
 
@@ -310,6 +318,11 @@ reader and a rule can see.
 The ladder, always with tags:
 
 ```python
+from jitx import RoutePoint
+from jitx.circuit import Route
+from jitx.constraints import AnyObject, Tag, Tags, design_constraint
+
+
 class EscapeTag(Tag):
     """Base for escape segments; shared rules go here."""
 
@@ -318,11 +331,13 @@ class QfnEscapeTag(EscapeTag):
     """Escape into a 0.5 mm pitch QFN pad."""
 
 
-# In the circuit that owns the component and the escape route:
+# In the circuit that owns the source j1, the QFN u1, and the escape route.
+# w_escape and c_escape are computed from the QFN landpattern and the fab
+# floor (references/fanout.md), never typed in.
 rp = RoutePoint(layer=0).at(x_transition, y_transition)
-leg = Route(self.u1.VIN, rp, layer=0)             # class-width trunk ends here
-esc = Route(rp, self.u1.VIN_pad, layer=0)         # escape segment
-self.escape = [rp, leg, esc]
+trunk = Route(self.j1.VOUT, rp, layer=0)          # class-width trunk ends here
+esc = Route(rp, self.u1.VIN, layer=0)             # escape segment into the pad
+self.escape = [rp, trunk, esc]
 Tags(QfnEscapeTag()).assign(esc)
 
 # Escape rules out-rank the class rule (priority 3 in the ladder):
@@ -337,9 +352,8 @@ the diagonal channel between balls and the row depth; two-terminal passive:
 the pad-to-pad gap and courtyard). Derivations, the QFN worked example, and
 BGA channel planning: `references/fanout.md`. `Route`, `RoutePoint`, and the
 control-point binding rules: `jitx-physical-layout`
-`references/control-points.md`. Tag the route segment for single-ended
-escapes; for differential structures tag the net, never the individual
-routes.
+`references/control-points.md`, which also owns the rule for where the tag
+goes on single-ended versus differential routes.
 
 ## Decoupling
 
@@ -369,8 +383,9 @@ design and read it back (the loop, `query` semantics, and coordinate frames
 are in `jitx-physical-layout` `references/geometry-verification.md`). The
 constraint-specific checks, packaged in `scripts/layout_checks.py`:
 
-- Width by net and layer: every realized trace shape (`ArcPolyline` or
-  `Polyline`) on a tagged net has the width its winning rule asked for.
+- Width by net and layer: every realized trace shape (`route.traces[i].shapes[j]`,
+  an `ArcPolyline` or `Polyline` with `.width`) on a tagged net has the width
+  its winning rule asked for.
 - Clearance between two nets: the minimum shapely distance between their
   copper on a layer is at or above the binary rule.
 - Route realization: `route.traces` is non-empty for every escape route you
@@ -390,7 +405,8 @@ Check in this order:
    `IsCopper x IsCopper` rule; raise its priority.
 3. Wrong arity: `.clearance()` on a one-condition rule, or any other effect
    on a two-condition rule.
-4. Builtin assigned: `IsTrace().assign(...)` raises; builtins are conditions.
+4. Builtin assigned: `IsTrace.assign(obj)` raises `TypeError`; builtins are
+   conditions, and `IsTrace` is an enum member, not a class to instantiate.
 5. Tag class declared inside a function: instantiation tracking breaks.
 6. Routing structure at module level: an `Instantiable` proxy a rule cannot
    apply.
@@ -401,8 +417,9 @@ Check in this order:
    Declare the via class where the rule can see it.
 9. The object is not taggable: `OverlappableCopper` cannot carry a tag.
 
-Empirical results recorded against the installed version (each backed by a
-built design): `references/rule-reference.md`, "Verified behaviors".
+Behaviors settled by a built design are recorded, with the design that
+settled them, in `references/rule-reference.md`, "Verified behaviors"; a row
+marked pending has not been run and must not be relied on.
 
 ## Anti-string-hacking and completion
 

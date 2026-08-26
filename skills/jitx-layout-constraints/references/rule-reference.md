@@ -3,7 +3,7 @@
 Conditions, effects, and signatures of the JITX design-rule system, cited to
 the installed 4.4 source (`jitx/constraints.py`, `jitx/si.py`,
 `jitx/substrate.py`, `jitx/copper.py`, `jitx/circuit.py`). Line numbers are
-from `jitx 4.4.0rc5`; on another install, open the file and confirm before
+from the `jitx 4.4.0rc5.dev2` build; on another install, open the file and confirm before
 relying on a signature. The public PyPI line (4.2.2) has the same class and
 method names for everything on this page except where marked.
 
@@ -18,12 +18,9 @@ method names for everything on this page except where marked.
 | `AnyObject` | `jitx.constraints` | Matches everything; the usual second condition of a binary rule. | `constraints.py:689` |
 | Expressions | | `&` and, `\|` or, `~` not, on tags and expressions alike. Bare `True`/`False` are accepted as conditions. | `constraints.py:391-402`, `:641-796` |
 
-Objects that can carry a tag: `Net`, `TopologyNet`, `Copper`, `Pour`,
-`Route`, `Component`, `Circuit`, `Landpattern`, `Pad`, `Via`, `ControlPoint`
-(`constraints.py:574-586`). Tagging a container tags the copper inside it
-(`:504-508`). Anything else warns and has no effect; `OverlappableCopper` is
-not taggable. Assignment outside a design context warns and no-ops
-(`:605-611`).
+Which objects can carry a tag, container propagation, and the assignment
+warnings are owned by `jitx-physical-layout`, "Layout-intent tags" (source:
+`constraints.py:504-623`).
 
 ## Rule classes
 
@@ -119,9 +116,11 @@ integer layer; no layer set.
 `Route(source, destination, layer: int, sketch=None)` (`circuit.py:569`).
 No width or clearance parameter; a `RoutePoint` endpoint is coerced to its
 `.pad` (`:576-579`); `sketch` is a list of points or a `Route.Sketch`. After
-`capture()`, `route.traces` holds the realized shapes (`ArcPolyline` or
-`Polyline`, each with `.width`, `shapes/primitive.py:285-306`) or is
-`None`/empty when the route did not realize.
+`capture()`, `route.traces` is a sequence of `Route.Trace` wrappers
+(`circuit.py:545-556`; one entry for a normal route, two for a differential
+pair), each with `.shapes` holding the realized `ArcPolyline` or `Polyline`
+primitives, each with `.width` (`shapes/primitive.py:285-317`); it is `None`
+or empty when the route did not realize.
 
 Copper weight: `Conductor.thickness` in mm is the only field
 (`stackup.py:112`); JLCPCB's 1 oz is `Conductor(thickness=0.035)`. Nothing

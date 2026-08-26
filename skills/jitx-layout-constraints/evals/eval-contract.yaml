@@ -30,5 +30,5 @@ hard_fails:
   - "RoutingStructure.NeckDown recommended as the code-side mechanism for fanout or escape."
   - "A width or clearance value with no fabrication-constraint row, no cited source, and no skill-default label on its own line at the point of use (an invented number)."
   - "An IPC current-carrying chart, formula, or coefficient presented as the basis for a trace width."
-  - "A per-pin 10 uF / 1 uF / 0.1 uF decoupling stack recommended, or power distributed by copper fill instead of routed traces."
+  - "A per-pin 10 uF / 1 uF / 0.1 uF decoupling stack recommended, or power distributed by a board-wide copper fill with no datasheet or current requirement stated as the reason."
   - "The rule set is presented as done without an after-build realization check when a runtime is available; an unavailable runtime must be declared as an open item, never silently skipped."

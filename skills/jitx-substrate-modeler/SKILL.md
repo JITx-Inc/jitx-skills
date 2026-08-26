@@ -447,7 +447,7 @@ layers = symmetric_routing_layers({
 
 ### Layer with NeckDown
 
-Neckdown parameters are part of the routing-structure definition and take effect only when a region is activated in the UI. For a width step-down into a package pad from code, use the tag-based escape rules in the `jitx-layout-constraints` skill instead.
+Neckdown parameters describe the structure only; how a neckdown region is activated, and the code-side alternative for stepping a width down into a package pad, are in the `jitx-layout-constraints` skill, "Fanout".
 
 ```python
 RoutingStructure.Layer(
@@ -714,7 +714,7 @@ self.GND += fence_pour
 self.fence_outline_keepout = KeepOut(shape, layers=LayerSet(6), pour=True, via=True)
 ```
 
-Do not set `isolate=` on the fence Pour; it is deprecated. Pour clearance is a two-condition `design_constraint(...).clearance(...)` rule above the `FabricationConstraints` floor; see the `jitx-layout-constraints` skill, Pours.
+Do not set `isolate=` on the fence Pour; it is deprecated. Pour clearance is a design rule; see the `jitx-layout-constraints` skill, Pours.
 
 ## Via Mixin Pattern
 
