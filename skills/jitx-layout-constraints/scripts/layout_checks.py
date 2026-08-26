@@ -215,6 +215,33 @@ def check_routes(routes: Iterable[object]) -> CheckResult:
     )
 
 
+def check_route_width(route: object, expected: float, tol: float) -> CheckResult:
+    """Check every realized shape width of one authored route.
+
+    Use this where one net carries a class-width trunk and a narrower tagged
+    escape on the same layer: ``check_width`` is keyed by net and layer and
+    would see both widths, while the step-down ladder expects them to differ.
+    """
+    shapes: list[object] = []
+    for trace in getattr(route, "traces", None) or ():
+        for shape in getattr(trace, "shapes", ()):
+            shapes.append(getattr(shape, "geometry", shape))
+    widths = tuple(sorted(trace_widths(shapes)))
+    passed = bool(widths) and all(abs(width - expected) <= tol for width in widths)
+    detail = (
+        f"route={route!r} tol={tol:.4f} mm"
+        if widths
+        else f"route={route!r} has no realized trace width witness"
+    )
+    return CheckResult(
+        name="route-width",
+        passed=passed,
+        measured=widths if widths else None,
+        expected=expected,
+        detail=detail,
+    )
+
+
 def _format_measured(value: float | tuple[float, ...] | None) -> str:
     if value is None:
         return "none"

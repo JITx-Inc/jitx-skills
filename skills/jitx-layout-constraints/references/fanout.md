@@ -120,6 +120,14 @@ Do not read `pad.transform` alone. A composite landpattern adds frames above
 the pad, and bottom-side placement adds mirroring. The full failure mode and
 composition rule are in `geometry-verification.md`, "Coordinate frames".
 
+A generated landpattern (`SMT("0805")`, the QFN generator) is built lazily.
+If nothing has touched its pads before the `query(design, Copper)` walk runs
+inside a `Design.Initialized` hook, the build fires inside the walk and fails
+with `ContextMissingException: CurrentPad is not active`. Declare an explicit
+`PadMapping` in the component's `__init__` (or otherwise touch
+`landpattern.p` there) so the landpattern is built inside the component's own
+context before any query reads it.
+
 The fabrication floor comes from the selected substrate:
 
 ```python

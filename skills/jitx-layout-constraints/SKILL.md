@@ -402,7 +402,8 @@ esc = Route(rp, self.u1.VIN, layer=0)             # escape segment into the pad;
                                                   # intermediate sketch points are
                                                   # dropped on 4.4.0-rc.9, so a turn
                                                   # needs another RoutePoint
-self.escape = [rp, trunk, esc]
+self.escape = [rp, trunk, esc]                    # store each object once: a list OR
+                                                  # named attributes, never both
 Tags(QfnEscapeTag()).assign(esc)
 
 # Escape rules out-rank every class rule and override (rung 4 in the ladder):
@@ -411,7 +412,9 @@ self.qfn_escape_space = design_constraint(QfnEscapeTag(), AnyObject, priority=4)
 ```
 
 A single-ended `RoutePoint` must be a member of the net (`rp.port`) or the
-build fails with an opaque key error; prefer a pad-to-point trunk, since a
+build fails with an opaque key error; a `Route` stored both as a named
+attribute and in a list fails translation with `Child object Route
+encountered multiple times`; prefer a pad-to-point trunk, since a
 via-to-`RoutePoint` trunk has been seen to realize alone and not inside a
 full design. `w_escape` and `c_escape` are derived, not typed: read the
 landpattern's pad geometry with `jitx.query` and subtract the fab floor. The governing gap
@@ -454,10 +457,12 @@ design and read it back (the loop, `query` semantics, and coordinate frames
 are in `jitx-physical-layout` `references/geometry-verification.md`). The
 constraint-specific checks, packaged in `scripts/layout_checks.py`:
 
-- Width by net and layer: every realized trace shape (`route.traces[i].shapes[j]`,
-  an `ArcPolyline` or `Polyline` with `.width`) on a tagged net has the width
-  its winning rule asked for, equal within a labeled tolerance; wider fails
-  as well as narrower, since wider means a different rule won.
+- Width by net and layer, and per route: every realized trace shape
+  (`route.traces[i].shapes[j]`, an `ArcPolyline` or `Polyline` with `.width`)
+  on a tagged net has the width its winning rule asked for, equal within a
+  labeled tolerance; wider fails as well as narrower, since wider means a
+  different rule won. A net that carries a class trunk and a narrower escape
+  on the same layer is checked per route (`check_route_width`), not per net.
 - Clearance between two nets: the minimum shapely distance between their
   copper on a layer is at or above the binary rule.
 - Route realization: `route.traces` is non-empty for every escape route you
