@@ -1,106 +1,116 @@
 # QFN Power Fanout Reference Notes
 
-The requested home-directory scratch location was not writable in this
-sandbox. The reference was translated from `/private/tmp/qfn-power-fanout`.
-This is a scratch-location deviation only. Shipped files remain under the eval
-case directory.
+## Result
+
+- Derived escape geometry: escape width `0.250000 mm`, escape clearance
+  `0.100000 mm`, both computed at `Design.Initialized` from queried pad copper
+  and `FabricationConstraints`, not typed in as literals.
+- Measured after capture: trunk `0.5 mm`, escape `0.25 mm`. Both match their
+  intended values (`0.500000 mm` power-class trunk, `0.250000 mm` derived
+  escape) within the `1e-6 mm` comparison tolerance.
+- Route realization: both routes realized. `trunk_route.traces` and
+  `escape_route.traces` are non-empty after `capture()`.
+
+Observed on jitx `4.4.0rc5.dev2+g8ee08108f` with the runtime that CLI starts.
+Two consecutive runs of `check_fanout.py` produced the same numbers and exited
+`0`.
 
 ## Sources and derived geometry
 
 - Package: generated QFN (skill default: 32 leads) at `0.5 mm` pitch (skill
   default: `0.5 mm` pitch), using `DensityLevel.C`.
-- Class trunk: `0.5 mm` width (skill default: `0.5 mm` power-class width).
+- Class trunk: `0.5 mm` width (skill default: `0.5 mm` power-class width),
+  applied by the `PowerTag` net rule at priority 2.
 - Pad width: `0.250000 mm`, read from placed pad copper with `jitx.query`.
-- Adjacent gap: `0.250000 mm`, computed as the queried `0.500000 mm` row pitch
-  minus the queried `0.250000 mm` pad width.
-- Fabrication floor: `0.090000 mm` copper-to-copper space from
-  `FabricationConstraints.min_copper_copper_space` on `JLC04161H_7628`
-  (`jitxlib/jlcpcb/rules.py:4-11`).
-- Escape width: `0.250000 mm`, derived as the largest width that preserves the
-  fabrication floor at adjacent pads and is capped by the queried pad width.
-- Escape clearance: `0.100000 mm`, the `0.090000 mm` fabrication floor from
-  `FabricationConstraints.min_copper_copper_space` plus a `0.010000 mm` margin
-  (skill default: `0.010000 mm` clearance margin).
-- Measured trunk and escape widths after capture: unavailable. The runtime was
-  unavailable for capture, so no realized widths are reported.
+- Row pitch: `0.500000 mm`, read as the tangential spacing to the nearest pad
+  in the same row of the queried pad copper.
+- Adjacent gap: `0.250000 mm`, the queried `0.500000 mm` row pitch minus the
+  queried `0.250000 mm` pad width, cross-checked against
+  `target.distance(neighbor)` on the shapely geometry.
+- Fabrication floor: `0.090000 mm` copper-to-copper space and `0.090000 mm`
+  minimum copper width, from `FabricationConstraints` on `JLC04161H_7628`
+  (`jitxlib/jlcpcb/rules.py:8-9`, read in the installed package).
+- Escape width: `0.250000 mm`. The centered-channel limit is
+  `0.250000 + 2 * (0.250000 - 0.090000) = 0.570000 mm`, so the queried pad
+  width is the binding cap here, not the fabrication floor. The escape rule
+  sits at priority 4 and wins over the priority-2 power class.
+- Escape clearance: `0.100000 mm`, the `0.090000 mm` fabrication floor plus a
+  `0.010000 mm` margin (skill default: `0.010000 mm` clearance margin).
 
 ## Verification output
 
-Pyright needed the installed JITX interpreter passed explicitly. Without
-`--pythonpath`, the pyright process resolved a different environment and ended
-with this real summary:
+`check_fanout.py` copies the reference module into a temporary JITX project,
+starts that project's runtime, builds, submits, captures, asserts, and stops
+the runtime. It was run from the reference directory. `python` below is the
+interpreter of the virtualenv holding jitx `4.4.0rc5.dev2`.
 
 ```text
-7 errors, 0 warnings, 0 informations
-```
-
-The interpreter-aligned command passed:
-
-```text
-$ python -m pyright --pythonpath "$VIRTUAL_ENV/bin/python" skills/jitx-layout-constraints/evals/cases/reference/qfn-power-fanout/*.py
-(node:42768) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
-(Use `node --trace-warnings ...` to show where the warning was created)
-0 errors, 0 warnings, 0 informations
-```
-
-Dry translation ran against the current reference module. This is not a
-runtime build and is not capture evidence:
-
-```text
-$ PYTHONPATH=/private/tmp/qfn-power-fanout python -m jitx build --dry qfn_power_fanout.qfn_power_fanout.QfnPowerFanoutDesign
-/usr/local/Homebrew/Library/Homebrew/cmd/shellenv.sh: line 18: /bin/ps: Operation not permitted
-Dependencies recently checked, skipping. Will check again in 49 minutes.
+$ cd skills/jitx-layout-constraints/evals/cases/reference/qfn-power-fanout
+$ python check_fanout.py
+$ python -m jitx runtime start --background
+{
+  "mode": "background",
+  "pid": 43345,
+  "uri": "ws://localhost:63825/p23zzr",
+  "log_path": "<temporary-project>/.jitx/logs/runtime.log",
+  "exit_code": null
+}
+$ python -m jitx build qfn_power_fanout.qfn_power_fanout.QfnPowerFanoutDesign
+Failed to parse installer report: Expecting value: line 1 column 1 (char 0)
+Error: Failed to check dependencies: Expecting value: line 1 column 1 (char 0)
 QFN escape geometry: pad_width=0.250000 mm, adjacent_gap=0.250000 mm, row_pitch=0.500000 mm, escape_width=0.250000 mm, escape_clearance=0.100000 mm
+Running design qfn_power_fanout.qfn_power_fanout.QfnPowerFanoutDesign...
+A newer version of JITX is available.
+Saving stable design and reference designator table
 qfn_power_fanout.qfn_power_fanout.QfnPowerFanoutDesign:
   design: qfn_power_fanout.qfn_power_fanout.QfnPowerFanoutDesign
   status: ok
+$ python check_fanout.py  # submit, capture, and assertions
+QFN escape geometry: pad_width=0.250000 mm, adjacent_gap=0.250000 mm, row_pitch=0.500000 mm, escape_width=0.250000 mm, escape_clearance=0.100000 mm
+[PASS] trunk route realized at (0.5,) mm, expected 0.500000 mm
+[PASS] escape route realized at (0.25,) mm, expected 0.250000 mm
+[PASS] trunk and escape routes have non-empty traces
+$ python -m jitx runtime stop
+{
+  "stopped": true,
+  "pid": 43345,
+  "signal_sent": "SIGTERM",
+  "message": "terminated"
+}
 ```
 
-The full build did not run because no runtime was reachable:
+Process exit status of that run:
 
 ```text
-$ PYTHONPATH=/private/tmp/qfn-power-fanout python -m jitx build qfn_power_fanout.qfn_power_fanout.QfnPowerFanoutDesign
-/usr/local/Homebrew/Library/Homebrew/cmd/shellenv.sh: line 18: /bin/ps: Operation not permitted
-Error: no runtime reachable in this project. Start one with `jitx runtime start --background`, or run with `--dry` to skip the build step.
+EXIT=0
 ```
 
-The capture and assertion script exited nonzero before build or capture:
+The two `Failed to parse installer report` / `Failed to check dependencies`
+lines come from the CLI dependency probe in the temporary project, before the
+build step. The build proceeded and reported `status: ok`, and the capture
+assertions ran, so those lines are not a failure of this reference. The `pid`,
+port, and runtime URI change per run.
 
-```text
-$ python skills/jitx-layout-constraints/evals/cases/reference/qfn-power-fanout/check_fanout.py
-$ python -m jitx runtime start --background
-Error: launcher exited (rc=1) before announcing itself; see <temporary-project>/.jitx/logs/runtime.log for output.
-[runtime.log] Error occurred when attempting to open file $HOME/.jitx/.stats.txt. Operation not permitted.
-[FAIL] command exited 1: python -m jitx runtime start --background
-```
+The `QFN escape geometry:` line prints twice because the module's
+`Design.Initialized` hook runs once under `jitx build` and again under the
+in-process submit in `capture_and_check`. Both prints agree.
 
-An isolated deployment-root retry passed the statistics-file step, then the
-runtime log repeated this socket error:
+## Fixes
 
-```text
-lws_socket_bind: ERROR on binding fd 6 to port 0 (-1 1)
-```
-
-The em-dash check printed nothing, as required:
-
-```text
-$ grep -n "—" skills/jitx-layout-constraints/references/fanout.md
-```
-
-The prohibited-mechanism spelling appears only in the explanatory note:
-
-```text
-$ grep -n "NeckDown" skills/jitx-layout-constraints/references/fanout.md skills/jitx-layout-constraints/evals/cases/reference/qfn-power-fanout/*.py
-skills/jitx-layout-constraints/references/fanout.md:405:## Not NeckDown
-skills/jitx-layout-constraints/references/fanout.md:407:`RoutingStructure.NeckDown` only supplies parameters for a neckdown region;
-```
+None. The reference module and the check script ran as shipped in this
+worktree. No API name, shape transform, event hook, or generator argument
+needed changing, and no derived value was replaced with a typed number.
 
 ## Decisions
 
 The generated QFN needed a minimal placeholder component and symbol. The
 reference maps the power rail to the first generated peripheral pad (skill
 default: pad `1`) and uses the next generated peripheral pad for ground (skill
-default: pad `2`). The escape route is tagged, while the power-class tag stays
-on the net. The broader skill-eval receipts and routing fixtures required by
-the skill-development lifecycle were outside the owned file set and were not
-changed.
+default: pad `2`). The escape route carries the `QfnEscapeTag`, while the
+power-class tag stays on the net, so the priority ladder is what resolves the
+width at the pad: board default 0, power class 2, QFN escape 4.
+
+Not verified in this run: pyright, the em-dash grep over
+`skills/jitx-layout-constraints/references/fanout.md`, and the `NeckDown`
+spelling grep. Those checks belong to the skill-development lifecycle and were
+outside this run's scope, so no output for them is recorded here.
