@@ -1,0 +1,35 @@
+{
+  "name": "net-net-clearance",
+  "prompt": "Add a 0.25 mm power-to-ground clearance rule, source: skill example 0.25 mm above the substrate fabrication floor, then build, capture, and measure the realized copper. Also test a 0.05 mm request, source: skill test value 0.05 mm intentionally below the substrate fabrication floor, and record which value wins.",
+  "inputs": {
+    "substrate": "jitxlib.jlcpcb.JLC04161H_7628",
+    "reference": "evals/cases/reference/net-net-clearance/design.py",
+    "notes": "The JLCPCB copper spacing floor is read from JLCPCBRules.min_copper_copper_space, jitxlib/jlcpcb/rules.py:9. The capture check excludes pours because captured Pour geometry is the input outline before runtime voiding."
+  },
+  "expected_output": "A design module with module-scope power and ground tags, four structural board defaults, a priority 2 two-condition clearance rule, pad-to-point routes, and a below-floor variant. A check script submits and captures each design, verifies route realization and trace widths, measures power-to-ground non-pour copper clearance, and exits nonzero on failure. NOTES.md records the real commands, output, and the observed answer to the fabrication-floor question.",
+  "assertions": [
+    {
+      "text": "the pure helper unit tests pass",
+      "check": "deterministic",
+      "cmd": "python3 scripts/test_layout_checks.py"
+    },
+    {
+      "text": "the shipped helper and reference module type-check against the installed JITX package",
+      "check": "deterministic",
+      "cmd": "pyright scripts/layout_checks.py evals/cases/reference/net-net-clearance/design.py evals/cases/reference/net-net-clearance/check.py"
+    },
+    {
+      "text": "the built and captured reference checks pass",
+      "check": "deterministic",
+      "cmd": "python3 evals/cases/reference/net-net-clearance/check.py"
+    },
+    {
+      "text": "the 0.25 mm clearance value is labeled on its line as the skill example above the JLCPCB floor read from the substrate",
+      "check": "judge"
+    },
+    {
+      "text": "NOTES.md records whether the 0.05 mm below-floor request or JLCPCBRules.min_copper_copper_space wins, and the statement matches captured copper",
+      "check": "judge"
+    }
+  ]
+}
