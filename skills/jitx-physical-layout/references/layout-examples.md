@@ -19,7 +19,9 @@ linear webs, and circular via dams. The vias use the same coordinates as the
 CSG, so every via sits under a dam and every paste cell is enclosed by mask.
 
 Copy `jitx-layout-constraints/scripts/thermal_via_stitch.py` into the project,
-then use it at the landpattern and circuit call sites. The substrate supplies
+then use it at the landpattern and circuit call sites. It raises `ValueError`
+when the exposed pad cannot hold the grid or the opening is not a polygon; a
+raise means change the grid, not skip the check. The substrate supplies
 the soldermask bridge, registration, and copper-edge values. The selected via
 class supplies its pad diameter.
 

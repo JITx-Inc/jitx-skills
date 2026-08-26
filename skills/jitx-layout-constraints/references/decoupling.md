@@ -15,8 +15,15 @@ layout figure, the datasheet wins.
 
 ## What the solver controls
 
+Source citations (`jitx/constraints.py:910` and the like) point into the
+installed py-jitx package, `4.4.0rc5.dev2` build; line numbers move between
+builds, so confirm on another install before relying on one.
+
 `scripts/decoupling_solver.py` is pure Python. Copy it into the design project
-and import these frozen dataclasses:
+and import these frozen dataclasses. An infeasible bank raises `ValueError`
+naming the hint group and the constraint that could not be met; that is a
+stop, not a warning. Change the keepouts, spacing, or hints and solve again
+rather than placing a capacitor by hand to get past it:
 
 ```python
 from decoupling_solver import (

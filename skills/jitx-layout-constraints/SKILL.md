@@ -349,8 +349,10 @@ Detail and worked derivations: `references/power-and-pours.md`.
   through the substrate's mixin, re-declared on the substrate, or declared at
   module scope (verified). For an exposed thermal pad, the soldermask-defined
   via field with its mask dams is `scripts/thermal_via_stitch.py`, which reads
-  its constants from `FabricationConstraints` and the via class; usage is in
-  `jitx-physical-layout` `references/layout-examples.md`.
+  its constants from `FabricationConstraints` and the via class and raises
+  `ValueError` on a pad too small for the grid or an opening that is not a
+  polygon (a raise means stop and change the grid, never bypass it); usage is
+  in `jitx-physical-layout` `references/layout-examples.md`.
 - Thermal relief is the `IsPad` default above. A solid connection for a
   high-current pad (direct connect) has no dedicated effect; the verified
   pattern on 4.4 is a higher-priority `thermal_relief` on the tagged pads with
@@ -520,7 +522,9 @@ Check in this order:
 9. The object is not taggable: `OverlappableCopper` cannot carry a tag.
 10. The object is a code-authored `Route`: clearance rules and fab floors do
     not move authored geometry (What rules act on, above). Measure it after
-    capture with `scripts/layout_checks.py`.
+    capture with `scripts/layout_checks.py`; its non-zero exit is a failed
+    task, and the completion block is not written until it exits 0 or the
+    unmeasurable rules are named as open items.
 
 Behaviors settled by a built design are recorded, with the design that
 settled them, in `references/rule-reference.md`, "Verified behaviors"; a row
