@@ -90,3 +90,21 @@ for the measured behavior of sketch turns, which are dropped by this runtime.
 $ python3 -m pytest scripts/test_layout_checks.py -q
 8 passed in 0.04s
 ```
+
+## Rerun after check rewrite
+
+Rerun alongside the `net-net-clearance` check rewrite, which did not touch this
+case. Same environment: py-jitx 4.4.0rc5.dev2+g8ee08108f, runtime 4.4.0-rc.9,
+substrate `JLC04161H_7628`, run from the project root with the project venv
+interpreter.
+
+```text
+$ python3 -m layout_constraints_wp5.default_rules.check
+child-rule scope probe, result classified from captured copper
+PASS routes: measured=0 expected=0 checked=2 unrealized=0
+PASS width-rule-owner: measured=0.3000 expected=0.3000 tol=0.0010 mm
+PASS child-rule-scope: measured=0.3000 expected=none observed=board-wide
+summary: checks=3 failures=0
+```
+
+Exit code: 0. Nothing was trimmed; that is the whole output.

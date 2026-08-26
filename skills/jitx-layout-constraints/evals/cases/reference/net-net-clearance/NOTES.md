@@ -176,3 +176,54 @@ the capture clearance check uses trace-to-trace copper and excludes pours. That
 also means there is no engine-computed copper in this probe on which a clearance
 rule could have been caught being enforced. The legacy ODB++ cross-check was not
 run.
+
+## Rerun after check rewrite
+
+The `check.py` above now asserts the observed behavior rather than the request,
+so it exits 0 while the runtime leaves code-authored routes where the code put
+them. Rerun on py-jitx 4.4.0rc5.dev2+g8ee08108f, runtime 4.4.0-rc.9, substrate
+`JLC04161H_7628`, from the project root with the project venv interpreter. The
+"Commands and real output" block above records the pre-rewrite script, which
+exited 1 on the same measurements.
+
+```text
+$ python3 -m layout_constraints_wp5.net_net_clearance.check
+example rule, source: skill example above the fabrication floor
+PASS routes: measured=0 expected=0 checked=2 unrealized=0
+PASS width: measured=0.2000 expected=0.2000 net=POWER layer=0 tol=0.0010 mm
+PASS width: measured=0.2000 expected=0.2000 net=GROUND layer=0 tol=0.0010 mm
+PASS example: realized clearance equals authored gap: measured=0.1001 expected=0.1000 rule asked 0.2500 mm; code authored 0.1000 mm
+PASS example: clearance rule not applied to authored routes: measured=0.1001 expected=0.2500 verified behavior on the 4.4 line; a pass here means the rule moved nothing
+summary: checks=5 failures=0
+below-floor request, source: skill test value 0.0500 mm; fabrication floor 0.0900 mm
+PASS routes: measured=0 expected=0 checked=2 unrealized=0
+PASS width: measured=0.2000 expected=0.2000 net=POWER layer=0 tol=0.0010 mm
+PASS width: measured=0.2000 expected=0.2000 net=GROUND layer=0 tol=0.0010 mm
+PASS below-floor: realized clearance equals authored gap: measured=0.0202 expected=0.0200 rule asked 0.0500 mm; code authored 0.0200 mm
+PASS below-floor: clearance rule not applied to authored routes: measured=0.0202 expected=0.0500 verified behavior on the 4.4 line; a pass here means the rule moved nothing
+PASS below-floor: fabrication floor not enforced on authored routes: measured=0.0202 expected=0.0900 floor read from FabricationConstraints.min_copper_copper_space; a pass means authored copper sits below it with status ok
+summary: checks=6 failures=0
+```
+
+Exit code: 0.
+
+Trimmed from the verbatim output: four leading `no computed net for port in
+component circuit.{power,ground}_pad: unused` lines, the same informational
+`no_connect()` noise described above. Nothing else was cut.
+
+The measurements are unchanged from the original run: 0.1001 mm against a
+0.25 mm rule on an authored 0.100 mm gap, and 0.0202 mm against a 0.05 mm rule
+and a 0.09 mm floor on an authored 0.020 mm gap.
+
+One discovery-side change came with the rewrite: `design.py` now shares the rule
+set through `_ClearanceRules`, which is not a `Design` subclass, so `jitx find`
+lists only the two concrete designs and the `_ClearanceDesign` build error in
+"Limits found and not fixed" no longer occurs.
+
+```text
+$ jitx find
+designs:
+  layout_constraints_wp5.default_rules.design.DefaultRulesDesign
+  layout_constraints_wp5.net_net_clearance.design.BelowFloorClearanceDesign
+  layout_constraints_wp5.net_net_clearance.design.NetNetClearanceDesign
+```
