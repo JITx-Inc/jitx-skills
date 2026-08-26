@@ -21,9 +21,9 @@ from jitx import Board, Circuit, Design, Net, Polygon, Pour, current
 from jitx.circuit import Route
 from jitx.constraints import AnyObject, IsCopper, IsTrace, Tag, Tags, design_constraint
 from jitx.feature import Courtyard, Paste, Soldermask
+from jitx.inspect import visit
 from jitx.landpattern import Landpattern, Pad, PadMapping, PadShape
 from jitx.net import Port
-from jitx.query import query as jitx_query  # pyright: ignore[reportMissingImports]
 from jitx.shapes import Shape
 from jitx.shapes.composites import rectangle
 from jitxlib.jlcpcb import JLC04161H_7628  # pyright: ignore[reportMissingImports]
@@ -109,8 +109,13 @@ def query_capacitor_geometry(
 ) -> tuple[CapacitorGeometry, int]:
     """Read the selected capacitor's solver envelope and pad orientation."""
 
+    # `jitx.query.query` needs a design-rooted object: it opens
+    # `SubstrateContext(root.substrate)` (jitx/query.py:247). A `Capacitor` root
+    # raises `'Capacitor' object has no attribute 'substrate'`. `Pad` and
+    # `Courtyard` are authored objects, so the transformer graph would collapse
+    # to identity anyway (jitx/query.py:209) and `visit` reads the same frames.
     pad_rows: list[tuple[tuple[float, float], tuple[float, float]]] = []
-    for trace, pad in jitx_query(capacitor, Pad):
+    for trace, pad in visit(capacitor, Pad):
         if trace.transform is None or pad.transform is None:
             raise ValueError("selected capacitor pad has an unresolved frame")
         pad_shape = pad.shape.shape if isinstance(pad.shape, PadShape) else pad.shape
@@ -132,12 +137,15 @@ def query_capacitor_geometry(
     if pad_pitch <= axis_tolerance or min(abs(dx), abs(dy)) > axis_tolerance:
         raise ValueError("selected capacitor pads must lie on one orthogonal axis")
     horizontal = abs(dx) > abs(dy)
+    # The rotation that lands p1 (the solver's power pad) on local negative X.
+    # Rotation is counter-clockwise, so (x, y) -> (-y, x) at 90 degrees: p1 at
+    # local +Y needs 90, p1 at local -Y needs 270.
     package_rotation = (
-        0 if horizontal and dx > 0 else 180 if horizontal else 90 if dy > 0 else 270
+        0 if horizontal and dx > 0 else 180 if horizontal else 270 if dy > 0 else 90
     )
 
     courtyard_bounds = []
-    for trace, courtyard in jitx_query(capacitor, Courtyard):
+    for trace, courtyard in visit(capacitor, Courtyard):
         if trace.transform is None:
             raise ValueError("selected capacitor courtyard has an unresolved frame")
         courtyard_bounds.append(
@@ -252,7 +260,9 @@ class DecouplingBank(Circuit):
             raise ValueError("capacitor query returned inconsistent landpatterns")
 
         via_cls = JLC04161H_7628.StdViaPreferred  # pyright: ignore[reportAttributeAccessIssue]
-        via_pad_diameter = via_cls.diameter  # JLC04161H_7628 substrate via field
+        via_pad_diameter = float(
+            via_cls.diameter  # JLC04161H_7628 substrate via field
+        )  # Via.diameter is float | ViaDiameter (jitx/via.py:60); ViaDiameter defines __float__ (jitx/via.py:328)
         fab = current.design.substrate.constraints
         clearance_floor = fab.min_copper_copper_space  # FabricationConstraints field
         capacitor_spacing = 0.25  # skill default: 0.25 mm component spacing
@@ -386,7 +396,12 @@ class ReferenceBoard(Board):
 
 class ReferenceCircuit(Circuit):
     def __init__(self) -> None:
-        self.decoupling = DecouplingBank().at(floating=True)
+        # `at(floating=True)` leaves the bank "subject to interactive placement"
+        # (jitx/circuit.py:314). With no interactive placement on disk the
+        # runtime parks it beside the board, and every escape route then fails
+        # with "Route targets not in router: ... is off the board on layer 0".
+        # A headless reference has to place the bank on the board.
+        self.decoupling = DecouplingBank().at(0.0, 0.0)  # bank origin on the board
 
 
 class DecouplingReference(Design):

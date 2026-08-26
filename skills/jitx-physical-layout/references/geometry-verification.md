@@ -185,7 +185,11 @@ ODB++ export below is the runtime-side cross-check for them.
 One more: `Route(..., sketch=[...])` intermediate points are dropped on runtime
 4.4.0-rc.9 and the route realizes straight between its endpoints, so a probe
 that relies on a sketch to bend a route passes vacuously; author turns with
-`RoutePoint`s and assert the realized bounds.
+`RoutePoint`s and assert the realized bounds. And a circuit placed with
+`.at(floating=True)` but never placed interactively is parked off the board by
+the runtime: its routes fail with `Route targets not in router: ... is off the
+board` and `traces` stays `None`, while `jitx build` reports `status: ok`. Give
+headless and reference designs explicit positions.
 
 ## Interop notes
 

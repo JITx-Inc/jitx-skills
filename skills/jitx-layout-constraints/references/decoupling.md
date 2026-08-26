@@ -70,8 +70,11 @@ Read every dimension before constructing `BankSpec`:
 
 `jitx.query.query(root, target, ...)` applies registered transformers, including
 pad-to-copper and via-to-copper (`jitx/query.py:283`, `jitx/landpattern.py:173`,
-`jitx/via.py:197`). Compose `trace.transform * element.transform` to read a
-center (`jitx/inspect.py:174`, `jitx/landpattern.py:191`).
+`jitx/via.py:197`), and opens the design and substrate contexts, so its root
+must be the design. To read a component's own landpattern before the design
+exists (the capacitor geometry above), walk it with `jitx.inspect.visit` and
+compose the same frames. Compose `trace.transform * element.transform` to read
+a center (`jitx/inspect.py:174`, `jitx/landpattern.py:191`).
 
 Do not use a nominal case-code table when the selected part already has a
 landpattern. Parts queries can change the returned manufacturer part and its
@@ -319,9 +322,13 @@ def _apply_solution(self, via_cls: type[Via], package_rotation: int) -> None:
 ```
 
 `Positionable.at()` writes the direct descendant's local placement
-(`jitx/placement.py:133`). `Circuit.at(floating=True)` clears the circuit's
-fixed transform so the layout engine can place the bank as one block
-(`jitx/circuit.py:289`). Instantiate it at the top level like this:
+(`jitx/placement.py:133`). Give the bank an explicit position. `Circuit.at(floating=True)`
+clears the fixed transform so a person can place the bank as one block in
+the UI (`jitx/circuit.py:289`), but with no interactive placement stored the
+runtime parks a floating circuit off the board and every route in it fails
+with `Route targets not in router: ... is off the board` while `jitx build`
+still reports `status: ok` (observed in the shipped reference). Instantiate it
+at the top level like this:
 
 ```python
 class MainCircuit(Circuit):
@@ -334,11 +341,11 @@ class MainCircuit(Circuit):
             keepouts=ic_keepouts,
             capacitor_spacing=placement_spacing,
             package_rotation=queried_package_rotation,
-        ).at(floating=True)
+        ).at(bank_x, bank_y)  # explicit; floating only for interactive placement
 ```
 
-Because the IC lives inside the floating bank, the capacitor placements, vias,
-routes, and puddles all share its local frame. Moving the bank moves the whole
+Because the IC lives inside the bank, the capacitor placements, vias, routes,
+and puddles all share its local frame. Moving the bank moves the whole
 decoupling block without recomputing assembled names or absolute board
 coordinates.
 

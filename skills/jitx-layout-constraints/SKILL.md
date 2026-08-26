@@ -436,9 +436,12 @@ are or their values.
 - Place each capacitor as close to its power pin as the package allows,
   with a via at each capacitor pad to the return layer, and connect with
   short, wide segments or a local power puddle.
-- As code: a `DecouplingBank(Circuit)` that owns the capacitors, their vias,
-  the puddle on the rail, and the tagged escape routes to the IC pads, placed
-  floating so it tracks the IC. Each capacitor carries a hint naming the IC
+- As code: a `DecouplingBank(Circuit)` that owns the IC, the capacitors,
+  their vias, the puddle on the rail, and the tagged escape routes to the IC
+  pads, so the whole block shares one frame. Give the bank an explicit
+  position; `at(floating=True)` is for interactive placement in the UI, and
+  a floating circuit with no stored placement is parked off the board
+  headlessly, where every route fails to realize while the build says ok. Each capacitor carries a hint naming the IC
   pads it serves (finer than the net), which the solver in
   `scripts/decoupling_solver.py` turns into placements and via positions by
   minimizing loop area. Module, solver usage, and the recorded loop areas:
