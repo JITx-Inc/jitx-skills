@@ -29,7 +29,7 @@ build-backend = "hatchling.build"
 [project]
 name = "qfn-power-fanout-reference"
 version = "0.1"
-dependencies = ["jitx>=4.4.0rc5,<5", "jitxlib-standard>=4.4.0rc5,<5"]
+dependencies = ["jitx>=4.4.0rc2,<5", "jitxlib-standard>=4.4.0rc2,<5"]
 requires-python = ">=3.12"
 """
 

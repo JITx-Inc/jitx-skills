@@ -58,20 +58,29 @@ class ProbeTerminal(Component):
 
 
 class ParallelRoutes(Circuit):
-    """Two pad-to-point routes whose sketches converge side by side."""
+    """Two pad-to-point routes whose right-hand endpoints converge side by side.
 
-    middle_offset = 0.10  # skill test geometry: 0.10 mm from centerline
+    The convergence is authored into the ``RoutePoint`` coordinates, not into a
+    ``Route`` sketch. Measured on runtime 4.4.0-rc.9: a sketch's intermediate
+    turns are dropped and the realized copper is a straight line between the two
+    route endpoints, so a sketch cannot bring two nets close together. See
+    ``NOTES.md``.
+    """
+
+    authored_gap = 0.10  # skill test geometry: 0.10 mm authored edge-to-edge gap
 
     def __init__(self):
         endpoint_offset = 1.50  # skill test geometry: 1.50 mm from centerline
         left_x = -8.0  # skill test geometry: -8.0 mm x coordinate
         right_x = 8.0  # skill test geometry: 8.0 mm x coordinate
-        turn_x = 2.0  # skill test geometry: 2.0 mm from board center
+        # Centerline offset that realizes ``authored_gap`` edge to edge between
+        # two DEFAULT_TAGGED_WIDTH traces.
+        converge_offset = (self.authored_gap + DEFAULT_TAGGED_WIDTH) / 2.0
 
         self.power_pad = ProbeTerminal().at(left_x, endpoint_offset)
-        self.power_point = RoutePoint(layer=TOP_LAYER).at(right_x, endpoint_offset)
+        self.power_point = RoutePoint(layer=TOP_LAYER).at(right_x, converge_offset)
         self.ground_pad = ProbeTerminal().at(left_x, -endpoint_offset)
-        self.ground_point = RoutePoint(layer=TOP_LAYER).at(right_x, -endpoint_offset)
+        self.ground_point = RoutePoint(layer=TOP_LAYER).at(right_x, -converge_offset)
         self.power_pad.unused.no_connect()
         self.ground_pad.unused.no_connect()
 
@@ -90,29 +99,17 @@ class ParallelRoutes(Circuit):
             self.power_pad.route_pad,
             self.power_point.pad,
             layer=TOP_LAYER,
-            sketch=[
-                (left_x, endpoint_offset),
-                (-turn_x, self.middle_offset),
-                (turn_x, self.middle_offset),
-                (right_x, endpoint_offset),
-            ],
         )
         ground_route = Route(
             self.ground_pad.route_pad,
             self.ground_point.pad,
             layer=TOP_LAYER,
-            sketch=[
-                (left_x, -endpoint_offset),
-                (-turn_x, -self.middle_offset),
-                (turn_x, -self.middle_offset),
-                (right_x, -endpoint_offset),
-            ],
         )
         self.routes = [power_route, ground_route]
 
 
 class BelowFloorParallelRoutes(ParallelRoutes):
-    middle_offset = 0.03  # skill test geometry: 0.03 mm from centerline
+    authored_gap = 0.02  # skill test geometry: 0.02 mm authored edge-to-edge gap
 
 
 class _ClearanceDesign(Design):

@@ -6,7 +6,7 @@
     {
       "text": "the reference module and capture checker type-check against the installed jitx package",
       "check": "deterministic",
-      "cmd": "python3 -m pyright skills/jitx-layout-constraints/evals/cases/reference/qfn-power-fanout/*.py"
+      "cmd": "python3 -m pyright --pythonpath \"$(command -v python3)\" skills/jitx-layout-constraints/evals/cases/reference/qfn-power-fanout/*.py"
     },
     {
       "text": "the reference builds, captures, has non-empty traces, and realizes the trunk and escape at their expected widths",
@@ -25,5 +25,8 @@
       "text": "QfnEscapeTag is assigned to the escape Route segment, while PowerTag remains on the 5 V net",
       "check": "judge"
     }
-  ]
+  ],
+  "inputs": {
+    "environment": "Commands run from the repository root with python3 resolving to the project interpreter that has jitx installed."
+  }
 }

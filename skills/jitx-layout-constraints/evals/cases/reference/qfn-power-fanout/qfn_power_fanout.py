@@ -342,11 +342,11 @@ class FanoutCircuit(Circuit):
         )
         Tags(QfnEscapeTag()).assign(self.escape_route)
         self.escape_rules = [
-            design_constraint(QfnEscapeTag(), priority=3).trace_width(
+            design_constraint(QfnEscapeTag(), priority=4).trace_width(
                 self.escape_geometry.escape_width
             ),
             design_constraint(
-                QfnEscapeTag(), AnyObject, priority=3
+                QfnEscapeTag(), AnyObject, priority=4
             ).clearance(self.escape_geometry.escape_clearance),
         ]
         print(
@@ -374,7 +374,8 @@ class QfnPowerFanoutDesign(Design):
         thermal_spoke = max(fab.min_copper_width, THERMAL_SPOKE_WIDTH_MM)
         pour_feature = max(fab.min_copper_width, POUR_FEATURE_WIDTH_MM)
 
-        # Priority ladder: board defaults 0, power class 2, QFN escape 3.
+        # Priority ladder: board defaults 0, power class 2, layer-scoped overrides 3
+        # (none here), QFN escape 4.
         self.rules = [  # skill default: 4 board rules, then the class rule
             design_constraint(IsTrace).trace_width(default_width),
             design_constraint(IsCopper, IsCopper).clearance(default_clearance),

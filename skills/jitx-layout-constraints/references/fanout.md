@@ -14,8 +14,9 @@ capture are in
 ## The rule ladder
 
 The default board rules are priority zero. A class rule is priority two in
-this example. Each concrete escape tag gets one unary width rule and one
-binary clearance rule at priority three. The factory chooses the rule class
+this example, rung three is reserved for layer-scoped class overrides, and
+each concrete escape tag gets one unary width rule and one binary clearance
+rule at priority four (the ladder in `SKILL.md`, "Priority"). The factory chooses the rule class
 from the positional condition count (`jitx/constraints.py:70-111`), unary
 rules expose `trace_width` (`jitx/constraints.py:910-922`), and binary rules
 expose `clearance` (`jitx/constraints.py:1135-1172`).
@@ -35,25 +36,25 @@ class Qfn1v8EscapeTag(EscapeTag): ...
 # Every width and clearance below comes from the geometry helpers.
 self.rules = [
     design_constraint(PowerTag(), priority=2).trace_width(POWER_WIDTH),
-    design_constraint(QfnEscapeTag(), priority=3).trace_width(qfn_width),
-    design_constraint(QfnEscapeTag(), AnyObject, priority=3).clearance(
+    design_constraint(QfnEscapeTag(), priority=4).trace_width(qfn_width),
+    design_constraint(QfnEscapeTag(), AnyObject, priority=4).clearance(
         qfn_clearance
     ),
-    design_constraint(BgaEscapeTag(), priority=3).trace_width(bga_width),
-    design_constraint(BgaEscapeTag(), AnyObject, priority=3).clearance(
+    design_constraint(BgaEscapeTag(), priority=4).trace_width(bga_width),
+    design_constraint(BgaEscapeTag(), AnyObject, priority=4).clearance(
         bga_clearance
     ),
-    design_constraint(PassiveEscapeTag(), priority=3).trace_width(
+    design_constraint(PassiveEscapeTag(), priority=4).trace_width(
         passive_width
     ),
     design_constraint(
-        PassiveEscapeTag(), AnyObject, priority=3
+        PassiveEscapeTag(), AnyObject, priority=4
     ).clearance(passive_clearance),
-    design_constraint(Qfn1v8EscapeTag(), priority=3).trace_width(
+    design_constraint(Qfn1v8EscapeTag(), priority=4).trace_width(
         qfn_1v8_width
     ),
     design_constraint(
-        Qfn1v8EscapeTag(), AnyObject, priority=3
+        Qfn1v8EscapeTag(), AnyObject, priority=4
     ).clearance(qfn_1v8_clearance),
 ]
 ```
@@ -263,11 +264,11 @@ self.escape_route = Route(
 )
 Tags(QfnEscapeTag()).assign(self.escape_route)
 self.escape_rules = [
-    design_constraint(QfnEscapeTag(), priority=3).trace_width(
+    design_constraint(QfnEscapeTag(), priority=4).trace_width(
         geometry.escape_width
     ),
     design_constraint(
-        QfnEscapeTag(), AnyObject, priority=3
+        QfnEscapeTag(), AnyObject, priority=4
     ).clearance(geometry.escape_clearance),
 ]
 ```

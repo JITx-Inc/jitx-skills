@@ -106,10 +106,12 @@ def main() -> int:
         )
         measured = below_floor_clearance.measured
         if isinstance(measured, float):
-            floor_observed = measured + WIDTH_TOLERANCE >= floor
-            outcome = (
-                "fabrication floor or greater" if floor_observed else "below-floor rule"
-            )
+            if measured + WIDTH_TOLERANCE >= floor:
+                outcome = "fabrication floor or greater"
+            elif measured + WIDTH_TOLERANCE >= BELOW_FLOOR_CLEARANCE:
+                outcome = "below-floor rule"
+            else:
+                outcome = "neither the rule nor the floor; authored geometry"
             classification_passed = measured + WIDTH_TOLERANCE >= BELOW_FLOOR_CLEARANCE
         else:
             outcome = "no measurable copper witness"
