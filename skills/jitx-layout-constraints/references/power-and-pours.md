@@ -320,11 +320,16 @@ Read these fields from the selected substrate. The class values are examples, no
 
 ## 8. Direct connect
 
-Result: no direct-connect behavior was observed. The runtime was unavailable
-for capture. The required isolated scratch project could not be created in
-this execution environment, so neither capture nor legacy ODB++ export ran.
-This section does not claim that direct connect is expressible or not
-expressible on 4.4.
+Result, observed on 4.4.0rc5.dev2: candidate 2 below produces a direct connect
+and candidate 1 does not. A higher-priority `thermal_relief` whose spoke width
+equals the pad diameter leaves the runtime's computed pour copper with no gap
+and no spokes at the tagged pad, while a default-relief pad on the same net
+keeps its four 0.2 mm spokes; the higher-priority rule carrying no effect leaves
+both pads identical. Only two surfaces show that copper, the raw
+`LayoutOutput.computed_shape` and the legacy ODB++ `features` file for the
+pour's layer, because `rd.query(Pour)` and `rd.query(Copper)` return the
+pre-voiding outline (numbers in
+`evals/cases/reference/direct-connect/NOTES.md`).
 
 The installed Python surface has no direct-connect effect. A unary rule can
 carry thermal relief, but the translator emits a thermal effect only when
@@ -332,16 +337,16 @@ carry thermal relief, but the translator emits a thermal effect only when
 `jitx/_translate/rules.py:62`). That source fact does not establish whether a
 higher-priority rule with no effect suppresses a lower-priority thermal.
 
-The untested candidates, in order, are:
+The tested candidates, in order, are:
 
 ```python
 class DirectConnectTag(Tag):
     """Pad selected for the direct-connect experiment."""
-# Candidate 1, untested: higher-priority unary rule with no effect.
+# Candidate 1, tested: higher-priority unary rule with no effect. No effect on the pour.
 candidate_no_effect = design_constraint(
     DirectConnectTag(), priority=POWER_PRIORITY
 )
-# Candidate 2, untested: fab-floor gap with pad-wide overlapping spokes.
+# Candidate 2, tested: fab-floor gap with pad-wide overlapping spokes. Direct connect.
 candidate_wide_spokes = design_constraint(
     DirectConnectTag(), priority=POWER_PRIORITY
 ).thermal_relief(

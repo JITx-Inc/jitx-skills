@@ -322,9 +322,12 @@ Detail and worked derivations: `references/power-and-pours.md`.
   heavy-copper rule is an open item, not a guess at a layer index.
 - Sliver removal: `design_constraint(IsPour).pour_feature_size(min_width)`.
 - Thermal relief is the `IsPad` default above. A solid connection for a
-  high-current pad has no dedicated effect; whether the rule system can
-  express it is settled by the direct-connect test recorded in
-  `references/power-and-pours.md`, and nothing here assumes the answer.
+  high-current pad (direct connect) has no dedicated effect; the verified
+  pattern on 4.4 is a higher-priority `thermal_relief` on the tagged pads with
+  the fab floor as the gap and a spoke width equal to the pad diameter, which
+  collapses the relief into solid copper. A higher-priority rule with no
+  effect does not suppress the default. Test and numbers:
+  `references/power-and-pours.md`, section 8.
 - `Pour(..., isolate=)` is deprecated in 4.4; express pour clearance with the
   binary rules above.
 
@@ -416,11 +419,13 @@ constraint-specific checks, packaged in `scripts/layout_checks.py`:
   authored; a silently unrealized route is the common failure.
 
 What capture cannot show on the 4.4 line: a `Pour` comes back as its input
-outline before voiding, so trace-to-pour clearance, thermal relief, and
-sliver removal are not measurable from `rd.query`; the runtime-side
-cross-check is the legacy ODB++ export (`jitx-physical-layout`
-`references/geometry-verification.md`, "Interop notes"). Report those rules
-as not verified from capture unless you read the export.
+outline before voiding (the runtime computes the voided shape, but the 4.4
+reverse flow does not put it on the captured `Pour`), so trace-to-pour
+clearance, thermal relief, and sliver removal are not measurable from
+`rd.query`; the runtime-side cross-check is the legacy ODB++ export
+(`jitx-physical-layout` `references/geometry-verification.md`, "Interop
+notes"). Report those rules as not verified from capture unless you read
+the export.
 
 A measured width below the winning rule is a failure, never a note: a route
 that realizes at the via pad diameter because it runs via to via has not met
