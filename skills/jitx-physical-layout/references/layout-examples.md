@@ -13,146 +13,61 @@ package before reusing — JITX moves and APIs get renamed across releases.
 
 A cheap-fab alternative to filled via-in-pad: tented vias inside the chip's
 exposed-pad copper, with a thin soldermask "dam" only around each via so reflowed
-solder can't wick down the unfilled barrels. The mask/paste opening is computed with
-shapely CSG (`EP_rect − (perimeter frame ∪ linear webs ∪ circular via dams)`), and
-the vias are placed at the **same** coordinates the CSG used (so the dams land on
-the vias) and joined to the ground net by **net membership** — not
-`PortAttachment`, which is scoped to signal topologies.
+solder cannot wick down the unfilled barrels. The mask and paste opening is
+computed with shapely CSG: the exposed-pad rectangle minus a perimeter frame,
+linear webs, and circular via dams. The vias use the same coordinates as the
+CSG, so every via sits under a dam and every paste cell is enclosed by mask.
+
+Copy `jitx-layout-constraints/scripts/thermal_via_stitch.py` into the project,
+then use it at the landpattern and circuit call sites. The substrate supplies
+the soldermask bridge, registration, and copper-edge values. The selected via
+class supplies its pad diameter.
 
 ```python
-from collections.abc import Iterable, Sequence
-import shapely
-import jitx
-from jitx import Container
-from jitx.shapes import Shape
-from jitx.shapes.shapely import ShapelyGeometry
-from jitx.via import Via, ViaType
-from jitxlib.landpatterns.pads import SMDPadConfig
+from jitx import Pad
+from jitx.query import query
+from jitxlib.jlcpcb import JLC04161H_7628
 
-# Module-scope via class. A custom via is justified here: JLCPCB charges nothing for
-# a *tented* unfilled via inside a pad, and the design-rule resolver does not walk
-# via classes inherited from a mixin — so it must be defined at module scope, not on
-# the substrate. (Normally, source vias from the substrate / JLCPCB library.)
-class ThermalStitchVia(Via):
-    name = "Soldermask-Defined Thermal Via"
-    start_layer = 0
-    stop_layer = -1
-    diameter = 0.45          # JLCPCB "Preferred Standard Via" pad
-    hole_diameter = 0.30
-    type = ViaType.MechanicalDrill
-    tented = True            # tented both sides → no solder wicking, no upcharge
-    via_in_pad = True
+from my_project.thermal_via_stitch import (
+    StitchParams,
+    ThermalViaField,
+    grid_thermal_via_positions,
+    soldermask_defined_thermal_pad_config,
+)
 
+# Landpattern side. Read the exposed-pad shape back from the generated
+# landpattern, then replace its standard feature config with the CSG config.
+via_class = JLC04161H_7628.StdViaPreferred
+params = StitchParams.from_substrate(JLC04161H_7628.constraints, via_class)
+ep_pad = next(pad for _, pad in query(landpattern, Pad) if pad in landpattern.thermal_pads)
+min_x, min_y, max_x, max_y = ep_pad.shape.to_shapely().g.bounds
+ep_size = (max_x - min_x, max_y - min_y)  # jitx.query landpattern Pad bounds
+positions = grid_thermal_via_positions(
+    ep_size=ep_size,
+    via_grid=(4, 4),  # skill default: 4 columns by 4 rows.
+    edge_margin=params.edge_margin,
+    via_pad_diameter=params.via_pad_diameter,
+)
+config = soldermask_defined_thermal_pad_config(
+    ep_size=ep_size,
+    via_positions=positions,
+    via_pad_diameter=params.via_pad_diameter,
+    min_mask_bridge=params.min_mask_bridge,
+    mask_expansion=params.mask_expansion,
+    fillet_radius=params.fillet_radius,
+)
+landpattern.thermal_pad(shape=ep_pad.shape, config=config)
 
-def grid_thermal_via_positions(
-    *, ep_size: tuple[float, float], via_grid: tuple[int, int],
-    edge_margin: float = 0.3, via_pad_diameter: float = 0.45,
-) -> list[tuple[float, float]]:
-    """Evenly-spaced cols×rows via grid in the EP-local frame (origin = EP center),
-    inset so the outermost pad rim stays `edge_margin` from the EP edge."""
-    nx, ny = via_grid
-    ep_w, ep_h = ep_size
-    inset = edge_margin + via_pad_diameter / 2.0
-
-    def axis(extent: float, n: int) -> list[float]:
-        if n <= 0:
-            return []
-        avail = extent - 2.0 * inset
-        if avail < 0:
-            raise ValueError(f"EP extent {extent} too small for {n} vias")
-        if n == 1:
-            return [0.0]
-        step = avail / (n - 1)
-        return [-avail / 2.0 + k * step for k in range(n)]
-
-    xs, ys = axis(ep_w, nx), axis(ep_h, ny)
-    return [(x, y) for y in ys for x in xs]
-
-
-def soldermask_thermal_pad_opening(
-    *, ep_size: tuple[float, float], via_positions: Iterable[tuple[float, float]],
-    via_pad_diameter: float = 0.45, min_mask_bridge: float = 0.08,
-    fillet_radius: float = 0.05,
-) -> Shape:
-    """Paste/soldermask opening = EP rectangle minus (frame ∪ web stripes ∪ via dams).
-    `min_mask_bridge` (JLCPCB min soldermask bridge, 0.08 mm) is both the web width
-    and the radial mask margin around each via pad."""
-    ep_w, ep_h = ep_size
-    ep_rect = shapely.box(-ep_w / 2, -ep_h / 2, ep_w / 2, ep_h / 2)
-
-    positions = list(via_positions)
-    if not positions:
-        return ShapelyGeometry(ep_rect)
-
-    half_stripe = min_mask_bridge / 2.0
-    unique_xs = sorted({round(x, 6) for x, _ in positions})
-    unique_ys = sorted({round(y, 6) for _, y in positions})
-    parts: list[shapely.geometry.base.BaseGeometry] = []
-
-    # Perimeter frame ring (closes the ends of the web stripes).
-    inner_w, inner_h = ep_w - 2 * min_mask_bridge, ep_h - 2 * min_mask_bridge
-    if inner_w > 0 and inner_h > 0:
-        inner = shapely.box(-inner_w / 2, -inner_h / 2, inner_w / 2, inner_h / 2)
-        parts.append(ep_rect.difference(inner))
-    # Linear web stripes through each unique via X and Y.
-    for x in unique_xs:
-        parts.append(shapely.box(x - half_stripe, -ep_h / 2, x + half_stripe, ep_h / 2))
-    for y in unique_ys:
-        parts.append(shapely.box(-ep_w / 2, y - half_stripe, ep_w / 2, y + half_stripe))
-    # Circular dam over each via (pad + bridge ring on every side).
-    dam_radius = via_pad_diameter / 2.0 + min_mask_bridge
-    for x, y in positions:
-        parts.append(shapely.Point(x, y).buffer(dam_radius, resolution=24))
-
-    opening = ep_rect.difference(shapely.unary_union(parts))
-    if fillet_radius > 0:
-        # Morphological open: round sharp inside corners of the paste cells.
-        opening = opening.buffer(-fillet_radius, resolution=24).buffer(fillet_radius, resolution=24)
-    # Guard before handing to a fab feature — only non-empty Polygon/MultiPolygon serialize.
-    assert not opening.is_empty and opening.geom_type in ("Polygon", "MultiPolygon"), opening.geom_type
-    return ShapelyGeometry(opening)
-
-
-def soldermask_defined_thermal_pad_config(**kw) -> SMDPadConfig:
-    """Both paste and soldermask use the CSG opening shape."""
-    opening = soldermask_thermal_pad_opening(**kw)
-    return SMDPadConfig(soldermask=opening, paste=opening)   # each field takes a Shape
-
-
-class ThermalViaField(Container):
-    """Placed thermal vias as a composed member. A `Container` subclass is the
-    composition unit — its members are traversed by the structural walk. Do NOT
-    write this as a free function that mutates the circuit
-    (`def attach_thermal_vias(circuit, ...): circuit.xyz = ...` is an
-    anti-pattern — see the base `jitx` skill's Don'ts)."""
-
-    def __init__(
-        self, *, positions: Sequence[tuple[float, float]],
-        anchor: tuple[float, float] = (0.0, 0.0),
-        via_class: type[Via] = ThermalStitchVia,
-    ):
-        ax, ay = anchor
-        self.vias = [via_class().at(ax + dx, ay + dy) for dx, dy in positions]
-```
-
-Usage — component side builds the pad, circuit side places the chip at the same
-anchor, composes the via field as a member, and joins the vias to the ground net
-(thermal/ground vias are plain net membership — `Net` accepts `Via` members;
-`PortAttachment` is reserved for signal topologies):
-
-```python
-# In the landpattern definition:
-positions = grid_thermal_via_positions(ep_size=(3.45, 3.45), via_grid=(4, 4))
-config = soldermask_defined_thermal_pad_config(ep_size=(3.45, 3.45), via_positions=positions)
-landpattern.thermal_pad(shape=rectangle(3.45, 3.45), config=config)
-
-# In the circuit where the chip is placed — pin it at the origin so the thermal-via
-# field (anchored at (0, 0)) lines up with the exposed pad:
-self.amp = PowerAmp().at(0, 0)
-self.GND += self.amp.EP                     # the exposed pad is on ground
-self.thermal_vias = ThermalViaField(positions=positions, anchor=(0.0, 0.0))
+# Circuit side. Store the container structurally and use plain net membership.
+self.amp = PowerAmp().at(thermal_anchor)
+self.GND += self.amp.EP
+self.thermal_vias = ThermalViaField(
+    positions=positions,
+    via_class=via_class,
+    anchor=thermal_anchor,
+)
 for via in self.thermal_vias.vias:
-    self.GND += via                         # vias join the net — no PortAttachment
+    self.GND += via
 ```
 
 ## OverlappableCopper antenna
