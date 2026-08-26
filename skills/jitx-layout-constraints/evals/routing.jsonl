@@ -11,7 +11,7 @@
 {"intent": "keep traces farther from plated holes than the board default", "expected_skill": "jitx-layout-constraints"}
 {"intent": "remove narrow slivers from the inner ground pour", "expected_skill": "jitx-layout-constraints"}
 {"intent": "verify the built copper really used the tagged widths", "expected_skill": "jitx-layout-constraints"}
-{"intent": "one of my code routes built but has no realized traces", "expected_skill": "jitx-layout-constraints", "ambiguous_with": ["jitx-physical-layout"]}
+{"intent": "one of my code routes built but has no realized traces", "expected_skill": "jitx-physical-layout", "ambiguous_with": ["jitx-layout-constraints"]}
 {"intent": "make an escape-width rule for the final segment into these BGA balls", "expected_skill": "jitx-layout-constraints", "ambiguous_with": ["jitx-physical-layout"]}
 // Near-miss negatives: shared words, but a sibling owns the requested operation.
 {"intent": "enter the JLCPCB minimum widths and spaces into the substrate", "expected_skill": "jitx-substrate-modeler", "ambiguous_with": ["jitx-layout-constraints"]}
