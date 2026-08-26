@@ -367,9 +367,12 @@ Detail and worked derivations: `references/power-and-pours.md`.
 
 A 0.5 mm power trace does not fit a 0.25 mm QFN pad at 0.5 mm pitch. The
 class rule stays; a specific escape rule takes over for the last segment.
-Compute first: if the class width fits the pad and keeps the fab floor to the
-neighboring pads, there is no step-down and no escape rule (a 0.5 mm trace
-into a 0.6 mm pad at 0.95 mm pitch is such a case).
+Compute first, for every pad a tagged class width reaches (walk the tagged
+nets' pad mappings, do not hand-pick the pads you noticed): if the class
+width fits the pad and keeps the fab floor to the neighboring pads, there is
+no step-down and no escape rule (a 0.5 mm trace into a 0.6 mm pad at 0.95 mm
+pitch is such a case); where it does not fit, emit the escape pair or raise,
+so a ground pin on a 0.5 mm ground width cannot sit silently in a 0.25 mm pad.
 Neckdown is not used for this: `RoutingStructure.NeckDown` parameters take
 effect only through the UI, and a specific tag carries the intent in a way a
 reader and a rule can see.
