@@ -344,6 +344,13 @@ Detail and worked derivations: `references/power-and-pours.md`.
   (`jitx-substrate-modeler`, from the fab's report), and until then the
   heavy-copper rule is an open item, not a guess at a layer index.
 - Sliver removal: `design_constraint(IsPour).pour_feature_size(min_width)`.
+- Stitching a pour: `design_constraint(GndPourTag()).stitch_via(ViaClass,
+  SquareViaStitchGrid(pitch=, inset=))`; on 4.4 the via class may be reached
+  through the substrate's mixin, re-declared on the substrate, or declared at
+  module scope (verified). For an exposed thermal pad, the soldermask-defined
+  via field with its mask dams is `scripts/thermal_via_stitch.py`, which reads
+  its constants from `FabricationConstraints` and the via class; usage is in
+  `jitx-physical-layout` `references/layout-examples.md`.
 - Thermal relief is the `IsPad` default above. A solid connection for a
   high-current pad (direct connect) has no dedicated effect; the verified
   pattern on 4.4 is a higher-priority `thermal_relief` on the tagged pads with
