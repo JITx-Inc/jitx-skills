@@ -310,9 +310,11 @@ current-carrying charts or formulas at all.
   for the tier (one via per tier step is the default; label it). Set
   `via_in_pad = True` on the via class only when the fab's via-in-pad row
   allows it, and read the fab's `min_annular_ring`.
-- Sense (Kelvin) lines ride a power net but are not power: give them their
-  own `SenseTag`, the default signal width, and a binary clearance to the
-  power path they measure so the router keeps them off the current path.
+- Sense (Kelvin) lines ride a power net but are not power: tag the sense
+  route segments with their own `SenseTag` (the net itself is the power net,
+  so those routes carry both tags), give the sense width rule a rung above
+  the power width, and add a binary clearance to the power path they measure
+  so the router keeps them off the current path.
 
 Detail and worked derivations: `references/power-and-pours.md`.
 
