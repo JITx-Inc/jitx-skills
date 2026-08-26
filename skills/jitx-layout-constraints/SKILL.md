@@ -205,8 +205,9 @@ class Design(...):
     circuit = TopCircuit()
 
     def __init__(self):
-        # Priority ladder: 0 defaults, 1 power/ground width, 2 class rules,
-        # 3 escape rules. Written here so the next reader sees the whole ladder.
+        # Priority ladder: 0 defaults, 1 power/ground width and layer-wide
+        # rules, 2 class rules, 3 layer-scoped class overrides, 4 escape rules.
+        # Written here so the next reader sees the whole ladder.
         self.rules = [
             # Default trace width for any trace not otherwise tagged.
             UnaryDesignConstraint(IsTrace).trace_width(0.125),
@@ -363,9 +364,9 @@ esc = Route(rp, self.u1.VIN, layer=0)             # escape segment into the pad
 self.escape = [rp, trunk, esc]
 Tags(QfnEscapeTag()).assign(esc)
 
-# Escape rules out-rank the class rule (priority 3 in the ladder):
-self.qfn_escape_width = design_constraint(QfnEscapeTag(), priority=3).trace_width(w_escape)
-self.qfn_escape_space = design_constraint(QfnEscapeTag(), AnyObject, priority=3).clearance(c_escape)
+# Escape rules out-rank every class rule and override (rung 4 in the ladder):
+self.qfn_escape_width = design_constraint(QfnEscapeTag(), priority=4).trace_width(w_escape)
+self.qfn_escape_space = design_constraint(QfnEscapeTag(), AnyObject, priority=4).clearance(c_escape)
 ```
 
 `w_escape` and `c_escape` are derived, not typed: read the landpattern's pad
