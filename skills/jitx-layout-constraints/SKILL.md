@@ -315,7 +315,10 @@ Detail and worked derivations: `references/power-and-pours.md`.
   then write a per-index rule with the fab's heavy-copper spacing row:
   `BinaryDesignConstraint(IsCopper & OnLayer(2), IsCopper, priority=1).clearance(c)`.
   `OnLayer.internal()` matches every inner layer, so it is the wrong selector
-  for one heavy layer. The walk only finds what the substrate models: the
+  for one heavy layer. Walk the substrate instance inside the design
+  (`current.design.substrate.stackup.conductors`); the same attribute read
+  off the substrate class hangs in a lazy proxy. The walk only finds what the
+  substrate models: the
   predefined JLCPCB substrates carry 1 oz outer and half-ounce inner copper,
   so a quoted 2 oz layer that is not in the stackup is a substrate task first
   (`jitx-substrate-modeler`, from the fab's report), and until then the
@@ -362,6 +365,7 @@ class QfnEscapeTag(EscapeTag):
 # w_escape and c_escape are computed from the QFN landpattern and the fab
 # floor (references/fanout.md), never typed in.
 rp = RoutePoint(layer=0).at(x_transition, y_transition)
+self.v5 += rp.port                                # net the control point, or the build fails
 trunk = Route(self.j1.VOUT, rp, layer=0)          # class-width trunk ends here
 esc = Route(rp, self.u1.VIN, layer=0)             # escape segment into the pad
 self.escape = [rp, trunk, esc]
@@ -372,8 +376,11 @@ self.qfn_escape_width = design_constraint(QfnEscapeTag(), priority=4).trace_widt
 self.qfn_escape_space = design_constraint(QfnEscapeTag(), AnyObject, priority=4).clearance(c_escape)
 ```
 
-`w_escape` and `c_escape` are derived, not typed: read the landpattern's pad
-geometry with `jitx.query` and subtract the fab floor. The governing gap
+A single-ended `RoutePoint` must be a member of the net (`rp.port`) or the
+build fails with an opaque key error; prefer a pad-to-point trunk, since a
+via-to-`RoutePoint` trunk has been seen to realize alone and not inside a
+full design. `w_escape` and `c_escape` are derived, not typed: read the
+landpattern's pad geometry with `jitx.query` and subtract the fab floor. The governing gap
 differs by package family (QFN: the gap between adjacent pads in a row; BGA:
 the diagonal channel between balls and the row depth; two-terminal passive:
 the pad-to-pad gap and courtyard). Derivations, the QFN worked example, and
