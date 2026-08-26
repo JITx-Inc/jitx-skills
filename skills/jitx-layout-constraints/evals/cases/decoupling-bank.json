@@ -5,7 +5,8 @@
     "substrate": "jitxlib.jlcpcb.JLC04161H_7628",
     "ic": "A four-pad placeholder QFN (skill default: four pads) with two power pins and two ground pins (skill default: two of each). The placeholder must be identified as such.",
     "engineering_basis": "Eric Bogatin, Seven Habits of Successful 2-Layer Board Designers, Signal Integrity Journal, 2019-04-23. Use only the decoupling claims allowed by the task brief.",
-    "notes": "Use scripts/decoupling_solver.py as a copied, pure-Python project helper. Capacitor and IC geometry must come from queried landpatterns or values labeled skill default on their line. Use the substrate via class and FabricationConstraints floors."
+    "notes": "Use scripts/decoupling_solver.py as a copied, pure-Python project helper. Capacitor and IC geometry must come from queried landpatterns or values labeled skill default on their line. Use the substrate via class and FabricationConstraints floors.",
+    "environment": "Commands run from the repository root with python3 resolving to the project interpreter that has jitx installed and a reachable runtime for the capture check."
   },
   "reference": {
     "file": "evals/cases/reference/decoupling-bank/design.py",
@@ -16,7 +17,7 @@
     "sonnet"
   ],
   "runner_rationale": "The skill must carry enough API and verification detail for a normal coding agent to produce a buildable bank, while judges remain frontier-tier.",
-  "expected_output": "A pure deterministic solver with frozen dataclasses and stdlib unittest coverage, a DecouplingBank that owns one largest-value, smallest-qualified-package capacitor per structural hint (skill default: one capacitor per hint) with short_trace=True, two substrate-via instances per capacitor (skill default: two vias per capacitor), local rail puddles, priority-3 tagged escape routes (skill priority ladder: 3), a captured reference design, and a check script that fails on unrealized routes or placement mismatch and reports the solver loop areas.",
+  "expected_output": "A pure deterministic solver with frozen dataclasses and stdlib unittest coverage, a DecouplingBank that owns one largest-value, smallest-qualified-package capacitor per structural hint (skill default: one capacitor per hint) with short_trace=True, two substrate-via instances per capacitor (skill default: two vias per capacitor), local rail puddles, tagged escape routes at rung 4 of the skill's priority ladder, a captured reference design, and a check script that fails on unrealized routes or placement mismatch and reports the solver loop areas.",
   "assertions": [
     {
       "text": "the pure solver unit suite passes, covering success, infeasibility, determinism, competing placements, and the loop-area objective",
@@ -26,12 +27,12 @@
     {
       "text": "the solver and every reference Python module type-check against the installed JITX package",
       "check": "deterministic",
-      "cmd": "python3 -m pyright skills/jitx-layout-constraints/scripts/decoupling_solver.py skills/jitx-layout-constraints/evals/cases/reference/decoupling-bank/*.py"
+      "cmd": "python3 -m pyright --pythonpath \"$(command -v python3)\" skills/jitx-layout-constraints/scripts/decoupling_solver.py skills/jitx-layout-constraints/evals/cases/reference/decoupling-bank/*.py"
     },
     {
       "text": "the captured reference has realized escape routes, selected-capacitor geometry matching the solver input, and queried capacitor and via placements matching the solver with correct via net membership",
       "check": "deterministic",
-      "cmd": "cd <output> && python3 -m decoupling_ref.check"
+      "cmd": "python3 skills/jitx-layout-constraints/evals/cases/reference/decoupling-bank/check.py"
     },
     {
       "text": "the design does not recommend or instantiate a per-pin 10 uF, 1 uF, and 0.1 uF capacitor stack",

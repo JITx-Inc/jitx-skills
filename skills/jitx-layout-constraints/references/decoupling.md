@@ -254,12 +254,12 @@ class DecouplingBank(Circuit):
         escape_clearance = fab.min_copper_copper_space  # FabricationConstraints field
         self.rules = [
             design_constraint(
-                DecouplingEscapeTag(), priority=3  # skill priority ladder: 3
+                DecouplingEscapeTag(), priority=4  # skill priority ladder: 4, escape rules
             ).trace_width(escape_width),
             design_constraint(
                 DecouplingEscapeTag(),
                 AnyObject,
-                priority=3,  # skill priority ladder: 3
+                priority=4,  # skill priority ladder: 4, escape rules
             ).clearance(escape_clearance),
         ]
         self.loop_areas = tuple(
@@ -293,8 +293,8 @@ Tags are module-scope subclasses. `Tags(...).assign(...)` supports `Route`,
 one-condition rule, while clearance is a two-condition rule. The conditions
 are positional-only (`jitx/constraints.py:71`). Trace width exists on the
 unary rule (`jitx/constraints.py:910`), and clearance exists only on the binary
-rule (`jitx/constraints.py:1160`). Priority 3 is above the board defaults at
-priority 0. Bound escape width by the queried capacitor and IC pad widths.
+rule (`jitx/constraints.py:1160`). Priority 4 is the escape rung of the ladder in `SKILL.md`, above the board
+defaults at 0 and every class rule. Bound escape width by the queried capacitor and IC pad widths.
 
 ## Solution adapter
 
@@ -383,7 +383,7 @@ for capacitor in queried:
 ```
 
 Also check that each via and puddle resolves to its intended net through
-`rd.nets().find(...)`, the realized escape widths match the priority 3 rule,
+`rd.nets().find(...)`, the realized escape widths match the priority 4 rule,
 and the selected capacitor landpattern still matches the geometry used by the
 solver.
 

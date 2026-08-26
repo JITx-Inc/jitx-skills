@@ -369,10 +369,10 @@ class DecouplingBank(Circuit):
         escape_clearance = fab.min_copper_copper_space  # FabricationConstraints field
         self.rules = [
             design_constraint(
-                DecouplingEscapeTag(), priority=3  # skill priority ladder: 3
+                DecouplingEscapeTag(), priority=4  # skill priority ladder: 4, escape rules
             ).trace_width(escape_width),
             design_constraint(
-                DecouplingEscapeTag(), AnyObject, priority=3  # skill priority ladder: 3
+                DecouplingEscapeTag(), AnyObject, priority=4  # skill priority ladder: 4, escape rules
             ).clearance(escape_clearance),
         ]
         self.loop_areas = tuple(

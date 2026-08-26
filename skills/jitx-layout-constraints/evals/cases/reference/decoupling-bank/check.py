@@ -2,12 +2,31 @@
 """Capture and check the built decoupling-bank reference."""
 
 import math
+import sys
+from pathlib import Path
 
 import jitx
 from jitxlib.parts import Capacitor
 from jitx.via import Via
 
-from .design import DecouplingReference, query_capacitor_geometry
+
+def _add_paths() -> None:
+    """Make decoupling_solver.py and design.py importable when run directly."""
+    here = Path(__file__).resolve().parent
+    sys.path.insert(0, str(here))
+    for parent in here.parents:
+        solver = parent / "scripts" / "decoupling_solver.py"
+        if solver.is_file():
+            sys.path.insert(0, str(solver.parent))
+            return
+
+
+_add_paths()
+
+try:  # Package import in a scratch project, direct import when run beside design.py.
+    from .design import DecouplingReference, query_capacitor_geometry
+except ImportError:
+    from design import DecouplingReference, query_capacitor_geometry  # type: ignore[no-redef]
 
 
 def main() -> int:
