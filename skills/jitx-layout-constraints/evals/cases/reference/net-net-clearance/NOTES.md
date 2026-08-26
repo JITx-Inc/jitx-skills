@@ -181,7 +181,7 @@ run.
 
 The `check.py` above now asserts the observed behavior rather than the request,
 so it exits 0 while the runtime leaves code-authored routes where the code put
-them. Rerun on py-jitx 4.4.0rc5.dev2+g8ee08108f, runtime 4.4.0-rc.9, substrate
+them. Rerun on py-jitx 4.4.0rc5.dev2, runtime 4.4.0-rc.9, substrate
 `JLC04161H_7628`, from the project root with the project venv interpreter. The
 "Commands and real output" block above records the pre-rewrite script, which
 exited 1 on the same measurements.

@@ -138,9 +138,15 @@ min_annular_ring = fab.min_annular_ring  # FabricationConstraints field
 required_pad_diameter = via_hole_diameter + 2 * min_annular_ring  # via-class drill diameter plus two FabricationConstraints annular rings
 if via_pad_diameter < required_pad_diameter:
     raise ValueError("via pad diameter is below the documented annular-ring floor")
-VIAS_PER_TIER_STEP = 1  # skill default: 1 via per tier step
+VIAS_PER_TIER_STEP = 1  # skill default: 1 via per tier step; not a current derivation
 def power_via_count(tier_step_count: int) -> int:
-    """tier_step_count comes from the selected source and destination tiers."""
+    """tier_step_count comes from the selected source and destination tiers.
+
+    This skill carries no per-via current model. When the rail current or a
+    thermal requirement matters, take the per-via figure from the fab's or the
+    via manufacturer's data and record its source; without one, the via count
+    is an open item, not this default.
+    """
     return tier_step_count * VIAS_PER_TIER_STEP
 VIA_CLEARANCE_MARGIN = 0.11  # skill default: 0.11 mm beyond the fab floor
 power_via_clearance = fab.min_copper_copper_space + VIA_CLEARANCE_MARGIN  # FabricationConstraints floor plus skill default margin
@@ -162,9 +168,12 @@ that capability decision.
 
 ## 4. Sense (Kelvin) lines
 
-A Kelvin sense connection belongs to the circuit that owns the shunt. Tag the
-sense nets there, not the power net they measure. Give them the default signal
-width and a two-condition clearance to power copper.
+A Kelvin sense connection belongs to the circuit that owns the shunt. A sense
+trace is usually on the power net it measures, so tag the sense route
+segments (they then carry both tags, and the sense width rule needs a rung
+above the power width); tag separate sense nets only when the schematic has
+them, as in the example below. Give them the default signal width and a
+two-condition clearance to power copper.
 
 ```python
 from jitx.constraints import BinaryDesignConstraint, Tag, UnaryDesignConstraint
@@ -324,8 +333,10 @@ Read these fields from the selected substrate. The class values are examples, no
 
 ## 8. Direct connect
 
-Result, observed on 4.4.0rc5.dev2: candidate 2 below produces a direct connect
-and candidate 1 does not. A higher-priority `thermal_relief` whose spoke width
+Result, observed on 4.4.0rc5.dev2 on one pad shape (a 1.6 mm round pad):
+candidate 2 below produces a direct connect and candidate 1 does not. Before
+reusing the pattern on another pad shape, size, or runtime, confirm with the
+ODB++ export that the tagged pad's void is gone. A higher-priority `thermal_relief` whose spoke width
 equals the pad diameter leaves the runtime's computed pour copper with no gap
 and no spokes at the tagged pad, while a default-relief pad on the same net
 keeps its four 0.2 mm spokes; the higher-priority rule carrying no effect leaves

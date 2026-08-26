@@ -26,9 +26,8 @@ the soldermask bridge, registration, and copper-edge values. The selected via
 class supplies its pad diameter.
 
 ```python
-from jitx import Pad
-from jitx.query import query
-from jitxlib.jlcpcb import JLC04161H_7628
+from jitx import Pad, current
+from jitx.inspect import visit
 
 from my_project.thermal_via_stitch import (
     StitchParams,
@@ -39,9 +38,11 @@ from my_project.thermal_via_stitch import (
 
 # Landpattern side. Read the exposed-pad shape back from the generated
 # landpattern, then replace its standard feature config with the CSG config.
-via_class = JLC04161H_7628.StdViaPreferred
-params = StitchParams.from_substrate(JLC04161H_7628.constraints, via_class)
-ep_pad = next(pad for _, pad in query(landpattern, Pad) if pad in landpattern.thermal_pads)
+substrate = current.design.substrate
+via_class = substrate.StdViaPreferred  # the substrate's preferred via; the JLCPCB classes name it so
+params = StitchParams.from_substrate(substrate.constraints, via_class)
+# visit, not query: query opens the substrate context and needs a design root
+ep_pad = next(pad for _, pad in visit(landpattern, Pad) if pad in landpattern.thermal_pads)
 min_x, min_y, max_x, max_y = ep_pad.shape.to_shapely().g.bounds
 ep_size = (max_x - min_x, max_y - min_y)  # jitx.query landpattern Pad bounds
 positions = grid_thermal_via_positions(

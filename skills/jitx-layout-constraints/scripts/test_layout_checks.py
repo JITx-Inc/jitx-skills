@@ -19,7 +19,15 @@ import shapely
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from layout_checks import check_route_width, min_clearance, trace_widths, unrealized
+from layout_checks import (
+    check_route_width,
+    min_clearance,
+    rule_clearance,
+    rule_width,
+    run_checks,
+    trace_widths,
+    unrealized,
+)
 
 
 @dataclass
@@ -99,6 +107,43 @@ class CheckRouteWidthTests(unittest.TestCase):
         self.assertFalse(result.passed)
         self.assertIsNone(result.measured)
         self.assertIn("no realized trace width witness", result.detail)
+
+
+@dataclass
+class WidthEffect:
+    width: float
+
+
+@dataclass
+class ClearanceEffect:
+    clearance: float
+
+
+@dataclass
+class UnaryRuleStandIn:
+    trace_width_constraint: WidthEffect | None
+
+
+@dataclass
+class BinaryRuleStandIn:
+    clearance_constraint: ClearanceEffect | None
+
+
+class RuleValueTests(unittest.TestCase):
+    def test_reads_width_and_clearance_from_rule_objects(self) -> None:
+        self.assertEqual(rule_width(UnaryRuleStandIn(WidthEffect(0.25))), 0.25)
+        self.assertEqual(rule_clearance(BinaryRuleStandIn(ClearanceEffect(0.3))), 0.3)
+
+    def test_rule_without_effect_raises(self) -> None:
+        with self.assertRaises(ValueError):
+            rule_width(UnaryRuleStandIn(None))
+        with self.assertRaises(ValueError):
+            rule_clearance(BinaryRuleStandIn(None))
+
+
+class RunChecksTests(unittest.TestCase):
+    def test_empty_check_list_fails(self) -> None:
+        self.assertEqual(run_checks([]), 1)
 
 
 if __name__ == "__main__":

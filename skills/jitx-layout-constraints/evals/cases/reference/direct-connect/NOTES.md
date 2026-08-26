@@ -94,7 +94,7 @@ Installed version:
 
 ```text
 $ python -c "from importlib.metadata import version; print(version('jitx'))"
-4.4.0rc5.dev2+g8ee08108f
+4.4.0rc5.dev2
 ```
 
 Runtime:

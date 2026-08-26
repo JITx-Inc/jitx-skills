@@ -252,8 +252,27 @@ def _format_measured(value: float | tuple[float, ...] | None) -> str:
     return str(value)
 
 
+def rule_width(rule: object) -> float:
+    """Return the trace width a unary rule carries, so checks read the rule, not a copy."""
+    effect = getattr(rule, "trace_width_constraint", None)
+    if effect is None:
+        raise ValueError(f"rule {rule!r} carries no trace_width effect")
+    return float(effect.width)
+
+
+def rule_clearance(rule: object) -> float:
+    """Return the clearance a binary rule carries, so checks read the rule, not a copy."""
+    effect = getattr(rule, "clearance_constraint", None)
+    if effect is None:
+        raise ValueError(f"rule {rule!r} carries no clearance effect")
+    return float(effect.clearance)
+
+
 def run_checks(checks: Sequence[CheckResult]) -> int:
-    """Print one line per check and return 1 when any check fails."""
+    """Print one line per check and return 1 when any check fails or none were supplied."""
+    if not checks:
+        print("summary: checks=0 failures=1 (no checks supplied; nothing was verified)")
+        return 1
     failures = 0
     for result in checks:
         status = "PASS" if result.passed else "FAIL"

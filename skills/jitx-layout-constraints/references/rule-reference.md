@@ -113,13 +113,10 @@ constraint instead", `:56-58`); `orphans` is documented as not respected
 (`:65-69`). A pour joins a net by membership (`net += Pour(...)`). Single
 integer layer; no layer set.
 
-`Route(source, destination, layer: int, sketch=None)` (`circuit.py:569`).
-No width or clearance parameter; a `RoutePoint` endpoint is coerced to its
-`.pad` (`:576-579`); `sketch` is a list of points or a `Route.Sketch`, but on
-runtime 4.4.0-rc.9 its intermediate points are dropped and the route realizes
-as a straight line between its endpoints (verified in
-`evals/cases/reference/net-net-clearance/NOTES.md`), so a turn needs a
-`RoutePoint`. After
+`Route` carries no width or clearance parameter (`circuit.py:569`); its
+constructor, control points, and sketch behavior are owned by
+`jitx-physical-layout` `references/control-points.md` and
+`references/geometry-verification.md`. What the checks read: after
 `capture()`, `route.traces` is a sequence of `Route.Trace` wrappers
 (`circuit.py:545-556`; one entry for a normal route, two for a differential
 pair), each with `.shapes` holding the realized `ArcPolyline` or `Polyline`

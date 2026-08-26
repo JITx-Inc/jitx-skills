@@ -58,10 +58,10 @@ from jitx.constraints import (
 
 Conditions:
 
-- A `Tag` subclass you declare at module scope. Assign it to objects with
-  `MyTag().assign(obj, ...)` or `Tags(a, b).assign(obj, ...)`. Tags form a
-  hierarchy by class inheritance: a rule on `PowerTag` also matches every
-  `PowerTag` subclass.
+- A `Tag` subclass you declare at module scope. Tags form a hierarchy by
+  class inheritance: a rule on `PowerTag` also matches every `PowerTag`
+  subclass. Which objects can carry a tag and how to assign one is
+  `jitx-physical-layout`, "Layout-intent tags".
 - The nine builtin tags: `IsCopper`, `IsTrace`, `IsPour`, `IsVia`, `IsPad`,
   `IsBoardEdge`, `IsThroughHole`, `IsNeckdown`, `IsHole`. Conditions only;
   `assign()` on a builtin raises `TypeError`. `IsNeckdown` matches copper the
@@ -171,8 +171,9 @@ floor_space = fab.min_copper_copper_space
 - A same-tag binary clearance is safe for differential pairs: a coupled span
   is one trace object whose internal gap is the structure's `pair_spacing`,
   so `design_constraint(HsTag(), HsTag(), priority=1).clearance(0.5)` only
-  separates different pairs (observed on a shipped board; not yet reproduced
-  as a reference case here).
+  separates different pairs. Reported from a shipped board, not reproduced as
+  a reference case here; treat it as pending and verify the pair gap after
+  capture before relying on it.
 - A `RoutingStructure` declared at module level is not part of the design
   tree and cannot be applied by a rule; build it as a substrate attribute or
   inside the consuming circuit.
@@ -225,13 +226,13 @@ class Design(...):
         # Written here so the next reader sees the whole ladder.
         self.rules = [
             # Default trace width for any trace not otherwise tagged.
-            UnaryDesignConstraint(IsTrace).trace_width(0.125),
+            UnaryDesignConstraint(IsTrace).trace_width(0.125),  # skill default: JLC04161H-class, above the 0.09 floor
             # Default copper-to-copper clearance: traces, pours, pads.
-            BinaryDesignConstraint(IsCopper, IsCopper).clearance(0.125),
+            BinaryDesignConstraint(IsCopper, IsCopper).clearance(0.125),  # skill default: JLC04161H-class
             # Thermal relief on pads: gap, spoke width, spoke count.
-            UnaryDesignConstraint(IsPad).thermal_relief(0.125, 0.2, 4),
+            UnaryDesignConstraint(IsPad).thermal_relief(0.125, 0.2, 4),  # skill default: gap = default clearance, 0.2 mm spokes, 4 spokes
             # Power and ground get wider traces; priority=1 beats IsTrace.
-            UnaryDesignConstraint(PowerTag() | GroundTag(), priority=1).trace_width(0.4),
+            UnaryDesignConstraint(PowerTag() | GroundTag(), priority=1).trace_width(0.4),  # skill default: between the Bogatin 0.15 and 0.5 tiers
         ]
 ```
 
@@ -267,7 +268,8 @@ non-default rule, record "no non-default net classes" with a one-line reason.
 
 Extend the table as a design demands. Each row's numbers need a source on
 the line where they appear in code: a `FabricationConstraints` field, a
-datasheet or standard with a name, the Bogatin tier, or `skill default` with
+datasheet or standard named with its revision or date and the page, table,
+or figure the number comes from, the Bogatin tier, or `skill default` with
 the value.
 
 When no source exists for a clearance (a keep-away for a sensitive net, a
@@ -299,9 +301,9 @@ current-carrying charts or formulas at all.
   priority) and label each width `Bogatin 2019 tier`. Adjust only when the
   fab's capability table or a measured temperature rise says otherwise, and
   say which.
-- Route power as traces, never as copper fill (Bogatin's habit 7: a routed
-  trace keeps the current path explicit and its width visible; a fill hides
-  both). A `Pour` on a rail net is a net member and its connectivity is
+- Route power as traces by default, not as copper fill (Bogatin's habit 7: a
+  routed trace keeps the current path explicit and its width visible; a fill
+  hides both). A `Pour` on a rail net is a net member and its connectivity is
   checkable in JITX, so this is a legibility and current-path decision, not a
   tool limit. The one exception is the local power puddle under a decoupling
   bank (Decoupling below); a wider power pour needs its reason (a datasheet or
@@ -343,6 +345,9 @@ Detail and worked derivations: `references/power-and-pours.md`.
   so a quoted 2 oz layer that is not in the stackup is a substrate task first
   (`jitx-substrate-modeler`, from the fab's report), and until then the
   heavy-copper rule is an open item, not a guess at a layer index.
+- An inner-layer pour with no via tying it to copper that carries its net is
+  orphan copper, and the engine drops it silently (seen in the ODB++ export of
+  a built board); give inner pours stitch vias or anchor vias.
 - Sliver removal: `design_constraint(IsPour).pour_feature_size(min_width)`.
 - Stitching a pour: `design_constraint(GndPourTag()).stitch_via(ViaClass,
   SquareViaStitchGrid(pitch=, inset=))`; on 4.4 the via class may be reached
@@ -463,8 +468,9 @@ are in `jitx-physical-layout` `references/geometry-verification.md`). The
 constraint-specific checks, packaged in `scripts/layout_checks.py`:
 
 - Width by net and layer, and per route: every realized trace shape
-  (`route.traces[i].shapes[j]`, an `ArcPolyline` or `Polyline` with `.width`)
-  on a tagged net has the width its winning rule asked for, equal within a
+  (`route.traces[i].shapes[j].geometry`, an `ArcPolyline` or `Polyline` whose
+  `.width` is the trace width) on a tagged net has the width its winning rule
+  asked for, equal within a
   labeled tolerance; wider fails as well as narrower, since wider means a
   different rule won. A net that carries a class trunk and a narrower escape
   on the same layer is checked per route (`check_route_width`), not per net.
@@ -473,14 +479,12 @@ constraint-specific checks, packaged in `scripts/layout_checks.py`:
 - Route realization: `route.traces` is non-empty for every escape route you
   authored; a silently unrealized route is the common failure.
 
-What capture cannot show on the 4.4 line: a `Pour` comes back as its input
-outline before voiding (the runtime computes the voided shape, but the 4.4
-reverse flow does not put it on the captured `Pour`), so trace-to-pour
-clearance, thermal relief, and sliver removal are not measurable from
-`rd.query`; the runtime-side cross-check is the legacy ODB++ export
-(`jitx-physical-layout` `references/geometry-verification.md`, "Interop
-notes"). Report those rules as not verified from capture unless you read
-the export.
+Capture limits and traps (pre-voiding pours, transform composition, sketch
+points, floating circuits) are owned by `jitx-physical-layout`
+`references/geometry-verification.md`. The consequence for rules: trace-to-
+pour clearance, thermal relief, and sliver removal are not measurable from
+`rd.query` on the 4.4 line, so report those rules as not verified from
+capture unless you read the legacy ODB++ export.
 
 A measured width below the winning rule is a failure, never a note: a route
 that realizes at the via pad diameter because it runs via to via has not met
@@ -489,15 +493,19 @@ rule with no copper to witness it is not verified; the check output must
 count those separately and never print zero failures while any declared rule
 went unexercised.
 
-Checks read the rules, they do not restate them: walk the rule list for each
-rule's width or clearance and compare the copper against that value. A
-hand-typed table of expected values beside the rule list is a parallel model
-that drifts the first time a rule is added (see the base skill's
-`references/architectural-patterns.md`).
+Checks read the rules, they do not restate them: pass each rule object's own
+value to the check (`rule_width(rule)` and `rule_clearance(rule)` in
+`scripts/layout_checks.py` read the effect the rule carries), never a literal
+typed beside the rule list. A hand-typed table of expected values is a
+parallel model that drifts the first time a rule is added (see the base
+skill's `references/architectural-patterns.md`).
 
-A rule set is done when these checks pass on the built design, or when the
-missing runtime is named as an open item in the completion block. Never
-report a rule as applied from `status: ok`.
+`layout_checks.py` is a library; the project's check script is the gate. It
+ends with `raise SystemExit(run_checks([...]))`, which exits 1 on any failed
+check and on an empty check list, and the completion block records that
+script's command and exit code. A rule set is done when that script exits 0
+on the built design, or when the missing runtime is named as an open item in
+the completion block. Never report a rule as applied from `status: ok`.
 
 ## Why a rule did not fire
 
@@ -525,9 +533,10 @@ Check in this order:
 9. The object is not taggable: `OverlappableCopper` cannot carry a tag.
 10. The object is a code-authored `Route`: clearance rules and fab floors do
     not move authored geometry (What rules act on, above). Measure it after
-    capture with `scripts/layout_checks.py`; its non-zero exit is a failed
-    task, and the completion block is not written until it exits 0 or the
-    unmeasurable rules are named as open items.
+    capture with the project's check script built on
+    `scripts/layout_checks.py`; its non-zero exit is a failed task, and the
+    completion block is not written until it exits 0 or the unmeasurable
+    rules are named as open items.
 
 Behaviors settled by a built design are recorded, with the design that
 settled them, in `references/rule-reference.md`, "Verified behaviors"; a row

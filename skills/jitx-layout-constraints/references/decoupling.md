@@ -165,6 +165,8 @@ class DecouplingBank(Circuit):
         hint_factory: Callable[[Component], HintMap],
         rail_voltage: float,
         cap_geometry: CapacitorGeometry,
+        capacitance: float = 22e-6,  # Bogatin 2019: largest MLCC, 22 uF typical; pass the datasheet value when it gives one
+        rated_voltage_factor: float = 2.0,  # Bogatin 2019: rated at least 2x the rail; the datasheet wins when it specifies
         keepouts: tuple[tuple[tuple[float, float], ...], ...],
         capacitor_spacing: float,
         package_rotation: int,
@@ -200,8 +202,8 @@ class DecouplingBank(Circuit):
         self.solution = solve(spec)
 
         cap_query = CapacitorQuery(
-            capacitance=22e-6,
-            rated_voltage=2.0 * rail_voltage,
+            capacitance=capacitance,
+            rated_voltage=rated_voltage_factor * rail_voltage,
             type="ceramic",
             mounting="smd",
             sort=SortKey("area", SortDir.INCREASING),
@@ -253,14 +255,14 @@ class DecouplingBank(Circuit):
             )
         ]
 
-        escape_width = max(
-            fab.min_copper_width,
-            min(
-                cap_geometry.pad_width,
-                *(hint.power_pad_width for hint in hints),
-                *(hint.return_pad_width for hint in hints),
-            ),
-        )  # queried pad widths and FabricationConstraints field
+        pad_limit = min(
+            cap_geometry.pad_width,
+            *(hint.power_pad_width for hint in hints),
+            *(hint.return_pad_width for hint in hints),
+        )  # queried pad widths
+        if pad_limit < fab.min_copper_width:
+            raise ValueError("a served pad is narrower than the fabrication copper floor")
+        escape_width = pad_limit
         escape_clearance = fab.min_copper_copper_space  # FabricationConstraints field
         self.rules = [
             design_constraint(

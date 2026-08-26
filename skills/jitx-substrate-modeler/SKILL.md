@@ -531,7 +531,7 @@ DRS_100 = DifferentialRoutingStructure(
 )
 ```
 
-**Differential with NeckDown (for BGA escape or constrained areas; for code-side escape rules see `jitx-layout-constraints`):**
+**Differential with NeckDown (parameters for a neckdown region activated in the UI; for code-side escape rules see `jitx-layout-constraints`):**
 
 ```python
 DRS_100_ND = DifferentialRoutingStructure(
@@ -789,7 +789,7 @@ A suite that zipped a full report against an empty layer list and compared nothi
 4. **Set fab constraints** — `FabricationConstraints` with all manufacturing rules
 5. **Define vias** — all via types needed (through, micro, stacked, blind, buried, backdrilled)
 6. **Add routing structures** — `RoutingStructure` and `DifferentialRoutingStructure` for each impedance target
-7. **Add design rules** — Tags and `design_constraint()` for clearances if needed
+7. **Add substrate-side rules** — the fenced pour outline rule when the design needs one; board design rules (defaults, clearances, net classes, escapes) are the `jitx-layout-constraints` skill's step, not the substrate's
 8. **Verify** — `pyright` type check, then `jitx build` with a test design (sequence builds — don't parallelize against the same project; see `jitx/SKILL.md` "Build Safety"); for a report-driven substrate add source-driven tests (see "Verifying a Substrate Against Its Source"); then fill the **Substrate completeness check** below. No filled block, no "done".
 
 ## Substrate completeness check — run before calling it done

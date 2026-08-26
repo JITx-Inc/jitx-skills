@@ -214,6 +214,8 @@ def qfn_escape_geometry(
     if not isclose(adjacent_gap, target.distance(neighbor), abs_tol=GEOMETRY_TOLERANCE):
         raise ValueError("QFN row pads are not a uniform pitch-minus-width channel")
     floor_space = fab.min_copper_copper_space
+    if adjacent_gap < floor_space:
+        raise ValueError("adjacent QFN pads are closer than the fabrication spacing floor")
     channel_limit = pad_width + 2.0 * (adjacent_gap - floor_space)
     escape_width = min(pad_width, channel_limit)
     if escape_width < fab.min_copper_width:
@@ -299,6 +301,10 @@ ownership". Do not restate the ownership tree in local helpers.
 
 ## BGA, diagonal channel and row depth
 
+Unverified: no built reference case exercises this helper yet. Treat it as the
+intended shape and verify the realized width after capture before relying on
+it; the QFN path above is the one with a captured reference.
+
 The BGA generator places circular pad lands on a grid. Its `ball_diameter`
 argument becomes the PCB pad-circle diameter, and its pitch becomes the X and
 Y center spacing (`jitxlib/landpatterns/generators/bga.py:63-103`). Read the
@@ -361,6 +367,9 @@ mechanics already documented in `control-points.md`; the package plan does not
 change them.
 
 ## Two-terminal passive, terminal gap and courtyard
+
+Unverified: no built reference case exercises this helper yet; verify the
+realized width after capture before relying on it.
 
 A two-terminal passive has two separate questions. The pad-to-pad gap governs
 a path or via placed between the terminals. The courtyard bounds govern how

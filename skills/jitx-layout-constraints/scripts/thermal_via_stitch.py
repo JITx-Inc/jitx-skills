@@ -13,9 +13,12 @@ substrate's mixin, re-declared as a substrate attribute, or declared at module
 scope (see ``jitx-layout-constraints/SKILL.md``, "Why a rule did not fire",
 item 8). The rule API accepts a via class at ``jitx/constraints.py:924``.
 
-Fabrication values come from :class:`FabricationConstraints`, whose relevant
-fields are declared at ``jitx/substrate.py:173``, ``jitx/substrate.py:198``, and
-``jitx/substrate.py:202``. A via's pad diameter is its ``diameter`` field at
+Fabrication values come from :class:`FabricationConstraints`
+(``min_soldermask_bridge`` at ``jitx/substrate.py:202``, ``solder_mask_registration``
+at ``jitx/substrate.py:198``). The via-rim-to-pad-edge margin has no fab field:
+:meth:`StitchParams.from_substrate` uses bridge plus registration as a labeled
+skill default (the mask dam must fit inside the pad copper) unless the caller
+supplies one. ``min_copper_edge_space`` is copper to board edge and is not used. A via's pad diameter is its ``diameter`` field at
 ``jitx/via.py:60``. The geometry functions take plain numbers so they can be
 tested without a JITX runtime.
 """
@@ -52,15 +55,17 @@ class StitchParams:
         constraints: FabricationConstraints,
         via_cls: type[Via],
         *,
+        edge_margin: float | None = None,  # None: skill default, bridge + registration
         fillet_radius: float = 0.0,  # skill default: 0.0 mm disables filleting.
     ) -> Self:
         """Read stitch geometry from fabrication constraints and ``via_cls``.
 
-        ``min_soldermask_bridge`` supplies web width,
+        ``min_soldermask_bridge`` supplies web width and
         ``solder_mask_registration`` supplies radial mask overlap around each
-        tented via, and ``min_copper_edge_space`` supplies the via-pad rim inset.
-        These fields are documented at ``jitx/substrate.py:173``,
-        ``jitx/substrate.py:198``, and ``jitx/substrate.py:202``.
+        tented via (``jitx/substrate.py:202`` and ``:198``). The via-pad rim
+        inset from the exposed-pad edge is ``edge_margin`` when given, else the
+        skill default bridge plus registration, which keeps each dam inside the
+        pad copper; there is no fab field for it.
         ``Via.diameter`` may be a float or a :class:`ViaDiameter`; the latter
         exposes its pad size as ``pad`` at ``jitx/via.py:309``.
         """
@@ -68,10 +73,12 @@ class StitchParams:
         diameter = via_cls.diameter
         if isinstance(diameter, ViaDiameter):
             diameter = diameter.pad
+        bridge = float(constraints.min_soldermask_bridge)
+        registration = float(constraints.solder_mask_registration)
         return cls(
-            min_mask_bridge=float(constraints.min_soldermask_bridge),
-            mask_expansion=float(constraints.solder_mask_registration),
-            edge_margin=float(constraints.min_copper_edge_space),
+            min_mask_bridge=bridge,
+            mask_expansion=registration,
+            edge_margin=float(edge_margin) if edge_margin is not None else bridge + registration,  # skill default
             via_pad_diameter=float(diameter),
             fillet_radius=float(fillet_radius),
         )

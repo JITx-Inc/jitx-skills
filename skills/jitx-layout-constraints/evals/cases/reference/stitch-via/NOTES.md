@@ -13,7 +13,7 @@ object itself is what the rule resolves.
 
 ## How these were run
 
-The package under test reports `4.4.0rc5.dev2+g8ee08108f` (`jitxcore 4.4.0rc1`,
+The package under test reports `4.4.0rc5.dev2` (`jitxcore 4.4.0rc1`,
 `jitxlib-jlcpcb 1.0.1.dev7`). An isolated project was staged with a
 `pyproject.toml` declaring `jitx`, `jitxlib-standard`, and `jitxlib-jlcpcb`, and
 a flat `stitch_via_probe/` package holding `__init__.py` plus byte-identical

@@ -23,10 +23,14 @@ def _add_paths() -> None:
 
 _add_paths()
 
+from layout_checks import check_route_width, run_checks  # pyright: ignore[reportMissingImports]
+
 try:  # Package import in a scratch project, direct import when run beside design.py.
     from .design import DecouplingReference, query_capacitor_geometry
 except ImportError:
     from design import DecouplingReference, query_capacitor_geometry  # type: ignore[no-redef]
+
+WIDTH_TOLERANCE = 1e-6  # skill test tolerance: 0.000001 mm
 
 
 def main() -> int:
@@ -111,6 +115,17 @@ def main() -> int:
         if nets.find(via) is not nets.find(expected_net_member):
             raise AssertionError("captured via resolved to the wrong net")
     print(f"[PASS] solver vias and net membership: {len(queried_vias)}")
+
+    width_checks = [
+        check_route_width(route, bank.escape_width, WIDTH_TOLERANCE)
+        for route in bank.escape_routes
+    ]
+    if run_checks(width_checks):
+        raise AssertionError("an escape route did not realize at the escape rule's width")
+    for puddle, cap in zip(bank.power_puddles, bank.capacitors, strict=True):
+        if nets.find(puddle) is not nets.find(cap.p1):
+            raise AssertionError("a power puddle resolved to the wrong net")
+    print(f"[PASS] power puddles on their rail nets: {len(bank.power_puddles)}")
     print(
         "[PASS] solver loop areas: "
         + ", ".join(f"{area:.6f} mm^2" for area in bank.loop_areas)

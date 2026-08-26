@@ -7,6 +7,7 @@ Run after the design-rule set is written and the design builds. Use with the
 - [ ] Every clearance is a two-condition rule; no other effect is on a two-condition rule
 - [ ] Every override carries a priority above the rule it overrides, and the ladder is written in a comment where the rules are declared
 - [ ] Every rule is a structural attribute reachable from the Design (no module-level rules, no dropped locals)
+- [ ] Board-wide rules are on the Design; rules about one circuit's objects (escape routes, puddles, fence pours) are attributes of that circuit
 - [ ] Tag classes are declared at module scope; builtin tags are used only as conditions
 - [ ] No rule is looser than a `FabricationConstraints` floor (the floor would override it silently)
 

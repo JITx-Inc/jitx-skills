@@ -327,14 +327,15 @@ class DecouplingBank(Circuit):
             )
         Tags(DecouplingEscapeTag()).assign(self.escape_routes)
 
-        escape_width = max(
-            fab.min_copper_width,
-            min(
-                self.cap_geometry.pad_width,
-                *(hint.power_pad_width for hint in hints),
-                *(hint.return_pad_width for hint in hints),
-            ),
-        )
+        pad_limit = min(
+            self.cap_geometry.pad_width,
+            *(hint.power_pad_width for hint in hints),
+            *(hint.return_pad_width for hint in hints),
+        )  # queried capacitor pad width and placeholder IC pad widths
+        if pad_limit < fab.min_copper_width:
+            raise ValueError("a served pad is narrower than the fabrication copper floor")
+        escape_width = pad_limit
+        self.escape_width = escape_width
         puddle_width = escape_width  # queried pad widths and FabricationConstraints field
         self.power_puddles = []
         for hint, placement in zip(hints, self.solution.placements, strict=True):

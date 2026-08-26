@@ -11,7 +11,7 @@
 - Route realization: both routes realized. `trunk_route.traces` and
   `escape_route.traces` are non-empty after `capture()`.
 
-Observed on jitx `4.4.0rc5.dev2+g8ee08108f` with the runtime that CLI starts.
+Observed on jitx `4.4.0rc5.dev2` with the runtime that CLI starts.
 Two consecutive runs of `check_fanout.py` produced the same numbers and exited
 `0`.
 

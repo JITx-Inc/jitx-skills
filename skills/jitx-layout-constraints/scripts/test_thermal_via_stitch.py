@@ -34,9 +34,17 @@ class StitchParamsTests(unittest.TestCase):
 
         self.assertEqual(params.min_mask_bridge, 0.12)
         self.assertEqual(params.mask_expansion, 0.06)
-        self.assertEqual(params.edge_margin, 0.31)
+        self.assertAlmostEqual(params.edge_margin, 0.18)  # skill default: bridge + registration
         self.assertEqual(params.via_pad_diameter, 0.52)
         self.assertEqual(params.fillet_radius, 0.0)
+
+    def test_caller_supplied_edge_margin_wins(self) -> None:
+        constraints = SimpleNamespace(
+            min_soldermask_bridge=0.12,
+            solder_mask_registration=0.06,
+        )
+        params = StitchParams.from_substrate(constraints, StandInVia, edge_margin=0.3)  # type: ignore[arg-type]
+        self.assertEqual(params.edge_margin, 0.3)
 
 
 class GridTests(unittest.TestCase):

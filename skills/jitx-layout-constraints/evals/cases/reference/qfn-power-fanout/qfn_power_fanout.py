@@ -273,6 +273,8 @@ def derive_qfn_escape_geometry(
         raise ValueError("QFN row pads are not a uniform pitch-minus-width channel")
 
     fab_floor = fab.min_copper_copper_space
+    if adjacent_gap < fab_floor:
+        raise ValueError("adjacent QFN pads are closer than the fabrication spacing floor")
     centered_channel_limit = pad_width + 2.0 * (adjacent_gap - fab_floor)
     escape_width = min(pad_width, centered_channel_limit)
     if escape_width < fab.min_copper_width:

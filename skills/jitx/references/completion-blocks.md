@@ -68,6 +68,7 @@ Copy this template verbatim. Fill every field. Every `N/A` requires a reason.
 **Checks run:**
 - <Domain checklist name linked from domain-checklists.md>: N/N items, M issues fixed, K items N/A (with reasons)
 - General Gotcha Scrub: N/N items
+- Layout rules (tasks that declare design rules): `python <check script>` exit <code>; N rules witnessed, M unwitnessed named as open items
 - `ruff check`: clean | <N issues, fixed>
 - `ruff format`: applied
 - `pyright`: clean | <N issues, fixed> | not available (<reason>)

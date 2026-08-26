@@ -94,7 +94,7 @@ $ python3 -m pytest scripts/test_layout_checks.py -q
 ## Rerun after check rewrite
 
 Rerun alongside the `net-net-clearance` check rewrite, which did not touch this
-case. Same environment: py-jitx 4.4.0rc5.dev2+g8ee08108f, runtime 4.4.0-rc.9,
+case. Same environment: py-jitx 4.4.0rc5.dev2, runtime 4.4.0-rc.9,
 substrate `JLC04161H_7628`, run from the project root with the project venv
 interpreter.
 
