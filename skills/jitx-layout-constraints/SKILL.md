@@ -106,6 +106,14 @@ still. Equal priority between two matching rules is not defined in the
 Python source; do not rely on it. Give each override a distinct priority and
 write the ladder down in a comment where the rules are declared.
 
+Rung order matters as much as distinctness. A rule that is general across a
+layer (a heavy-copper spacing for every copper on layer 2) belongs one rung
+above the defaults and below the class rules, or it silently overrides every
+class clearance that lands on that layer; a class rule scoped to a layer (the
+12 V rail's clearance on layer 2) sits above its own class rule. A working
+ladder: 0 defaults, 1 power and ground width and any layer-wide rule, 2 net
+classes, 3 layer-scoped class overrides, 4 escape rules.
+
 ### Where rules live
 
 Rules are collected by walking the design tree for `DesignConstraint`
@@ -419,6 +427,12 @@ its rule (route pad to point, or use a via whose pad matches the width). A
 rule with no copper to witness it is not verified; the check output must
 count those separately and never print zero failures while any declared rule
 went unexercised.
+
+Checks read the rules, they do not restate them: walk the rule list for each
+rule's width or clearance and compare the copper against that value. A
+hand-typed table of expected values beside the rule list is a parallel model
+that drifts the first time a rule is added (see the base skill's
+`references/architectural-patterns.md`).
 
 A rule set is done when these checks pass on the built design, or when the
 missing runtime is named as an open item in the completion block. Never
