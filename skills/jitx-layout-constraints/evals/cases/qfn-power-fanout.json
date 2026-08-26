@@ -1,0 +1,29 @@
+{
+  "name": "qfn-power-fanout",
+  "prompt": "Can you show me how to bring a 5 V rail into a QFN power pad? Use JLC04161H_7628 and a generated QFN-32 at 0.5 mm pitch (skill defaults: 32 leads and 0.5 mm pitch). The power class is 0.5 mm wide (skill default: 0.5 mm). I want a visible tag-based step-down on only the short pad escape. Derive the escape width and clearance from the actual landpattern and substrate, then build and read both route widths back.",
+  "expected_output": "A reference design and explanation that keep the 0.5 mm power-class trunk (skill default: 0.5 mm), derive QFN pad width and adjacent-pad gap with jitx.query, derive clearance from FabricationConstraints plus a labeled skill-default margin, split the route at a RoutePoint, tag only the escape Route, store routes and rules structurally, capture the design, and reject empty traces or realized widths that differ from the class and derived escape widths.",
+  "assertions": [
+    {
+      "text": "the reference module and capture checker type-check against the installed jitx package",
+      "check": "deterministic",
+      "cmd": "python3 -m pyright skills/jitx-layout-constraints/evals/cases/reference/qfn-power-fanout/*.py"
+    },
+    {
+      "text": "the reference builds, captures, has non-empty traces, and realizes the trunk and escape at their expected widths",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-layout-constraints/evals/cases/reference/qfn-power-fanout/check_fanout.py"
+    },
+    {
+      "text": "the escape width is derived from queried placed-pad copper and FabricationConstraints, not typed as a package answer",
+      "check": "judge"
+    },
+    {
+      "text": "the solution does not use a RoutingStructure neckdown region for the package escape",
+      "check": "judge"
+    },
+    {
+      "text": "QfnEscapeTag is assigned to the escape Route segment, while PowerTag remains on the 5 V net",
+      "check": "judge"
+    }
+  ]
+}
