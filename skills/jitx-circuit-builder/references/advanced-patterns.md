@@ -119,9 +119,9 @@ self.gnd += Pour(layer=2, shape=board_shape, rank=1)     # Inner layer
 
 ### `isolate=` is legacy — do not use it
 
-The `Pour(..., isolate=...)` parameter is being removed. Pour clearance is governed by the substrate's `FabricationConstraints` (the default copper-to-edge and copper-to-net spacing) and by per-net-class `design_constraint(...)` rules with Tags. Express non-default clearance there, not on the pour:
+The `Pour(..., isolate=...)` parameter is being removed. Pour clearance is governed by the substrate's `FabricationConstraints` (the default copper-to-edge and copper-to-net spacing) and by per-net-class `design_constraint(...)` rules with Tags, owned by the `jitx-layout-constraints` skill. Express non-default clearance there, not on the pour:
 
-- For a net class that needs wider keepout (HV creepage, switch-node spacing, RF clearance under an antenna), declare a Tag and apply `design_constraint(<MyTag>(), priority=N).clearance(...)` against tagged nets.
+- For a net class that needs wider keepout (HV creepage, switch-node spacing, RF clearance under an antenna), declare a Tag and apply a two-condition rule, `design_constraint(<MyTag>(), IsPour, priority=N).clearance(...)`, against tagged nets (clearance is only available on two-condition rules; see `jitx-layout-constraints`, Pours).
 - For substrate-wide changes, edit the `FabricationConstraints` on the substrate.
 
 New skill examples must not introduce `isolate=`. Existing user code that has it should migrate to `design_constraint(...)` when convenient — `grep_gates.py` flags it as review-required, dispositioned `fixed (migrated)` or `deferred (legacy file)`.

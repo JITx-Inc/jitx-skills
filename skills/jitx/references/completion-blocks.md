@@ -290,7 +290,7 @@ The criteria mirror the exit-gate bullet lists in `references/project-builder-fl
 
 **Passive defaults:** `capacitor_defaults` and `resistor_defaults` set on the Design class to match the manufacturing path and circuit role; per-circuit overrides for specialty parts documented
 
-**Default design rules:** `self.rules` on the Design class contains the four canonical entries — default trace width (`IsTrace`), copper-to-copper clearance (`IsCopper`, `IsCopper`), thermal relief on pads (`IsPad`), and wider trace rule for tagged power/ground rails (`PowerTag | GroundTag`, `priority=1`). Values calibrated to substrate fab class. See `project-builder-flow.md` "Default design rules"
+**Default design rules:** `self.rules` on the Design class contains the four canonical entries — default trace width (`IsTrace`), copper-to-copper clearance (`IsCopper`, `IsCopper`), thermal relief on pads (`IsPad`), and wider trace rule for tagged power/ground rails (`PowerTag | GroundTag`, `priority=1`). Values calibrated to substrate fab class. See `project-builder-flow.md` "Default design rules" and the `jitx-layout-constraints` skill
 
 **Board geometry:** shape, mounting holes, pours defined
 

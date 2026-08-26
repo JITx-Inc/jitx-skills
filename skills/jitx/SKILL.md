@@ -1,6 +1,6 @@
 ---
 name: jitx
-description: "Base skill for JITX Python hardware design projects, PCB design, circuit creation, board builds, and JITX CLI workflows. Use when the user asks to build a JITX design, set up the environment, create circuits, design a PCB from requirements, or create a full project. Route component modeling to jitx-component-modeler, substrate or stackup work to jitx-substrate-modeler, physical layout code to jitx-physical-layout, and mechanical CAD import/export work to jitx-mechanical."
+description: "Base skill for JITX Python hardware design projects, PCB design, circuit creation, board builds, and JITX CLI workflows. Use when the user asks to build a JITX design, set up the environment, create circuits, design a PCB from requirements, or create a full project. Route component modeling to jitx-component-modeler, substrate or stackup work to jitx-substrate-modeler, physical layout code to jitx-physical-layout, design rules, clearances, power trace width, decoupling, and fanout step-down to jitx-layout-constraints, and mechanical CAD import/export work to jitx-mechanical."
 ---
 
 # JITX Workflow Skill
@@ -631,8 +631,7 @@ Covers:
 - All via types (through-hole, laser micro, stacked, blind, buried, backdrilled)
 - RoutingStructure with NeckDown, via fencing, geometry, reference planes
 - DifferentialRoutingStructure with pair spacing and uncoupled regions
-- FabricationConstraints for manufacturing rules
-- Design constraint rules with Tags
+- FabricationConstraints for manufacturing rules (the floor that design rules in `jitx-layout-constraints` sit above)
 
 ### Physical Layout (`jitx-physical-layout`)
 
@@ -657,7 +656,32 @@ Covers:
   JITX 4.3.0-rc.3+ — netting/routing split, `PairPoint.pair` removed, `invert=` chirality)
 
 This skill owns design-side geometry and placement; the substrate owns the via and
-routing-structure *definitions* and the `design_constraint(...)` rules that act on it.
+routing-structure *definitions*; `jitx-layout-constraints` owns the `design_constraint(...)`
+rules that act on them.
+
+### Layout Constraints (`jitx-layout-constraints`)
+
+**Invoke this subskill** when user asks to:
+- Set default trace width, clearance, or thermal relief for the board
+- Write design rules or net classes: a tag per class with its width and clearance
+- Set net-to-net, trace-to-pour, trace-to-hole, or per-layer clearance (including heavy copper)
+- Size power trace width, add sense lines, or set pad-to-via rules
+- Place and route decoupling capacitors as a module
+- Step a wide trace down to fit a QFN, BGA, or passive pad (escape rules)
+- Verify widths and clearances after build, or ask why a rule did not apply
+
+**How to invoke:** Use the `jitx-layout-constraints` skill
+
+Covers:
+- `design_constraint`, `UnaryDesignConstraint`, `BinaryDesignConstraint`, builtin tags, `OnLayer`, `AnyObject`, priority
+- All rule effects: trace width, clearance, stitch and fence vias, thermal relief, pour feature size, routing structure as a rule
+- The four board-wide default rules (a Phase 3 gate item) and the net-class table
+- Power routing and decoupling per Bogatin's habits; pour rules; tag-based fanout step-down
+- After-build width, clearance, and route-realization checks (`scripts/layout_checks.py`)
+
+This skill owns rules; `jitx-substrate-modeler` owns the fab floors and structure
+definitions the rules read; `jitx-physical-layout` owns the routes and control points
+the rules act on.
 
 ### Interconnect Constraints (`jitx-interconnect-constraints`)
 

@@ -447,6 +447,8 @@ layers = symmetric_routing_layers({
 
 ### Layer with NeckDown
 
+Neckdown parameters are part of the routing-structure definition and take effect only when a region is activated in the UI. For a width step-down into a package pad from code, use the tag-based escape rules in the `jitx-layout-constraints` skill instead.
+
 ```python
 RoutingStructure.Layer(
     trace_width=0.15, clearance=0.1,
@@ -529,7 +531,7 @@ DRS_100 = DifferentialRoutingStructure(
 )
 ```
 
-**Differential with NeckDown (for BGA escape or constrained areas):**
+**Differential with NeckDown (for BGA escape or constrained areas; for code-side escape rules see `jitx-layout-constraints`):**
 
 ```python
 DRS_100_ND = DifferentialRoutingStructure(
@@ -630,156 +632,16 @@ Capability limits are verified by review and by tests against the area they gove
 
 ## Design Constraints (Tags)
 
-This section defines the *rules* (`design_constraint(...)`) a tag triggers. Choosing
-*which* layout objects to tag and why — fanout/escape tags on package escapes,
-direct-connect on high-current pads, tagging a code-based `Route` — is covered in the
-**jitx-physical-layout** subskill.
+Design rules (`design_constraint(...)`, `UnaryDesignConstraint`,
+`BinaryDesignConstraint`, builtin tags, `OnLayer`, priority, every rule
+effect, and why a rule did not fire) are owned by the **jitx-layout-constraints**
+skill. This skill owns what those rules read from: `FabricationConstraints`
+(the enforced floors), via definitions, and routing structures. The one
+substrate-side rule still declared here is the fenced pour outline below,
+because its via class and fence pattern live on the substrate.
 
-For net-to-net clearances and via stitching rules:
+### Substrate sharp edges (verified on real boards)
 
-```python
-from jitx.constraints import Tag, design_constraint
-
-class RFSignalTag(Tag): pass
-class GNDTag(Tag): pass
-
-# Trace width for tagged nets (unary constraint — single tag)
-self.rule1 = design_constraint(RFSignalTag(), priority=1).trace_width(0.102)
-
-# Net-to-net clearance (binary constraint — two tags)
-self.rule2 = design_constraint(RFSignalTag(), RFSignalTag()).clearance(1.05)
-self.rule3 = design_constraint(RFSignalTag(), GNDTag()).clearance(0.15)
-```
-
-**Board-wide defaults belong on the Design class, not the substrate.** The four canonical defaults — trace width, copper clearance, thermal relief, wider power/ground — go in `self.rules` on the top-level Design via `UnaryDesignConstraint(IsTrace)` / `BinaryDesignConstraint(IsCopper, IsCopper)` / `UnaryDesignConstraint(IsPad)` / `UnaryDesignConstraint(PowerTag() | GroundTag(), priority=1)`. See `jitx/references/project-builder-flow.md` "Default design rules" for the full pattern. The substrate's `FabricationConstraints` are the fab-minimum floor; the Design rules are the production-friendly defaults that sit above the floor.
-
-`design_constraint(...)` and `UnaryDesignConstraint(...)` / `BinaryDesignConstraint(...)` are equivalent — the lowercase form is a factory that returns the right subtype based on arity. Use either.
-
-### Tag inheritance & proliferation
-
-**Tags form a hierarchy through class inheritance, and a rule on a base tag applies to every subclass tag.** This is a first-class JITX feature, not a trick — a tag can subclass *another tag*, not just `Tag`:
-
-```python
-class FenceTag(Tag): pass
-class AntipadFenceTag(FenceTag): pass        # subclass of FenceTag
-class DeskewAntipadFenceTag(AntipadFenceTag): pass   # subclass of AntipadFenceTag
-
-# Applies to ALL fence tags — antipad, deskew, and any future FenceTag subclass:
-self.fence_clearance = design_constraint(FenceTag(), GNDTag()).clearance(0.15)
-
-# Applies only to the deskew variant; give it higher priority to override the base
-# rule where they overlap (higher priority wins when multiple rules match):
-self.deskew_fence = design_constraint(DeskewAntipadFenceTag(), priority=10).fence_via(...)
-```
-
-A net/pour/object tagged `DeskewAntipadFenceTag()` matches rules written against `DeskewAntipadFenceTag`, `AntipadFenceTag`, **and** `FenceTag`. Where two matching rules conflict, the higher `priority=` wins — that's how a specific subtag rule overrides the general base-tag rule. (Tags also combine with `&` / `|` / `~` and `Tag.any(...)` when a hierarchy isn't the right shape.)
-
-**Flat tag proliferation is a smell.** A row of near-identical sibling tags that all inherit straight from `Tag` and differ only by name — each wired to its own rule that mostly restates the others — usually wants one of:
-- a **base tag** carrying the shared rule, with subtags only where behavior actually differs (the neckdown case: one clearance rule for *all* neckdown via `NeckDownTag`, plus a higher-priority rule for the one neckdown level that's special), or
-- a single **combined rule** (`design_constraint(TagA() | TagB())…`) when the tags aren't really distinct concepts.
-
-Reach for many flat tags only when the rule sets are genuinely distinct. Mapping a spreadsheet of per-combination rules into a flat tag-per-row table is the usual way this goes wrong — the hierarchy expresses the same intent with far fewer rules.
-
-### Conditions toolbox — builtin tags, layers, expressions
-
-Rule conditions are not limited to tags you define:
-
-- **Builtin tags** — `IsCopper`, `IsTrace`, `IsPour`, `IsVia`, `IsPad`,
-  `IsBoardEdge`, `IsThroughHole`, `IsNeckdown`, `IsHole` (import from
-  `jitx.constraints` or top-level `jitx`). The engine matches them by object
-  kind; they are **conditions only** — `assign()` on a builtin raises
-  `TypeError`. The four canonical Design defaults use these
-  (see `jitx/references/project-builder-flow.md` "Default design rules").
-- **`OnLayer(index)`** — layer-scoped condition (import from `jitx.constraints`;
-  not re-exported top-level). `OnLayer.external()` matches the top and bottom
-  copper layers; `OnLayer.internal()` is its inverse.
-- **`AnyObject`** — matches everything; useful as the second condition of a
-  binary rule.
-- **Expressions** — conditions combine with `&` / `|` / `~`, and n-ary
-  `Tag.any(*tags)` / `Tag.all(*tags)`.
-
-```python
-from jitx.constraints import design_constraint, AnyObject, OnLayer
-
-# Wider high-speed traces on external layers only:
-self.hs_outer = design_constraint(HighSpeedTag() & OnLayer.external()).trace_width(0.15)
-
-# Keep everything 0.3 mm away from tagged power copper:
-self.pwr_keepaway = design_constraint(PowerTag(), AnyObject).clearance(0.3)
-```
-
-Which objects can carry a tag (`Net`, `TopologyNet`, `Copper`, `Pour`, `Route`,
-`Component`, `Circuit`, `Landpattern`, `Pad`, `Via`, `ControlPoint`), container
-inheritance (tagging a landpattern tags its pads), and tagging `self` to tag all
-instances of a class are covered in **jitx-physical-layout** "Layout-intent tags".
-
-### Constraint effects — the full surface
-
-A rule's effects are chainable methods; one rule can set several. The arity
-boundary: unary rules (one condition) chain any effect below *except*
-clearance; binary rules (two conditions) support only `.clearance()`.
-Everything a `design_constraint(...)` can do (all dimensions in mm):
-
-| Effect | Signature | Notes |
-|---|---|---|
-| Trace width | `.trace_width(width)` | example above |
-| Clearance | `.clearance(clearance)` | **binary rules only** — `design_constraint(cond1, cond2)` |
-| Via fencing | `.fence_via(via_cls, ViaFencePattern(...))` | along traces/pour outlines — see "Fenced Pour Outlines" below |
-| Via stitching | `.stitch_via(via_cls, grid)` | grid = `SquareViaStitchGrid(pitch=, inset=)` or `TriangularViaStitchGrid(pitch=, inset=)`; `inset` = boundary-to-outermost-via-center distance |
-| Thermal relief | `.thermal_relief(gap_distance, spoke_width, num_spokes)` | pad-to-pour connections |
-| Serpentine params | `.serpentine_params(min_radius=, min_pitch=)` | bend radius / segment pitch of length-matching serpentines |
-| Coupled-pair params | `.coupled_pair_params(deskew_bump_radius=, skew_tolerance=, min_bump_spacing=, max_bump_length=, long_lookahead=)` | deskew-bump geometry for diff pairs; `skew_tolerance` is in **mm** (distance, not time — the time-domain skew budget lives in `jitx-interconnect-constraints`) |
-| Pour feature size | `.pour_feature_size(min_width)` | clips pour regions not coverable by a circle of `min_width` diameter fully inside the pour (sliver removal; thermal-relief spokes excluded) |
-| Routing structure | `.routing_structure(rs, ...)` | see below |
-
-```python
-from jitx.constraints import design_constraint, SquareViaStitchGrid, IsPour
-
-# Stitch tagged ground pours on a 2 mm square grid:
-self.gnd_stitch = design_constraint(GNDPourTag()).stitch_via(
-    GndVia, SquareViaStitchGrid(pitch=2.0, inset=0.5)
-)
-
-# Board-wide pour sliver removal:
-self.no_slivers = design_constraint(IsPour).pour_feature_size(min_width=0.3)
-```
-
-### Routing structures as a rule effect
-
-`.routing_structure(...)` assigns an impedance-controlled structure (defined on
-this substrate) to every trace matching the condition — including plain `Net`s
-and code-based `Route`s that have no `>>` topology. Reference planes resolve one
-of three ways:
-
-```python
-# (a) one net references every reference layer the structure declares:
-self.hs = design_constraint(HighSpeedTag()).routing_structure(self.RS_50, ref_net=gnd)
-
-# (b) per-layer mapping:
-self.hs = design_constraint(HighSpeedTag()).routing_structure(
-    self.DRS_100, ref_layer_nets={1: gnd, 4: gnd}
-)
-
-# (c) neither argument — requires an active jitx.si.ReferencePlanes context,
-#     else ValueError at rule-construction time.
-```
-
-The keyword names are `ref_net` / `ref_layer_nets` (not `reference_*`); passing
-both raises `ValueError`. For ordered point-to-point paths where the structure
-travels with timing/loss constraints, the topology-based
-`Constrain(...).structure(...)` flow is usually the better fit — the choice is
-covered in **jitx-interconnect-constraints** "Tag-based routing structures".
-
-### Rule sharp edges (verified on real boards)
-
-- **Binary clearance vs the global default:** a
-  `design_constraint(TagA(), TagB()).clearance(x)` must out-rank the board's
-  global `AnyObject` clearance to take effect — pass `priority=1` (higher wins).
-- **Same-tag binary clearance is safe for diff pairs:** both legs of a pair carry
-  the same net tag, but `design_constraint(HsTag(), HsTag(), priority=1)
-  .clearance(0.5)` does NOT forbid the pair's own internal gap — a coupled span is
-  ONE differential trace object whose internal gap is the DRS `pair_spacing`, so
-  the rule only separates *different* pairs.
 - **Fenced differential structures can't use `symmetric_routing_layers`** (seen on
   4.2: the fence via's layer endpoints can't be mirrored, layers stay a lazy
   attribute, and applying the DRS via a rule dies with `DesignTranslationContext
@@ -788,7 +650,7 @@ covered in **jitx-interconnect-constraints** "Tag-based routing structures".
   for fence-less structures. A module-scope `RoutingStructure` (not an attribute
   of a Substrate class) hits the same lazy-layers error.
 - **Cannonball-Huray roughness tuples don't fit `Conductor.roughness`** (scalar
-  only — `TypeError: must be real number, not tuple`). Keep a scalar on the
+  only, `TypeError: must be real number, not tuple`). Keep a scalar on the
   substrate; carry the Huray pair as a simulation-side surface-roughness override
   (e.g. the SI tool's stackup override), not on the jitx stackup.
 
@@ -852,7 +714,7 @@ self.GND += fence_pour
 self.fence_outline_keepout = KeepOut(shape, layers=LayerSet(6), pour=True, via=True)
 ```
 
-Do not set `isolate=` on the fence Pour — it's legacy. Pour clearance is governed by `FabricationConstraints` + Tag-based `design_constraint(...).clearance(...)`.
+Do not set `isolate=` on the fence Pour; it is deprecated. Pour clearance is a two-condition `design_constraint(...).clearance(...)` rule above the `FabricationConstraints` floor; see the `jitx-layout-constraints` skill, Pours.
 
 ## Via Mixin Pattern
 

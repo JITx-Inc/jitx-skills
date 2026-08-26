@@ -278,74 +278,18 @@ with CapacitorQuery.refine(type="tantalum", case="1210"):
 
 **The point:** every design has a default that matches its manufacturing path, plus per-circuit overrides where the role demands them. The Phase 3 exit gate confirms defaults exist and overrides are documented — not that any specific filter is set.
 
-### Default design rules — set on Design class
+### Default design rules (set on the Design class)
 
-Every Design should declare four canonical rules so the router and DRC have production-friendly defaults. Without them, the router uses the substrate's `FabricationConstraints` minimums, which are typically too narrow for power and don't apply thermal relief to pads.
-
-Tag power and ground nets in the top-level Circuit so the wider-trace override can target them by tag, not by name. Tag classes live at module scope (subclassing `Tag` inside a function breaks JITX instantiation tracking).
-
-```python
-from jitx.constraints import (
-    BinaryDesignConstraint,
-    IsCopper,
-    IsPad,
-    IsTrace,
-    Tag,
-    UnaryDesignConstraint,
-)
-
-
-class PowerTag(Tag):
-    """Marks power rails for wider trace rules."""
-
-
-class GroundTag(Tag):
-    """Marks ground nets for wider trace rules."""
-
-
-class TopCircuit(Circuit):
-    def __init__(self):
-        self.GND = Net(name="GND", symbol=GroundSymbol())
-        self.VBUS = Net(name="VBUS", symbol=PowerSymbol())
-        self.V3V3 = Net(name="V3V3", symbol=PowerSymbol())
-
-        # Tag the rails so the design rule below can match them.
-        GroundTag().assign(self.GND)
-        PowerTag().assign(self.VBUS)
-        PowerTag().assign(self.V3V3)
-        # ...
-
-
-class Design(...):
-    substrate = ...
-    board = ...
-    # passive defaults above
-    circuit = TopCircuit()
-
-    def __init__(self):
-        self.rules = [
-            # Default trace width for any trace not otherwise tagged.
-            UnaryDesignConstraint(IsTrace).trace_width(0.125),
-            # Default copper-to-copper clearance (applies to traces, pours, pads).
-            BinaryDesignConstraint(IsCopper, IsCopper).clearance(0.125),
-            # Thermal relief on through-hole and SMD pads — gap, spoke width, spoke count.
-            UnaryDesignConstraint(IsPad).thermal_relief(0.125, 0.2, 4),
-            # Power and ground rails get wider traces. priority=1 wins over IsTrace above.
-            UnaryDesignConstraint(
-                PowerTag() | GroundTag(), priority=1
-            ).trace_width(0.4),
-        ]
-```
-
-**How the rules compose.** Rules are predicate → action. The router applies the highest-priority matching rule for each net/segment; ties go to the more specific predicate. `priority=1` on the tagged power/ground rule overrides the `IsTrace` default (priority 0) when the trace belongs to a power or ground net. Adding a class-of-net rule for switch nodes, RF, sensitive analog, etc. is the same shape — declare a Tag, assign it to the relevant nets, add a constraint with higher priority.
-
-**`IsTrace`, `IsCopper`, `IsPad`** are built-in predicates that match every trace / every copper / every pad in the design. Combined with `priority=0` defaults they give you board-wide defaults without tagging every net by hand.
-
-**Tag-class scope rule:** Tag subclasses MUST be declared at module scope — never inside a function or method. JITX tracks structural classes by name and breaks when classes are synthesized at runtime. See `jitx/SKILL.md` "JITX Python Code Conventions".
-
-**Calibrate to fab capability.** The 0.125 mm trace width / clearance and 0.4 mm power width above are typical JLC04161H-class defaults — adjust for the actual substrate's `FabricationConstraints` minimums. Heavier copper (2 oz, 3 oz) allows narrower traces at the same current; tighter fab classes allow narrower clearance.
-
-**Non-default net classes (RF, switch node, sensitive analog, HV) get higher-priority rules.** See `references/net-classes.md` — those rules go in the same `self.rules` list with `priority >= 2`.
+Every Design declares four canonical rules on `self.rules` so the router and
+DRC have production-friendly defaults above the fab floor: default trace
+width (`IsTrace`), copper-to-copper clearance (`IsCopper`, `IsCopper`),
+thermal relief on pads (`IsPad`), and a wider trace rule for tagged power and
+ground rails (`PowerTag() | GroundTag()`, `priority=1`). The pattern, the
+priority ladder, calibration to the substrate's floors, and the non-default
+net classes that go in the same list at `priority >= 2` are owned by the
+`jitx-layout-constraints` skill ("Board-wide defaults" and "Net classes").
+Invoke it for Phase 3 assembly; the Phase 3 gate checks that the four rules
+are present.
 
 ### Topology vs net membership (CRITICAL)
 

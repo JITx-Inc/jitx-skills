@@ -1,0 +1,34 @@
+# Eval contract for jitx-layout-constraints.
+#
+# Scope: the design-rule set a board carries. Board-wide defaults, net-class
+# tags and their width and clearance rules, power routing width, pour rules,
+# the tag-based step-down where a class rule cannot fit a package pad, and the
+# after-build checks that prove the rules were honored. Decoupling placement
+# and routing is in scope when the request includes it.
+goal: |
+  An engineer describes a board's rails, signals, packages, and fab in plain
+  terms and gets back a design-rule set in JITX Python: board-wide defaults,
+  one tag per net class with the width and clearance rules that express it,
+  a step-down rule ladder wherever a class rule cannot physically reach a
+  package pad, and the checks that read the built design back and confirm
+  widths, clearances, and route realization. Excellent = every rule uses an
+  effect and arity the installed runtime has, every number traces to a fab
+  row, a cited engineering source, or a labeled skill default, the rules are
+  reachable from the design tree and out-rank the defaults they override,
+  and nothing is called done on build success alone. A weaker agent model
+  following the skill should still get there, because the skill carries the
+  checks rather than assuming a strong model.
+dimensions:
+  - "RULE_CORRECTNESS: does every rule use an effect that exists (eight unary effects, clearance as the only binary effect), is every clearance a two-condition rule, is every override at a priority above the default it overrides, and are all tag classes declared at module scope and assigned to objects that can carry them?"
+  - "PROVENANCE: does every width and clearance trace to a fabrication-constraint row, a cited engineering source, or a skill default labeled on the same line, with unstated values raised as open items rather than filled in?"
+  - "REALIZATION_VERIFIED: are widths, clearances, and route realization checked against the captured design after build, or, when no runtime is available, is that stated as an open item instead of implied by a clean build?"
+  - "FANOUT_STEPDOWN: where a class-level width cannot fit a package pad, is the step-down expressed as a specific escape tag on the route segment with its own width and clearance rules above the class rule and a control point at the transition, with the escape width derived from the package geometry and the fab floor rather than typed in?"
+  - "OWNERSHIP: do board-wide rules live on the Design, local rules on the circuit that owns the tagged objects, with tags and rules as structural attributes (no string-keyed tables, no rules built at module import time, no parallel model of the design)?"
+hard_fails:
+  - "A clearance effect on a single-condition rule, or any effect that the installed jitx.constraints module does not have."
+  - "A per-route width or clearance parameter, a code-created neckdown region, or a neckdown tag presented as API."
+  - "RoutingStructure.NeckDown recommended as the code-side mechanism for fanout or escape."
+  - "A width or clearance value with no fabrication-constraint row, no cited source, and no skill-default label on its own line at the point of use (an invented number)."
+  - "An IPC current-carrying chart, formula, or coefficient presented as the basis for a trace width."
+  - "A per-pin 10 uF / 1 uF / 0.1 uF decoupling stack recommended, or power distributed by copper fill instead of routed traces."
+  - "The rule set is presented as done without an after-build realization check when a runtime is available; an unavailable runtime must be declared as an open item, never silently skipped."
