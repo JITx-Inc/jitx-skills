@@ -275,8 +275,11 @@ switch-node pullback, a sense-to-power gap), do not write an assumption. Two
 legal moves: derive it from a value that has a source and label the
 derivation on the line (`2 * DEFAULT_CLEARANCE  # skill default: twice the
 board default`), or leave it as an open item that the check script fails
-loudly on until the user supplies the number. An assumption dressed as a
-constant passes every check and ships.
+loudly on until the user supplies the number. The label must contain the
+words `skill default` (or name the fab field or the citation); `derived`,
+`assumed`, or `my assumption` on its own is not a source, and a multiplier
+with no label is an invented number even when the base value is sourced. An
+assumption dressed as a constant passes every check and ships.
 
 Tag hierarchy does the bookkeeping: `class RailTag(PowerTag)` picks up the
 power width rule automatically, and a `Rail12VTag(RailTag)` with its own
@@ -360,7 +363,11 @@ Neckdown is not used for this: `RoutingStructure.NeckDown` parameters take
 effect only through the UI, and a specific tag carries the intent in a way a
 reader and a rule can see.
 
-The ladder, always with tags:
+The ladder, always with tags. Every escape subtag gets both rules, a width
+and a two-condition clearance, and every transition from class width to
+escape width is a `RoutePoint`, including one that sits next to a via or a
+layer change. The escape rules live on the circuit that owns the route, not
+in the Design's list.
 
 ```python
 from jitx import RoutePoint
@@ -437,7 +444,8 @@ constraint-specific checks, packaged in `scripts/layout_checks.py`:
 
 - Width by net and layer: every realized trace shape (`route.traces[i].shapes[j]`,
   an `ArcPolyline` or `Polyline` with `.width`) on a tagged net has the width
-  its winning rule asked for.
+  its winning rule asked for, equal within a labeled tolerance; wider fails
+  as well as narrower, since wider means a different rule won.
 - Clearance between two nets: the minimum shapely distance between their
   copper on a layer is at or above the binary rule.
 - Route realization: `route.traces` is non-empty for every escape route you
