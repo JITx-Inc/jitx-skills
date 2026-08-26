@@ -182,6 +182,10 @@ A captured `Pour` is the pre-voiding input outline on the 4.4 line (the board
 plane returns at full area with no interior rings), so trace-to-pour
 clearance and thermal relief are not visible in `rd.query` output; the legacy
 ODB++ export below is the runtime-side cross-check for them.
+One more: `Route(..., sketch=[...])` intermediate points are dropped on runtime
+4.4.0-rc.9 and the route realizes straight between its endpoints, so a probe
+that relies on a sketch to bend a route passes vacuously; author turns with
+`RoutePoint`s and assert the realized bounds.
 
 ## Interop notes
 

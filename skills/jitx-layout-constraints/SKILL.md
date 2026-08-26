@@ -97,6 +97,21 @@ is no per-route width, no neckdown effect, no pour-isolation effect, and no
 (see Pours and Fanout). Full signatures with source citations:
 `references/rule-reference.md`.
 
+### What rules act on
+
+Width rules set the width of every trace they match, including code-authored
+`Route`s (verified: escape segments realize at their rule's width on the same
+net as a wider trunk). Clearance rules and the fab floors act on copper the
+router places and on pour voiding; they do not move a code-authored route.
+Two tagged routes authored 0.100 mm apart under a 0.25 mm rule realized at
+0.1001 mm, and authored 0.020 mm apart they realized below the 0.09 mm fab
+floor, both with `status: ok` (`references/rule-reference.md`, "Verified
+behaviors"). A code-authored escape must therefore be placed with its
+clearance already satisfied, and checked after capture; the rule documents
+the intent for the router and DRC, it does not repair authored geometry. A
+rule declared on a child circuit applies board-wide (verified), so put it
+where its objects live for readability, not for scope.
+
 ### Priority
 
 Higher `priority=` wins when more than one rule matches an object. The
@@ -367,7 +382,10 @@ class QfnEscapeTag(EscapeTag):
 rp = RoutePoint(layer=0).at(x_transition, y_transition)
 self.v5 += rp.port                                # net the control point, or the build fails
 trunk = Route(self.j1.VOUT, rp, layer=0)          # class-width trunk ends here
-esc = Route(rp, self.u1.VIN, layer=0)             # escape segment into the pad
+esc = Route(rp, self.u1.VIN, layer=0)             # escape segment into the pad;
+                                                  # intermediate sketch points are
+                                                  # dropped on 4.4.0-rc.9, so a turn
+                                                  # needs another RoutePoint
 self.escape = [rp, trunk, esc]
 Tags(QfnEscapeTag()).assign(esc)
 
@@ -475,6 +493,9 @@ Check in this order:
    to resolve was seen on 4.0 builds. If vias are missing, check the tag
    assignment and the rule's reachability before suspecting the via class.
 9. The object is not taggable: `OverlappableCopper` cannot carry a tag.
+10. The object is a code-authored `Route`: clearance rules and fab floors do
+    not move authored geometry (What rules act on, above). Measure it after
+    capture with `scripts/layout_checks.py`.
 
 Behaviors settled by a built design are recorded, with the design that
 settled them, in `references/rule-reference.md`, "Verified behaviors"; a row

@@ -112,7 +112,9 @@ class BelowFloorParallelRoutes(ParallelRoutes):
     authored_gap = 0.02  # skill test geometry: 0.02 mm authored edge-to-edge gap
 
 
-class _ClearanceDesign(Design):
+class _ClearanceRules:
+    """Shared rule set; not a Design subclass, so design discovery skips it."""
+
     substrate = JLC04161H_7628()
     board = ProbeBoard()
     requested_clearance: float
@@ -138,14 +140,14 @@ class _ClearanceDesign(Design):
         ]
 
 
-class NetNetClearanceDesign(_ClearanceDesign):
+class NetNetClearanceDesign(_ClearanceRules, Design):
     """The skill example clearance above the fabrication floor."""
 
     circuit = ParallelRoutes()
     requested_clearance = EXAMPLE_CLEARANCE
 
 
-class BelowFloorClearanceDesign(_ClearanceDesign):
+class BelowFloorClearanceDesign(_ClearanceRules, Design):
     """A clearance request intentionally below the fabrication floor."""
 
     circuit = BelowFloorParallelRoutes()

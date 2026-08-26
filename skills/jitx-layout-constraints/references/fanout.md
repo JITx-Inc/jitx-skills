@@ -273,8 +273,10 @@ self.escape_rules = [
 ]
 ```
 
-`sketch=` is the code-side handle on the escape path. It does not set width or
-clearance. The tag selects the two rules. Both routes, the control point, and
+`sketch=` is accepted, but on runtime 4.4.0-rc.9 its intermediate points are
+dropped and the route realizes as a straight line between its endpoints
+(`evals/cases/reference/net-net-clearance/NOTES.md`); a turn needs another
+`RoutePoint`. A sketch does not set width or clearance either. The tag selects the two rules. Both routes, the control point, and
 the rule list stay on `self`, so the design-tree walk can reach them.
 
 For a single-ended escape, tag the route segment. For a differential

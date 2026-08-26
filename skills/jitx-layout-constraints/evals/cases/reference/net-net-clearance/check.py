@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
 """Build, capture, and check the net-to-net clearance reference designs.
 
+What this reference establishes (runtime 4.4.0-rc.9, py-jitx 4.4.0rc5.dev2):
+a two-condition clearance rule between two tagged nets does not move
+code-authored routes. The realized copper sits where the code put it, even
+below the fabrication floor, and the build reports ``status: ok``. Width rules
+on the same nets do apply. The checks below assert that observed behavior, so
+a runtime that starts enforcing clearance on authored routes fails this case
+and the skill text gets revisited.
+
 The runtime adapter and capture entry point are in
 ``jitx/run/runtime.py:404`` and ``jitx/run/runtime.py:593``.
 """
@@ -58,6 +66,10 @@ except ImportError:
         NetNetClearanceDesign,
     )
 
+# Stroked ArcPolyline ends are polygonized; measured gaps run about 0.0002 mm
+# over the authored gap. 0.005 mm absorbs that and nothing else.
+GAP_TOLERANCE = 0.005  # skill test tolerance: 0.005 mm arc polygonization allowance
+
 
 def _capture(runtime: Any, design: type) -> Any:
     rd = runtime.submit(design)
@@ -65,89 +77,75 @@ def _capture(runtime: Any, design: type) -> Any:
     return rd
 
 
+def _common_checks(rd: Any) -> list[CheckResult]:
+    return [
+        check_routes(rd.root.circuit.routes),
+        check_width(rd, "POWER", TOP_LAYER, DEFAULT_TAGGED_WIDTH, WIDTH_TOLERANCE),
+        check_width(rd, "GROUND", TOP_LAYER, DEFAULT_TAGGED_WIDTH, WIDTH_TOLERANCE),
+    ]
+
+
+def _clearance_observation(rd: Any, requested: float, label: str) -> list[CheckResult]:
+    """Assert the observed behavior: realized clearance follows authored geometry."""
+    measured = check_clearance(rd, "POWER", "GROUND", TOP_LAYER, requested).measured
+    authored = float(rd.root.circuit.authored_gap)
+    is_number = isinstance(measured, float)
+    equals_authored = is_number and abs(measured - authored) <= GAP_TOLERANCE
+    rule_reached = is_number and measured + GAP_TOLERANCE >= requested
+    return [
+        CheckResult(
+            name=f"{label}: realized clearance equals authored gap",
+            passed=equals_authored,
+            measured=measured,
+            expected=authored,
+            detail=f"rule asked {requested:.4f} mm; code authored {authored:.4f} mm",
+        ),
+        CheckResult(
+            name=f"{label}: clearance rule not applied to authored routes",
+            passed=is_number and not rule_reached,
+            measured=measured,
+            expected=requested,
+            detail="verified behavior on the 4.4 line; a pass here means the rule moved nothing",
+        ),
+    ]
+
+
 def main() -> int:
     with jitx.runtime as runtime:
         example = _capture(runtime, NetNetClearanceDesign)
-        example_checks = [
-            check_routes(example.root.circuit.routes),
-            check_width(
-                example,
-                "POWER",
-                TOP_LAYER,
-                DEFAULT_TAGGED_WIDTH,
-                WIDTH_TOLERANCE,
-            ),
-            check_width(
-                example,
-                "GROUND",
-                TOP_LAYER,
-                DEFAULT_TAGGED_WIDTH,
-                WIDTH_TOLERANCE,
-            ),
-            check_clearance(
-                example,
-                "POWER",
-                "GROUND",
-                TOP_LAYER,
-                EXAMPLE_CLEARANCE,
-            ),
-        ]
-        print("example clearance, source: skill example above fabrication floor")
-        example_exit = run_checks(example_checks)
-
-        below_floor = _capture(runtime, BelowFloorClearanceDesign)
-        floor = below_floor.root.substrate.constraints.min_copper_copper_space
-        below_floor_clearance = check_clearance(
-            below_floor,
-            "POWER",
-            "GROUND",
-            TOP_LAYER,
-            BELOW_FLOOR_CLEARANCE,
+        print("example rule, source: skill example above the fabrication floor")
+        example_exit = run_checks(
+            _common_checks(example)
+            + _clearance_observation(example, EXAMPLE_CLEARANCE, "example")
         )
-        measured = below_floor_clearance.measured
-        if isinstance(measured, float):
-            if measured + WIDTH_TOLERANCE >= floor:
-                outcome = "fabrication floor or greater"
-            elif measured + WIDTH_TOLERANCE >= BELOW_FLOOR_CLEARANCE:
-                outcome = "below-floor rule"
-            else:
-                outcome = "neither the rule nor the floor; authored geometry"
-            classification_passed = measured + WIDTH_TOLERANCE >= BELOW_FLOOR_CLEARANCE
-        else:
-            outcome = "no measurable copper witness"
-            classification_passed = False
-        floor_checks = [
-            check_routes(below_floor.root.circuit.routes),
-            check_width(
-                below_floor,
-                "POWER",
-                TOP_LAYER,
-                DEFAULT_TAGGED_WIDTH,
-                WIDTH_TOLERANCE,
-            ),
-            check_width(
-                below_floor,
-                "GROUND",
-                TOP_LAYER,
-                DEFAULT_TAGGED_WIDTH,
-                WIDTH_TOLERANCE,
-            ),
-            below_floor_clearance,
+
+        below = _capture(runtime, BelowFloorClearanceDesign)
+        floor = float(below.root.substrate.constraints.min_copper_copper_space)
+        below_checks = _common_checks(below) + _clearance_observation(
+            below, BELOW_FLOOR_CLEARANCE, "below-floor"
+        )
+        measured = check_clearance(
+            below, "POWER", "GROUND", TOP_LAYER, BELOW_FLOOR_CLEARANCE
+        ).measured
+        below_checks.append(
             CheckResult(
-                name="below-floor-classification",
-                passed=classification_passed,
+                name="below-floor: fabrication floor not enforced on authored routes",
+                passed=isinstance(measured, float) and measured + GAP_TOLERANCE < floor,
                 measured=measured,
-                expected=BELOW_FLOOR_CLEARANCE,
-                detail=(f"observed={outcome}; fabrication floor={floor:.4f} mm"),
-            ),
-        ]
+                expected=floor,
+                detail=(
+                    "floor read from FabricationConstraints.min_copper_copper_space; "
+                    "a pass means authored copper sits below it with status ok"
+                ),
+            )
+        )
         print(
             "below-floor request, source: "
             f"skill test value {BELOW_FLOOR_CLEARANCE:.4f} mm; "
-            "fabrication floor read from FabricationConstraints.min_copper_copper_space"
+            f"fabrication floor {floor:.4f} mm"
         )
-        floor_exit = run_checks(floor_checks)
-    return 1 if example_exit or floor_exit else 0
+        below_exit = run_checks(below_checks)
+    return 1 if example_exit or below_exit else 0
 
 
 if __name__ == "__main__":
