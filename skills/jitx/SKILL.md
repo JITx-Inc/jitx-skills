@@ -89,7 +89,13 @@ if ((-not (Test-Path pyproject.toml)) -or (-not (Select-String -Quiet -Pattern "
 }
 ```
 
-`jitx project layout init` writes the canonical project skeleton: `pyproject.toml`, a flat `<ns>/` package (NOT `src/<ns>/`) containing `__init__.py` + a `main.py` that already defines a working two-resistor `SampleDesign`, plus `.gitignore` and `.vscode/`. That seeded design is buildable as-is once auth and runtime are up — a useful smoke test before writing real design code. Subcommands `jitx project layout {pyproject,gitignore,settings,vscode}` refresh individual pieces of an existing project.
+`jitx project layout init` writes the canonical project skeleton: `pyproject.toml`, a flat `<ns>/` package (NOT `src/<ns>/`) containing `__init__.py` + a `main.py` that already defines a working two-resistor `SampleDesign`, plus `.gitignore` and `.vscode/`. That seeded design is buildable as-is once auth and runtime are up — a useful smoke test before writing real design code, and no evidence about the code you write afterwards. Subcommands `jitx project layout {pyproject,gitignore,settings,vscode}` refresh individual pieces of an existing project.
+
+Three things it does **not** do, each of which reads like an oversight and isn't:
+
+- **No `git init`.** It writes a `.gitignore` but creates no repository, so `git status` in a fresh project is `fatal: not a git repository`. If the work wants version control, run `git init` yourself and say that you did; don't assume a repo you were never given.
+- **No `pytest`, no `pyright`.** The seeded `pyproject.toml` lists neither, so "add them if the scaffold didn't" is always true. Just add them.
+- **The seeded `.gitignore` is a considered file — don't broaden it.** It ignores every dotfile (`.*`, with `.gitignore` and `.vscode/` whitelisted), so scratch directories are already covered, and it ignores only the *volatile* parts of `designs/` — caches and editor backups — deliberately leaving the built design directory version-controlled. Adding `designs/` wholesale reverses that choice. Append only what a task genuinely needs, and say why.
 
 ### Step 3 — Auth
 

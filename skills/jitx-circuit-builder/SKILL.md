@@ -124,6 +124,18 @@ self.i2c_nets = [
 self.topology = self.driver.out >> self.trace >> self.receiver.inp
 ```
 
+**`+=` takes one port, not a sequence — loop over a rail list.** A component's repeated-name rail (`GND`, `VCCO_*`) is a Python `list` of ports, so tying a whole rail onto a net is the obvious one-liner and the one that fails:
+
+```python
+self.GND += [*self.u1.GND, *self.u1.RSVDGND]   # WRONG
+# jitx.error.InstantiationException: Incompatible ports on Net: Port and list
+
+for ball in self.u1.GND:                        # RIGHT
+    self.GND += ball
+```
+
+The list is treated as a single item whose type is `list`, and the error is then reported as a type mismatch against the ports *already on the net* — so it names neither the call that failed nor the fix, and it surfaces only at instantiation. On a part with hundreds of ground balls this is the first thing you write and the first thing that breaks.
+
 ## Passives
 
 ```python
