@@ -36,13 +36,29 @@ from my_project.thermal_via_stitch import (
     soldermask_defined_thermal_pad_config,
 )
 
+
+class ThermalStitchVia(current.design.substrate.StdViaPreferred):
+    """The substrate's preferred via, declared for use inside a pad.
+
+    The library class carries via_in_pad = False; a via inside an exposed pad
+    needs a class that says otherwise, declared here rather than by mutating
+    the library class. Confirm with the fab that tented, unfilled vias inside
+    a pad are accepted before using it.
+    """
+
+    via_in_pad = True
+
 # Landpattern side. Read the exposed-pad shape back from the generated
 # landpattern, then replace its standard feature config with the CSG config.
-substrate = current.design.substrate
-via_class = substrate.StdViaPreferred  # the substrate's preferred via; the JLCPCB classes name it so
-params = StitchParams.from_substrate(substrate.constraints, via_class)
+via_class = ThermalStitchVia
+params = StitchParams.from_substrate(current.design.substrate.constraints, via_class)
 # visit, not query: query opens the substrate context and needs a design root
-ep_pad = next(pad for _, pad in visit(landpattern, Pad) if pad in landpattern.thermal_pads)
+ep_pad = next(
+    (pad for _, pad in visit(landpattern, Pad) if pad in landpattern.thermal_pads),
+    None,
+)
+if ep_pad is None:
+    raise ValueError("landpattern has no thermal pad to stitch")
 min_x, min_y, max_x, max_y = ep_pad.shape.to_shapely().g.bounds
 ep_size = (max_x - min_x, max_y - min_y)  # jitx.query landpattern Pad bounds
 positions = grid_thermal_via_positions(
