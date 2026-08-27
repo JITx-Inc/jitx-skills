@@ -31,8 +31,16 @@ except ImportError:
 
 
 def expected_grid_count(pour_size: float, pitch: float, inset: float) -> int:
-    """Vias per axis on a square grid inset from the pour boundary, squared."""
-    per_axis = int((pour_size - 2.0 * inset) // pitch) + 1
+    """Vias per axis on a center-anchored square grid, squared.
+
+    ``inset`` is the "minimum distance from the stitched region's boundary to
+    the outermost via centers" (``jitx/constraints.py:145``). The runtime
+    anchors one via on the region center and steps outward by whole pitches
+    while every center stays inside that inset, so the count per axis is odd:
+    ``2 * floor((pour_size / 2 - inset) / pitch) + 1``.
+    """
+    rings = int((pour_size / 2.0 - inset) // pitch)
+    per_axis = 2 * rings + 1
     return per_axis * per_axis
 
 

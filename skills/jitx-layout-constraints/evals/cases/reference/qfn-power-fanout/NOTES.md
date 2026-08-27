@@ -114,3 +114,67 @@ Not verified in this run: pyright, the em-dash grep over
 `skills/jitx-layout-constraints/references/fanout.md`, and the `NeckDown`
 spelling grep. Those checks belong to the skill-development lifecycle and were
 outside this run's scope, so no output for them is recorded here.
+
+## Later run: after review fixes
+
+Re-run after the review edit to this case: the infeasibility guard in
+`derive_qfn_escape_geometry` that raises when adjacent pads in a row are closer
+than the fabrication copper-to-copper floor. The guard must not trigger for this
+placeholder QFN, and it did not. The queried adjacent gap is `0.250000` mm
+against a `0.090000` mm floor, so the derived escape width stays at the queried
+pad width of `0.250000` mm and the derived clearance at `0.100000` mm, the same
+numbers as the first run.
+
+Nothing needed fixing. `qfn_power_fanout.py` and `check_fanout.py` ran as
+shipped, on py-jitx 4.4.0rc5.dev2. `check_fanout.py` still stages its own
+temporary project, starts that project's runtime, builds, submits, captures,
+asserts, and stops the runtime.
+
+Command, run from this reference directory, with `python` the interpreter of the
+environment holding py-jitx 4.4.0rc5.dev2. Output is verbatim except for the
+runtime start and stop JSON, which carry a pid, a port, and a path, and the two
+`Failed to parse installer report` / `Failed to check dependencies` lines from
+the CLI dependency probe in the temporary project, both already explained above.
+
+```text
+$ python check_fanout.py
+$ python -m jitx runtime start --background
+(JSON with mode, pid, uri, log_path, exit_code)
+$ python -m jitx build qfn_power_fanout.qfn_power_fanout.QfnPowerFanoutDesign
+QFN escape geometry: pad_width=0.250000 mm, adjacent_gap=0.250000 mm, row_pitch=0.500000 mm, escape_width=0.250000 mm, escape_clearance=0.100000 mm
+Running design qfn_power_fanout.qfn_power_fanout.QfnPowerFanoutDesign...
+A newer version of JITX is available.
+Saving stable design and reference designator table
+qfn_power_fanout.qfn_power_fanout.QfnPowerFanoutDesign:
+  design: qfn_power_fanout.qfn_power_fanout.QfnPowerFanoutDesign
+  status: ok
+$ python check_fanout.py  # submit, capture, and assertions
+QFN escape geometry: pad_width=0.250000 mm, adjacent_gap=0.250000 mm, row_pitch=0.500000 mm, escape_width=0.250000 mm, escape_clearance=0.100000 mm
+[PASS] trunk route realized at (0.5,) mm, expected 0.500000 mm
+[PASS] escape route realized at (0.25,) mm, expected 0.250000 mm
+[PASS] trunk and escape routes have non-empty traces
+$ python -m jitx runtime stop
+(JSON with stopped, pid, signal_sent, message)
+exit code 0
+```
+
+### Run it with no other JITX runtime alive
+
+Two earlier attempts at this same command hung indefinitely, one for about ten
+minutes and one for about an hour, and had to be killed. In both, the CLI build
+inside the temporary project finished and the temporary project's runtime log
+stopped growing about ten seconds in; the hang was the in-process
+`with jitx.runtime` submit in `capture_and_check`, blocked waiting on a
+websocket reply. A `sample` of the hung interpreter showed the main thread
+parked in `PyThread_acquire_lock` with the websocket reader thread idle in
+`kevent`, and the client was connected to the correct temporary-project
+runtime.
+
+Both hung attempts overlapped another live `jitx interactive` daemon from an
+earlier reference run in the same session. After every JITX process was killed,
+the identical command completed in well under a minute and exited `0`, twice
+over. Treat a second concurrent runtime as the first thing to rule out if this
+check stops producing output, and note that the script buffers stdout when it is
+not attached to a terminal, so a hung run looks like an empty log; run it with
+`PYTHONUNBUFFERED=1` to see which step it reached. The mechanism behind the
+block was not isolated further.

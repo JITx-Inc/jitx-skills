@@ -195,3 +195,92 @@ item 3 was a pyright error only. The solver and `check.py` are unchanged.
 The bank keeps its structure through all four changes: the placements still
 come from the pure solver, the hints are still keyed by `Port` objects, and the
 routes, puddles, nets, and priority 4 rules still live on the bank.
+
+## Later run: after review fixes
+
+Re-run after the review edits to this case: four board default rules with
+`PowerTag` and `GroundTag` carried on the `Design`, the escape width computed
+before the solve and passed into `BankSpec` as `escape_width`, one shared
+return net, `AtLeast(10.0)` for the capacitor rated voltage, escape clearance
+held at the board default, and `check.py` asserting per-route widths through
+`check_route_width` plus power-puddle net membership.
+
+Nothing needed fixing in this run. `design.py`, `check.py`, and the solver were
+copied unchanged into a fresh scratch project, the design built, and every
+assertion passed.
+
+Same package versions as the first run (py-jitx 4.4.0rc5.dev2, jitxlib-standard
+4.4.0rc2.dev14, jitxlib-jlcpcb 1.0.1.dev7, jitxlib-parts 1.3.0a0), substrate
+`JLC04161H_7628`. The scratch project holds `design.py`, `check.py`, and
+`__init__.py` in one package, with copies of `scripts/decoupling_solver.py` and
+`scripts/layout_checks.py` in a `scripts/` directory beside it.
+
+Commands, run from the scratch project root. `PYTHONPATH` covers the project
+root (for the package) and the `scripts/` directory (`design.py` imports
+`decoupling_solver` as a top-level module). `jitx` and `python` are the entry
+points of the environment holding py-jitx 4.4.0rc5.dev2. Output is verbatim
+except for the dependency-probe and update-notice lines the CLI prints before
+each build, and the runtime start and stop JSON, which carry a pid, a port, and
+an absolute path.
+
+```text
+$ export PYTHONPATH="<project>:<project>/scripts"
+
+$ jitx runtime start --background
+(JSON with mode, pid, uri, log_path, exit_code)
+exit code 0
+
+$ jitx find
+designs:
+  decoupling_ref.design.DecouplingReference
+  decoupling_ref.design.DecouplingReference
+exit code 0
+
+$ yes | jitx build decoupling_ref.design.DecouplingReference
+Running design decoupling_ref.design.DecouplingReference...
+Saving stable design and reference designator table
+decoupling_ref.design.DecouplingReference:
+  design: decoupling_ref.design.DecouplingReference
+  status: ok
+exit code 0
+
+$ python -m decoupling_ref.check
+[PASS] escape routes realized: 8/8
+[PASS] queried capacitor geometry: 2
+[PASS] solver placements read back with jitx.query: 2/2
+[PASS] solver vias and net membership: 4
+PASS route-width: measured=0.3000 expected=0.3000 route=Route tol=0.0000 mm
+PASS route-width: measured=0.3000 expected=0.3000 route=Route tol=0.0000 mm
+PASS route-width: measured=0.3000 expected=0.3000 route=Route tol=0.0000 mm
+PASS route-width: measured=0.3000 expected=0.3000 route=Route tol=0.0000 mm
+PASS route-width: measured=0.3000 expected=0.3000 route=Route tol=0.0000 mm
+PASS route-width: measured=0.3000 expected=0.3000 route=Route tol=0.0000 mm
+PASS route-width: measured=0.3000 expected=0.3000 route=Route tol=0.0000 mm
+PASS route-width: measured=0.3000 expected=0.3000 route=Route tol=0.0000 mm
+summary: checks=8 failures=0
+[PASS] power puddles on their rail nets: 2
+[PASS] solver loop areas: 0.658181 mm^2, 0.658181 mm^2
+exit code 0
+
+$ jitx runtime stop
+(JSON with stopped, pid, signal_sent, message)
+exit code 0
+
+$ jitx runtime status
+Runtime: not running
+exit code 0
+```
+
+Two numbers moved since the first run, both from the `escape_width` change:
+
+- Escape width is `0.3` mm, the narrowest served pad. It is
+  `min(capacitor pad width 0.95, placeholder IC pad width 0.30)`, and all eight
+  routes realized at `0.3000` mm, so the priority 4 escape rule wins over the
+  priority 1 power and ground width of `0.4` mm.
+- Loop area is `0.658181` mm^2 per hint, down from `1.3008498621165137` mm^2 in
+  the first run. The solver rejects a candidate whose power and return
+  centerlines are closer than `trace_width + clearance_floor`, and
+  `trace_width` is now the passed escape width instead of the capacitor pad
+  width (`scripts/decoupling_solver.py:503`). At `0.3` mm instead of `0.95` mm
+  that test admits tighter placements. The first run's table above therefore
+  reports the pre-change geometry.
