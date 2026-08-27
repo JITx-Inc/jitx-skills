@@ -781,6 +781,8 @@ For a report-driven substrate, back the completeness check with tests that **par
 
 A suite that zipped a full report against an empty layer list and compared nothing at all would otherwise report green.
 
+**`decompose()` yields proxies, so read `ClassVar`s off the instance, not off the type.** `decompose(stackup, Material)` returns `Proxy` objects rather than instances of your material classes. Instance attribute access forwards fine — `layer.roughness`, `layer.dielectric_coefficient`, `layer.thickness` all work — but `type(layer).roughness` raises `AttributeError: type object 'Proxy' has no attribute 'roughness'`. Since `roughness`, `dielectric_coefficient` and `loss_tangent` are all declared `ClassVar` in `jitx/stackup.py`, reaching for them through the class is the natural first attempt when writing exactly these tests. Unlike the empty-stackup trap above this one fails loudly, so it costs a minute rather than a false green.
+
 ## Workflow
 
 1. **Gather specs** — from the source document when one exists (see Source Documents — it is ground truth): stackup cross-section, dielectric properties (Dk, Df), copper weights, fab house rules, impedance targets
