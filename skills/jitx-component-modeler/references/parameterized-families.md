@@ -25,12 +25,18 @@ class AcmeSeries(jitx.Component):
 
     # Bare annotations: these depend on constructor arguments, so they are
     # assigned on self in __init__, not at class level.
+    #
+    # Annotate only names the base class does NOT already declare. `mpn` and
+    # `value` are inherited as `str | None` and `str | PlainQuantity | None`, so
+    # re-declaring them narrower is a pyright error (reportIncompatibleVariableOverride
+    # -- a mutable attribute's type is invariant). Assigning them in __init__
+    # works and needs no annotation. Same for `manufacturer`,
+    # `reference_designator`, `reference_designator_prefix`, `in_bom`,
+    # `soldered` and `schematic_x_out`.
     p1: Port
     p2: Port
     landpattern: SMT
     symbol: ResistorSymbol
-    mpn: str
-    value: PlainQuantity
 
     def __init__(
         self,
