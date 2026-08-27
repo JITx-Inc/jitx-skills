@@ -101,8 +101,12 @@ Nets can be named in the design when the net is defined. It is good practice to 
 
 ```python
 # Top-level design (in <ns>/designs/...): symbols are legal here.
-self.my_net = Net(self.a, name = "my_net")
-self.VCC = Net(self.power.Vp, name = "VCC", symbol = PowerSymbol())
+# Net() takes an ITERABLE of ports -- a bare port raises
+# `AttributeError: type object 'Port' has no attribute '__len__'`, so wrap
+# even a single one. The same call is how a whole rail goes on in one line.
+self.my_net = Net([self.a], name="my_net")
+self.VCC = Net([self.power.Vp], name="VCC", symbol=PowerSymbol())
+self.GND = Net([*self.u1.GND, *self.u1.RSVDGND], name="GND")   # 689 balls, one call
 ```
 ## Net Wiring
 
@@ -164,6 +168,17 @@ For all passive values, especially those that are calculated, use the eseries Py
 ### `short_trace=True` is the default for power-rail capacitors
 
 Every capacitor `.insert(...)` call on a power rail — decoupling, bypass, bulk, output filter — **must** pass `short_trace=True`. The router uses this to minimize the trace length between the cap and its connected ports, which is what makes the cap actually decouple. Without it, the router may place a 0402 100 nF cap 20 mm from the IC and route through vias, defeating the purpose.
+
+**So both endpoints must be `Port`s, not `Net`s** — and this is the trap, because `insert`'s own signature says `pin_a: Port | Net` and accepts a net happily until you turn `short_trace` on:
+
+```python
+cap.insert(self.VCC_net, self.GND_net, short_trace=True)   # WRONG
+# ValueError: Cannot make a shortrace with a net. Give a port to Capacitor.insert's pin_a.
+
+cap.insert(self.ic.VCC, self.ic.GND, short_trace=True)     # RIGHT -- the pins it serves
+```
+
+That is not a technicality. A short trace is an instruction about *where to put this cap*, and a net has no position — only the pin it decouples does. So the rule "always `short_trace=True`" and the rule "insert against the served component's pins" are the same rule: a rail-centric circuit that ties everything to nets first and inserts caps against those nets cannot decouple anything, and fails at instantiation rather than silently.
 
 ```python
 # DEFAULT — every power-rail cap
