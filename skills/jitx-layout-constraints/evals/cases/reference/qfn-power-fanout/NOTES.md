@@ -51,7 +51,7 @@ $ python -m jitx runtime start --background
 {
   "mode": "background",
   "pid": 43345,
-  "uri": "ws://localhost:63825/p23zzr",
+  "uri": "ws://localhost:<port>/<id>",
   "log_path": "<temporary-project>/.jitx/logs/runtime.log",
   "exit_code": null
 }

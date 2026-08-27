@@ -23,6 +23,7 @@ from layout_checks import (
     check_route_width,
     min_clearance,
     rule_clearance,
+    rule_coverage,
     rule_width,
     run_checks,
     trace_widths,
@@ -139,6 +140,19 @@ class RuleValueTests(unittest.TestCase):
             rule_width(UnaryRuleStandIn(None))
         with self.assertRaises(ValueError):
             rule_clearance(BinaryRuleStandIn(None))
+
+
+class RuleCoverageTests(unittest.TestCase):
+    def test_unwitnessed_rule_fails(self) -> None:
+        a, b = object(), object()
+        result = rule_coverage([a, b], [a])
+        self.assertFalse(result.passed)
+        self.assertEqual(result.measured, 1)
+
+    def test_all_witnessed_passes_and_empty_declared_fails(self) -> None:
+        a = object()
+        self.assertTrue(rule_coverage([a], [a]).passed)
+        self.assertFalse(rule_coverage([], []).passed)
 
 
 class RunChecksTests(unittest.TestCase):

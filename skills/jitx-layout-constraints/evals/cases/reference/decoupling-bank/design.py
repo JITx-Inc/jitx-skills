@@ -19,7 +19,8 @@ from decoupling_solver import (  # pyright: ignore[reportMissingImports]
 import jitx
 from jitx import Board, Circuit, Design, Net, Polygon, Pour, current
 from jitx.circuit import Route
-from jitx.constraints import AnyObject, IsCopper, IsTrace, Tag, Tags, design_constraint
+from jitx.constraints import AnyObject, IsCopper, IsPad, IsTrace, Tag, Tags, design_constraint
+from jitx.interval import AtLeast
 from jitx.feature import Courtyard, Paste, Soldermask
 from jitx.inspect import visit
 from jitx.landpattern import Landpattern, Pad, PadMapping, PadShape
@@ -37,6 +38,21 @@ class EscapeTag(Tag):
 
 class DecouplingEscapeTag(EscapeTag):
     """Routes between decoupling capacitor pads and the served IC pads."""
+
+
+class PowerTag(Tag):
+    """Rail nets, for the board-wide power width rule."""
+
+
+class GroundTag(Tag):
+    """The shared return net."""
+
+
+DEFAULT_TRACE_WIDTH_MM = 0.125  # skill default: JLC04161H-class, above the 0.09 mm floor
+DEFAULT_CLEARANCE_MM = 0.125  # skill default: JLC04161H-class, above the 0.09 mm floor
+THERMAL_SPOKE_WIDTH_MM = 0.2  # skill default: 0.2 mm thermal spokes
+THERMAL_SPOKE_COUNT = 4  # skill default: 4 thermal spokes
+POWER_WIDTH_MM = 0.4  # skill default: tagged power and ground width, between the Bogatin 0.15 and 0.5 tiers
 
 
 class PlaceholderIcPad(Pad):
@@ -245,7 +261,7 @@ class DecouplingBank(Circuit):
         hints = tuple(hints_by_key.values())
         cap_query = CapacitorQuery(
             capacitance=22e-6,  # Bogatin basis: typical 22 uF MLCC
-            rated_voltage=10.0,  # skill default: 10.0 V is 2x a 5.0 V rail
+            rated_voltage=AtLeast(10.0),  # skill default: at least 2x a 5.0 V rail (Bogatin)
             type="ceramic",
             mounting="smd",
             case=["0402", "0603", "0805", "1206"],
@@ -272,6 +288,15 @@ class DecouplingBank(Circuit):
             (0.70, 0.35),
             (-0.70, 0.35),
         )  # skill default: placeholder IC-body keepout in mm
+        pad_limit = min(
+            self.cap_geometry.pad_width,
+            *(hint.power_pad_width for hint in hints),
+            *(hint.return_pad_width for hint in hints),
+        )  # queried capacitor pad width and placeholder IC pad widths
+        if pad_limit < fab.min_copper_width:
+            raise ValueError("a served pad is narrower than the fabrication copper floor")
+        escape_width = pad_limit
+        self.escape_width = escape_width
         spec = BankSpec(
             hints=tuple(
                 HintSpec(
@@ -288,6 +313,7 @@ class DecouplingBank(Circuit):
             capacitor_spacing=capacitor_spacing,
             grid_step=0.25,  # skill default: 0.25 mm solver grid step
             search_radius=3.0,  # skill default: 3.0 mm solver search radius
+            escape_width=escape_width,
         )
         self.solution: Solution = solve(spec)
 
@@ -327,15 +353,6 @@ class DecouplingBank(Circuit):
             )
         Tags(DecouplingEscapeTag()).assign(self.escape_routes)
 
-        pad_limit = min(
-            self.cap_geometry.pad_width,
-            *(hint.power_pad_width for hint in hints),
-            *(hint.return_pad_width for hint in hints),
-        )  # queried capacitor pad width and placeholder IC pad widths
-        if pad_limit < fab.min_copper_width:
-            raise ValueError("a served pad is narrower than the fabrication copper floor")
-        escape_width = pad_limit
-        self.escape_width = escape_width
         puddle_width = escape_width  # queried pad widths and FabricationConstraints field
         self.power_puddles = []
         for hint, placement in zip(hints, self.solution.placements, strict=True):
@@ -376,8 +393,12 @@ class DecouplingBank(Circuit):
             ),
             name="GND",
         )
+        Tags(PowerTag()).assign(*self.rail_nets)
+        Tags(GroundTag()).assign(self.ground_net)
 
-        escape_clearance = fab.min_copper_copper_space  # FabricationConstraints field
+        # The escape clearance starts from the board default; a floor-level value
+        # at the escape rung would loosen the default around every escape.
+        escape_clearance = DEFAULT_CLEARANCE_MM  # skill default: the board's default clearance
         self.rules = [
             design_constraint(
                 DecouplingEscapeTag(), priority=4  # skill priority ladder: 4, escape rules
@@ -411,12 +432,14 @@ class DecouplingReference(Design):
     circuit = ReferenceCircuit()
 
     def __init__(self) -> None:
-        fab = self.substrate.constraints
-        default_width = fab.min_copper_width  # FabricationConstraints field
-        default_clearance = fab.min_copper_copper_space  # FabricationConstraints field
+        # Priority ladder: 0 defaults, 1 power/ground width, 4 escape rules (on the bank).
         self.rules = [
-            design_constraint(IsTrace).trace_width(default_width),
-            design_constraint(IsCopper, IsCopper).clearance(default_clearance),
+            design_constraint(IsTrace).trace_width(DEFAULT_TRACE_WIDTH_MM),
+            design_constraint(IsCopper, IsCopper).clearance(DEFAULT_CLEARANCE_MM),
+            design_constraint(IsPad).thermal_relief(
+                DEFAULT_CLEARANCE_MM, THERMAL_SPOKE_WIDTH_MM, THERMAL_SPOKE_COUNT
+            ),
+            design_constraint(PowerTag() | GroundTag(), priority=1).trace_width(POWER_WIDTH_MM),
         ]
 
 

@@ -268,6 +268,25 @@ def rule_clearance(rule: object) -> float:
     return float(effect.clearance)
 
 
+def rule_coverage(rules: Iterable[object], witnessed: Iterable[object]) -> CheckResult:
+    """Fail for every declared rule that no check named.
+
+    ``witnessed`` is the set of rule objects the check script measured (by
+    identity). Rules the capture cannot expose belong in the design's open
+    items, not here; listing them as witnessed is a false pass.
+    """
+    declared = list(rules)
+    seen = {id(rule) for rule in witnessed}
+    missing = [rule for rule in declared if id(rule) not in seen]
+    return CheckResult(
+        name="rule-coverage",
+        passed=bool(declared) and not missing,
+        measured=len(missing),
+        expected=0,
+        detail=f"declared={len(declared)} unwitnessed={len(missing)}",
+    )
+
+
 def run_checks(checks: Sequence[CheckResult]) -> int:
     """Print one line per check and return 1 when any check fails or none were supplied."""
     if not checks:

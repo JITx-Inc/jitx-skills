@@ -64,31 +64,31 @@ edit to the transcript below is the absolute scratch-project path in the
 runtime's `log_path`, shown as `<project>`.
 
 ```text
-$ export PYTHONPATH="$PWD:$PWD/decoupling_ref"
+$ export PYTHONPATH="$PWD:$PWD/<project>"
 $ jitx runtime start --background
 {
   "mode": "background",
   "pid": 46946,
-  "uri": "ws://localhost:64228/2h4kdf",
+  "uri": "ws://localhost:<port>/<id>",
   "log_path": "<project>/.jitx/logs/runtime.log",
   "exit_code": null
 }
 
 $ jitx find
 designs:
-  decoupling_ref.design.DecouplingReference
-  decoupling_ref.design.DecouplingReference
+  <project>.design.DecouplingReference
+  <project>.design.DecouplingReference
 
-$ yes | jitx build decoupling_ref.design.DecouplingReference
+$ yes | jitx build <project>.design.DecouplingReference
 Dependencies recently checked, skipping. Will check again in 51 minutes.
-Running design decoupling_ref.design.DecouplingReference...
+Running design <project>.design.DecouplingReference...
 A newer version of JITX is available.
 Saving stable design and reference designator table
-decoupling_ref.design.DecouplingReference:
-  design: decoupling_ref.design.DecouplingReference
+<project>.design.DecouplingReference:
+  design: <project>.design.DecouplingReference
   status: ok
 
-$ python -m decoupling_ref.check
+$ python -m <project>.check
 [PASS] escape routes realized: 8/8
 [PASS] queried capacitor geometry: 2
 [PASS] solver placements read back with jitx.query: 2/2
@@ -151,7 +151,7 @@ at x = -1.4189; route 2 covers the capacitor return pad centered at
 x = -0.0811 and the return via at x = 0.35. Power and return sit on the sides
 the solver assigned them.
 
-## Fixes applied to design.py
+## Changes recorded during the run
 
 Four changes. Item 1 blocked the build, items 2 and 4 blocked the check, and
 item 3 was a pyright error only. The solver and `check.py` are unchanged.

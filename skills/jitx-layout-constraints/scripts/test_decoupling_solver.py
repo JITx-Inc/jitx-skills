@@ -191,5 +191,57 @@ class DecouplingSolverTests(unittest.TestCase):
         self.assertLess(solve_distance(0.5), solve_distance(1.0))
 
 
+class ScaleAndPitchTests(unittest.TestCase):
+    def _cap(self) -> CapacitorGeometry:
+        return CapacitorGeometry(
+            body_length=1.6, body_width=0.8, pad_length=0.9, pad_width=0.8, pad_pitch=1.5
+        )
+
+    def test_fine_pitch_ic_is_feasible_with_escape_width(self) -> None:
+        # Power and return pads 0.5 mm apart, as on a 0.5 mm pitch QFN row.
+        spec = BankSpec(
+            hints=(HintSpec("core", ((0.0, 0.0),), ((0.5, 0.0),)),),
+            capacitor=self._cap(),
+            keepouts=(),
+            via_pad_diameter=0.45,
+            clearance_floor=0.09,
+            capacitor_spacing=0.2,
+            escape_width=0.25,
+        )
+        solution = solve(spec)
+        self.assertEqual(len(solution.placements), 1)
+
+    def test_four_hints_solve_under_the_node_budget(self) -> None:
+        hints = tuple(
+            HintSpec(f"h{i}", ((x, 0.0),), ((x + 0.5, 0.0),))
+            for i, x in enumerate((0.0, 2.0, 4.0, 6.0))
+        )
+        spec = BankSpec(
+            hints=hints,
+            capacitor=self._cap(),
+            keepouts=(),
+            via_pad_diameter=0.45,
+            clearance_floor=0.09,
+            capacitor_spacing=0.2,
+            escape_width=0.25,
+        )
+        solution = solve(spec)
+        self.assertEqual(len(solution.placements), 4)
+
+    def test_node_budget_raises_with_hint_count(self) -> None:
+        spec = BankSpec(
+            hints=(HintSpec("a", ((0.0, 0.0),), ((0.5, 0.0),)), HintSpec("b", ((3.0, 0.0),), ((3.5, 0.0),))),
+            capacitor=self._cap(),
+            keepouts=(),
+            via_pad_diameter=0.45,
+            clearance_floor=0.09,
+            capacitor_spacing=0.2,
+            escape_width=0.25,
+            max_nodes=3,
+        )
+        with self.assertRaisesRegex(ValueError, "2 hints"):
+            solve(spec)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

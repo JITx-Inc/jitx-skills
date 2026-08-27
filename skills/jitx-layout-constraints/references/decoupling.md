@@ -49,7 +49,11 @@ power-return path-clearance violations, then minimizes total loop area. Ties
 use hint, position, and rotation order. Infeasibility names the hint and rule.
 
 The loop polygon follows the capacitor power-pad center, IC power-pad center,
-IC return-pad center, and capacitor return-via center in that order.
+IC return-pad center, and capacitor return-via center in that order. The two
+capacitor-side corners are of different kinds (a pad and a via), so the area
+is not symmetric under a 180 degree flip of a symmetric part and the search
+prefers orientations that keep the return via near the IC; the number is a
+ranking proxy for loop inductance, not a symmetric geometric invariant.
 
 For a hint containing more than one IC power pad or return pad, the reported
 area is the arithmetic mean across every power-pad and return-pad pair. This is
@@ -134,8 +138,10 @@ bank.
 The example below shows the structural pattern. `ic_type` builds the IC inside
 the bank. `hint_factory` returns a `HintMap` keyed by that IC's real power
 ports. `cap_geometry` and `package_rotation` come from the selected
-landpattern query. `_power_puddle_shape` is the local corridor helper described
-in `power-and-pours.md`.
+landpattern query. `_power_puddle_shape` returns the puddle polygon for one
+hint: the shipped reference uses a rectangular corridor between the served IC
+pad and the capacitor pad (`_corridor` in its `design.py`); the pad-union
+form is in `power-and-pours.md`, section 9, and has not been built yet.
 
 ```python
 from collections.abc import Callable
@@ -145,6 +151,7 @@ from jitx.circuit import Route
 from jitx.component import Component
 from jitx.constraints import AnyObject, Tag, Tags, design_constraint
 from jitx.via import Via
+from jitx.interval import AtLeast
 from jitxlib.parts import Capacitor, CapacitorQuery, SortDir, SortKey
 
 from decoupling_solver import BankSpec, CapacitorGeometry, HintSpec, Solution, solve
@@ -182,6 +189,14 @@ class DecouplingBank(Circuit):
         clearance_floor = fab.min_copper_copper_space  # FabricationConstraints field
         grid_step = 0.25  # skill default: 0.25 mm solver grid step
         search_radius = 3.0  # skill default: 3.0 mm solver search radius
+        pad_limit = min(
+            cap_geometry.pad_width,
+            *(hint.power_pad_width for hint in hints),
+            *(hint.return_pad_width for hint in hints),
+        )  # queried pad widths
+        if pad_limit < fab.min_copper_width:
+            raise ValueError("a served pad is narrower than the fabrication copper floor")
+        escape_width = pad_limit  # the route width the bank uses; the solver spaces the loop paths by it
         spec = BankSpec(
             hints=tuple(
                 HintSpec(
@@ -198,12 +213,13 @@ class DecouplingBank(Circuit):
             capacitor_spacing=capacitor_spacing,
             grid_step=grid_step,
             search_radius=search_radius,
+            escape_width=escape_width,
         )
         self.solution = solve(spec)
 
         cap_query = CapacitorQuery(
             capacitance=capacitance,
-            rated_voltage=rated_voltage_factor * rail_voltage,
+            rated_voltage=AtLeast(rated_voltage_factor * rail_voltage),  # a minimum, not an exact catalog value
             type="ceramic",
             mounting="smd",
             sort=SortKey("area", SortDir.INCREASING),
@@ -248,21 +264,14 @@ class DecouplingBank(Circuit):
                 strict=True,
             )
         ]
-        self.return_nets = [
-            Net((*hint.return_ports, capacitor.p2, via))
-            for hint, capacitor, via in zip(
-                hints, self.capacitors, self.return_vias, strict=True
+        self.return_net = Net(
+            (
+                *(port for hint in hints for port in hint.return_ports),
+                *(capacitor.p2 for capacitor in self.capacitors),
+                *self.return_vias,
             )
-        ]
+        )  # one shared return: the board ground is one net
 
-        pad_limit = min(
-            cap_geometry.pad_width,
-            *(hint.power_pad_width for hint in hints),
-            *(hint.return_pad_width for hint in hints),
-        )  # queried pad widths
-        if pad_limit < fab.min_copper_width:
-            raise ValueError("a served pad is narrower than the fabrication copper floor")
-        escape_width = pad_limit
         escape_clearance = fab.min_copper_copper_space  # FabricationConstraints field
         self.rules = [
             design_constraint(
@@ -289,8 +298,9 @@ The two vias per capacitor (skill default: two vias per capacitor) are
 instances of the substrate's via class. A via
 is positionable and carries its own pad diameter and layer span
 (`jitxlib/jlcpcb/vias.py:24`, `jitx/via.py:37`, `jitx/placement.py:133`). Store every instance on the bank,
-then include each power via in its rail net and each return via in its hint's
-return net. This avoids shorting distinct return domains. `Net` accepts `Via` and `Copper` members directly
+then include each power via in its rail net and every return via in the one
+shared return net (the board ground is one net; separate return domains exist
+only when the schematic has them, and then each gets its own net). `Net` accepts `Via` and `Copper` members directly
 (`jitx/net.py:645`, `jitx/net.py:733`). `PortAttachment` is not needed for this
 plain power-net membership. Two route segments on each side (skill default: two segments) use the via as an endpoint, so realized copper reaches its pad.
 

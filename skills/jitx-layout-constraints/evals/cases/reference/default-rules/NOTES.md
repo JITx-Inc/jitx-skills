@@ -30,14 +30,14 @@ Run from the project root. The project holds the two reference directories as
 packages plus `scripts/layout_checks.py`; the interpreter is the project venv.
 
 ```text
-$ jitx build layout_constraints_wp5.default_rules.design.DefaultRulesDesign
-Running design layout_constraints_wp5.default_rules.design.DefaultRulesDesign...
+$ jitx build <project>.default_rules.design.DefaultRulesDesign
+Running design <project>.default_rules.design.DefaultRulesDesign...
 Saving stable design and reference designator table
-layout_constraints_wp5.default_rules.design.DefaultRulesDesign:
-  design: layout_constraints_wp5.default_rules.design.DefaultRulesDesign
+<project>.default_rules.design.DefaultRulesDesign:
+  design: <project>.default_rules.design.DefaultRulesDesign
   status: ok
 
-$ python3 -m layout_constraints_wp5.default_rules.check
+$ python3 -m <project>.default_rules.check
 child-rule scope probe, result classified from captured copper
 PASS routes: measured=0 expected=0 checked=2 unrealized=0
 PASS width-rule-owner: measured=0.3000 expected=0.3000 tol=0.0010 mm
@@ -71,7 +71,7 @@ somewhere other than the child's rule. The 0.30 mm on `disjoint` rules out the
 narrower scope: where a rule object is stored does not restrict which copper it
 governs. A `Circuit` is a container for the rule, not a scope for it.
 
-## Fixes made
+## Changes recorded during the run
 
 None. The design builds, the routes realize, and the check script settles the
 question as written.
@@ -91,7 +91,7 @@ $ python3 -m pytest scripts/test_layout_checks.py -q
 8 passed in 0.04s
 ```
 
-## Rerun after check rewrite
+## Later run: Rerun after check rewrite
 
 Rerun alongside the `net-net-clearance` check rewrite, which did not touch this
 case. Same environment: py-jitx 4.4.0rc5.dev2, runtime 4.4.0-rc.9,
@@ -99,7 +99,7 @@ substrate `JLC04161H_7628`, run from the project root with the project venv
 interpreter.
 
 ```text
-$ python3 -m layout_constraints_wp5.default_rules.check
+$ python3 -m <project>.default_rules.check
 child-rule scope probe, result classified from captured copper
 PASS routes: measured=0 expected=0 checked=2 unrealized=0
 PASS width-rule-owner: measured=0.3000 expected=0.3000 tol=0.0010 mm

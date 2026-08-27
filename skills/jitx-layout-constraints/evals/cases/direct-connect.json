@@ -1,0 +1,26 @@
+{
+  "name": "direct-connect",
+  "prompt": "One high-current pad on my ground pour should connect solid, no thermal relief spokes, while the other pads keep the board's default relief. Can the rule system express that, and how do I check the copper actually came out that way?",
+  "inputs": {
+    "substrate": "jitxlib.jlcpcb.JLC04161H_7628",
+    "reference": "evals/cases/reference/direct-connect/design.py",
+    "environment": "Commands run from the repository root with python3 resolving to the project interpreter that has jitx installed and a reachable runtime; the ODB++ export is read for the pour geometry because a captured Pour is the pre-voiding outline on the 4.4 line."
+  },
+  "expected_output": "Two candidate designs: a higher-priority rule with no effect on the tagged pad (does nothing) and a higher-priority thermal_relief with the fab-floor gap and a spoke width equal to the pad diameter (collapses the relief). The check reports gap-band coverage at the tagged and default pads from the runtime's computed pour and the ODB++ features, showing solid copper only at the tagged pad under candidate 2. NOTES.md records commands and output.",
+  "assertions": [
+    {
+      "text": "the reference module and check type-check against the installed jitx package",
+      "check": "deterministic",
+      "cmd": "python3 -m pyright --pythonpath \"$(command -v python3)\" skills/jitx-layout-constraints/evals/cases/reference/direct-connect/*.py"
+    },
+    {
+      "text": "the check runs for both candidates and reports the surfaces that expose computed pour copper",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-layout-constraints/evals/cases/reference/direct-connect/check.py --candidate no-effect && python3 skills/jitx-layout-constraints/evals/cases/reference/direct-connect/check.py --candidate wide-spoke"
+    },
+    {
+      "text": "the result is stated for the pad shape it was tested on and reuse on another pad shape requires the ODB++ check again",
+      "check": "judge"
+    }
+  ]
+}

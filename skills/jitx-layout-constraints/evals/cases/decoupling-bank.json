@@ -11,7 +11,7 @@
   "reference": {
     "file": "evals/cases/reference/decoupling-bank/design.py",
     "check": "evals/cases/reference/decoupling-bank/check.py",
-    "notes": "The reference wraps a placeholder IC inside a floating DecouplingBank so its routes share a common owning circuit. The reference shows one valid structural shape, not the only acceptable one."
+    "notes": "The reference wraps a placeholder IC inside a DecouplingBank placed explicitly at (0, 0) so its routes share a common owning circuit; a floating bank with no interactive placement is parked off the board and its routes silently fail, which is why the reference is not floating. The reference shows one valid structural shape, not the only acceptable one."
   },
   "runner_models": [
     "sonnet"

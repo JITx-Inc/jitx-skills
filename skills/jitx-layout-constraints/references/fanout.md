@@ -167,7 +167,6 @@ from jitx.landpattern import Pad
 from jitx.substrate import FabricationConstraints
 
 GEOMETRY_TOLERANCE = 1e-6  # skill default: 1e-6 mm comparison tolerance
-CLEARANCE_MARGIN = 0.01  # skill default: 0.01 mm above the fab floor
 
 @dataclass(frozen=True)
 class QfnEscapeGeometry:
@@ -183,6 +182,7 @@ def qfn_escape_geometry(
     target_pad: Pad,
     package_center: tuple[float, float],
     fab: FabricationConstraints,
+    default_clearance: float,  # the board's default clearance rule value
 ) -> QfnEscapeGeometry:
     target = pad_copper[target_pad]
     minx, miny, maxx, maxy = target.bounds
@@ -220,7 +220,11 @@ def qfn_escape_geometry(
     escape_width = min(pad_width, channel_limit)
     if escape_width < fab.min_copper_width:
         raise ValueError("no QFN escape meets the fabrication copper floor")
-    escape_clearance = floor_space + CLEARANCE_MARGIN
+    # Start from the board default and only tighten where the neighbor gap
+    # cannot hold it; never below the floor. A floor-level clearance at the
+    # escape rung would loosen the board default around every escape.
+    overhang = max(0.0, (escape_width - pad_width) / 2.0)
+    escape_clearance = max(floor_space, min(default_clearance, adjacent_gap - overhang))
     return QfnEscapeGeometry(
         pad_width,
         adjacent_gap,
@@ -260,9 +264,16 @@ geometry = qfn_escape_geometry(
     qfn_power_pad,
     package_center=qfn_center,
     fab=design.substrate.constraints,
+    default_clearance=DEFAULT_CLEARANCE,  # the Design's IsCopper x IsCopper rule value
 )
-pad_center = qfn_power_pad_geometry.centroid.coords[0]
-outward = qfn_outward_unit_vector
+pad_center = pad_copper[qfn_power_pad].centroid.coords[0]
+qfn_center = qfn_component.transform.translation  # the placed QFN's origin
+delta = (pad_center[0] - qfn_center[0], pad_center[1] - qfn_center[1])
+outward = (  # unit vector from the package center through the pad, on the radial axis
+    (1.0 if delta[0] > 0 else -1.0, 0.0)
+    if abs(delta[0]) >= abs(delta[1])
+    else (0.0, 1.0 if delta[1] > 0 else -1.0)
+)
 transition = (
     pad_center[0] + outward[0] * (geometry.pad_depth / 2.0 + ESCAPE_RUN),
     pad_center[1] + outward[1] * (geometry.pad_depth / 2.0 + ESCAPE_RUN),
@@ -270,12 +281,7 @@ transition = (
 self.rp = RoutePoint(layer=top_copper_layer).at(transition)
 self.power_net += self.rp.port
 self.trunk_route = Route(trunk_port, self.rp, top_copper_layer)
-self.escape_route = Route(
-    self.rp,
-    qfn_power_pad,
-    top_copper_layer,
-    sketch=[transition, pad_center],
-)
+self.escape_route = Route(self.rp, qfn_power_pad, top_copper_layer)  # no sketch: turns need RoutePoints
 Tags(QfnEscapeTag()).assign(self.escape_route)
 self.escape_rules = [
     design_constraint(QfnEscapeTag(), priority=4).trace_width(

@@ -73,6 +73,9 @@ class BankSpec:
     capacitor_spacing: float
     grid_step: float = 0.25  # skill default: 0.25 mm candidate-grid step
     search_radius: float = 3.0  # skill default: 3.0 mm search radius per hint
+    escape_width: float | None = None  # route width the bank will use; None falls back to the capacitor pad width
+    max_candidates_per_hint: int = 400  # skill default: keep the 400 lowest-loop-area feasible placements per hint
+    max_nodes: int = 200_000  # skill default: search-tree node budget before raising
 
 
 @dataclass(frozen=True)
@@ -182,6 +185,10 @@ def _validate(spec: BankSpec) -> None:
         raise ValueError("capacitor_spacing must not be negative")
     if spec.search_radius < 0:
         raise ValueError("search_radius must not be negative")
+    if spec.escape_width is not None and (not isfinite(spec.escape_width) or spec.escape_width <= 0):
+        raise ValueError("escape_width must be a positive finite width when given")
+    if spec.max_candidates_per_hint <= 0 or spec.max_nodes <= 0:
+        raise ValueError("max_candidates_per_hint and max_nodes must be positive")
     for index, keepout in enumerate(spec.keepouts):
         if len(keepout) < 3:
             raise ValueError(f"keepouts[{index}] must have at least three points")
@@ -490,11 +497,11 @@ def _candidate_rejection(candidate: _Candidate, hint: HintSpec, spec: BankSpec) 
         return "IC-pad clearance floor"
     if not all(_is_simple_loop(polygon) for polygon in candidate.loop_polygons):
         return "nondegenerate loop geometry"
-    path_clearance = (
-        spec.capacitor.pad_width / 2.0
-        + max(spec.capacitor.pad_width / 2.0, spec.via_pad_diameter / 2.0)
-        + spec.clearance_floor
-    )
+    # The two loop segments are routed at the bank's escape width, so their
+    # centerlines need one escape width plus the floor between them. Using the
+    # capacitor pad width here made every fine-pitch IC infeasible.
+    trace_width = spec.escape_width if spec.escape_width is not None else spec.capacitor.pad_width
+    path_clearance = trace_width + spec.clearance_floor
     if any(
         _segment_distance(polygon[0], polygon[1], polygon[2], polygon[3])
         + _EPSILON
@@ -533,9 +540,8 @@ def _candidates_for_hint(hint: HintSpec, spec: BankSpec) -> tuple[_Candidate, ..
             default="candidate grid",
         )
         raise ValueError(f"hint group {hint.name!r} infeasible: {reason}")
-    return tuple(
-        sorted(candidates, key=lambda item: (item.placement.loop_area, item.order))
-    )
+    ordered = sorted(candidates, key=lambda item: (item.placement.loop_area, item.order))
+    return tuple(ordered[: spec.max_candidates_per_hint])
 
 
 def solve(bank: BankSpec) -> Solution:
@@ -558,6 +564,7 @@ def solve(bank: BankSpec) -> Solution:
     best_signature: tuple[int, ...] | None = None
     best_choice: tuple[_Candidate, ...] | None = None
     deepest_spacing_conflict = 0
+    nodes = 0
 
     def search(
         depth: int,
@@ -565,7 +572,13 @@ def solve(bank: BankSpec) -> Solution:
         chosen: tuple[_Candidate, ...],
         signature: tuple[int, ...],
     ) -> None:
-        nonlocal best_total, best_signature, best_choice, deepest_spacing_conflict
+        nonlocal best_total, best_signature, best_choice, deepest_spacing_conflict, nodes
+        nodes += 1
+        if nodes > bank.max_nodes:
+            raise ValueError(
+                f"decoupling search exceeded {bank.max_nodes} nodes for {len(bank.hints)} hints; "
+                "raise max_nodes, shrink search_radius, or coarsen grid_step"
+            )
         if total + minimum_remaining[depth] > best_total + _EPSILON:
             return
         if depth == len(candidates):
@@ -580,6 +593,13 @@ def solve(bank: BankSpec) -> Solution:
 
         compatible_count = 0
         for candidate in candidates[depth]:
+            # Candidates are sorted by loop area, so once this one cannot beat
+            # the best total no later one can either.
+            if (
+                total + candidate.placement.loop_area + minimum_remaining[depth + 1]
+                > best_total + _EPSILON
+            ):
+                break
             if not all(
                 _compatible(candidate, prior, bank.capacitor_spacing)
                 for prior in chosen
@@ -661,6 +681,7 @@ def _from_json(raw: Any) -> BankSpec:
             capacitor_spacing=float(raw["capacitor_spacing"]),
             grid_step=float(raw.get("grid_step", 0.25)),  # skill default: 0.25 mm
             search_radius=float(raw.get("search_radius", 3.0)),  # skill default: 3.0 mm
+            escape_width=(float(raw["escape_width"]) if raw.get("escape_width") is not None else None),
         )
     except KeyError as exc:
         raise ValueError(f"missing required JSON field: {exc.args[0]}") from exc

@@ -357,7 +357,9 @@ Detail and worked derivations: `references/power-and-pours.md`.
   its constants from `FabricationConstraints` and the via class and raises
   `ValueError` on a pad too small for the grid or an opening that is not a
   polygon (a raise means stop and change the grid, never bypass it); usage is
-  in `jitx-physical-layout` `references/layout-examples.md`.
+  in `jitx-physical-layout` `references/layout-examples.md`. The module is
+  unit-tested; no reference design has built a pad with it yet, so verify the
+  mask and paste openings in the fab output the first time.
 - Thermal relief is the `IsPad` default above. A solid connection for a
   high-current pad (direct connect) has no dedicated effect; the verified
   pattern on 4.4 is a higher-priority `thermal_relief` on the tagged pads with
@@ -427,7 +429,12 @@ attribute and in a list fails translation with `Child object Route
 encountered multiple times`; prefer a pad-to-point trunk, since a
 via-to-`RoutePoint` trunk has been seen to realize alone and not inside a
 full design. `w_escape` and `c_escape` are derived, not typed: read the
-landpattern's pad geometry with `jitx.query` and subtract the fab floor. The governing gap
+landpattern's pad geometry with `jitx.query` and subtract the fab floor.
+`c_escape` starts from the board default clearance and only tightens where
+the pad geometry cannot hold the default, never below the floor; a rule at
+the escape rung against `AnyObject` set to the floor would loosen the default
+around every escape. That clearance acts on router copper and pour voiding
+near the segment, not on the authored segment itself (What rules act on). The governing gap
 differs by package family (QFN: the gap between adjacent pads in a row; BGA:
 the diagonal channel between balls and the row depth; two-terminal passive:
 the pad-to-pad gap and courtyard). Derivations, the QFN worked example, and
@@ -496,7 +503,8 @@ went unexercised.
 Checks read the rules, they do not restate them: pass each rule object's own
 value to the check (`rule_width(rule)` and `rule_clearance(rule)` in
 `scripts/layout_checks.py` read the effect the rule carries), never a literal
-typed beside the rule list. A hand-typed table of expected values is a
+typed beside the rule list, and end with `rule_coverage(rules, witnessed)`,
+which fails for every declared rule no check named. A hand-typed table of expected values is a
 parallel model that drifts the first time a rule is added (see the base
 skill's `references/architectural-patterns.md`).
 

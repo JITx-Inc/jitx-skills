@@ -135,9 +135,10 @@ via_cls = current.design.substrate.StdViaPreferred
 via_pad_diameter = via_cls.diameter  # substrate via-class pad diameter
 via_hole_diameter = via_cls.hole_diameter  # substrate via-class drill diameter
 min_annular_ring = fab.min_annular_ring  # FabricationConstraints field
-required_pad_diameter = via_hole_diameter + 2 * min_annular_ring  # via-class drill diameter plus two FabricationConstraints annular rings
-if via_pad_diameter < required_pad_diameter:
-    raise ValueError("via pad diameter is below the documented annular-ring floor")
+# FabricationConstraints.min_annular_ring is the total pad-minus-hole difference, not a
+# per-side ring: JLCPCB's preferred via is 0.45 pad / 0.30 hole against a 0.13 field.
+if via_pad_diameter - via_hole_diameter < min_annular_ring:
+    raise ValueError("via pad minus hole is below the documented annular-ring floor")
 VIAS_PER_TIER_STEP = 1  # skill default: 1 via per tier step; not a current derivation
 def power_via_count(tier_step_count: int) -> int:
     """tier_step_count comes from the selected source and destination tiers.
@@ -371,8 +372,9 @@ candidate_wide_spokes = design_constraint(
 )
 ```
 
-Do not use either candidate until computed pour copper is observable and the
-tagged pad differs from the default pad. The reference case checks these surfaces:
+Candidate 2 is the pattern; candidate 1 is recorded so nobody tries it again.
+When reusing candidate 2, read the result on a surface that shows computed
+pour copper. The reference case checked these surfaces:
 
 1. `rd.query(Copper)` and `rd.query(Pour)` after capture (`jitx/run/runtime.py:421`).
 2. The raw `LayoutOutput.computed_shape`, which reverse flow assigns back to
@@ -382,14 +384,16 @@ tagged pad differs from the default pad. The reference case checks these surface
    `jitx/circuit.py:613`).
 4. The legacy ODB++ `features` files, parsed around both test pads.
 
-The test must first prove that one surface exposes voids, gaps, and spokes. A successful build alone is not evidence of direct connection.
+Surfaces 2 and 4 show the voided pour; surfaces 1 and 3 do not on the 4.4 line.
+A successful build alone is not evidence of direct connection.
 
 ## 9. Power puddle from a pad list
 
-This pattern has not yet been exercised against a runtime in a reference
-design; treat it as the intended shape, and verify the puddle's copper after
-capture before relying on it (the decoupling reference is where it is
-exercised first).
+This pad-union puddle has not yet been exercised against a runtime in a
+reference design; treat it as the intended shape and verify the puddle's
+copper after capture before relying on it. The shipped decoupling reference
+uses a simpler rectangular corridor between the two pads it joins
+(`_corridor` in its `design.py`), which has been built and captured.
 
 Make a local puddle from pads in the circuit that owns them. `query` runs the
 Pad-to-Copper transformer, and that transformer composes the accumulated frame

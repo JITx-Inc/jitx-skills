@@ -22,10 +22,10 @@ answer this question.
 Both files were copied unmodified into a throwaway project:
 
 ```text
-<scratch>/pyproject.toml            # name = "direct_connect", deps jitx, jitxlib-standard, jitxlib-jlcpcb
-<scratch>/direct_connect/__init__.py
-<scratch>/direct_connect/design.py  # copy of this case's design.py
-<scratch>/direct_connect/check.py   # copy of this case's check.py
+<scratch>/pyproject.toml            # name = "<project>", deps jitx, jitxlib-standard, jitxlib-jlcpcb
+<scratch>/<project>/__init__.py
+<scratch>/<project>/design.py  # copy of this case's design.py
+<scratch>/<project>/check.py   # copy of this case's check.py
 ```
 
 The project needs its own runtime (`jitx runtime start --background`) and the
@@ -39,9 +39,9 @@ No changes were made to `design.py` or `check.py`. Both ran as shipped.
 
 One known wart, not a blocker: `check.py` uses `from design import ...`, which
 resolves when the file is run as a script (its own directory lands on
-`sys.path`) but not when a project tool imports it as `direct_connect.check`.
+`sys.path`) but not when a project tool imports it as `<project>.check`.
 So `jitx find` lists both designs and additionally reports
-`direct_connect.check: ModuleNotFoundError("No module named 'design'")`. Per-design
+`<project>.check: ModuleNotFoundError("No module named 'design'")`. Per-design
 `jitx build` and `jitx design export` are unaffected; `jitx build-all` would
 report that import failure.
 
@@ -104,13 +104,13 @@ $ jitx runtime start --background
 {
   "mode": "background",
   "pid": 40620,
-  "uri": "ws://localhost:63248/rgt274",
+  "uri": "ws://localhost:<port>/<id>",
   "log_path": "<scratch>/.jitx/logs/runtime.log",
   "exit_code": null
 }
 
 $ jitx runtime status
-Runtime: reachable at ws://localhost:63248/rgt274
+Runtime: reachable at ws://localhost:<port>/<id>
   PID:   40620
   Mode:  background
 ```
@@ -120,35 +120,35 @@ Discovery:
 ```text
 $ jitx find
 designs:
-  direct_connect.design.DirectConnectNoEffectDesign
-  direct_connect.design.DirectConnectWideSpokeDesign
+  <project>.design.DirectConnectNoEffectDesign
+  <project>.design.DirectConnectWideSpokeDesign
 errors:
   import failed:
-    direct_connect.check: ModuleNotFoundError("No module named 'design'")
+    <project>.check: ModuleNotFoundError("No module named 'design'")
 ```
 
 Builds:
 
 ```text
-$ yes | jitx build direct_connect.design.DirectConnectNoEffectDesign
-Running design direct_connect.design.DirectConnectNoEffectDesign...
+$ yes | jitx build <project>.design.DirectConnectNoEffectDesign
+Running design <project>.design.DirectConnectNoEffectDesign...
 Saving stable design and reference designator table
-direct_connect.design.DirectConnectNoEffectDesign:
-  design: direct_connect.design.DirectConnectNoEffectDesign
+<project>.design.DirectConnectNoEffectDesign:
+  design: <project>.design.DirectConnectNoEffectDesign
   status: ok
 
-$ yes | jitx build direct_connect.design.DirectConnectWideSpokeDesign
-Running design direct_connect.design.DirectConnectWideSpokeDesign...
+$ yes | jitx build <project>.design.DirectConnectWideSpokeDesign
+Running design <project>.design.DirectConnectWideSpokeDesign...
 Saving stable design and reference designator table
-direct_connect.design.DirectConnectWideSpokeDesign:
-  design: direct_connect.design.DirectConnectWideSpokeDesign
+<project>.design.DirectConnectWideSpokeDesign:
+  design: <project>.design.DirectConnectWideSpokeDesign
   status: ok
 ```
 
 Capture, candidate 1:
 
 ```text
-$ python direct_connect/check.py --candidate no-effect
+$ python <project>/check.py --candidate no-effect
 capture Pour count: 1
 capture Copper count: 3
 capture pour[0]: area=59.997627 holes=0 bounds=(-4.999999984372407, -2.9999999938346447, 4.999999984372407, 2.9999999938346438)
@@ -166,7 +166,7 @@ Route.derived pour/feature groups: 0
 Capture, candidate 2:
 
 ```text
-$ python direct_connect/check.py --candidate wide-spoke
+$ python <project>/check.py --candidate wide-spoke
 capture Pour count: 1
 capture Copper count: 3
 capture pour[0]: area=59.997627 holes=0 bounds=(-4.999999984372407, -2.9999999938346447, 4.999999984372407, 2.9999999938346438)
@@ -194,10 +194,10 @@ Legacy ODB++ export. Both exports exit 0 and print nothing; they write
 `designs/<design>/odb/` and `designs/<design>/outputs/odb.zip`:
 
 ```text
-$ yes | jitx design export legacy-odb++ direct_connect.design.DirectConnectNoEffectDesign
+$ yes | jitx design export legacy-odb++ <project>.design.DirectConnectNoEffectDesign
 $ echo $?
 0
-$ yes | jitx design export legacy-odb++ direct_connect.design.DirectConnectWideSpokeDesign
+$ yes | jitx design export legacy-odb++ <project>.design.DirectConnectWideSpokeDesign
 $ echo $?
 0
 ```
@@ -208,7 +208,7 @@ placement):
 
 ```text
 $ grep -n "^OB\|^OE\|^P \|^S \|^F \|^UNITS" \
-    designs/direct_connect.design.DirectConnectNoEffectDesign/odb/steps/pcb/layers/l1/features
+    designs/<project>.design.DirectConnectNoEffectDesign/odb/steps/pcb/layers/l1/features
 1:UNITS=MM
 3:F 3
 8:S P 0;ID=2
@@ -246,10 +246,10 @@ Feature records near each pad, from the check script with `--odb-root`.
 Candidate 1:
 
 ```text
-$ python direct_connect/check.py --candidate no-effect \
-    --odb-root designs/direct_connect.design.DirectConnectNoEffectDesign/odb
+$ python <project>/check.py --candidate no-effect \
+    --odb-root designs/<project>.design.DirectConnectNoEffectDesign/odb
 ...
-ODB features: designs/direct_connect.design.DirectConnectNoEffectDesign/odb/steps/pcb/layers/l1/features
+ODB features: designs/<project>.design.DirectConnectNoEffectDesign/odb/steps/pcb/layers/l1/features
   default-thermal: 58 nearby record(s)
     OB -1.6031650 0.1000000 H
     ... 56 contour vertices ...
@@ -263,10 +263,10 @@ ODB features: designs/direct_connect.design.DirectConnectNoEffectDesign/odb/step
 Candidate 2:
 
 ```text
-$ python direct_connect/check.py --candidate wide-spoke \
-    --odb-root designs/direct_connect.design.DirectConnectWideSpokeDesign/odb
+$ python <project>/check.py --candidate wide-spoke \
+    --odb-root designs/<project>.design.DirectConnectWideSpokeDesign/odb
 ...
-ODB features: designs/direct_connect.design.DirectConnectWideSpokeDesign/odb/steps/pcb/layers/l1/features
+ODB features: designs/<project>.design.DirectConnectWideSpokeDesign/odb/steps/pcb/layers/l1/features
   default-thermal: 58 nearby record(s)
     OB -1.6031650 0.1000000 H
     ... 56 contour vertices ...

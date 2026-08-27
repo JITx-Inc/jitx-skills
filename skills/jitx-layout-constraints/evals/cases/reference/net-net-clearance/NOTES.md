@@ -47,26 +47,26 @@ Runtime: reachable at ws://localhost:<port>/<session>
 
 $ jitx find
 designs:
-  layout_constraints_wp5.default_rules.design.DefaultRulesDesign
-  layout_constraints_wp5.net_net_clearance.design.BelowFloorClearanceDesign
-  layout_constraints_wp5.net_net_clearance.design.NetNetClearanceDesign
-  layout_constraints_wp5.net_net_clearance.design._ClearanceDesign
+  <project>.default_rules.design.DefaultRulesDesign
+  <project>.net_net_clearance.design.BelowFloorClearanceDesign
+  <project>.net_net_clearance.design.NetNetClearanceDesign
+  <project>.net_net_clearance.design._ClearanceDesign
 
-$ jitx build layout_constraints_wp5.net_net_clearance.design.NetNetClearanceDesign
-Running design layout_constraints_wp5.net_net_clearance.design.NetNetClearanceDesign...
+$ jitx build <project>.net_net_clearance.design.NetNetClearanceDesign
+Running design <project>.net_net_clearance.design.NetNetClearanceDesign...
 Saving stable design and reference designator table
-layout_constraints_wp5.net_net_clearance.design.NetNetClearanceDesign:
-  design: layout_constraints_wp5.net_net_clearance.design.NetNetClearanceDesign
+<project>.net_net_clearance.design.NetNetClearanceDesign:
+  design: <project>.net_net_clearance.design.NetNetClearanceDesign
   status: ok
 
-$ jitx build layout_constraints_wp5.net_net_clearance.design.BelowFloorClearanceDesign
-Running design layout_constraints_wp5.net_net_clearance.design.BelowFloorClearanceDesign...
+$ jitx build <project>.net_net_clearance.design.BelowFloorClearanceDesign
+Running design <project>.net_net_clearance.design.BelowFloorClearanceDesign...
 Saving stable design and reference designator table
-layout_constraints_wp5.net_net_clearance.design.BelowFloorClearanceDesign:
-  design: layout_constraints_wp5.net_net_clearance.design.BelowFloorClearanceDesign
+<project>.net_net_clearance.design.BelowFloorClearanceDesign:
+  design: <project>.net_net_clearance.design.BelowFloorClearanceDesign
   status: ok
 
-$ python3 -m layout_constraints_wp5.net_net_clearance.check
+$ python3 -m <project>.net_net_clearance.check
 no computed net for port in component circuit.power_pad: unused
 no computed net for port in component circuit.ground_pad: unused
 no computed net for port in component circuit.power_pad: unused
@@ -125,7 +125,7 @@ landpattern stacks its two pads along Y, so `route_pad` (pad 1) sits at
 between the two route pads, not trace to trace. Every clearance check passed
 without the two nets ever coming near the rule.
 
-## Fixes made
+## Changes recorded during the run
 
 1. `net-net-clearance/design.py`, `ParallelRoutes`: convergence moved out of the
    sketch and into the endpoints. The class attribute `middle_offset` (0.10 mm,
@@ -158,9 +158,9 @@ cannot be instantiated, so `jitx build-all` in a project holding this case
 reports an error:
 
 ```text
-$ jitx build layout_constraints_wp5.net_net_clearance.design._ClearanceDesign
-layout_constraints_wp5.net_net_clearance.design._ClearanceDesign:
-  design: layout_constraints_wp5.net_net_clearance.design._ClearanceDesign
+$ jitx build <project>.net_net_clearance.design._ClearanceDesign
+<project>.net_net_clearance.design._ClearanceDesign:
+  design: <project>.net_net_clearance.design._ClearanceDesign
   errors:
     instantiation failed:
       '_ClearanceDesign' object has no attribute 'requested_clearance' at net_net_clearance/design.py:136
@@ -177,7 +177,7 @@ also means there is no engine-computed copper in this probe on which a clearance
 rule could have been caught being enforced. The legacy ODB++ cross-check was not
 run.
 
-## Rerun after check rewrite
+## Later run: Rerun after check rewrite
 
 The `check.py` above now asserts the observed behavior rather than the request,
 so it exits 0 while the runtime leaves code-authored routes where the code put
@@ -187,7 +187,7 @@ them. Rerun on py-jitx 4.4.0rc5.dev2, runtime 4.4.0-rc.9, substrate
 exited 1 on the same measurements.
 
 ```text
-$ python3 -m layout_constraints_wp5.net_net_clearance.check
+$ python3 -m <project>.net_net_clearance.check
 example rule, source: skill example above the fabrication floor
 PASS routes: measured=0 expected=0 checked=2 unrealized=0
 PASS width: measured=0.2000 expected=0.2000 net=POWER layer=0 tol=0.0010 mm
@@ -223,7 +223,7 @@ lists only the two concrete designs and the `_ClearanceDesign` build error in
 ```text
 $ jitx find
 designs:
-  layout_constraints_wp5.default_rules.design.DefaultRulesDesign
-  layout_constraints_wp5.net_net_clearance.design.BelowFloorClearanceDesign
-  layout_constraints_wp5.net_net_clearance.design.NetNetClearanceDesign
+  <project>.default_rules.design.DefaultRulesDesign
+  <project>.net_net_clearance.design.BelowFloorClearanceDesign
+  <project>.net_net_clearance.design.NetNetClearanceDesign
 ```

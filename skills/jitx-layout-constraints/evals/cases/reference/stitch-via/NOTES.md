@@ -16,7 +16,7 @@ object itself is what the rule resolves.
 The package under test reports `4.4.0rc5.dev2` (`jitxcore 4.4.0rc1`,
 `jitxlib-jlcpcb 1.0.1.dev7`). An isolated project was staged with a
 `pyproject.toml` declaring `jitx`, `jitxlib-standard`, and `jitxlib-jlcpcb`, and
-a flat `stitch_via_probe/` package holding `__init__.py` plus byte-identical
+a flat `<project>/` package holding `__init__.py` plus byte-identical
 copies of `stitch_via_design.py` and `check_stitch_via.py`. Every command below
 was run from that project root. `$JITX` and `$PY` are the `jitx` and `python`
 entry points of the venv that has jitx installed.
@@ -42,21 +42,21 @@ $ $JITX runtime start --background
 {
   "mode": "background",
   "pid": 39699,
-  "uri": "ws://localhost:63165/vpjfb2",
+  "uri": "ws://localhost:<port>/<id>",
   "log_path": ".jitx/logs/runtime.log",
   "exit_code": null
 }
 
 $ $JITX runtime status
-Runtime: reachable at ws://localhost:63165/vpjfb2
+Runtime: reachable at ws://localhost:<port>/<id>
   PID:   39699
   Mode:  background
 
 $ PYTHONPATH=. $JITX find
 designs:
-  stitch_via_probe.stitch_via_design.DirectAttributeViaDesign
-  stitch_via_probe.stitch_via_design.MixinViaDesign
-  stitch_via_probe.stitch_via_design.ModuleScopeViaDesign
+  <project>.stitch_via_design.DirectAttributeViaDesign
+  <project>.stitch_via_design.MixinViaDesign
+  <project>.stitch_via_design.ModuleScopeViaDesign
 ```
 
 The runtime started on the first attempt on its own port, no retry needed.
@@ -67,14 +67,14 @@ Code shape: `JLC04161H_7628.StdViaPreferred`, inherited by the predefined
 substrate through `JLCPCBVias`, is passed directly to `stitch_via`.
 
 ```text
-$ PYTHONPATH=. $JITX build stitch_via_probe.stitch_via_design.MixinViaDesign
-Running design stitch_via_probe.stitch_via_design.MixinViaDesign...
+$ PYTHONPATH=. $JITX build <project>.stitch_via_design.MixinViaDesign
+Running design <project>.stitch_via_design.MixinViaDesign...
 Saving stable design and reference designator table
-stitch_via_probe.stitch_via_design.MixinViaDesign:
-  design: stitch_via_probe.stitch_via_design.MixinViaDesign
+<project>.stitch_via_design.MixinViaDesign:
+  design: <project>.stitch_via_design.MixinViaDesign
   status: ok
 
-$ PYTHONPATH=. $PY -m stitch_via_probe.check_stitch_via mixin
+$ PYTHONPATH=. $PY -m <project>.check_stitch_via mixin
 variant=mixin status=ok via_count=9
 ```
 
@@ -87,14 +87,14 @@ Code shape: `DirectAttributeSubstrate.DirectStitchVia` aliases the same
 and is passed to `stitch_via`.
 
 ```text
-$ PYTHONPATH=. $JITX build stitch_via_probe.stitch_via_design.DirectAttributeViaDesign
-Running design stitch_via_probe.stitch_via_design.DirectAttributeViaDesign...
+$ PYTHONPATH=. $JITX build <project>.stitch_via_design.DirectAttributeViaDesign
+Running design <project>.stitch_via_design.DirectAttributeViaDesign...
 Saving stable design and reference designator table
-stitch_via_probe.stitch_via_design.DirectAttributeViaDesign:
-  design: stitch_via_probe.stitch_via_design.DirectAttributeViaDesign
+<project>.stitch_via_design.DirectAttributeViaDesign:
+  design: <project>.stitch_via_design.DirectAttributeViaDesign
   status: ok
 
-$ PYTHONPATH=. $PY -m stitch_via_probe.check_stitch_via direct
+$ PYTHONPATH=. $PY -m <project>.check_stitch_via direct
 variant=direct status=ok via_count=9
 ```
 
@@ -106,14 +106,14 @@ Code shape: `ModuleScopeStitchVia` is a module-scope subclass of
 `JLC04161H_7628.StdViaPreferred` and is passed to `stitch_via`.
 
 ```text
-$ PYTHONPATH=. $JITX build stitch_via_probe.stitch_via_design.ModuleScopeViaDesign
-Running design stitch_via_probe.stitch_via_design.ModuleScopeViaDesign...
+$ PYTHONPATH=. $JITX build <project>.stitch_via_design.ModuleScopeViaDesign
+Running design <project>.stitch_via_design.ModuleScopeViaDesign...
 Saving stable design and reference designator table
-stitch_via_probe.stitch_via_design.ModuleScopeViaDesign:
-  design: stitch_via_probe.stitch_via_design.ModuleScopeViaDesign
+<project>.stitch_via_design.ModuleScopeViaDesign:
+  design: <project>.stitch_via_design.ModuleScopeViaDesign
   status: ok
 
-$ PYTHONPATH=. $PY -m stitch_via_probe.check_stitch_via module
+$ PYTHONPATH=. $PY -m <project>.check_stitch_via module
 variant=module status=ok via_count=9
 ```
 
@@ -127,7 +127,7 @@ a throwaway probe module in the same project submitted a fourth design, same
 reprinted the mixin variant with each via's composed position:
 
 ```text
-$ PYTHONPATH=. $PY -m stitch_via_probe.control_probe
+$ PYTHONPATH=. $PY -m <project>.control_probe
 no_rule via_count=0
 mixin via_count=9
   Proxy at (-2.0, -2.0)

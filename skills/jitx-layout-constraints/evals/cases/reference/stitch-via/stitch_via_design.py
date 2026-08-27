@@ -82,6 +82,17 @@ class DirectAttributeViaDesign(Design):
         ]
 
 
+class ControlNoRuleDesign(Design):
+    """Same board, substrate, and tagged pour with no stitch rule: the control."""
+
+    board = StitchBoard()
+    substrate = JLC04161H_7628()
+    circuit = StitchCircuit()
+
+    def __init__(self) -> None:
+        self.rules = []
+
+
 class ModuleScopeViaDesign(Design):
     board = StitchBoard()
     substrate = JLC04161H_7628()
