@@ -1,0 +1,51 @@
+{
+  "name": "decoupling-bank",
+  "prompt": "Build a two-rail DecouplingBank (skill default: two rails) around my IC. Use one capacitor per power-pin group (skill default: one per group), solve the capacitor and via placement geometrically, add the local power puddles and tagged escape routes, and prove the routes and placements after capture.",
+  "inputs": {
+    "substrate": "jitxlib.jlcpcb.JLC04161H_7628",
+    "ic": "A four-pad placeholder QFN (skill default: four pads) with two power pins and two ground pins (skill default: two of each). The placeholder must be identified as such.",
+    "engineering_basis": "Eric Bogatin, Seven Habits of Successful 2-Layer Board Designers, Signal Integrity Journal, 2019-04-23. Use only the decoupling claims allowed by the task brief.",
+    "notes": "Use scripts/decoupling_solver.py as a copied, pure-Python project helper. Capacitor and IC geometry must come from queried landpatterns or values labeled skill default on their line. Use the substrate via class and FabricationConstraints floors.",
+    "environment": "Commands run from the repository root with python3 resolving to the project interpreter that has jitx installed and a reachable runtime for the capture check."
+  },
+  "reference": {
+    "file": "evals/cases/reference/decoupling-bank/design.py",
+    "check": "evals/cases/reference/decoupling-bank/check.py",
+    "notes": "The reference wraps a placeholder IC inside a DecouplingBank placed explicitly at (0, 0) so its routes share a common owning circuit; a floating bank with no interactive placement is parked off the board and its routes silently fail, which is why the reference is not floating. The reference shows one valid structural shape, not the only acceptable one."
+  },
+  "runner_models": [
+    "sonnet"
+  ],
+  "runner_rationale": "The skill must carry enough API and verification detail for a normal coding agent to produce a buildable bank, while judges remain frontier-tier.",
+  "expected_output": "A pure deterministic solver with frozen dataclasses and stdlib unittest coverage, a DecouplingBank that owns one largest-value, smallest-qualified-package capacitor per structural hint (skill default: one capacitor per hint) with short_trace=True, two substrate-via instances per capacitor (skill default: two vias per capacitor), local rail puddles, tagged escape routes at rung 4 of the skill's priority ladder, a captured reference design, and a check script that fails on unrealized routes or placement mismatch and reports the solver loop areas.",
+  "assertions": [
+    {
+      "text": "the pure solver unit suite passes, covering success, infeasibility, determinism, competing placements, and the loop-area objective",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-layout-constraints/scripts/test_decoupling_solver.py"
+    },
+    {
+      "text": "the solver and every reference Python module type-check against the installed JITX package",
+      "check": "deterministic",
+      "cmd": "python3 -m pyright --pythonpath \"$(command -v python3)\" skills/jitx-layout-constraints/scripts/decoupling_solver.py skills/jitx-layout-constraints/evals/cases/reference/decoupling-bank/*.py"
+    },
+    {
+      "text": "the captured reference has realized escape routes, selected-capacitor geometry matching the solver input, and queried capacitor and via placements matching the solver with correct via net membership",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-layout-constraints/evals/cases/reference/decoupling-bank/check.py"
+    },
+    {
+      "text": "the design does not recommend or instantiate a per-pin 10 uF, 1 uF, and 0.1 uF capacitor stack",
+      "check": "judge"
+    },
+    {
+      "text": "loop inductance between the IC power and return pins and the capacitor is named as the selection criterion, with solved loop area presented only as its geometric proxy",
+      "check": "judge"
+    },
+    {
+      "text": "decoupling hints are frozen records that list actual IC Port objects and are keyed by structural objects, not by assembled strings",
+      "check": "judge"
+    }
+  ],
+  "future_cases": "Add a datasheet-driven BGA power-bank case and a case with asymmetric shaped IC pads after those package geometries have built references."
+}

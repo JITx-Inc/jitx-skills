@@ -173,6 +173,24 @@ shapely geometry is its `.g`) — bounds, area, distance, intersection checks al
 work from there. Authoring in the other direction (shapely → jitx features) is
 covered in the main skill page ("Custom shapes with shapely").
 
+Two traps that produce confident wrong numbers: query-returned pad and via
+copper is in the source's local frame (compose `trace.transform`, see
+"Coordinate frames"; without it every distance reads 0.0000), and
+`PolygonSet.to_shapely()` turns a computed pour's cutout rings into solid
+polygons, so rebuild pour geometry ring by ring before measuring against it.
+A captured `Pour` is the pre-voiding input outline on the 4.4 line (the board
+plane returns at full area with no interior rings), so trace-to-pour
+clearance and thermal relief are not visible in `rd.query` output; the legacy
+ODB++ export below is the runtime-side cross-check for them.
+One more: `Route(..., sketch=[...])` intermediate points are dropped on runtime
+4.4.0-rc.9 and the route realizes straight between its endpoints, so a probe
+that relies on a sketch to bend a route passes vacuously; author turns with
+`RoutePoint`s and assert the realized bounds. And a circuit placed with
+`.at(floating=True)` but never placed interactively is parked off the board by
+the runtime: its routes fail with `Route targets not in router: ... is off the
+board` and `traces` stays `None`, while `jitx build` reports `status: ok`. Give
+headless and reference designs explicit positions.
+
 ## Interop notes
 
 - The export CLI (`jitx design export <plugin> <module.Class>`) runs this same

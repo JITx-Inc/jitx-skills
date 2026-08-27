@@ -415,7 +415,7 @@ Reference planes for the rule effect resolve through `ref_net=` (one net for all
 reference layers), `ref_layer_nets={layer: net}`, or an active `ReferencePlanes`
 context — note the kwarg names differ from `Constrain.structure(...,
 ref_layers=)`. Full signature and the three resolution modes:
-`jitx-substrate-modeler` "Routing structures as a rule effect".
+`jitx-layout-constraints` `references/rule-reference.md`.
 
 ## Building Protocol Constraints (SignalConstraint)
 

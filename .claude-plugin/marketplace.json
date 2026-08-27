@@ -5,13 +5,13 @@
     "email": "support@jitx.com"
   },
   "metadata": {
-    "description": "JITX hardware design automation skills for PCB design, component modeling, substrate modeling, circuit creation, physical layout authoring, signal integrity constraints, pin assignment flexibility, same-model JITX code review, and mechanical CAD interchange",
-    "version": "1.7.0"
+    "description": "JITX hardware design automation skills for PCB design, component modeling, substrate modeling, circuit creation, physical layout authoring, layout constraints and design rules, signal integrity constraints, pin assignment flexibility, same-model JITX code review, and mechanical CAD interchange",
+    "version": "1.8.0"
   },
   "plugins": [
     {
       "name": "jitx-skills",
-      "description": "JITX workflow skills for PCB design. Use jitx-component-modeler for component creation from datasheets. Use jitx-circuit-builder for wiring circuits, passives, and application circuits. Use jitx-substrate-modeler for capturing information about the fabrication substrate. Use jitx-physical-layout for authoring physical layout geometry from code \u2014 shapely custom shapes, copper and overlappable copper (antennas, filters, net-ties), pad features, code-placed vias and routes, and layout-intent tags. Use jitx-interconnect-constraints for signal integrity constraints, topology, differential pairs, and protocol-level constraint patterns. Use jitx-pin-assignment for pin assignment patterns including provide/require, pin muxing, DiffPair P/N swapping, PCIe lane ordering, DDR byte/bit swapping, and topology+constraint composition on pin-assigned ports. Use jitx-code-review for same-model self-critique of JITX Python code against the anti-string-hacking architectural rules \u2014 mandatory for complete-board tier at task acceptance, user-invoked for single-task work. Use jitx-mechanical for mechanical CAD import/export through the jitx-mechanical CLI, Model3D STEP attachment, and board STEP export guidance.",
+      "description": "JITX workflow skills for PCB design. Use jitx-component-modeler for component creation from datasheets. Use jitx-circuit-builder for wiring circuits, passives, and application circuits. Use jitx-substrate-modeler for capturing information about the fabrication substrate. Use jitx-physical-layout for authoring physical layout geometry from code \u2014 shapely custom shapes, copper and overlappable copper (antennas, filters, net-ties), pad features, code-placed vias and routes, and layout-intent tags. Use jitx-layout-constraints for design rules, clearances, net classes, power trace width, decoupling placement, pour rules, and fanout step-down into package pads. Use jitx-interconnect-constraints for signal integrity constraints, topology, differential pairs, and protocol-level constraint patterns. Use jitx-pin-assignment for pin assignment patterns including provide/require, pin muxing, DiffPair P/N swapping, PCIe lane ordering, DDR byte/bit swapping, and topology+constraint composition on pin-assigned ports. Use jitx-code-review for same-model self-critique of JITX Python code against the anti-string-hacking architectural rules \u2014 mandatory for complete-board tier at task acceptance, user-invoked for single-task work. Use jitx-mechanical for mechanical CAD import/export through the jitx-mechanical CLI, Model3D STEP attachment, and board STEP export guidance.",
       "source": "./",
       "strict": true,
       "skills": [
@@ -20,6 +20,7 @@
         "./skills/jitx-circuit-builder",
         "./skills/jitx-substrate-modeler",
         "./skills/jitx-physical-layout",
+        "./skills/jitx-layout-constraints",
         "./skills/jitx-interconnect-constraints",
         "./skills/jitx-pin-assignment",
         "./skills/jitx-code-review",

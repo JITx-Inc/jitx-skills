@@ -1,7 +1,7 @@
 {
   "name": "jitx-skills",
-  "version": "1.7.0",
-  "description": "JITX hardware design automation skills for PCB design, component modeling, substrate modeling, circuit creation, physical layout authoring, signal integrity constraints, pin assignment flexibility, code review, and mechanical CAD interchange.",
+  "version": "1.8.0",
+  "description": "JITX hardware design automation skills for PCB design, component modeling, substrate modeling, circuit creation, physical layout authoring, layout constraints and design rules, signal integrity constraints, pin assignment flexibility, code review, and mechanical CAD interchange.",
   "author": {
     "name": "JITX Support",
     "email": "support@jitx.com",
@@ -22,7 +22,7 @@
   "interface": {
     "displayName": "JITX Skills",
     "shortDescription": "Design PCBs with JITX Python workflows",
-    "longDescription": "JITX Skills packages reusable agent workflows for building JITX Python PCB designs, including component modeling, circuit wiring, substrate creation, physical layout, signal-integrity constraints, pin assignment, code review, and mechanical CAD interchange.",
+    "longDescription": "JITX Skills packages reusable agent workflows for building JITX Python PCB designs, including component modeling, circuit wiring, substrate creation, physical layout, layout constraints and design rules, signal-integrity constraints, pin assignment, code review, and mechanical CAD interchange.",
     "developerName": "JITX Support",
     "category": "Developer Tools",
     "capabilities": [

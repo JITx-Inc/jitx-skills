@@ -103,7 +103,7 @@ Example triggers:
 
 ### jitx-substrate-modeler
 
-Model JITX substrates: stackups, materials, vias, routing structures, fabrication constraints, and design rules.
+Model JITX substrates: stackups, materials, vias, routing structures, fabrication constraints, and fenced pour outlines.
 
 Example triggers:
 
@@ -120,6 +120,16 @@ Example triggers:
 - "Draw an IFA antenna from code"
 - "Create a net tie between AGND and DGND"
 - "Route the BGA escape lanes from code"
+
+### jitx-layout-constraints
+
+Design rules for the layout: board-wide defaults, net classes with width and clearance rules, power routing width, decoupling placement, pour rules, tag-based fanout step-down into package pads, and after-build width and clearance checks.
+
+Example triggers:
+
+- "Keep the 12 V copper 0.3 mm from ground on the inner layer"
+- "The 0.5 mm power trace won't fit the QFN pad"
+- "Why isn't my clearance rule applying?"
 
 ### jitx-interconnect-constraints
 
@@ -186,6 +196,7 @@ jitx-skills/
 │   ├── jitx-circuit-builder/
 │   ├── jitx-substrate-modeler/
 │   ├── jitx-physical-layout/
+│   ├── jitx-layout-constraints/
 │   ├── jitx-interconnect-constraints/
 │   ├── jitx-pin-assignment/
 │   ├── jitx-code-review/

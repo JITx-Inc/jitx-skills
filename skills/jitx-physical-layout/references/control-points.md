@@ -49,7 +49,7 @@ self.routes = [r]                      # store on self so the structural walk se
   from a pad into a code-placed via.
 - **No per-route width/clearance overrides.** `Route` carries no configuration —
   width/clearance/structure come from `design_constraint(...)` rules keyed on tags
-  (rule mechanics in `jitx-substrate-modeler`). **Where the tag goes matters:**
+  (rule mechanics in `jitx-layout-constraints`). **Where the tag goes matters:**
   - single-ended fanout: tag the *route* (`Tags(PinFanoutTag()).assign(r)`);
   - **differential structures: tag the NET, never the individual routes.** Tagging a
     pair's routes separately lets the two sides of one control point carry different

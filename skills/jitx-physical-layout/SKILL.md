@@ -24,16 +24,18 @@ geometry by **capturing and asserting the realized copper**
 | Draw copper shapes, antennas, filters, net-ties, custom board/pad geometry | **this skill** |
 | Build a shape with shapely and feed it to any feature | **this skill** |
 | Add soldermask/paste/thermal-pad features, place vias/components from code | **this skill** |
-| Tag layout objects (fanout, escape, direct-connect) for selection | **this skill** (rule *mechanics* → substrate-modeler) |
+| Tag layout objects (fanout, escape, direct-connect) for selection | **this skill** (rule *mechanics* → `jitx-layout-constraints`) |
 | Code-based routes & control points (escape lanes, deskew) | **this skill** (advanced — see reference) |
+| Design rules: clearances, widths, net classes, escape rule ladders, after-build width/clearance checks | `jitx-layout-constraints` |
 | Wire nets, add passives, voltage dividers, basic pours | `jitx-circuit-builder` |
 | Define the stackup, vias, routing structures, fence-via rules, fenced pour outlines | `jitx-substrate-modeler` |
 | Author a component's package/landpattern from a datasheet | `jitx-component-modeler` |
 | Topology (`>>`), timing/skew/impedance constraints | `jitx-interconnect-constraints` |
 
-This skill covers the design-side *geometry and placement*; the substrate owns the
-*rule definitions* (`design_constraint(...)`, via classes, routing structures) that
-act on it. Where they meet, this skill cross-references rather than restating.
+This skill covers the design-side *geometry and placement*; `jitx-layout-constraints`
+owns the `design_constraint(...)` rules that act on it, and the substrate owns the via
+classes and routing structures those rules reference. Where they meet, this skill
+cross-references rather than restating.
 
 ## Environment
 
@@ -357,8 +359,8 @@ breakouts), see `jitx-substrate-modeler` "Fenced Pour Outlines".
 
 Use tags to **mark which physical objects** get special layout treatment; the
 **rule** that defines the treatment (width, clearance, thermal relief, fence vias,
-routing structure) is declared in the substrate or top-level design via
-`design_constraint(...)` — see `jitx-substrate-modeler`.
+routing structure) is declared on the design or the owning circuit via
+`design_constraint(...)`; see `jitx-layout-constraints`.
 
 Apply with `MyLayoutTag().assign(obj)` or `Tags(tag_a, tag_b).assign(obj1, obj2)` —
 always a `Tag` *subclass you define*, never the bare `Tag` base — inside a
@@ -370,8 +372,8 @@ Tagging a **container tags the copper objects inside it** — tag a `Landpattern
 and every pad in it inherits the tag; same for a `Component` or `Circuit`. Tag
 `self` in a class `__init__` to tag *all instances* of that class. Assignment
 outside a design-relevant context emits a `RuntimeWarning` and has no effect, and
-assigning a `BuiltinTag` raises `TypeError` (builtins are rule conditions only —
-see `jitx-substrate-modeler`).
+assigning a `BuiltinTag` raises `TypeError` (builtins are rule conditions only;
+see `jitx-layout-constraints`).
 
 Common layout-intent tag roles (define the `Tag` subclasses in your design):
 

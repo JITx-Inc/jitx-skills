@@ -68,6 +68,7 @@ Copy this template verbatim. Fill every field. Every `N/A` requires a reason.
 **Checks run:**
 - <Domain checklist name linked from domain-checklists.md>: N/N items, M issues fixed, K items N/A (with reasons)
 - General Gotcha Scrub: N/N items
+- Layout rules (tasks that declare design rules): `python <check script>` exit <code>; N rules witnessed, M unwitnessed named as open items
 - `ruff check`: clean | <N issues, fixed>
 - `ruff format`: applied
 - `pyright`: clean | <N issues, fixed> | not available (<reason>)
@@ -290,7 +291,7 @@ The criteria mirror the exit-gate bullet lists in `references/project-builder-fl
 
 **Passive defaults:** `capacitor_defaults` and `resistor_defaults` set on the Design class to match the manufacturing path and circuit role; per-circuit overrides for specialty parts documented
 
-**Default design rules:** `self.rules` on the Design class contains the four canonical entries — default trace width (`IsTrace`), copper-to-copper clearance (`IsCopper`, `IsCopper`), thermal relief on pads (`IsPad`), and wider trace rule for tagged power/ground rails (`PowerTag | GroundTag`, `priority=1`). Values calibrated to substrate fab class. See `project-builder-flow.md` "Default design rules"
+**Default design rules:** `self.rules` on the Design class contains the four canonical entries: default trace width (`IsTrace`), copper-to-copper clearance (`IsCopper`, `IsCopper`), thermal relief on pads (`IsPad`), and wider trace rule for tagged power/ground rails (`PowerTag | GroundTag`, `priority=1`). Values calibrated to substrate fab class. See `project-builder-flow.md` "Default design rules" and the `jitx-layout-constraints` skill
 
 **Board geometry:** shape, mounting holes, pours defined
 
