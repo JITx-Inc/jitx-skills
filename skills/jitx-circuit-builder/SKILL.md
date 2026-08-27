@@ -124,17 +124,19 @@ self.i2c_nets = [
 self.topology = self.driver.out >> self.trace >> self.receiver.inp
 ```
 
-**`+=` takes one port, not a sequence — loop over a rail list.** A component's repeated-name rail (`GND`, `VCCO_*`) is a Python `list` of ports, so tying a whole rail onto a net is the obvious one-liner and the one that fails:
+**`+=` takes one port, not a sequence — wrap a rail list in a `Net`.** A component's repeated-name rail (`GND`, `VCCO_*`) is a Python `list` of ports. `Net(...)` accepts an iterable, so there is a one-liner; `+=` does not, so the obvious splice is the thing that breaks:
 
 ```python
-self.GND += [*self.u1.GND, *self.u1.RSVDGND]   # WRONG
-# jitx.error.InstantiationException: Incompatible ports on Net: Port and list
+self.GND += [*self.u1.GND, *self.u1.RSVDGND]              # WRONG
 
-for ball in self.u1.GND:                        # RIGHT
+self.GND = Net([*self.u1.GND, *self.u1.RSVDGND], name="GND")   # RIGHT
+self.GND += Net([*self.u1.GND, *self.u1.RSVDGND])              # RIGHT, onto an existing net
+
+for ball in [*self.u1.GND, *self.u1.RSVDGND]:                  # also fine, just longer
     self.GND += ball
 ```
 
-The list is treated as a single item whose type is `list`, and the error is then reported as a type mismatch against the ports *already on the net* — so it names neither the call that failed nor the fix, and it surfaces only at instantiation. On a part with hundreds of ground balls this is the first thing you write and the first thing that breaks.
+The list is taken as a single item whose type is `list`, and what you get back depends on the net's state: an empty net raises `TypeError: cannot use 'list' as a dict key (unhashable type: 'list')`, one that already carries ports raises `ValueError: Incompatible ports on Net: Port and list`. Both arrive wrapped in `InstantiationException: Failed to instantiate ...`, and neither message names the remedy. It surfaces only at instantiation. On a part with hundreds of ground balls this is the first thing you write.
 
 ## Passives
 
