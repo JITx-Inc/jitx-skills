@@ -683,7 +683,7 @@ Covers:
 - All rule effects: trace width, clearance, stitch and fence vias, thermal relief, pour feature size, routing structure as a rule
 - The four board-wide default rules (a Phase 3 gate item) and the net-class table
 - Power routing and decoupling per Bogatin's habits; pour rules; tag-based fanout step-down
-- After-build width, clearance, and route-realization checks (`scripts/layout_checks.py`)
+- After-build width, clearance, and route-realization checks (`jitx-layout-constraints/scripts/layout_checks.py`)
 
 This skill owns rules; `jitx-substrate-modeler` owns the fab floors and structure
 definitions the rules read; `jitx-physical-layout` owns the routes and control points

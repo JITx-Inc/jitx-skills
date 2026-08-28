@@ -97,7 +97,7 @@ For a same-model self-critique pass on the circuit after writing (catches what t
 
 ## Net Definitions
 
-Nets can be named in the design when the net is defined. It is good practice to name the net so that the schematic and layout construction are easy to follow. Every power and ground net **should** carry a symbol definition (`PowerSymbol()` / `GroundSymbol()`) — **at the top-level design only**. This is not cosmetic: power/ground symbols are what connect a rail across the schematic *without drawn wires*, so the schematic stays legible instead of a rats-nest, and rails join correctly when a design spans multiple schematic pages (see `jitx-component-modeler` "Multi-Unit Symbols" for page splitting). `PowerSymbol()` / `GroundSymbol()` outside `TOP_LEVEL_PATH` (default `designs/`) is a hard-fail under `scripts/grep_gates.py`; the example below shows the *top-level* pattern.
+Nets can be named in the design when the net is defined. It is good practice to name the net so that the schematic and layout construction are easy to follow. Every power and ground net **should** carry a symbol definition (`PowerSymbol()` / `GroundSymbol()`) — **at the top-level design only**. This is not cosmetic: power/ground symbols are what connect a rail across the schematic *without drawn wires*, so the schematic stays legible instead of a rats-nest, and rails join correctly when a design spans multiple schematic pages (see `jitx-component-modeler` "Multi-Unit Symbols" for page splitting). `PowerSymbol()` / `GroundSymbol()` outside `TOP_LEVEL_PATH` (default `designs/`) is a hard-fail under `<project>/scripts/grep_gates.py`, the copy the base `jitx` skill has you place during setup; the example below shows the *top-level* pattern.
 
 ```python
 # Top-level design (in <ns>/designs/...): symbols are legal here.
@@ -257,7 +257,7 @@ self.c_hf.insert(self.ic.VCC, self.GND, short_trace=True)
 - RF matching, coupling, or shunt caps (LNA input network, antenna feed) — placement is bookend-specific per the impedance budget
 - Crystal load caps — placed per the crystal datasheet, not as decoupling
 
-The `short_trace=True` rule is gated at the Phase 2 → Phase 3 exit. `python scripts/grep_gates.py <ns>/` flags every `.insert(...)` call missing `short_trace=` as review-required; the agent dispositions each: fix (add `short_trace=True`) for power-rail caps, accept-with-rationale (`exception: AC coupling`, `exception: RC time constant`, etc.) for non-power-rail caps, or N/A (`not a capacitor — resistor insert`).
+The `short_trace=True` rule is gated at the Phase 2 → Phase 3 exit. `python <project>/scripts/grep_gates.py <ns>/` — the copy the base `jitx` skill has you place during setup — flags every `.insert(...)` call missing `short_trace=` as review-required; the agent dispositions each: fix (add `short_trace=True`) for power-rail caps, accept-with-rationale (`exception: AC coupling`, `exception: RC time constant`, etc.) for non-power-rail caps, or N/A (`not a capacitor — resistor insert`).
 
 The skill also documents `ShortTrace(p1, p2)` as an alternative connect-with-short-trace primitive — see https://docs.jitx.com/en/latest/api/jitx.net.html#jitx.net.ShortTrace.
 

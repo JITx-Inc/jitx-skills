@@ -1,0 +1,44 @@
+{
+  "name": "repeated-block-extraction",
+  "prompt": "Three LDO stages off the same 5 V input — 3.3 V, 1.8 V and 1.2 V. Same part, same topology, only the feedback divider changes. Wire all three plus their input and output caps.",
+  "inputs": {
+    "notes": "The request describes a repeated block in so many words. This case tests whether that becomes one parameterized subcircuit instantiated three times, or three copies that will drift.",
+    "environment": "A parts-database query is available."
+  },
+  "expected_output": "One Circuit subclass taking the output voltage (or the divider values) as a parameter, instantiated three times at the level above, with the shared input rail and the three output rails wired at that level.",
+  "assertions": [
+    {
+      "text": "the grep gate is clean — no anonymous inserts, no setattr/getattr on self",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx/scripts/grep_gates.py <output>/"
+    },
+    {
+      "text": "the regulator stage appears as ONE Circuit subclass, not three near-identical classes and not three inline copies",
+      "check": "judge"
+    },
+    {
+      "text": "what differs between the stages is passed as constructor arguments, and what is the same is written once. A difference the copies have drifted apart on is the bug this rule exists to prevent",
+      "check": "judge"
+    },
+    {
+      "text": "the three instances are stored on the parent circuit — as separate attributes or one list attribute, and not both. Storing an object twice is two owners for one fact",
+      "check": "judge"
+    },
+    {
+      "text": "the shared 5 V input reaches all three stages through one net rather than three separately-built nets that happen to carry the same name",
+      "check": "judge"
+    },
+    {
+      "text": "each stage's divider produces its own stated output voltage, and the arithmetic is shown rather than asserted",
+      "check": "judge"
+    },
+    {
+      "text": "the subcircuit exposes declared ports for its input, output and ground rather than reaching into its parent or being reached into",
+      "check": "judge"
+    },
+    {
+      "text": "no parallel model of the three stages is maintained alongside the JITX objects — no dict keyed by rail-name strings, no list of net-name strings, where the framework's own objects already carry the same facts",
+      "check": "judge"
+    }
+  ]
+}
