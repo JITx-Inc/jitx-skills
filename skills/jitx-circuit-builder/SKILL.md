@@ -180,6 +180,33 @@ self.inductor = Inductor(inductance=4.7e-6, current_rating=3.0)
 
 For all passive values, especially those that are calculated, use the eseries Python package to ensure that the value is legal. If not otherwise specified use the E96 range of values.
 
+### Constrain the query, or the database picks for you
+
+A `Capacitor(...)` / `Resistor(...)` query returns *some* part matching what you stated, so every axis you leave open is an axis the database decides. Two are routinely forgotten and both change the circuit:
+
+- **`tolerance=`** — unstated, a ±20 % part satisfies a query written for a ±1 % job.
+- **`temperature_coefficient_code=`** (`"X7R"`, `"X5R"`, `"C0G"`) — unstated, a decoupling query can return **Y5V or Z5U**, which lose most of their capacitance across temperature and DC bias. A 100 nF Y5V at half its rated voltage is not a 100 nF cap.
+
+State both on every passive whose value matters, and rate ceramics with derating in mind — a 6.3 V X7R on a 3.3 V rail has already lost a third of its capacitance to DC bias, so 10 V or 16 V is the honest choice.
+
+### Decouple against the pins, and scale with the pin count
+
+A rail's decoupling is not one bank at the regulator. Two caps hung off a 96-ball core net are two caps for ninety-six balls, and `short_trace=True` cannot help — there are ninety-six places to be short to, so the router picks one.
+
+Loop over the ball list and insert against the balls:
+
+```python
+for ball in fpga.VCCINT:
+    Capacitor(capacitance=100e-9, rated_voltage=10.0,
+              temperature_coefficient_code="X7R").insert(ball, gnd_pin, short_trace=True)
+```
+
+One HF cap per one-or-two core balls, plus bulk per rail, is the ordinary starting point; fewer is a decision to state, not a default to fall into. If a placeholder is genuinely intended, say so *and* say what the real count should be.
+
+### Extract the repeated block at the second instance
+
+Three regulator stages that differ only in output voltage are one `Circuit` subclass instantiated three times, not three copies. Same for per-rail decoupling banks. The test is mechanical: if two blocks differ only in their arguments, they are one subcircuit with a parameter — and a difference the copies have drifted apart on is the bug this rule exists to prevent.
+
 ### `short_trace=True` is the default for power-rail capacitors
 
 Every capacitor `.insert(...)` call on a power rail — decoupling, bypass, bulk, output filter — **must** pass `short_trace=True`. The router uses this to minimize the trace length between the cap and its connected ports, which is what makes the cap actually decouple. Without it, the router may place a 0402 100 nF cap 20 mm from the IC and route through vias, defeating the purpose.
