@@ -8,8 +8,8 @@ package rule set that segment's width and clearance.
 This page owns the package geometry derivation. The complete rule surface is
 in `rule-reference.md`.
 Source citations (`jitx/constraints.py:910` and the like) point into the
-installed py-jitx package, `4.4.0rc5.dev2` build; line numbers move between
-builds, so confirm on another install before relying on one.
+installed py-jitx package on a `4.4.0` install; line numbers move between
+builds, so confirm on your own install before relying on one.
  Route and control-point mechanics are in
 `jitx-physical-layout/references/control-points.md`. Coordinate composition and
 capture are in

@@ -209,7 +209,7 @@ The criteria mirror the exit-gate bullet lists in `references/project-builder-fl
 ```markdown
 ## Gate: Phase 0 → Phase 1
 
-**Environment probe:** all of `jitx`, `jitxlib`, `jitxlib.parts`, `jitxlib.symbols.box`, `jitxlib.voltage_divider` import; target substrate package imports (e.g. `jitxlib.jlcpcb` for JLCPCB). See `jitx/SKILL.md` "Environment Setup".
+**Environment probe:** all of `jitx`, `jitxlib`, `jitxlib.parts`, `jitxlib.symbols.box`, `jitxlib.voltage_divider` import; target substrate package imports (e.g. `jitxlib.jlcpcb` for JLCPCB); `jitx --version` and `jitx runtime introspect` report the same major.minor. See `jitx/SKILL.md` "Environment Setup". The `jitxlib` namespace is split across distributions and installing `jitx` brings none of them — a failing probe here is almost always a missing `jitxlib-standard` / `jitxlib-parts` / `jitxlib-voltage-divider`, which is an install to do, not a module to work around.
 **Requirements lock complete:** yes — see `decomposition-guide.md` "Requirements Lock" — all eight rows in PLAN.md name their source. Rows reading `not specified` are listed here with the assumption standing in for them: <list, or "none">. No row states a value ARCHITECTURE.md owns, and no row records a datasheet-settled fact as an assumption rather than an open question
 **PLAN.md exists:** yes — `<path>` (referenced)
 **ARCHITECTURE.md exists:** yes — `<path>` (`Power Tree`, `Interface Map`, `Board`, and applicable `Object-Hierarchy Decisions` / `Design Notes`)

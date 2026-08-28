@@ -5,8 +5,8 @@ This is the worked detail for `SKILL.md`, "Routed power" and "Pours". Use
 surface. Rules remain structural (`jitx/_translate/design.py:187`). Higher priorities win when several rules match (`jitx/constraints.py:802`, `jitx/constraints.py:860`).
 
 Source citations (`jitx/constraints.py:910` and the like) point into the
-installed py-jitx package, `4.4.0rc5.dev2` build; line numbers move between
-builds, so confirm on another install before relying on one.
+installed py-jitx package on a `4.4.0` install; line numbers move between
+builds, so confirm on your own install before relying on one.
 
 Engineering basis: Eric Bogatin, ["Seven Habits of Successful 2-Layer Board Designers"](https://www.signalintegrityjournal.com/blogs/12-fundamentals/post/1207-seven-habits-of-successful-2-layer-board-designers),
 Signal Integrity Journal, 2019-04-23. Only claims that article makes are attributed to it.

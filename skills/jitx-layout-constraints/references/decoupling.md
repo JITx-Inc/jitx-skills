@@ -16,8 +16,8 @@ layout figure, the datasheet wins.
 ## What the solver controls
 
 Source citations (`jitx/constraints.py:910` and the like) point into the
-installed py-jitx package, `4.4.0rc5.dev2` build; line numbers move between
-builds, so confirm on another install before relying on one.
+installed py-jitx package on a `4.4.0` install; line numbers move between
+builds, so confirm on your own install before relying on one.
 
 `scripts/decoupling_solver.py` is pure Python. Copy it into the design project
 and import these frozen dataclasses. An infeasible bank raises `ValueError`

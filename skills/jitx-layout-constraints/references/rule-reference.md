@@ -2,10 +2,11 @@
 
 Conditions, effects, and signatures of the JITX design-rule system, cited to
 the installed 4.4 source (`jitx/constraints.py`, `jitx/si.py`,
-`jitx/substrate.py`, `jitx/copper.py`, `jitx/circuit.py`). Line numbers are
-from the `jitx 4.4.0rc5.dev2` build; on another install, open the file and confirm before
-relying on a signature. The public PyPI line (4.2.2) has the same class and
-method names for everything on this page except where marked.
+`jitx/substrate.py`, `jitx/copper.py`, `jitx/circuit.py`). Line numbers are from
+a `jitx 4.4.0` install and move with patch releases; class and method names are
+what this page is really asserting. On any install, open the file and confirm a
+signature before relying on it — that check costs seconds and this page cannot
+track your build.
 
 ## Conditions
 
@@ -127,16 +128,6 @@ Copper weight: `Conductor.thickness` in mm is the only field
 (`stackup.py:112`); JLCPCB's 1 oz is `Conductor(thickness=0.035)`. Nothing
 couples thickness to a rule; heavy-copper spacing is a per-layer binary
 clearance you write with the fab's value.
-
-## 4.2 differences
-
-- `Pour.isolate` is not marked deprecated on 4.2.2 but the same binary
-  clearance rules work there; write the rules, not `isolate=`.
-- Fenced differential structures applied through a rule fail on 4.2 when
-  built with `symmetric_routing_layers` (see `jitx-substrate-modeler`,
-  "Substrate sharp edges"); enumerate the layers explicitly.
-- The control-point accessors changed in 4.3 (`PairPoint.pair` became
-  `.front`/`.back`); see `jitx-physical-layout` `references/control-points.md`.
 
 ## Verified behaviors
 

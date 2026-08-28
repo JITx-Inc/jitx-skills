@@ -10,9 +10,9 @@ placement, code-driven vias/routes, and layout-intent tags — directly in Pytho
 This is the layer **between** schematic-level wiring (`jitx-circuit-builder`) and
 stackup/fab definition (`jitx-substrate-modeler`).
 
-JITX is a moving target — APIs on this page have been renamed across releases
-(the control-point classes in 4.2.0; the reverse-flow inspection surface is new in
-4.3). Do not rely on prior JITX knowledge — **verify every import and signature
+JITX is a moving target — the control-point classes and the reverse-flow
+inspection surface have both been reshaped across recent releases. Do not rely on
+prior JITX knowledge — **verify every import and signature
 with `pyright` against the installed package**, and verify control-point/route
 geometry by **capturing and asserting the realized copper**
 (`references/geometry-verification.md`), never by build success alone.
@@ -131,8 +131,8 @@ copper is allowed to **overlap** other copper:
 | `Copper(shape, layer)` | yes (`net += Copper(...)` or `a + Copper(...)`) | no | an explicit copper shape on one net |
 | `OverlappableCopper(shape, layer)` | **no** (netless) | **yes** | net-tie copper bridging two nets' pads, antenna radiators, filter copper — ignored by the router and overlap checks |
 
-`Copper(..., exempt=True)` was **removed in 4.2.0** — there is no on-net,
-overlap-exempt copper anymore. Overlap-tolerant copper is `OverlappableCopper`,
+`Copper(..., exempt=True)` does not exist — there is no on-net,
+overlap-exempt copper. Overlap-tolerant copper is `OverlappableCopper`,
 which is netless: its connectivity comes from the pads it overlaps.
 
 `Copper` lives in `jitx` (top-level / `jitx.copper`); `OverlappableCopper` lives in
@@ -399,10 +399,10 @@ Tags(PinFanoutTag()).assign(r)             # Route is a supported tag target
 
 ## Control points & code-based routes
 
-Surface reshaped in **JITX 4.3.0-rc.3+** (control points split netting from routing;
-`PairPoint.pair` removed). The module is **`jitx.controlpoint`** (the three classes
-are also re-exported from top-level `jitx`; pre-4.2 alphas used `SingleControl` /
-`InsertionControl` / `PairControl` — those names no longer import).
+Control points split netting from routing, and `PairPoint.pair` is gone in favour
+of `.front` / `.back`. The module is **`jitx.controlpoint`** (the three classes
+are also re-exported from top-level `jitx`; `SingleControl` / `InsertionControl` /
+`PairControl` are old alpha-era names and do not import).
 
 - `Route(source, destination, layer, sketch=None)` — a code-based route (not
   directional) between two endpoints, each a `Port` / `Pad` / `Via` /

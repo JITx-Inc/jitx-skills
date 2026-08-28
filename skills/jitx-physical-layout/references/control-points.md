@@ -3,9 +3,9 @@
 > **Surface reshaped in JITX 4.3.0-rc.3+ (py-jitx ≥ 4.3.0a17).** `Route` lives in
 > `jitx.circuit`; the control-point classes live in `jitx.controlpoint`
 > (`RoutePoint`, `PairInsertion`, `PairPoint` — also re-exported from top-level
-> `jitx`). Pre-4.2 alphas called them `SingleControl` / `InsertionControl` /
-> `PairControl` — old names, same classes, no longer import. **The routing vs.
-> netting split is new in 4.3.0-rc.3:** control points now separate the port used
+> `jitx`). `SingleControl` / `InsertionControl` / `PairControl` are old alpha-era
+> names for the same classes and no longer import. **On the routing vs.
+> netting split:** control points separate the port used
 > for *netting* (`.port`) from the endpoint(s) used for *routing* (`RoutePoint.pad`;
 > `PairPoint.front`/`.back`; `PairInsertion.coupled`/`.uncoupled`). `PairPoint.pair`
 > was **removed** and `RoutePoint.connection_point` was **renamed `.pad`**. On an

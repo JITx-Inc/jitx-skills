@@ -162,7 +162,7 @@ self.nets = [
 ```
 
 For netless overlapping copper (`OverlappableCopper` — antennas, filters, net-ties;
-`Copper(..., exempt=True)` was removed in 4.2.0) and shapely-built custom shapes, use
+`Copper(..., exempt=True)` does not exist) and shapely-built custom shapes, use
 the **jitx-physical-layout** subskill — it has the decision table for `Pour` vs
 `Copper` vs `OverlappableCopper`.
 

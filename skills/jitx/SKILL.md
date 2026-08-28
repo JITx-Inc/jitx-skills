@@ -11,6 +11,14 @@ Base skill for JITX hardware design automation. JITX is a Python framework for p
 
 The `jitx` CLI owns project scaffolding, auth, runtime install/start, and design build for VSCode-free workflows. Drive everything through it.
 
+> **Supported version line — one owner for this fact.** This bundle documents and is verified
+> against **jitx 4.4.x** (`jitx >= 4.4, < 4.5`), the public PyPI line as of the 4.4.0 release.
+> Every "verified on 4.4.0" note elsewhere in the bundle is evidence for a specific claim; this
+> line is the only place the *supported range* is stated, so no sibling skill restates it.
+> Earlier lines (4.0.x, 4.2.x) are no longer described here — APIs, defaults and CLI behaviour
+> below differ from what these pages say. On an older install, either upgrade or expect the
+> pages to disagree with your package; verify every import with `pyright` either way.
+
 > **Platform note (read once).** These commands run in **your** shell on **your** OS. macOS / Linux / WSL / Git Bash use **bash**; native Windows uses **PowerShell**. Commands identical in both (all `jitx ...`, `pip ...`, `pyright`, `ruff`, every `python scripts/...`) are shown once; where they diverge, a `bash` block and a `powershell` block are given — run the one for your shell.
 >
 > Conventions used throughout this bundle:
@@ -25,13 +33,11 @@ The `jitx` CLI owns project scaffolding, auth, runtime install/start, and design
 ```bash
 # bash (macOS / Linux / WSL / Git Bash)
 if ! command -v jitx >/dev/null 2>&1; then
-  # Bootstrap venv + install jitx from PyPI + the internal index.
-  # PIP_PRE / extra-index-url cover the 4.x pre-release line.
-  # `click` is a runtime import of the `jitx` CLI but the 4.3.x wheel doesn't declare it — install it explicitly.
+  # Everything below is on public PyPI. No index flags, no pre-release flags.
   [ -d .venv ] || python3 -m venv .venv 2>/dev/null || python -m venv .venv
   # venv layout: .venv/bin on macOS/Linux/WSL, .venv/Scripts under Git Bash (Windows Python).
   source .venv/bin/activate 2>/dev/null || source .venv/Scripts/activate
-  PIP_PRE=1 pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple jitx ruff click --quiet 2>&1 | tail -1
+  pip install "jitx>=4.4,<4.5" jitxlib-standard jitxlib-parts jitxlib-voltage-divider ruff --quiet 2>&1 | tail -1
 else
   # `jitx` is on PATH — activate the project venv if one exists so build/runtime calls resolve consistently.
   [ -d .venv ] && { source .venv/bin/activate 2>/dev/null || source .venv/Scripts/activate; }
@@ -42,12 +48,10 @@ jitx --version 2>/dev/null || jitx --help >/dev/null
 ```powershell
 # PowerShell (Windows)
 if (-not (Get-Command jitx -ErrorAction SilentlyContinue)) {
-  # Bootstrap venv + install jitx from PyPI + the internal index.
-  # PIP_PRE / extra-index-url cover the 4.x pre-release line.
-  # `click` is a runtime import of the `jitx` CLI but the 4.3.x wheel doesn't declare it — install it explicitly.
+  # Everything below is on public PyPI. No index flags, no pre-release flags.
   if (-not (Test-Path .venv)) { python -m venv .venv }
   .\.venv\Scripts\Activate.ps1
-  $env:PIP_PRE=1; pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple jitx ruff click --quiet 2>&1 | Select-Object -Last 1; Remove-Item Env:PIP_PRE
+  pip install "jitx>=4.4,<4.5" jitxlib-standard jitxlib-parts jitxlib-voltage-divider ruff --quiet 2>&1 | Select-Object -Last 1
 } else {
   # `jitx` is on PATH — activate the project venv if one exists so build/runtime calls resolve consistently.
   if (Test-Path .venv) { .\.venv\Scripts\Activate.ps1 }
@@ -56,7 +60,22 @@ if (-not (Get-Command jitx -ErrorAction SilentlyContinue)) {
 jitx --version 2>$null; if ($LASTEXITCODE -ne 0) { jitx --help | Out-Null }
 ```
 
-If `jitx --version` raises `ModuleNotFoundError: No module named 'click'`, the wheel's missing-dep gap bit you — `pip install click` resolves it.
+**Why those four packages.** `jitx` brings the framework and the CLI (and declares its own
+dependencies, `click` among them — nothing extra to install). The `jitxlib` namespace is split
+across distributions, and installing `jitx` alone gets you **none** of them:
+
+| Package | Gives you |
+|---|---|
+| `jitxlib-standard` | `jitxlib.landpatterns`, `.symbols`, `.protocols`, `.bundles`, `.via_structures`, `.physics` |
+| `jitxlib-parts` | `jitxlib.parts` — the `Resistor` / `Capacitor` / `Inductor` queries |
+| `jitxlib-voltage-divider` | `jitxlib.voltage_divider` — the solver this bundle **requires** for every divider |
+| `jitxlib-jlcpcb` | `jitxlib.jlcpcb` — add it only when JLCPCB is the confirmed fab house |
+
+`jitxlib-voltage-divider` is the one that gets missed, because nothing depends on it and the failure
+arrives late — the Phase 0 environment probe, or the first divider. Install it up front.
+
+**Pre-release builds** live on the internal index and are not needed for any of the above:
+`PIP_PRE=1 pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple ...`.
 
 ### Step 2 — Project layout (scaffold if missing)
 
@@ -66,12 +85,12 @@ if [ ! -f pyproject.toml ] || ! grep -q "jitx" pyproject.toml; then
   # No JITX project here — scaffold the canonical layout.
   # CONFIRM WITH THE USER BEFORE RUNNING in a non-empty directory.
   jitx project layout init
-  # Sync project deps. PIP_PRE + extra-index-url are required for `jitxlib-*` to resolve.
-  # Note: pip's resolver may re-pin `jitx` to an older 4.x that satisfies the project's `<5` constraint.
-  # This skills bundle documents the 4.2 API surface (RoutePoint/PairInsertion/PairPoint, runtime
-  # auto-resolution, etc. do not exist below 4.2) — if the resolver lands below 4.2, pin it:
-  #   PIP_PRE=1 pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple "jitx==4.2.*"
-  PIP_PRE=1 pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple -e . --quiet 2>&1 | tail -1
+  # Sync project deps from public PyPI.
+  # The scaffold pins `jitx<5`, so pip may resolve an older 4.x that still satisfies it.
+  # This bundle documents 4.4 — re-pin if the resolver drifts, and check what you got.
+  pip install -e . --quiet 2>&1 | tail -1
+  pip install "jitx>=4.4,<4.5" --quiet 2>&1 | tail -1
+  jitx --version
 fi
 ```
 ```powershell
@@ -80,12 +99,12 @@ if ((-not (Test-Path pyproject.toml)) -or (-not (Select-String -Quiet -Pattern "
   # No JITX project here — scaffold the canonical layout.
   # CONFIRM WITH THE USER BEFORE RUNNING in a non-empty directory.
   jitx project layout init
-  # Sync project deps. PIP_PRE + extra-index-url are required for `jitxlib-*` to resolve.
-  # Note: pip's resolver may re-pin `jitx` to an older 4.x that satisfies the project's `<5` constraint.
-  # This skills bundle documents the 4.2 API surface (RoutePoint/PairInsertion/PairPoint, runtime
-  # auto-resolution, etc. do not exist below 4.2) — if the resolver lands below 4.2, pin it:
-  #   $env:PIP_PRE=1; pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple "jitx==4.2.*"; Remove-Item Env:PIP_PRE
-  $env:PIP_PRE=1; pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple -e . --quiet 2>&1 | Select-Object -Last 1; Remove-Item Env:PIP_PRE
+  # Sync project deps from public PyPI.
+  # The scaffold pins `jitx<5`, so pip may resolve an older 4.x that still satisfies it.
+  # This bundle documents 4.4 — re-pin if the resolver drifts, and check what you got.
+  pip install -e . --quiet 2>&1 | Select-Object -Last 1
+  pip install "jitx>=4.4,<4.5" --quiet 2>&1 | Select-Object -Last 1
+  jitx --version
 }
 ```
 
@@ -162,19 +181,23 @@ if ($LASTEXITCODE -eq 0) {
 }
 ```
 
-**Runtime version.** Since 4.2, `jitx runtime install/update` with `--version`
-omitted asks the backend for the runtime build **matching the installed py-jitx
+**Runtime version.** `jitx runtime install/update` with `--version` omitted asks
+the backend for the runtime build **matching the installed py-jitx
 version** — that's the right default. (`--progress` follows the download on
 stderr.) Pass `--version` only when the project pins one explicitly:
 1. `$JITX_RUNTIME_VERSION` env var, or a `jitx.version` file in the project root.
 2. A `jitx` runtime version pinned in the project's `mise.toml` or equivalent.
 
 Honor an existing pin; otherwise omit `--version` and let the backend resolve.
-(Pre-4.2 CLIs require `--version` — if `jitx runtime update` errors asking for
-one, resolve it from (1)–(2) or ask the user.)
 
-**Channels:** development-channel runtime builds (versions like
-`4.3.0-develop.N`) are served by the testing backend — install them with
+**Keep the CLI and the runtime on the same line.** `jitx runtime introspect`
+prints the runtime's `version` and `installation_type`; `jitx --version` prints
+the package's. A 4.4 runtime under a 4.3 package (or the reverse) is the
+version-mismatch failure mode that surfaces as ambiguous errors much later —
+check both before deciding a build failure is your code.
+
+**Channels:** development-channel runtime builds (versions tagged
+`<major>.<minor>.<patch>-develop.N`, e.g. `4.4.0-develop.12`) are served by the testing backend — install them with
 `jitx runtime install --version <v> --testing` (the prod backend 404s on them).
 The runtime is **per-project** (discovered by walking up from CWD); each project
 you build or capture from needs its own `jitx runtime start --background`.
@@ -292,7 +315,7 @@ Durable rules for JITX Python user code. The architectural rules below protect a
     model** and is the dangerous one — an agent that takes it converts a working component into a
     broken one, and the breakage surfaces far away, at translation. Annotating `typing.ClassVar` is
     **runtime-neutral** — the component still instantiates and its ports are still found (verified on
-    4.4.0rc3) — but it misdescribes what the attribute is, since these are the object model rather
+    4.4.0) — but it misdescribes what the attribute is, since these are the object model rather
     than shared class state, so it buys silence at the cost of a false statement in the source.
     Prefer neither: silence the rule per-file in `[tool.ruff.lint.per-file-ignores]` for the design
     package, with a comment saying why.
@@ -356,11 +379,11 @@ the new pairing — restore `design-info/` from git and restart the project runt
 Never `rm -rf designs/<design>` casually (placements live there).
 
 **`status: ok` does not mean code routes realized copper.** Route realization is
-silent; verify it programmatically via the 4.3 reverse flow (submit + `capture()` +
+silent; verify it programmatically via the reverse flow (submit + `capture()` +
 assert `route.traces`) — see `jitx-physical-layout`
 `references/geometry-verification.md`.
 
-### Programmatic iteration & exports (4.3 reverse flow)
+### Programmatic iteration & exports (the reverse flow)
 
 For geometry-heavy iteration, skip the build CLI entirely: `with jitx.runtime as
 r: rd = r.submit(DesignClass); rd.capture()` gives python the *realized* design
@@ -658,8 +681,8 @@ Covers:
 - `PortAttachment` + explicit placement — `.at()` (default), `Circuit.place` (deferred/relative), local frames
 - Keepouts that shape pours; local-vs-global pour placement
 - Layout-intent tags for object selection (rule mechanics in jitx-layout-constraints)
-- `Route`, `RoutePoint`, `PairInsertion`, `PairPoint` (advanced; surface reshaped in
-  JITX 4.3.0-rc.3+ — netting/routing split, `PairPoint.pair` removed, `invert=` chirality)
+- `Route`, `RoutePoint`, `PairInsertion`, `PairPoint` (advanced; the netting/routing
+  split, `.front`/`.back` in place of `PairPoint.pair`, and `invert=` chirality)
 
 This skill owns design-side geometry and placement; the substrate owns the via and
 routing-structure *definitions*; `jitx-layout-constraints` owns the `design_constraint(...)`

@@ -33,11 +33,11 @@ after capture. Every section below ends in something you can measure.
 | Wire nets, passives, basic top-level pours | `jitx-circuit-builder` |
 | Component landpatterns (including the pad geometry escape rules read) | `jitx-component-modeler` |
 
-## Environment and version line
+## Environment
 
-Environment setup is the base `jitx` skill's job; invoke it first. This skill
-is written against the `jitx.constraints` module as shipped in 4.4; the public
-PyPI line is 4.2.2 and differences that matter are marked inline. Before
+Environment setup is the base `jitx` skill's job; invoke it first — it owns the
+supported version line, and this skill does not restate it. This page is written
+against and verified on the `jitx.constraints` module as shipped in 4.4.0. Before
 writing rules on an unfamiliar install, open the installed
 `jitx/constraints.py` and confirm the class and method names in
 `references/rule-reference.md` still exist. Verify every import with `pyright`
@@ -350,7 +350,7 @@ Detail and worked derivations: `references/power-and-pours.md`.
   a built board); give inner pours stitch vias or anchor vias.
 - Sliver removal: `design_constraint(IsPour).pour_feature_size(min_width)`.
 - Stitching a pour: `design_constraint(GndPourTag()).stitch_via(ViaClass,
-  SquareViaStitchGrid(pitch=, inset=))`; on 4.4 the via class may be reached
+  SquareViaStitchGrid(pitch=, inset=))`; the via class may be reached
   through the substrate's mixin, re-declared on the substrate, or declared at
   module scope (verified). For an exposed thermal pad, the soldermask-defined
   via field with its mask dams is `scripts/thermal_via_stitch.py`, which reads
@@ -362,12 +362,12 @@ Detail and worked derivations: `references/power-and-pours.md`.
   mask and paste openings in the fab output the first time.
 - Thermal relief is the `IsPad` default above. A solid connection for a
   high-current pad (direct connect) has no dedicated effect; the verified
-  pattern on 4.4 is a higher-priority `thermal_relief` on the tagged pads with
+  pattern is a higher-priority `thermal_relief` on the tagged pads with
   the fab floor as the gap and a spoke width equal to the pad diameter, which
   collapses the relief into solid copper. A higher-priority rule with no
   effect does not suppress the default. Test and numbers:
   `references/power-and-pours.md`, section 8.
-- `Pour(..., isolate=)` is deprecated in 4.4; express pour clearance with the
+- `Pour(..., isolate=)` is deprecated; express pour clearance with the
   binary rules above.
 
 ## Fanout: stepping a class rule down to a pad
@@ -490,7 +490,7 @@ Capture limits and traps (pre-voiding pours, transform composition, sketch
 points, floating circuits) are owned by `jitx-physical-layout`
 `references/geometry-verification.md`. The consequence for rules: trace-to-
 pour clearance, thermal relief, and sliver removal are not measurable from
-`rd.query` on the 4.4 line, so report those rules as not verified from
+`rd.query`, so report those rules as not verified from
 capture unless you read the legacy ODB++ export.
 
 A measured width below the winning rule is a failure, never a note: a route
@@ -533,11 +533,11 @@ Check in this order:
 7. Below the floor: a rule looser than a `FabricationConstraints` minimum is
    overridden by the floor.
 8. Via class not found: `stitch_via` and `fence_via` take the via class
-   object. On 4.4 a class reached through the substrate's mixin, one
+   object. A class reached through the substrate's mixin, one
    re-declared as a substrate attribute, and one at module scope all
-   generate vias (verified in `evals/cases/reference/stitch-via/`); a failure
-   to resolve was seen on 4.0 builds. If vias are missing, check the tag
-   assignment and the rule's reachability before suspecting the via class.
+   generate vias (verified in `evals/cases/reference/stitch-via/`). If vias are
+   missing, check the tag assignment and the rule's reachability before
+   suspecting the via class.
 9. The object is not taggable: `OverlappableCopper` cannot carry a tag.
 10. The object is a code-authored `Route`: clearance rules and fab floors do
     not move authored geometry (What rules act on, above). Measure it after
