@@ -113,6 +113,10 @@ class SoldermaskLayer(Dielectric):
     # no thickness here — passed per-stackup at instantiation
 
 class FR4_Prepreg(Dielectric):
+    # material_name reaches the translated payload as materialName, so when a
+    # source names a manufacturer and product, put it HERE -- not only in the
+    # docstring. A docstring is a Python-side record; this crosses into the design.
+    material_name = "Isola FR408HR 2116 prepreg"
     dielectric_coefficient = 4.4   # Dk (dielectric constant / relative permittivity)
     loss_tangent = 0.0168          # Df (dissipation factor)
 
@@ -765,6 +769,8 @@ class MyDesign(Design):
     circuit = MyCircuit()  # an empty Circuit suffices for a substrate smoke test
 ```
 
+**With no runtime, `jitx build --dry` still translates.** It skips the runtime probe and the dependency check, so it answers "does this substrate translate at all" offline — stackup, vias and fab rules all reach the payload and a structural error surfaces. It needs a project, which is often the only thing missing: a minimal `pyproject.toml` is four lines away, and "no project, so no build" is not the same claim as "cannot be translated". Run it and record the real message. It does **not** satisfy a build gate — see the base `jitx` skill — but reporting a substrate unverified when `--dry` was available is a check skipped, not a check unavailable.
+
 **This design, not the scaffold's seeded one, is what a substrate task builds to be done.** `jitx project layout init` seeds a design that subclasses `SampleDesign` and overrides only `circuit`, so it binds **`SampleSubstrate`** — a two-layer sample stackup — and never yours. That build is green and meaningless for your work: it exercises none of your substrate file, which could be empty. Bind your own substrate on your own `Design` and build that. It proves the toolchain, which is worth doing before you write code, and proves nothing about your work afterwards. Add the design above as a **new** class rather than editing the seeded one: the scaffold's smoke target stays intact, and a fresh target has no previously-built design directory to diff against, so the runtime does not stop to ask about the component instances that vanished.
 
 ## Layer Index Convention
@@ -778,7 +784,7 @@ class MyDesign(Design):
 
 ## Verifying a Substrate Against Its Source
 
-For a report-driven substrate, back the completeness check with tests that **parse the source and compare it to the built design** — layer order and names, thicknesses, Dk/Df, via spans and geometry, every `FabricationConstraints` field, per-layer widths, reference planes — so a re-issued report fails the suite instead of drifting past it. Compare reference-plane *identities* against the source; assert any skill-default widths against the default's own formula (3× dielectric height) — the source never stated them, so testing them against the source would be circular.
+For a report-driven substrate, back the completeness check with tests that **parse the source at test time and compare it to the built design**. Re-typing the report's numbers into `EXPECTED_*` constants beside the test is not this: it compares one transcription against another, so a re-issued report needs *both* files edited and the suite goes green either way. The entire value is that the source moves and the suite notices; read the file. Concretely, tests that  — layer order and names, thicknesses, Dk/Df, via spans and geometry, every `FabricationConstraints` field, per-layer widths, reference planes — so a re-issued report fails the suite instead of drifting past it. Compare reference-plane *identities* against the source; assert any skill-default widths against the default's own formula (3× dielectric height) — the source never stated them, so testing them against the source would be circular.
 
 **Tests must subclass `jitx.test.TestCase`, never plain `unittest.TestCase`** (verified on jitx 4.2.2–4.4.0rc1). It activates the JITX instantiation context, and needs no runtime — instantiating a design works offline. Without the context the design does not error, it **reads as empty**: `decompose(stackup, Material)` returns zero layers and raises nothing, and iterating `stackup.conductors` hangs. Defend in depth:
 
