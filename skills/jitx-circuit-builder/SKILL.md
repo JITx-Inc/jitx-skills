@@ -142,6 +142,21 @@ for ball in [*self.u1.GND, *self.u1.RSVDGND]:                  # also fine, just
 
 The list is taken as a single item whose type is `list`, and what you get back depends on the net's state: an empty net raises `TypeError: cannot use 'list' as a dict key (unhashable type: 'list')`, one that already carries ports raises `ValueError: Incompatible ports on Net: Port and list`. Both arrive wrapped in `InstantiationException: Failed to instantiate ...`, and neither message names the remedy. It surfaces only at instantiation. On a part with hundreds of ground balls this is the first thing you write.
 
+### Asserting connectivity in tests — iterate the net, don't use `in`
+
+Connectivity is the one property neither pyright nor a build reliably catches, so it belongs in a test — and `jitx.test.TestCase` activates the instantiation context with no runtime and no parts database, so those tests run offline.
+
+Write the membership assertion over `list(net)`, not with `in`:
+
+```python
+self.assertIn(self.u1.VCCINT[0], list(circuit.V1V0))   # RIGHT
+self.assertIn(self.u1.VCCINT[0], circuit.V1V0)         # can false-negative
+```
+
+`Net.__contains__` disagrees with `Net.__iter__` once a net has absorbed a net **from another circuit**: a port reachable by iteration reports `False` for `in`. Verified on 4.4.0 — direct members and same-circuit merges are fine, so the bug hides until the design is hierarchical, which is exactly when connectivity assertions start earning their keep. Iterating is correct in both cases, so there is no reason to reach for `in` here.
+
+Count as well as contain — `len(list(net))` against the number of ports you expect is what catches a rail that lost half its balls, and a membership check on its own cannot.
+
 ## Passives
 
 ```python
