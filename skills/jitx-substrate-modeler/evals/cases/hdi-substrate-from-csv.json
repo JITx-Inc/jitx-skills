@@ -7,13 +7,13 @@
   },
   "reference": {
     "file": "evals/cases/reference/hdi_stackup_reference.py",
-    "notes": "A known-good reference solution (NOTE: its None-width reference() calls at ~lines 446/484 are translation-fatal on jitx 4.2.2 \u2014 known upstream defect, do not imitate). Judges verify the candidate against the CSV first; the reference shows one known-good shape, not the only acceptable one. Keep runner directories free of this file \u2014 cycle-1 conditions had CSV only."
+    "notes": "A reference solution that is correct against the CSV row-for-row, with one known exception: its None-width reference() calls at ~lines 446/484 do not translate (an upstream defect, not a shape to imitate) — see SKILL.md on why a None width is a trap rather than a fallback. Judges verify the candidate against the CSV first; this file shows one acceptable shape, not the only one. Keep runner directories free of it — the runner is given the CSV alone."
   },
   "runner_models": [
     "sonnet"
   ],
   "runner_rationale": "Customers drive this skill with mixed-strength agents (Claude Code, Codex, and Devin among them). The skill must carry the goodness checks itself, so the eval runs the skill under a Sonnet-class runner rather than the strongest available model. Judges stay frontier-tier regardless of runner.",
-  "expected_output": "A single-file substrate (board.py) in which every value traces to a CSV row: explicit 20-layer Stackup (not Symmetric \u2014 the report names both halves), one material class per CSV material row, exactly the 12 offered vias, routing structures for each impedance target on both geometries with eps_eff-derived velocity, neck-down, uncoupled regions and reference planes, all 19 mappable fab rules, capability limits and no-field values docstringed, STANDARD row documented but not modelled, and the SKILL.md Substrate completeness check block filled in the completion summary.",
+  "expected_output": "A single-file substrate (board.py) in which every value traces to a CSV row: explicit 20-layer Stackup (not Symmetric — the report names both halves), one material class per CSV material row, exactly the 12 offered vias, routing structures for each impedance target on both geometries with eps_eff-derived velocity, neck-down, uncoupled regions and reference planes, all 19 mappable fab rules, capability limits and no-field values docstringed, STANDARD row documented but not modelled, and the SKILL.md Substrate completeness check block filled in the completion summary.",
   "assertions": [
     {
       "text": "generated file parses as Python",

@@ -128,7 +128,7 @@ self.i2c_nets = [
 self.topology = self.driver.out >> self.trace >> self.receiver.inp
 ```
 
-**`+=` takes one port, not a sequence — wrap a rail list in a `Net`.** A component's repeated-name rail (`GND`, `VCCO_*`) is a Python `list` of ports. `Net(...)` accepts an iterable, so there is a one-liner; `+=` does not, so the obvious splice is the thing that breaks:
+**`+=` takes a port or a `Net`, never a bare list — wrap a rail list in a `Net`.** A component's repeated-name rail (`GND`, `VCCO_*`) is a Python `list` of ports. `Net(...)` accepts an iterable, so there is a one-liner; `+=` does not, so the obvious splice is the thing that breaks:
 
 ```python
 self.GND += [*self.u1.GND, *self.u1.RSVDGND]              # WRONG
@@ -153,7 +153,7 @@ self.assertIn(self.u1.VCCINT[0], list(circuit.V1V0))   # RIGHT
 self.assertIn(self.u1.VCCINT[0], circuit.V1V0)         # can false-negative
 ```
 
-`Net.__contains__` disagrees with `Net.__iter__` once a net has absorbed a net **from another circuit**: a port reachable by iteration reports `False` for `in`. Verified on 4.4.0 — direct members and same-circuit merges are fine, so the bug hides until the design is hierarchical, which is exactly when connectivity assertions start earning their keep. Iterating is correct in both cases, so there is no reason to reach for `in` here.
+`Net.__contains__` disagrees with `Net.__iter__` on any net that has absorbed **another net**: a port reachable by iteration reports `False` for `in`. Verified on 4.4.0 — `__contains__` walks the net's members and, on reaching the first nested net, *returns* that sub-net's answer instead of continuing, so every member after the first nested net is invisible to `in`. What decides it is position, not hierarchy: the same net built in the other order answers correctly, and a merge inside a single circuit breaks exactly like a cross-circuit one. Iterating is correct in every case, so there is no reason to reach for `in` here.
 
 Count as well as contain — `len(list(net))` against the number of ports you expect is what catches a rail that lost half its balls, and a membership check on its own cannot.
 
@@ -184,21 +184,27 @@ For all passive values, especially those that are calculated, use the eseries Py
 
 A `Capacitor(...)` / `Resistor(...)` query returns *some* part matching what you stated, so every axis you leave open is an axis the database decides. Two are routinely forgotten and both change the circuit:
 
-- **`tolerance=`** — unstated, a ±20 % part satisfies a query written for a ±1 % job.
-- **`temperature_coefficient_code=`** (`"X7R"`, `"X5R"`, `"C0G"`) — unstated, a decoupling query can return **Y5V or Z5U**, which lose most of their capacitance across temperature and DC bias. A 100 nF Y5V at half its rated voltage is not a 100 nF cap.
+- **`tolerance=`** — every passive takes it, and unstated, a ±20 % part satisfies a query written for a ±1 % job.
+- **`temperature_coefficient_code=`** (`"X7R"`, `"X5R"`, `"C0G"`) — **capacitors only**; unstated, a decoupling query can return **Y5V or Z5U**, which lose most of their capacitance across temperature and DC bias. A 100 nF Y5V at half its rated voltage is not a 100 nF cap.
 
-State both on every passive whose value matters, and rate ceramics with derating in mind — a 6.3 V X7R on a 3.3 V rail has already lost a third of its capacitance to DC bias, so 10 V or 16 V is the honest choice.
+The temperature axis is not one field across the passives — it is named per part type, so the second bullet does not transfer. On 4.4.0, `tolerance` sits on the shared passive query; `temperature_coefficient_code` sits on the capacitor query alone, and a resistor's temperature behaviour is `tcr_pos` / `tcr_neg` in ppm/°C. Inductors have neither. Passing a capacitor's field to a resistor query states nothing and constrains nothing.
+
+So: state `tolerance=` on every passive whose value matters, add `temperature_coefficient_code=` to every ceramic, and add `tcr_pos=` / `tcr_neg=` to a resistor whose drift is part of the design (a divider setting a regulator's feedback, a current-sense shunt). Rate ceramics with derating in mind — a 6.3 V X7R on a 3.3 V rail has already lost a third of its capacitance to DC bias, so 10 V or 16 V is the honest choice.
 
 ### Decouple against the pins, and scale with the pin count
 
 A rail's decoupling is not one bank at the regulator. Two caps hung off a 96-ball core net are two caps for ninety-six balls, and `short_trace=True` cannot help — there are ninety-six places to be short to, so the router picks one.
 
-Loop over the ball list and insert against the balls:
+Loop over the ball list and insert against the balls — storing each cap, because an anonymous `Capacitor(...).insert(...)` fails at build time (see "ALWAYS assign to self" above). A list attribute is the one place to put a generated bank:
 
 ```python
-for ball in fpga.VCCINT:
+self.c_vccint = [
     Capacitor(capacitance=100e-9, rated_voltage=10.0,
-              temperature_coefficient_code="X7R").insert(ball, gnd_pin, short_trace=True)
+              temperature_coefficient_code="X7R")
+    for _ in fpga.VCCINT
+]
+for cap, ball in zip(self.c_vccint, fpga.VCCINT):
+    cap.insert(ball, self.GND, short_trace=True)
 ```
 
 One HF cap per one-or-two core balls, plus bulk per rail, is the ordinary starting point; fewer is a decision to state, not a default to fall into. If a placeholder is genuinely intended, say so *and* say what the real count should be.
@@ -211,16 +217,28 @@ Three regulator stages that differ only in output voltage are one `Circuit` subc
 
 Every capacitor `.insert(...)` call on a power rail — decoupling, bypass, bulk, output filter — **must** pass `short_trace=True`. The router uses this to minimize the trace length between the cap and its connected ports, which is what makes the cap actually decouple. Without it, the router may place a 0402 100 nF cap 20 mm from the IC and route through vias, defeating the purpose.
 
-**So both endpoints must be `Port`s, not `Net`s** — and this is the trap, because `insert`'s own signature says `pin_a: Port | Net` and accepts a net happily until you turn `short_trace` on:
+**So `pin_a` must be a `Port`, not a `Net`** — and this is the trap, because `insert`'s own signature says `pin_a: Port | Net` and accepts a net happily until you turn `short_trace` on:
 
 ```python
-cap.insert(self.VCC_net, self.GND_net, short_trace=True)   # WRONG
+cap.insert(self.VCC_net, self.GND_net, short_trace=True)   # WRONG -- pin_a is a net
 # ValueError: Cannot make a shortrace with a net. Give a port to Capacitor.insert's pin_a.
 
-cap.insert(self.ic.VCC, self.ic.GND, short_trace=True)     # RIGHT -- the pins it serves
+cap.insert(self.ic.VCC, self.GND, short_trace=True)        # RIGHT -- pin_a is the pin it serves
+cap.insert(self.ic.VCC, self.ic.GND, short_trace=True)     # RIGHT -- both ends pinned
 ```
 
 That is not a technicality. A short trace is an instruction about *where to put this cap*, and a net has no position — only the pin it decouples does. So the rule "always `short_trace=True`" and the rule "insert against the served component's pins" are the same rule: a rail-centric circuit that ties everything to nets first and inserts caps against those nets cannot decouple anything, and fails at instantiation rather than silently.
+
+**Which end gets checked is the `short_trace` value, and `True` is not "both".** `short_trace=True` resolves to `TwoPinShortTrace.SHORT_TRACE_ANODE`, so only `pin_a` is required to be a port and `pin_b` may stay a net — which is why the ground side reads `self.GND` throughout this section. Pass the enum when you want the other end held too:
+
+| value | `pin_a` must be a Port | `pin_b` must be a Port |
+|---|---|---|
+| `short_trace=True` (= `SHORT_TRACE_ANODE`) | yes | no |
+| `SHORT_TRACE_CATHODE` | no | yes |
+| `SHORT_TRACE_BOTH` | yes | yes |
+| `short_trace=False` (= `SHORT_TRACE_NEITHER`) | no | no |
+
+The enum is `from jitxlib.parts.query_api import TwoPinShortTrace` — it is not re-exported from `jitxlib.parts`, so the short import fails. Reach for `SHORT_TRACE_BOTH` when the cap sits between two pins that both need the short hop — a bypass across a regulator's own IN/GND, say — and leave the default when one end is a plane.
 
 ```python
 # DEFAULT — every power-rail cap

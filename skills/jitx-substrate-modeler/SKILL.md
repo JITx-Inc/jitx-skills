@@ -116,9 +116,18 @@ class FR4_Prepreg(Dielectric):
     # material_name reaches the translated payload as materialName, so when a
     # source names a manufacturer and product, put it HERE -- not only in the
     # docstring. A docstring is a Python-side record; this crosses into the design.
-    material_name = "Isola FR408HR 2116 prepreg"
+    # Name and numbers move together: a product name over generic FR-4 constants
+    # is a mislabel that now ships. Generic constants get a generic name.
+    material_name = "FR-4 2116 prepreg"
     dielectric_coefficient = 4.4   # Dk (dielectric constant / relative permittivity)
     loss_tangent = 0.0168          # Df (dissipation factor)
+
+class FR408HR_2116(Dielectric):
+    # Named product, so the constants are that product's -- see the laminate
+    # table below, and confirm against the manufacturer's current datasheet.
+    material_name = "Isola FR408HR 2116 prepreg"
+    dielectric_coefficient = 3.68  # Dk
+    loss_tangent = 0.0092          # Df
 
 class FR4_Core(Dielectric):
     dielectric_coefficient = 4.6   # Dk
@@ -769,7 +778,7 @@ class MyDesign(Design):
     circuit = MyCircuit()  # an empty Circuit suffices for a substrate smoke test
 ```
 
-**With no runtime, `jitx build --dry` still translates.** It skips the runtime probe and the dependency check, so it answers "does this substrate translate at all" offline — stackup, vias and fab rules all reach the payload and a structural error surfaces. It needs a project, which is often the only thing missing: a minimal `pyproject.toml` is four lines away, and "no project, so no build" is not the same claim as "cannot be translated". Run it and record the real message. It does **not** satisfy a build gate — see the base `jitx` skill — but reporting a substrate unverified when `--dry` was available is a check skipped, not a check unavailable.
+**With no runtime, `jitx build --dry --no-dependency-check` still translates.** It answers "does this substrate translate at all" offline — stackup, vias and fab rules all reach the payload and a structural error surfaces. Both flags are needed: `--dry` skips the runtime probe, but the pyproject dependency sync is gated on `--no-dependency-check` alone and runs regardless of `--dry`, so `--dry` by itself still reaches the network and fails offline for a reason that has nothing to do with your substrate. The CLI's own `--dry` help text claims it skips the dependency check; it does not — read the behaviour, not the help string. It needs a project, which is often the only thing missing: a minimal `pyproject.toml` is four lines away, and "no project, so no build" is not the same claim as "cannot be translated". Run it and record the real message. It does **not** satisfy a build gate — see the base `jitx` skill — but reporting a substrate unverified when `--dry` was available is a check skipped, not a check unavailable.
 
 **This design, not the scaffold's seeded one, is what a substrate task builds to be done.** `jitx project layout init` seeds a design that subclasses `SampleDesign` and overrides only `circuit`, so it binds **`SampleSubstrate`** — a two-layer sample stackup — and never yours. That build is green and meaningless for your work: it exercises none of your substrate file, which could be empty. Bind your own substrate on your own `Design` and build that. It proves the toolchain, which is worth doing before you write code, and proves nothing about your work afterwards. Add the design above as a **new** class rather than editing the seeded one: the scaffold's smoke target stays intact, and a fresh target has no previously-built design directory to diff against, so the runtime does not stop to ask about the component instances that vanished.
 
