@@ -834,8 +834,13 @@ No-field walk: every source section walked (document-level tolerances, surface f
       docstringed: <list>
 Provenance: values traceable to no source row: NONE | <list + the labeled rule backing each>
 Checks: pyright <clean | N errors>; build <clean | not run: <reason>>
-Verdict: complete | open items: <list>   (any non-clean check, or build not run, is an
-      open item — "complete" with a failing or unrun check is not a valid combination)
+Verdict: complete | open items: <list>
+      Derive this line from the Checks row above, do not compose it: every check
+      there that is not clean — failed, skipped, or unavailable in this
+      environment — is copied here as an open item, and the count must match.
+      "complete" with an empty open-items list asserts every check ran clean.
+      An unavailable environment is an open item, not an exemption: "no runtime,
+      so no build" is exactly the case this line exists to record.
 ```
 
 Row-by-row intent — the *why*, so the block stays evidence rather than ceremony:
