@@ -26,7 +26,7 @@ class TestDesign(SampleDesign):
 
 A build proves the component translates. It does not prove the pin count matches the datasheet, that the part number the class computes is one the manufacturer sells, or that the value the BOM prints is the value the user asked for. Those need tests.
 
-**Tests that construct a component must subclass `jitx.test.TestCase`, never plain `unittest.TestCase`** (verified on jitx 4.2.2–4.4.0rc3). It activates the JITX instantiation context, and needs no runtime — instantiating a component works offline. Outside that context a constructor does not run: `MyPart(size="0505")` returns a deferred `Instantiable` proxy and **`__init__` is never called**, so every fail-fast check in the class silently passes. A negative test written on a plain `unittest.TestCase` then fails for the wrong reason — not because the validation is missing but because nothing ran — and a demo script that constructs a deliberately invalid part raises nothing at all.
+**Tests that construct a component must subclass `jitx.test.TestCase`, never plain `unittest.TestCase`** (verified on jitx 4.4.0). It activates the JITX instantiation context, and needs no runtime — instantiating a component works offline. Outside that context a constructor does not run: `MyPart(size="0505")` returns a deferred `Instantiable` proxy and **`__init__` is never called**, so every fail-fast check in the class silently passes. A negative test written on a plain `unittest.TestCase` then fails for the wrong reason — not because the validation is missing but because nothing ran — and a demo script that constructs a deliberately invalid part raises nothing at all.
 
 This is about *construction*, not about the base class on its own: a plain `unittest.TestCase` exercising a pure function — a value-code encoder, a table cross-check, a classmethod that validates arguments without instantiating — is fine, and is a good reason to put validation in such a classmethod in the first place.
 
@@ -41,7 +41,7 @@ with SubstrateContext(SampleSubstrate()):
 ```
 
 **Declare every JITX class at module scope, never inside a test method.** Defining one while an
-instantiation context is active raises (verified on 4.4.0rc3):
+instantiation context is active raises (verified on 4.4.0):
 
 ```
 TypeError: Creating new JITX classes dynamically during instantiation is not supported,
@@ -73,7 +73,7 @@ Where a test is skipped unless a source file is present — the idempotency chec
 
 The specific trap: a missing `pyproject.toml` looks like "no project, so no build," and it is four lines away from being a project. An agent that declares `jitx build` unrunnable for that reason skips the check entirely. Adding a minimal `pyproject.toml` lets `jitx build --dry` run, and it can report something like `translation failed: <Component> does not have a landpattern`, a fact about the delivered artifact that a completion block would otherwise never state. Cheap to check, and `--dry` needs no runtime. If the check then fails for a reason you already know and accepted (geometry deliberately absent, say), record the actual message; "cannot be placed on a board" and "cannot be translated into any design" are different claims, and the second is the one the reader needs.
 
-**Assert the value label — scaling to an SI prefix reintroduces float noise on exactly the values a passive library uses most.** `PlainQuantity.to_compact()` divides by a power of ten, so an exactly specified `100e-9 F` comes back as `99.99999999999999 nanofarad`, and `2.2e6 Ω` as `2.1999999999999997 megaohm` (verified on jitx 4.2.2). Nothing else catches it: `pyright` sees a well-typed quantity, `pytest` never touches `.value` unless you tell it to, `jitx build` reports `status: ok` — and the string goes to the BOM. Round the scaled magnitude back to significant figures before assigning `.value`, and assert the rendered string. Assert it the way the translator renders it (`f"{value:g~P}"`), not through a bespoke format spec — a spec of your own can hide the noise it is supposed to catch.
+**Assert the value label — scaling to an SI prefix reintroduces float noise on exactly the values a passive library uses most.** `PlainQuantity.to_compact()` divides by a power of ten, so an exactly specified `100e-9 F` comes back as `99.99999999999999 nanofarad`, and `2.2e6 Ω` as `2.1999999999999997 megaohm` (verified on jitx 4.4.0). Nothing else catches it: `pyright` sees a well-typed quantity, `pytest` never touches `.value` unless you tell it to, `jitx build` reports `status: ok` — and the string goes to the BOM. Round the scaled magnitude back to significant figures before assigning `.value`, and assert the rendered string. Assert it the way the translator renders it (`f"{value:g~P}"`), not through a bespoke format spec — a spec of your own can hide the noise it is supposed to catch.
 
 ### Build Command
 

@@ -235,7 +235,7 @@ The criteria mirror the exit-gate bullet lists in `references/project-builder-fl
 
 | Field | Result |
 |-------|--------|
-| Environment probe | <imports; result> |
+| Environment probe | <all of `jitx`, `jitxlib`, `jitxlib.parts`, `jitxlib.symbols.box`, `jitxlib.voltage_divider` import; target substrate package (e.g. `jitxlib.jlcpcb`) imports; `jitx --version` and `jitx runtime introspect` report the same major.minor; result> |
 | Requirements lock complete | <result; assumptions> |
 | PLAN.md exists | <path> |
 | ARCHITECTURE.md exists | <path; sections> |
@@ -251,6 +251,8 @@ The criteria mirror the exit-gate bullet lists in `references/project-builder-fl
 | User approval recorded | <evidence> |
 | Verdict | <advance/block + reason> |
 ```
+
+The `jitxlib` namespace is split across distributions and installing `jitx` brings none of them; a failing environment probe is almost always a missing `jitxlib-standard` / `jitxlib-parts` / `jitxlib-voltage-divider`, which is an install to do, not a module to work around. See `jitx/SKILL.md` "Environment Setup".
 
 ### Phase 1 → Phase 2
 
