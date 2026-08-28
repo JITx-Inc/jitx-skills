@@ -1,18 +1,18 @@
 {
-  "name": "js1-substrate-from-csv",
+  "name": "hdi-substrate-from-csv",
   "prompt": "model this substrate from the csv",
   "inputs": {
-    "csv": "evals/cases/fixtures/JS1_Part1_Fab-Stackup_RevB.csv",
-    "notes": "The CSV is the synthetic ACME Circuit Technology stackup report from the JS1 jumpstart kit (fictional fabricator, prepared for the kit): 20-layer HDI, 5+10+5 sequential build-up, 12-via inventory, 5 impedance targets each specified for two geometries, 19 mappable fab rules plus 5 capability limits. Canonical copy: the JS1 jumpstart kit, js1-stackup-components/part1-stackup/."
+    "csv": "evals/cases/fixtures/ACME-HDI20_Fab-Stackup_RevB.csv",
+    "notes": "A synthetic ACME Circuit Technology stackup report (fictional fabricator): 20-layer HDI, 5+10+5 sequential build-up, 12-via inventory, 5 impedance targets each specified for two geometries, 19 mappable fab rules plus 5 capability limits."
   },
   "reference": {
-    "file": "evals/cases/reference/js1_hdi_stackup_reference.py",
-    "notes": "Near-verbatim copy (one internal doc pointer redacted; NOTE: its None-width reference() calls at ~lines 446/484 are translation-fatal on jitx 4.2.2 \u2014 known upstream defect, do not imitate) of the shipped reference solution (jitxexamples.jumpstart_kits.js1_stackup_components.hdi_stackup.board). Judges verify the candidate against the CSV first; the reference shows one known-good shape, not the only acceptable one. Keep runner directories free of this file \u2014 cycle-1 conditions had CSV only."
+    "file": "evals/cases/reference/hdi_stackup_reference.py",
+    "notes": "A known-good reference solution (NOTE: its None-width reference() calls at ~lines 446/484 are translation-fatal on jitx 4.2.2 \u2014 known upstream defect, do not imitate). Judges verify the candidate against the CSV first; the reference shows one known-good shape, not the only acceptable one. Keep runner directories free of this file \u2014 cycle-1 conditions had CSV only."
   },
   "runner_models": [
     "sonnet"
   ],
-  "runner_rationale": "Customers drive this skill with mixed-strength agents (the kit names Claude Code, Codex, and Devin). The skill must carry the goodness checks itself, so the eval runs the skill under a Sonnet-class runner rather than the strongest available model. Judges stay frontier-tier regardless of runner.",
+  "runner_rationale": "Customers drive this skill with mixed-strength agents (Claude Code, Codex, and Devin among them). The skill must carry the goodness checks itself, so the eval runs the skill under a Sonnet-class runner rather than the strongest available model. Judges stay frontier-tier regardless of runner.",
   "expected_output": "A single-file substrate (board.py) in which every value traces to a CSV row: explicit 20-layer Stackup (not Symmetric \u2014 the report names both halves), one material class per CSV material row, exactly the 12 offered vias, routing structures for each impedance target on both geometries with eps_eff-derived velocity, neck-down, uncoupled regions and reference planes, all 19 mappable fab rules, capability limits and no-field values docstringed, STANDARD row documented but not modelled, and the SKILL.md Substrate completeness check block filled in the completion summary.",
   "assertions": [
     {
@@ -28,7 +28,7 @@
     {
       "text": "all 19 mappable fab-rule attribute names from the CSV's JITX_attribute column appear in the generated file",
       "check": "deterministic",
-      "cmd": "for a in $(awk -F, '/^SECTION,FAB_RULES/,/^SECTION,NOTES/' evals/cases/fixtures/JS1_Part1_Fab-Stackup_RevB.csv | awk -F, 'NF>3 && $4!=\"\" && $4!=\"JITX_attribute\" {print $4}'); do grep -q \"$a\" <output>/board.py || { echo \"missing $a\"; exit 1; }; done"
+      "cmd": "for a in $(awk -F, '/^SECTION,FAB_RULES/,/^SECTION,NOTES/' evals/cases/fixtures/ACME-HDI20_Fab-Stackup_RevB.csv | awk -F, 'NF>3 && $4!=\"\" && $4!=\"JITX_attribute\" {print $4}'); do grep -q \"$a\" <output>/board.py || { echo \"missing $a\"; exit 1; }; done"
     },
     {
       "text": "exactly the CSV's 12 via structures are defined (10 microvia levels, 1 buried, 1 through), with correct spans and no speculative extras",

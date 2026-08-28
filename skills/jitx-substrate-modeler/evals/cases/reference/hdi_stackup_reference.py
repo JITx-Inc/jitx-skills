@@ -5,7 +5,7 @@ Ground truth
 Every number in this file is transcribed from one CSV row of
 
     ACME Circuit Technology quote ACME-Q26-0417, Rev B (2026-07-14)
-    js1-stackup-components/part1-stackup/JS1_Part1_Fab-Stackup_RevB.csv
+    evals/cases/fixtures/ACME-HDI20_Fab-Stackup_RevB.csv
 
 Nothing here is estimated or carried over from another design. If you re-issue
 the stackup, change the CSV first and re-derive — never edit these constants
