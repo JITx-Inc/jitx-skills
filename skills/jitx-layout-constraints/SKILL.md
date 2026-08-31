@@ -129,6 +129,14 @@ class clearance that lands on that layer; a class rule scoped to a layer (the
 ladder: 0 defaults, 1 power and ground width and any layer-wide rule, 2 net
 classes, 3 layer-scoped class overrides, 4 escape rules.
 
+An override below a rule the object already matches can realize zero traces
+while the build still reports `status: ok`. This is not a harmless losing
+rule. Before the task reaches the Verification completion gate, the check
+script enumerates the expected routes for every override, passes them to
+`check_routes`, and fails if any expected route has no realized traces. Width
+comparisons run only after that count passes, so an empty result cannot satisfy
+them vacuously.
+
 ### Where rules live
 
 Rules are collected by walking the design tree for `DesignConstraint`
@@ -430,6 +438,10 @@ encountered multiple times`; prefer a pad-to-point trunk, since a
 via-to-`RoutePoint` trunk has been seen to realize alone and not inside a
 full design. `w_escape` and `c_escape` are derived, not typed: read the
 landpattern's pad geometry with `jitx.query` and subtract the fab floor.
+The escape width is strictly less than the narrowest pad selected by its rule.
+The derivation rounds that measured pad width to a fixed precision and
+subtracts one quantum unconditionally; equality with any selected pad is a
+failure because it can silently change a centered trace into polygon copper.
 `c_escape` starts from the board default clearance and only tightens where
 the pad geometry cannot hold the default, never below the floor; a rule at
 the escape rung against `AnyObject` set to the floor would loosen the default
@@ -483,8 +495,14 @@ constraint-specific checks, packaged in `scripts/layout_checks.py`:
   on the same layer is checked per route (`check_route_width`), not per net.
 - Clearance between two nets: the minimum shapely distance between their
   copper on a layer is at or above the binary rule.
-- Route realization: `route.traces` is non-empty for every escape route you
-  authored; a silently unrealized route is the common failure.
+- Route realization: the project check explicitly lists the routes governed by
+  each override and passes that list to `check_routes`, then requires
+  `route.traces` to be non-empty for every escape route authored. A silently
+  unrealized route is the common failure, including the case where an override
+  sits below another matching priority rung.
+- Primitive shape: a realized escape must expose a polyline width. A `Polygon`
+  with no width field is a failed width realization, not a missing attribute to
+  skip and not evidence that the route is absent.
 
 Capture limits and traps (pre-voiding pours, transform composition, sketch
 points, floating circuits) are owned by `jitx-physical-layout`
@@ -522,7 +540,10 @@ Check in this order:
 1. Not reachable: the rule is a module-level object or a local variable, not
    a structural attribute under the `Design`.
 2. Out-ranked: a binary clearance at priority 0 loses to the default
-   `IsCopper x IsCopper` rule; raise its priority.
+   `IsCopper x IsCopper` rule. A route-width override below an already
+   matching rule can emit zero traces rather than merely lose. Raise the
+   priority, then let the Verification gate refuse completion unless the
+   expected trace count is nonzero and the measured widths match.
 3. Wrong arity: `.clearance()` on a one-condition rule, or any other effect
    on a two-condition rule.
 4. Builtin assigned: `IsTrace.assign(obj)` raises `TypeError`; builtins are

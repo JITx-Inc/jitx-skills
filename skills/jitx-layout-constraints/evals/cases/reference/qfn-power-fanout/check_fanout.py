@@ -85,9 +85,7 @@ def prepare_project(project: Path) -> None:
     shutil.copy2(source, package / source.name)
 
 
-def assert_widths(
-    name: str, actual: tuple[float, ...], expected: float
-) -> None:
+def assert_widths(name: str, actual: tuple[float, ...], expected: float) -> None:
     if not actual:
         raise AssertionError(f"{name} has no realized polyline widths")
     wrong = [
@@ -96,9 +94,7 @@ def assert_widths(
         if not math.isclose(width, expected, abs_tol=WIDTH_TOLERANCE_MM)
     ]
     if wrong:
-        raise AssertionError(
-            f"{name} expected {expected:.6f} mm, got {actual!r}"
-        )
+        raise AssertionError(f"{name} expected {expected:.6f} mm, got {actual!r}")
 
 
 def capture_and_check(project: Path) -> None:
@@ -123,6 +119,10 @@ def capture_and_check(project: Path) -> None:
         trunk_widths = reference.realized_route_widths(circuit.trunk_route)
         escape_widths = reference.realized_route_widths(circuit.escape_route)
         expected_escape = circuit.escape_geometry.escape_width
+        if not expected_escape < circuit.escape_geometry.narrowest_rule_pad_width:
+            raise AssertionError(
+                "escape width is not strictly inside the narrowest selected pad"
+            )
         assert_widths("trunk", trunk_widths, reference.POWER_CLASS_WIDTH_MM)
         assert_widths("escape", escape_widths, expected_escape)
 

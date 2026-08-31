@@ -159,6 +159,7 @@ Its center distance is the realized pitch, and polygon distance is the
 realized edge gap.
 
 ```python
+from collections.abc import Sequence
 from dataclasses import dataclass
 from math import isclose
 from shapely.geometry.base import BaseGeometry
@@ -167,10 +168,22 @@ from jitx.landpattern import Pad
 from jitx.substrate import FabricationConstraints
 
 GEOMETRY_TOLERANCE = 1e-6  # skill default: 1e-6 mm comparison tolerance
+WIDTH_QUANTUM = 1e-6  # skill default: 1 nm fixed width quantum
+WIDTH_DECIMAL_PLACES = 6  # skill default: fixed precision matching WIDTH_QUANTUM
+
+def strictly_inside_width(limit: float, floor: float) -> float:
+    """Quantize below a measured limit and enforce both postconditions."""
+    width = round(limit, WIDTH_DECIMAL_PLACES) - WIDTH_QUANTUM
+    if not width < limit:
+        raise ValueError("quantized escape is not strictly below its measured limit")
+    if width < floor:
+        raise ValueError("quantized escape is below the fabrication copper floor")
+    return width
 
 @dataclass(frozen=True)
 class QfnEscapeGeometry:
     pad_width: float
+    narrowest_rule_pad_width: float
     adjacent_gap: float
     row_pitch: float
     pad_depth: float
@@ -180,6 +193,7 @@ class QfnEscapeGeometry:
 def qfn_escape_geometry(
     pad_copper: dict[Pad, BaseGeometry],
     target_pad: Pad,
+    rule_pads: Sequence[Pad],
     package_center: tuple[float, float],
     fab: FabricationConstraints,
     default_clearance: float,  # the board's default clearance rule value
@@ -216,17 +230,31 @@ def qfn_escape_geometry(
     floor_space = fab.min_copper_copper_space
     if adjacent_gap < floor_space:
         raise ValueError("adjacent QFN pads are closer than the fabrication spacing floor")
-    channel_limit = pad_width + 2.0 * (adjacent_gap - floor_space)
-    escape_width = min(pad_width, channel_limit)
-    if escape_width < fab.min_copper_width:
-        raise ValueError("no QFN escape meets the fabrication copper floor")
+
+    # One rule must fit every pad it selects. Measure each pad in its row's
+    # tangential direction, then stay one fixed quantum inside the narrowest.
+    rule_pad_widths: list[float] = []
+    for pad in rule_pads:
+        geometry = pad_copper[pad]
+        gx0, gy0, gx1, gy1 = geometry.bounds
+        gcx, gcy = geometry.centroid.coords[0]
+        gdelta = (gcx - package_center[0], gcy - package_center[1])
+        g_radial_is_x = abs(gdelta[0]) >= abs(gdelta[1])
+        rule_pad_widths.append(
+            gy1 - gy0 if g_radial_is_x else gx1 - gx0
+        )
+    narrowest_rule_pad_width = min(rule_pad_widths)
+    escape_width = strictly_inside_width(
+        narrowest_rule_pad_width,
+        fab.min_copper_width,
+    )
     # Start from the board default and only tighten where the neighbor gap
     # cannot hold it; never below the floor. A floor-level clearance at the
     # escape rung would loosen the board default around every escape.
-    overhang = max(0.0, (escape_width - pad_width) / 2.0)
-    escape_clearance = max(floor_space, min(default_clearance, adjacent_gap - overhang))
+    escape_clearance = max(floor_space, min(default_clearance, adjacent_gap))
     return QfnEscapeGeometry(
         pad_width,
+        narrowest_rule_pad_width,
         adjacent_gap,
         row_pitch,
         pad_depth,
@@ -235,12 +263,14 @@ def qfn_escape_geometry(
     )
 ```
 
-The centered-channel limit asks how far a trace may extend from the target
-pad center before it violates the floor at the neighboring pad. The result is
-capped at the target pad width. When the adjacent gap already exceeds the fab
-floor, the pad width is the governing limit. If the result falls below
-`min_copper_width`, the package and process have no legal routed escape under
-this model. Stop instead of typing a narrower value.
+The adjacent-gap guard proves that the selected process can separate the QFN
+pads. It does not narrow the trace after that guard, so this helper makes no
+centered-channel claim. The width comes from the narrowest pad selected by the
+rule, rounded to a fixed `1 nm` precision, then reduced by one `1 nm` quantum.
+The subtraction is unconditional. A floor operation can return a float above
+its input and can amplify measurement noise, so it is not used. The helper
+checks the strict-inside postcondition and stops if the result falls below
+`min_copper_width`; it never types a narrower replacement.
 
 ### Worked power escape
 
@@ -262,6 +292,7 @@ ESCAPE_RUN = 1.0  # skill default: 1.0 mm from pad edge to transition
 geometry = qfn_escape_geometry(
     pad_copper,
     qfn_power_pad,
+    rule_pads=(qfn_power_pad,),  # every pad selected by this concrete rule
     package_center=qfn_center,
     fab=design.substrate.constraints,
     default_clearance=DEFAULT_CLEARANCE,  # the Design's IsCopper x IsCopper rule value
@@ -328,6 +359,7 @@ outermost populated row. Both values come from emitted copper.
 def bga_channel_geometry(
     pad_copper: dict[Pad, BaseGeometry],
     target_pad: Pad,
+    rule_pads: Sequence[Pad],
     package_center: tuple[float, float],
     fab: FabricationConstraints,
 ):
@@ -348,12 +380,16 @@ def bga_channel_geometry(
         raise ValueError("target BGA pad has no diagonal channel")
     _, diagonal_neighbor = min(candidates, key=lambda item: item[0])
     diagonal_gap = target.distance(diagonal_neighbor)
-    minx, miny, maxx, maxy = target.bounds
-    pad_width = min(maxx - minx, maxy - miny)
+    rule_pad_widths = []
+    for pad in rule_pads:
+        minx, miny, maxx, maxy = pad_copper[pad].bounds
+        rule_pad_widths.append(min(maxx - minx, maxy - miny))
+    pad_width = min(rule_pad_widths)
     channel_width = diagonal_gap - 2.0 * fab.min_copper_copper_space
-    escape_width = min(pad_width, channel_width)
-    if escape_width < fab.min_copper_width:
-        raise ValueError("no BGA channel meets the fabrication copper floor")
+    escape_width = strictly_inside_width(
+        min(pad_width, channel_width),
+        fab.min_copper_width,
+    )
     radial_is_x = abs(tx - package_center[0]) >= abs(ty - package_center[1])
     axis = 0 if radial_is_x else 1
     outer = max(abs(center[axis] - package_center[axis]) for center in centers)
@@ -390,6 +426,7 @@ def passive_geometry(
     landpattern: Landpattern,
     layer: int,
     fab: FabricationConstraints,
+    rule_pads: Sequence[Pad],
 ):
     pads = placed_pad_polygons(design, landpattern, layer)
     if len(pads) != 2:  # landpattern query source: two terminal pads
@@ -408,14 +445,25 @@ def passive_geometry(
     if not courtyard_shapes:
         raise ValueError("passive landpattern has no courtyard")
     courtyard = unary_union(courtyard_shapes)
-    first_bounds = first.bounds
-    first_pad_width = min(
-        first_bounds[2] - first_bounds[0],
-        first_bounds[3] - first_bounds[1],
+    rule_pad_widths = []
+    for pad in rule_pads:
+        bounds = pads[pad].bounds
+        rule_pad_widths.append(
+            min(bounds[2] - bounds[0], bounds[3] - bounds[1])
+        )
+    narrowest_rule_pad_width = min(rule_pad_widths)
+    between_pad_limit = min(
+        narrowest_rule_pad_width,
+        pad_gap - 2.0 * fab.min_copper_copper_space,
     )
-    between_pad_limit = pad_gap - 2.0 * fab.min_copper_copper_space
-    between_pad_width = min(first_pad_width, between_pad_limit)
-    outward_escape_width = first_pad_width
+    between_pad_width = strictly_inside_width(
+        between_pad_limit,
+        fab.min_copper_width,
+    )
+    outward_escape_width = strictly_inside_width(
+        narrowest_rule_pad_width,
+        fab.min_copper_width,
+    )
     escape_clearance = fab.min_copper_copper_space + CLEARANCE_MARGIN
     return (
         pad_gap,
@@ -456,11 +504,18 @@ from jitx.shapes.primitive import ArcPolyline, Polyline
 def realized_widths(route: Route) -> tuple[float, ...]:
     assert route.traces, f"unrealized route: {route}"
     widths: list[float] = []
+    wrong_primitives: list[str] = []
     for trace in route.traces:
         for shape in trace.shapes:
             primitive = shape.to_primitive().geometry
             if isinstance(primitive, ArcPolyline | Polyline):
                 widths.append(primitive.width)
+            else:
+                wrong_primitives.append(type(primitive).__name__)
+    assert not wrong_primitives, (
+        f"route realized as {wrong_primitives}, not a width-bearing polyline; "
+        "the width rule failed"
+    )
     assert widths, f"route has no realized polyline width: {route}"
     return tuple(widths)
 

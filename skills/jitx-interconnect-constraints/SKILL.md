@@ -1,6 +1,6 @@
 ---
 name: jitx-interconnect-constraints
-description: "Use when the user asks about topology using the double-greater-than operator, timing constraints, skew matching, insertion loss limits, differential pairs, DiffPair bundles, protocol constraints for PCIe, USB, DisplayPort, RGMII, Ethernet, DDR, pin models, reference planes, length matching, impedance-controlled routing, or SignalConstraint definitions. Covers TopologyNet, Constrain, ConstrainDiffPair, ConstrainReferenceDifference, DiffPairConstraint, ReferencePlanes, and protocol-specific constraint patterns."
+description: "Use when the user asks about topology using the double-greater-than operator, timing constraints, skew matching, insertion loss limits, differential pairs, DiffPair bundles, protocol constraints for PCIe, USB, DisplayPort, RGMII, Ethernet, DDR, pin models, reference planes, length matching, impedance-controlled routing, SignalConstraint definitions, or proving after build that an SI constraint bound to its intended end-to-end path. Covers TopologyNet, Constrain, ConstrainDiffPair, ConstrainReferenceDifference, DiffPairConstraint, ReferencePlanes, emitted topology-span verification, and protocol-specific constraint patterns. Trace width and clearance design rules belong to jitx-layout-constraints. Pin muxing and lane or polarity swappability belong to jitx-pin-assignment. Stackups and routing-structure definitions belong to jitx-substrate-modeler."
 ---
 
 # JITX Interconnect Constraints
@@ -110,6 +110,14 @@ self += self.driver.out >> self.receiver.inp
 topo = Topology(self.driver.out, self.receiver.inp)
 ```
 
+Both descriptor endpoints must be elements of the stored `>>` chain, not
+ports that are merely netted to it. A reachable endpoint can still stop short
+and silently constrain only part of the intended path. A subcircuit that
+carries an SI chain therefore exposes both ends, and the outer constraint uses
+the true end-to-end ports. The post-build gate in `references/verification.md`
+refuses completion when an endpoint is absent or when the connected chain has
+an uncovered segment.
+
 ### Step 3: Apply constraints
 
 ```python
@@ -145,6 +153,12 @@ self.cst = (
     .structure(rs50)
 )
 ```
+
+`Constrain.structure()` accepts a single-ended `RoutingStructure`.
+`DifferentialRoutingStructure` is not a `RoutingStructure` subclass and does
+not go through this method. Differential work uses `ConstrainDiffPair` or
+`DiffPairConstraint`; the constraint-authoring step refuses to proceed to the
+build with a differential structure attached through `Constrain`.
 
 ### Multiple signals with same constraint
 
@@ -249,7 +263,10 @@ This pattern is used for:
 
 ## Pin Models
 
-Pin models characterize signal propagation through components for SI analysis.
+Pin-model declarations participate in construction of the signal path across
+components. In particular, a `BridgingPinModel` joins the topology between its
+two ports. Without that edge, stored `>>` chains on the two sides of a passive
+remain disconnected, and the build can still report `status: ok`.
 
 ### TerminatingPinModel — IC endpoints
 
@@ -274,7 +291,7 @@ class BlockingCapacitor(jitx.Component):
     p1 = Port()
     p2 = Port()
 
-    # Signal passes through with this delay and loss
+    # This declaration joins the signal path across the two component ports.
     pin_model = BridgingPinModel(p1, p2, delay=6e-12, loss=0.5)
 ```
 
@@ -343,13 +360,18 @@ When a topology passes through a component that does **not** have an embedded Br
 self += self.driver.out >> self.cap.p1
 self += self.cap.p2 >> self.receiver.inp
 
-# Add BridgingPinModel so constraint engine tracks delay/loss through the cap
+# Add BridgingPinModel so the emitted topology has a path across the cap.
 self.bridge = BridgingPinModel(self.cap.p1, self.cap.p2, delay=6e-12, loss=0.5)
 
-# Constraint sees the full path including cap delay/loss
+# The post-build span check must now walk from driver to receiver.
 topo = Topology(self.driver.out, self.receiver.inp)
 self.cst = Constrain(topo).insertion_loss(3.0)
 ```
+
+The constructor accepts delay and loss values, but this skill does not treat
+their presence as binding evidence. `references/verification.md` proves the
+path edge from the emitted `pinModels` record; numeric loss satisfaction needs
+its own SI evidence.
 
 ## Reference Planes
 
@@ -379,7 +401,13 @@ with ReferencePlanes({0: self.GND, 1: self.GND, 2: self.PWR}):
 self.cst = Constrain(topo).structure(rs50, ref_layers={0: self.GND})
 ```
 
-**Important:** If a routing structure has `.reference()` definitions (from substrate-modeler), you MUST provide ReferencePlanes. Without them, the constraint will error at build time.
+**Important:** If a routing structure has `.reference()` definitions (from
+substrate-modeler), it needs `ReferencePlanes`; without them, the constraint
+errors at build time. The converse matters too: a `ReferencePlanes` context is
+inert when the routing structure declares no reference layers. Before the
+constraint-authoring step proceeds to the build, it opens the selected
+structure definition and confirms that the expected `.reference()` layers are
+present. The presence of the context manager alone is not evidence.
 
 ## Tag-based routing structures (alternative to Constrain)
 
@@ -446,6 +474,7 @@ class MyStandard:
 class MyConstraint(SignalConstraint["MySerialLink"]):
     def __init__(self, standard: MyStandard,
                  structure: DifferentialRoutingStructure | None = None):
+        super().__init__()
         if structure is None:
             structure = current.substrate.differential_routing_structure(
                 standard.impedance
@@ -459,6 +488,13 @@ class MyConstraint(SignalConstraint["MySerialLink"]):
         self._dp_cst.constrain(src.tx, dst.rx)
         self._dp_cst.constrain(dst.tx, src.rx)
 ```
+
+Every `SignalConstraint` subclass that defines `__init__` calls
+`super().__init__()` before it adds or delegates constraints. The base
+initializer creates the collection that `self.add(...)` extends. The
+constraint-authoring step refuses to proceed to the build when a subclass
+initializer omits that call, even if one delegated example happens not to use
+`self.add(...)` yet.
 
 ### Using constrain_topology (context manager)
 
@@ -493,6 +529,7 @@ For complex protocols with multiple signal groups, compose constraints:
 ```python
 class DDR4Constraint(SignalConstraint["DDR4"]):
     def __init__(self, standard):
+        super().__init__()
         self._data_cst = DDR4DataConstraint(standard)
         self._acc_cst = DDR4AccConstraint(standard)
 
@@ -513,7 +550,7 @@ Common built-in protocols:
 
 | Protocol | Import Path | Port Bundle |
 |----------|-------------|-------------|
-| USB | `jitxlib.protocols.usb` | `USB2`, `USB3` |
+| USB | `jitxlib.protocols.usb` | `USB2`, `USBSuperSpeed`, `USB_C` |
 | DisplayPort | `jitxlib.protocols.displayport` | `DisplayPort` |
 | RGMII | `jitxlib.protocols.ethernet.mii.rgmii` | `RGMII` |
 | 100Base-TX | `jitxlib.protocols.ethernet.mdi.mdi100base_tx` | `MDI100BaseTX` |
@@ -651,19 +688,54 @@ Three more traps that build `status: ok` and fail silently or cryptically:
 
 ## Verification
 
-### Step 1: Type Check
+The detailed post-build procedure has one owner:
+`references/verification.md`. It covers the emitted `load-cache.json` fields,
+the executable span checker, its limits, and its negative controls. Layout
+width and clearance checks remain with `jitx-layout-constraints`;
+physical-layout checks remain with `jitx-physical-layout`.
+
+### Step 1: Type check
+
 ```bash
 pyright path/to/circuit.py
 ```
 
-### Step 2: Build Test
+### Step 2: Build
+
 ```bash
 jitx build <module.path.DesignClass>
 ```
 
-Don't run parallel JITX builds against the same project — sequence them. See `jitx/SKILL.md` "Build Safety".
+JITX builds against the same project run in sequence. See `jitx/SKILL.md`
+"Build Safety".
 
-SI constraint violations appear in the Issues List under "Unsatisfied Signal Constraints" in the JITX UI.
+### Step 3: Prove emitted binding
+
+The project copies `scripts/check_si_spans.py` and runs it against the built
+design's `cache/load-cache.json`:
+
+```bash
+python scripts/check_si_spans.py path/to/Design/cache/load-cache.json
+```
+
+The task completion block is refused unless the command exits 0 and names the
+expected constrained spans. `status: ok`, a zero-exit type check, or the
+existence of a test harness cannot replace this result. An unavailable artifact
+or exit 2 records binding as an open item, and the task may claim only that the
+constraint translated.
+
+When both a module harness and an assembly integration apply the constraint,
+this step runs the checker on both artifacts and records the begin endpoint,
+end endpoint, and intended path from each. The completion block is refused if
+they differ without a named, intentional reason.
+
+### Step 4: Record numeric SI evidence
+
+SI constraint violations appear in the Issues List under "Unsatisfied Signal
+Constraints" in the JITX UI. This UI evidence can support timing, skew, or loss
+compliance when it is actually inspected. The CLI build does not expose that
+panel, and the emitted-span checker proves binding rather than numeric
+compliance. Claims without the corresponding evidence stay open.
 
 ## API Reference
 
