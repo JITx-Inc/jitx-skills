@@ -34,20 +34,25 @@ the expected trunk and escape widths.
 The pure layout-check helper suite passes, including the regression that
 treats a realized shape without a width field as a width-rule failure.
 
-A fresh build and capture was attempted after the correction. The JITX runtime
-launcher could not open its user statistics file in the restricted execution
-environment, so it exited before the build began. No corrected capture result
-is claimed. The reference remains pending a run in an environment where the
-runtime can write its user state:
+A fresh build and capture was run after the correction:
 
 ```text
 $ python check_fanout.py
-$ python -m jitx runtime start --background
-Error: launcher exited (rc=1) before announcing itself
-[runtime.log] Error occurred when attempting to open the user statistics file.
-[FAIL] command exited 1: python -m jitx runtime start --background
+QFN escape geometry: pad_width=0.250000 mm, narrowest_rule_pad_width=0.250000 mm,
+  adjacent_gap=0.250000 mm, row_pitch=0.500000 mm, escape_width=0.249999 mm,
+  escape_clearance=0.100000 mm
+qfn_power_fanout.qfn_power_fanout.QfnPowerFanoutDesign:
+  design: qfn_power_fanout.qfn_power_fanout.QfnPowerFanoutDesign
+  status: ok
+[PASS] trunk route realized at (0.5,) mm, expected 0.500000 mm
+[PASS] escape route realized at (0.249999,) mm, expected 0.249999 mm
+[PASS] trunk and escape routes have non-empty traces
 ```
 
-The next successful run must record a `0.249999 mm` expected escape, reject any
-`Polygon` realization, and replace this pending status with its real command
-output and exit code.
+The escape realizes at `0.249999 mm` against a queried pad width of
+`0.250000 mm`, one 1 nm quantum inside the narrowest pad the rule selects. The
+withdrawn receipt recorded `0.250000 mm` for both, which is the defect this
+correction addresses: a trace at the pad width is not strictly inside it.
+
+Both routes realize as traces with a width, so the Polygon branch of the width
+check is not exercised by this reference. Its own unit test covers it.
