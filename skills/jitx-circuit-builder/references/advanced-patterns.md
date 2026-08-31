@@ -16,29 +16,51 @@
 ### Design-level defaults
 
 ```python
-from jitxlib.parts import ResistorQuery, CapacitorQuery, SortDir, SortKey
+from jitx.interval import AtLeast, AtMost
+from jitxlib.parts import (
+    CapacitorQuery,
+    InductorQuery,
+    ResistorQuery,
+    SortDir,
+    SortKey,
+)
 
 class MyDesign(SampleDesign):
-    resistor_defaults = ResistorQuery(case=["0402"], tolerance=0.01)
-    capacitor_defaults = CapacitorQuery(
-        case=["0402", "0603", "0805", "1206"],
+    resistor_query = ResistorQuery(
+        mounting="smd",
+        case=("0402", "0603", "0805"),
+        tolerance_min=AtLeast(-0.01),
+        tolerance_max=AtMost(0.01),
+    )
+    capacitor_query = CapacitorQuery(
+        mounting="smd",
+        case=("0402", "0603", "0805", "1206"),
         sort=SortKey('area', SortDir.INCREASING)
     )
+    # Power inductors do not use the chip-passive case ceiling. Each instance
+    # carries any current and saturation bounds required by its datasheet.
+    inductor_query = InductorQuery(mounting="smd")
     circuit = MyCircuit()
     board = MyBoard()
     substrate = MySubstrate()
 ```
 
+These design-context attributes are singular `*_query` names. Attributes named
+`resistor_defaults`, `capacitor_defaults`, or `inductor_defaults` are ignored and do
+not constrain the selected parts. The verification process in the main skill refuses
+to proceed until the resolved package, ratings, MPN, and price are inspected.
+
 ### Circuit-level context manager
 
 ```python
+from jitx.interval import AtLeast
 from jitxlib.parts import Capacitor, CapacitorQuery
 
 with CapacitorQuery.refine(type="ceramic", case="0805"):
-    self.c_bulk_0 = Capacitor(capacitance=10e-6, rated_voltage=50.0)
+    self.c_bulk_0 = Capacitor(capacitance=10e-6, rated_voltage=AtLeast(50.0))
     self.c_bulk_0.insert(self.buck.VIN, self.buck.GND, short_trace=True)
 
-    self.c_bulk_1 = Capacitor(capacitance=10e-6, rated_voltage=50.0)
+    self.c_bulk_1 = Capacitor(capacitance=10e-6, rated_voltage=AtLeast(50.0))
     self.c_bulk_1.insert(self.buck.VIN, self.buck.GND, short_trace=True)
 
     self.c_hf = Capacitor(capacitance=100e-9)
@@ -206,6 +228,7 @@ control points — see the **jitx-physical-layout** subskill.
 from jitx import Circuit, Net
 from jitx.common import Power
 from jitx.constraints import Tag, design_constraint
+from jitx.interval import AtLeast
 from jitxlib.parts import Capacitor, CapacitorQuery, Resistor, Inductor, ResistorQuery
 from jitxlib.voltage_divider import VoltageDividerConstraints, voltage_divider_from_constraints
 from jitx.toleranced import Toleranced
@@ -236,10 +259,10 @@ class BuckConverterCircuit(Circuit):
 
         # Input caps — ALWAYS assign to self
         with CapacitorQuery.refine(type="ceramic", case="0805"):
-            self.c_in1 = Capacitor(capacitance=10e-6, rated_voltage=50.0)
+            self.c_in1 = Capacitor(capacitance=10e-6, rated_voltage=AtLeast(50.0))
             self.c_in1.insert(self.buck.VIN, self.buck.GND, short_trace=True)
 
-            self.c_in2 = Capacitor(capacitance=10e-6, rated_voltage=50.0)
+            self.c_in2 = Capacitor(capacitance=10e-6, rated_voltage=AtLeast(50.0))
             self.c_in2.insert(self.buck.VIN, self.buck.GND, short_trace=True)
 
             self.c_in_hf = Capacitor(capacitance=100e-9)
@@ -259,16 +282,19 @@ class BuckConverterCircuit(Circuit):
         self.feedback_nets = [self.fb_div.out + self.buck.FB]
 
         # Output inductor
-        self.L = Inductor(inductance=4.7e-6, current_rating=output_current * 1.3)
+        self.L = Inductor(
+            inductance=4.7e-6,
+            current_rating=AtLeast(output_current * 1.3),
+        )
         self.SW_NODE += self.buck.SW + self.L.p1
         self.VOUT += self.L.p2
 
         # Output caps
         with CapacitorQuery.refine(type="ceramic", case="1206"):
-            self.c_out1 = Capacitor(capacitance=22e-6, rated_voltage=10.0)
+            self.c_out1 = Capacitor(capacitance=22e-6, rated_voltage=AtLeast(10.0))
             self.c_out1.insert(self.vout.Vp, self.vout.Vn, short_trace=True)
 
-            self.c_out2 = Capacitor(capacitance=22e-6, rated_voltage=10.0)
+            self.c_out2 = Capacitor(capacitance=22e-6, rated_voltage=AtLeast(10.0))
             self.c_out2.insert(self.vout.Vp, self.vout.Vn, short_trace=True)
 
         # Design constraint for switch node clearance

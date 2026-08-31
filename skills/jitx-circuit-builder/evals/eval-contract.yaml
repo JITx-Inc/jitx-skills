@@ -1,0 +1,16 @@
+goal: |
+  The skill guides an agent to create or edit JITX Circuit code whose objects remain
+  structurally owned, whose intended pins share the correct nets, whose passive parts
+  satisfy electrical and assembly constraints, and whose build artifacts prove the
+  requested connectivity change.
+dimensions:
+  - "CIRCUIT_STRUCTURE: Does the circuit retain every component and net expression under the correct Circuit owner, with class-level ports and supported connection APIs?"
+  - "NET_CONNECTIVITY: Do named nets, insertions, removals, deliberate no-connects, and power connections match the requested electrical intent without dropped or accidental connections?"
+  - "PASSIVE_SELECTION: Do passive queries use real design-context attributes, correct interval directions, datasheet constraints, and packages within the declared assembly capability?"
+  - "APPLICATION_CIRCUIT_FIDELITY: Do voltage dividers, rail capacitors, inductors, and other external parts follow the source circuit requirements and the documented JITX APIs?"
+  - "ARTIFACT_VERIFICATION: Does verification include a successful type check and build plus discriminating assertions against cache/netlist.json and the resolved part records?"
+hard_fails:
+  - "A passive query resolves to a package outside the declared assembly capability while the design still reports status: ok."
+  - "A numeric rating is treated as a scalar minimum, or a maximum tolerance is expressed with the wrong field or interval direction."
+  - "The requested connection, removal, or deliberate no-connect is accepted from build status alone without a positive-control assertion against cache/netlist.json."
+  - "A component or net expression loses structural ownership, so the source type-checks but the object or connection disappears during build."

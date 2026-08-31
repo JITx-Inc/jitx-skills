@@ -66,13 +66,15 @@ if [ ! -f pyproject.toml ] || ! grep -q "jitx" pyproject.toml; then
   # No JITX project here — scaffold the canonical layout.
   # CONFIRM WITH THE USER BEFORE RUNNING in a non-empty directory.
   jitx project layout init
-  # Sync project deps. PIP_PRE + extra-index-url are required for `jitxlib-*` to resolve.
-  # Note: pip's resolver may re-pin `jitx` to an older 4.x that satisfies the project's `<5` constraint.
-  # This skills bundle documents the 4.2 API surface (RoutePoint/PairInsertion/PairPoint, runtime
-  # auto-resolution, etc. do not exist below 4.2) — if the resolver lands below 4.2, pin it:
-  #   PIP_PRE=1 pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple "jitx==4.2.*"
-  PIP_PRE=1 pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple -e . --quiet 2>&1 | tail -1
 fi
+# Sync project deps. `jitxlib-parts` is a separate distribution and is required
+# by the circuit-builder's Resistor, Capacitor, and Inductor imports.
+# PIP_PRE + extra-index-url are required for `jitxlib-*` to resolve.
+# Note: pip's resolver may re-pin `jitx` to an older 4.x that satisfies the project's `<5` constraint.
+# This skills bundle documents the 4.2 API surface (RoutePoint/PairInsertion/PairPoint, runtime
+# auto-resolution, etc. do not exist below 4.2). If the resolver lands below 4.2, pin it:
+#   PIP_PRE=1 pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple "jitx==4.2.*"
+PIP_PRE=1 pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple -e . jitxlib-parts --quiet 2>&1 | tail -1
 ```
 ```powershell
 # PowerShell (Windows)
@@ -80,14 +82,24 @@ if ((-not (Test-Path pyproject.toml)) -or (-not (Select-String -Quiet -Pattern "
   # No JITX project here — scaffold the canonical layout.
   # CONFIRM WITH THE USER BEFORE RUNNING in a non-empty directory.
   jitx project layout init
-  # Sync project deps. PIP_PRE + extra-index-url are required for `jitxlib-*` to resolve.
-  # Note: pip's resolver may re-pin `jitx` to an older 4.x that satisfies the project's `<5` constraint.
-  # This skills bundle documents the 4.2 API surface (RoutePoint/PairInsertion/PairPoint, runtime
-  # auto-resolution, etc. do not exist below 4.2) — if the resolver lands below 4.2, pin it:
-  #   $env:PIP_PRE=1; pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple "jitx==4.2.*"; Remove-Item Env:PIP_PRE
-  $env:PIP_PRE=1; pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple -e . --quiet 2>&1 | Select-Object -Last 1; Remove-Item Env:PIP_PRE
 }
+# Sync project deps. `jitxlib-parts` is a separate distribution and is required
+# by the circuit-builder's Resistor, Capacitor, and Inductor imports.
+# PIP_PRE + extra-index-url are required for `jitxlib-*` to resolve.
+# Note: pip's resolver may re-pin `jitx` to an older 4.x that satisfies the project's `<5` constraint.
+# This skills bundle documents the 4.2 API surface (RoutePoint/PairInsertion/PairPoint, runtime
+# auto-resolution, etc. do not exist below 4.2). If the resolver lands below 4.2, pin it:
+#   $env:PIP_PRE=1; pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple "jitx==4.2.*"; Remove-Item Env:PIP_PRE
+$env:PIP_PRE=1; pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple -e . jitxlib-parts --quiet 2>&1 | Select-Object -Last 1; Remove-Item Env:PIP_PRE
 ```
+
+After scaffolding, Step 2 adds `jitxlib-parts` to the `dependencies` list in
+`pyproject.toml`; the explicit install above makes the current environment usable,
+and the dependency entry makes the project reproducible. If the user approves a
+predefined JLCPCB substrate, Step 2 adds `jitxlib-jlcpcb` to the same list and
+repeats the sync. Step 2 does not finish until
+`python -c "import jitxlib.parts"` succeeds and, for that JLCPCB path,
+`python -c "import jitxlib.jlcpcb"` succeeds.
 
 `jitx project layout init` writes the canonical project skeleton: `pyproject.toml`, a flat `<ns>/` package (NOT `src/<ns>/`) containing `__init__.py` + a `main.py` that already defines a working two-resistor `SampleDesign`, plus `.gitignore` and `.vscode/`. That seeded design is buildable as-is once auth and runtime are up — a useful smoke test before writing real design code. Subcommands `jitx project layout {pyproject,gitignore,settings,vscode}` refresh individual pieces of an existing project.
 
@@ -121,39 +133,30 @@ The runtime is a daemon (an instance of the bundled `jitx` launcher binary, run 
 
 ```bash
 # bash (macOS / Linux / WSL / Git Bash)
-# If a runtime is already running, do nothing.
-if jitx runtime status >/dev/null 2>&1; then
-  :
-elif jitx runtime introspect >/dev/null 2>&1; then
-  # Installed but not running — start it.
-  jitx runtime start --background
-else
+# `runtime status` exits 0 even when it prints "Runtime: not running", so it is
+# not a start guard. This block installs if needed, then starts unconditionally;
+# starting an already-running project is a no-op.
+if ! jitx runtime introspect >/dev/null 2>&1; then
   # Not installed. `update` is the idempotent variant of `install`; safe in setup
   # scripts. Without --version it installs the runtime matching the installed
   # py-jitx version; pass --version only to honor an explicit pin.
   jitx runtime update
-  jitx runtime start --background
 fi
+jitx runtime start --background
 ```
 ```powershell
 # PowerShell (Windows)
-# If a runtime is already running, do nothing.
-jitx runtime status 2>$null | Out-Null
-if ($LASTEXITCODE -eq 0) {
-  # already running
-} else {
-  jitx runtime introspect 2>$null | Out-Null
-  if ($LASTEXITCODE -eq 0) {
-    # Installed but not running — start it.
-    jitx runtime start --background
-  } else {
-    # Not installed. `update` is the idempotent variant of `install`; safe in setup
-    # scripts. Without --version it installs the runtime matching the installed
-    # py-jitx version; pass --version only to honor an explicit pin.
-    jitx runtime update
-    jitx runtime start --background
-  }
+# `runtime status` exits 0 even when it prints "Runtime: not running", so it is
+# not a start guard. This block installs if needed, then starts unconditionally;
+# starting an already-running project is a no-op.
+jitx runtime introspect 2>$null | Out-Null
+if ($LASTEXITCODE -ne 0) {
+  # Not installed. `update` is the idempotent variant of `install`; safe in setup
+  # scripts. Without --version it installs the runtime matching the installed
+  # py-jitx version; pass --version only to honor an explicit pin.
+  jitx runtime update
 }
+jitx runtime start --background
 ```
 
 **Runtime version.** Since 4.2, `jitx runtime install/update` with `--version`
@@ -325,7 +328,10 @@ jitx build-all
 subclasses whose `__init__` has required parameters, and building one directly
 fails with `Design is parameterized but no parameters were provided`. To build a
 parameterized design, add a thin module-scope subclass that fills in the
-arguments with concrete values.
+arguments with concrete values. A `Design` subclass created inside a factory
+function, including an A/B geometry harness, has `<locals>` in its qualified name
+and the runtime rejects it as a design filename. The build step refuses a
+factory-created design and requires every concrete harness class at module scope.
 
 **Don't run parallel builds on the same design.** Concurrent JITX builds against the *same design* aren't reliable — cache state, build artifacts, and design-explorer output overlap. Sequence those. Parallel builds of *different designs* in the same project (different test designs, different module paths) share the WebSocket session but are generally safe — the JITX backend serializes internally, possibly with a wait. The skill orchestrator's Phase 1 runs sub-agents in parallel on different test designs; the parallelism is at the design-work level, and concurrent builds on distinct designs are an acceptable consequence.
 
@@ -334,9 +340,22 @@ arguments with concrete values.
 
 **Structured output:** pass `--format json` on any subcommand for machine-readable output (the JSON shape is part of the public contract — what VSCode reads).
 
-**Non-interactive shells:** some rebuilds ask `[Y/n]` (stale-instance /
-component-removal confirmation) and die with `EOF when reading a line` without a
-TTY — pipe assent: `yes | jitx build <design>`.
+**Non-interactive shells:** some rebuilds ask `[Y/n]` before deleting stale
+instances or objects attached to removed components. The CLI has no documented
+non-interactive flag, so a headless bash build feeds assent with
+`yes | jitx build <design>`. For the consolidated workflow command, it uses
+`yes | python scripts/check.py <ns>/ --build <design>`; `check.py` passes its stdin
+to the build. The command does not append `| tail`: that pipeline can buffer all
+build output until the process exits, making a stalled build look slow. A
+headless native PowerShell run has no verified equivalent in this bundle, so the
+build step stops for an interactive TTY instead of accepting an
+`EOF when reading a line` failure.
+
+If a build produces no further output and consumes little CPU, the build step
+pauses before retrying and counts running `jitx interactive-client` processes.
+Accumulated viewer clients can hold the runtime. It does not kill them
+automatically because a viewer may own placement state that has not been
+persisted. It reports the count and asks before terminating clients.
 
 **Output files** (in `designs/<design_name>/`):
 - `cache/netlist.json` - JSON netlist for verification
@@ -362,6 +381,13 @@ r: rd = r.submit(DesignClass); rd.capture()` gives python the *realized* design
 (route copper, computed pours, placements, nets) for direct assertion — the loop
 is ~10–15 s per design and needs no TTY. Details:
 `jitx-physical-layout/references/geometry-verification.md`.
+
+Constructing a JITX object outside a design context returns a deferred
+`Instantiable` proxy. Its attributes are accessors, not the constructor values.
+Unit tests therefore cover plain-data helpers and arithmetic only; structural
+facts such as layer, rank, shape, and connection membership require assertions on
+a submitted and captured design. The verification step rejects proxy-attribute
+assertions as evidence.
 
 Exports are **plugins** (entry-point group `jitx-plugin`), invoked as:
 

@@ -52,7 +52,7 @@ Copy this template verbatim. Fill every field. Every `N/A` requires a reason.
 
 `Primary source` names the ground-truth source and exact pages or sections. In complete-board work, cite `datasheets/<MPN>.spec.md` and the PDF pages recorded there. In single-task work, cite the PDF directly. When the user named a sourcing channel for an IC, connector, or other non-passive part, include the saved channel-evidence path required by `parts-sourcing.md`. Prior projects belong under `Secondary references`, never `Primary source`. Bare "datasheet (from memory)" or "typical dimensions" is invalid for a real MPN.
 
-The two review fields are always present. `JITX code review (self)` is mandatory for complete-board tasks, except verify-only tasks with no JITX Python change; see `jitx-code-review/SKILL.md`. For single-task work it is `not applicable: single-task tier` unless the user invoked the review. `Outside-voice review (codex)` follows `references/outside-voice-review.md`; its complete-board trigger list does not apply to single-task work. A required review that did not run blocks unless the user approves. CRITICAL or WARNING findings produce `issues-pending` until fixed, downgraded with rationale, or user-approved.
+The two review fields are always present. `JITX code review (self)` is mandatory for complete-board tasks, except verify-only tasks with no JITX Python change; see `jitx-code-review/SKILL.md`. For single-task work it is `not applicable: single-task tier` unless the user invoked the review. `Outside-voice review (codex)` follows `references/outside-voice-review.md`; its complete-board trigger list does not apply to single-task work. A required outside-voice attempt that produces no output is recorded as `skipped: <reason>` and is not a failed gate. CRITICAL or WARNING findings from completed reviews produce `issues-pending` until fixed, downgraded with rationale, or user-approved.
 
 Run `python scripts/check.py <ns>/ --build <module.path.DesignClass>` once from the project root. The `Build` field and the four verification rows report the corresponding summary lines from that invocation. Review-required grep hits retain their per-hit dispositions in the `Grep gates` row.
 
@@ -86,6 +86,7 @@ Run `python scripts/check.py <ns>/ --build <module.path.DesignClass>` once from 
 | Ports exposed | <bundles; directions> |
 | Power requirements | <voltage; current> |
 | Constraints needed at top level | <list/none> |
+| Harness / assembly constraint parity | <harness constrained span; assembly constrained span; match evidence / not applicable + reason> |
 
 ### Reviews
 
@@ -119,6 +120,12 @@ The orchestrator (or user) then appends the acceptance decision:
 - **Primary source must be ground truth.** A prior project as primary source is a flag — the orchestrator should reject and ask for the datasheet (or user-confirmed exception). Prior projects belong under "Secondary references".
 - **Static checks are required where Python was touched.** `python scripts/check.py <ns>/` always runs `ruff check`, `ruff format --check`, `pyright`, and the grep gates. A missing tool reports `ERROR` and blocks acceptance.
 - **JITX code review (self) is required for complete-board tier.** A complete-board task acceptance block with `JITX code review (self): not run` defaults to `block`. Bulk dispositions on findings ("all accepted, framework code") without per-line rationale fail review. See `jitx-code-review/SKILL.md`.
+- **Harness / assembly constraint parity is required at assembly acceptance.** The
+  assembly block names each constrained endpoint span in its accepted harness and
+  in the shipping design, including any bridging-pin model, and cites the evidence
+  that they match. A missing comparison or a mismatch returns the assembly task to
+  `rework`. Earlier tasks use `not applicable` with a reason because the assembly
+  does not exist yet.
 - **Verdict (self): ready-for-review** is the only valid sub-agent verdict. Any other value (e.g. `done`, `complete`) means the protocol was not followed.
 
 ### Verdict workflow
@@ -143,11 +150,9 @@ A hard-fail hit blocks task acceptance. Fix the underlying code; do not whitelis
 
 | # | Rule | Pattern (Python `re`-style) | Where checked |
 |---|------|------|----|
-| 1 | SI / top-level applications outside top-level designs (top-level only — `ReferencePlanes`, `Constrain`, `ConstrainDiffPair`, `ConstrainReferenceDifference` are *applied* in `designs/`, not subcircuits) | `\b(ReferencePlanes\|Constrain\|ConstrainDiffPair\|ConstrainReferenceDifference)\s*\(` | `<ns>/` excluding `<ns>/designs/` |
 | 2 | Net symbols outside top-level designs (`GroundSymbol` / `PowerSymbol` are top-level only) | `\b(GroundSymbol\|PowerSymbol)\s*\(` | `<ns>/` excluding `<ns>/designs/` |
 | 3 | `setattr(self, ...)` / `getattr(self, ...)` — JITX convention violation (see `jitx/SKILL.md` Don'ts) | `\b(setattr\|getattr)\s*\(\s*self\b` | anywhere in `<ns>/` |
 | 4 | Anonymous structural `.insert(...)` (silent-drop pattern 1 — `Resistor(...).insert(...)` instead of `self.r = Resistor(...); self.r.insert(...)`) | `\b(Capacitor\|Resistor\|Inductor)\s*\([^)]*\)\s*\.insert\s*\(` | anywhere in `<ns>/` |
-Pattern 1 catches the *call* form, not imports. `from jitx.si import ConstrainDiffPair` is fine; `ConstrainDiffPair(...)` is not (outside top-level designs).
 
 Pattern 4 misses nested constructor args (e.g., `Resistor(resistance=Toleranced.percent(...)).insert(...)`). Not common; treat as a known gap, not a reason to broaden the regex (cost of false positives is too high).
 
@@ -157,6 +162,7 @@ A review-required hit does not block, but each hit must appear in the task accep
 
 | # | Rule | Pattern | Where checked |
 |---|------|---------|----|
+| 1 | SI constructor call outside the conventional top-level directory. The line regex cannot distinguish an application from a `SignalConstraint` definition, a `Design` / `TestDesign` beside its harnessed module or in `main.py`, or prose. Disposition: `accept (constraint definition)`, `accept (inside <Design subclass>)`, `accept (comment/docstring)`, or `fix (move application to top-level design)`. | `\b(ReferencePlanes\|Constrain\|ConstrainDiffPair\|ConstrainReferenceDifference)\s*\(` | `<ns>/` excluding `<ns>/designs/` |
 | 5 | Module-scope `for` loop — anti-string-hacking theme 9. Module-import-time logic that *might* populate a global table; legitimate uses (dispatch registration, static data generation) exist. Disposition: `fix (move into function)` or `accept (legitimate import-time logic: <reason>)`. See `jitx/SKILL.md` Don'ts and `references/architectural-patterns.md` § "No code at module-import time". | `^for\s+\w+\s+in\s+` | anywhere in `<ns>/` |
 | 6 | `Pour(..., isolate=...)` — legacy parameter (Pass 3 deprecates in favor of `design_constraint(...)` with Tags) | `\bPour\s*\([^)]*\bisolate\s*=` | anywhere in `<ns>/` |
 | 7 | Bare net/topology expression (silent-drop pattern 2 — `self.a + self.b` or `self.a >> self.b` with no LHS assignment) | `^\s*self\.\w+(\.\w+\|\[[^]]+\])*\s*(\+\|>>)\s*self\.\w+(\.\w+\|\[[^]]+\])*(\s*#.*)?$` | anywhere in `<ns>/` |
@@ -167,6 +173,12 @@ A review-required hit does not block, but each hit must appear in the task accep
 | 12 | `.insert(...)` calls missing `short_trace=` — every power-rail capacitor insert (decoupling, bypass, bulk, output filter) needs `short_trace=True`. Non-power-rail caps and non-cap inserts dispositioned as exception or N/A. See `jitx-circuit-builder/SKILL.md` "short_trace=True is the default for power-rail capacitors" | `\.insert\s*\(` minus lines containing `short_trace` | anywhere in `<ns>/` |
 
 Pattern 8 is intentionally broad; it will match comments and legitimate `isinstance`-adjacent uses. The disposition workflow handles this — review-required is the right severity.
+
+Pattern 1 is review-required because the prescribed project structure puts
+constraint definitions in `constraints/`, the seeded top-level design in
+`main.py`, and test harnesses beside their modules. Those are correct locations.
+The gate treats the prescription as authoritative and asks for a per-hit semantic
+disposition instead of hard-failing code it cannot classify.
 
 Pattern 9 catches f-strings that look like they're building tag-style identifiers (`ALL_CAPS` prefix + brace). Legitimate uses (log lines like `f"ERROR_{code}"`) need disposition with rationale. The disposition workflow keeps this from becoming compliance theater.
 
@@ -286,6 +298,7 @@ For `N >= 3`, `B == N` fails this gate. The orchestrator re-dispatches or names,
 | `GroundSymbol` on GND | <result> |
 | `PowerSymbol` on each rail | <result> |
 | SI constraints at top level in `ReferencePlanes(...)` | <result> |
+| Harness / assembly constraint parity | <each harness span vs assembly span; evidence; result> |
 | `require()` calls have matching provides | <result> |
 | JITX UI errors | <result/reason> |
 | Build warnings | <result> |
@@ -305,6 +318,7 @@ For `N >= 3`, `B == N` fails this gate. The orchestrator re-dispatches or names,
 | Field | Result |
 |-------|--------|
 | Phase 3b audit block emitted | <block/link> |
+| Outside-voice review | <N attempted; M completed; K skipped + reasons> |
 | CRITICAL findings | <count; result> |
 | WARNING findings | <count; dispositions> |
 | NOTE findings | <count> |
@@ -322,7 +336,7 @@ The audit happens in Phase 3b. A read-only audit agent (no design-code edits) re
 
 The four pass scopes remain those in `references/project-builder-flow.md`: application-circuit external parts and values; every circuit assumption against the system; every interface path including power; and every regulator's load margin, thermal/package limit, and hot-plug behavior.
 
-The outside-voice pass is required for complete-board work and follows `references/outside-voice-review.md`. Any CRITICAL or WARNING outside-voice finding makes the combined verdict `issues-pending`, even when the four passes are clean.
+The bounded outside-voice fan-out is a required attempt for complete-board work and follows `references/outside-voice-review.md`. Any CRITICAL or WARNING finding from a completed outside-voice pass makes the combined verdict `issues-pending`, even when the four passes are clean. A pass with no output is recorded as skipped and does not turn the audit into a failed gate.
 
 ```markdown
 ## Phase 3b Audit: <project-name>
@@ -356,7 +370,7 @@ The outside-voice pass is required for complete-board work and follows `referenc
 
 ### Outside-Voice Review (codex)
 
-**Outside-voice review (codex):** <result/reason>
+**Outside-voice review (codex):** <N attempted; M completed; K skipped + reasons; completed-pass result>
 
 ### Findings and Loopback Decisions
 

@@ -236,10 +236,15 @@ A single sub-agent assembles the top-level design. The orchestrator reviews its 
            .timing_difference(0.1e-12)
    ```
    Every protocol with impedance or timing requirements needs constraints here. **Read "Topology vs net membership" below before designing the chains.**
-8. Define board shape, mounting holes, and any keepout zones.
-9. **Set passive query defaults on the Design class** to match the design's manufacturing path and circuit role (see "Passive query defaults" below). Without explicit defaults, the unfiltered `jitxlib.parts` search may return parts unsuitable for the design (e.g. through-hole leaded electrolytics ahead of SMD ceramics on an SMT design).
-10. **Set default design rules on the Design class** — trace width, copper clearance, thermal relief, and wider traces for tagged power/ground rails. See "Default design rules" below. These are the production-friendly defaults every board should have; without them, the router uses the substrate's `FabricationConstraints` minimums, which are usually too narrow for power.
-11. Build and verify `status: ok`.
+8. The assembly agent compares every constrained span against the accepted
+   per-module harness that exercised it. It records the ordered endpoints and any
+   bridging-pin model in both the harness and the shipping assembly. A missing
+   comparison or mismatch sends the assembly task to `rework`; it does not reach
+   its acceptance verdict.
+9. Define board shape, mounting holes, and any keepout zones.
+10. **Set passive query defaults on the Design class** to match the design's manufacturing path and circuit role (see "Passive query defaults" below). Without explicit defaults, the unfiltered `jitxlib.parts` search may return parts unsuitable for the design (e.g. through-hole leaded electrolytics ahead of SMD ceramics on an SMT design).
+11. **Set default design rules on the Design class:** trace width, copper clearance, thermal relief, and wider traces for tagged power/ground rails. See "Default design rules" below. These are the production-friendly defaults every board should have; without them, the router uses the substrate's `FabricationConstraints` minimums, which are usually too narrow for power.
+12. Build and verify `status: ok`.
 
 ### Passive query defaults — match manufacturing and circuit role
 
@@ -440,6 +445,9 @@ These editor-side checks won't catch Pattern 1 (the `.insert(...)` call has a si
 - [ ] All require() calls have matching provides
 - [ ] `GroundSymbol` on GND net, `PowerSymbol` on every power rail
 - [ ] SI constraints applied **at this level** (not inside subcircuits) for every protocol with impedance/timing requirements
+- [ ] Every constrained endpoint span and bridging-pin model matches the accepted
+      per-module harness; the assembly acceptance block records both spans and
+      cites the comparison evidence
 - [ ] **No "Invalid Topology Definitions" or "No path for signal constraint" errors in the JITX UI Issues list** — every constraint endpoint reachable via `>>` chains, not `+` (see "Topology vs net membership" above)
 - [ ] **No `Reference to structural object … lost during instantiation` warnings in the build output** — every structural object stored on `self`; no bare `+` / `>>` expressions (see "Silent-drop patterns" above)
 - [ ] `ReferencePlanes(...)` context wraps all constraint applications
@@ -462,7 +470,13 @@ Each subcircuit was designed in isolation. Now review the assembled design as a 
 
 Spawn a sub-agent to perform the design-level audit. The audit agent reads code and the datasheet PDFs but **does not edit design files**. It reads the PDFs and not the spec notes: its job is to catch what the building chain missed, and the spec notes are that chain's own output. Where a note and the datasheet disagree, the note is the defect. It runs in its own context, so the pages cost the orchestrator nothing. It produces a **Phase 3b Audit Block** with issues classified as CRITICAL / WARNING / NOTE; see the template in `references/completion-blocks.md` "Phase 3b Design Audit Block".
 
-**After the same-model audit, run an outside-voice (codex) pass — mandatory for complete-board tier.** The two reviews are additive: the same-model audit uses skill knowledge, codex provides independent perspective from outside the conversation. See `references/outside-voice-review.md` for the trigger rules, prompt shape, invocation command, and combined-verdict rule (any CRITICAL/WARNING outside-voice finding makes the combined verdict `issues-pending` even if the same-model audit said `clean`).
+**After the same-model audit, attempt the bounded outside-voice (codex) fan-out
+defined in `references/outside-voice-review.md`.** The attempt is mandatory for
+complete-board tier. It runs one narrow pass per accepted trigger-list task plus
+one cross-cutting power/arithmetic pass, with separate outputs. A pass that
+produces no output is recorded as skipped and does not fail the gate. Any
+CRITICAL/WARNING finding from a completed pass makes the combined verdict
+`issues-pending` even if the same-model audit said `clean`.
 
 Before the audit runs, the orchestrator must have already dispatched and accepted fixes for the build-time silent-drop patterns documented in Phase 3 → "Silent-drop patterns". Those bugs build with `status: ok` but produce a wrong design, and the audit agent's datasheet-comparison passes assume the netlist matches the source. JITX emits a `Reference to structural object … lost during instantiation` warning for some of these cases (constraint and similar structural classes), but not for bare net or topology expressions. Handle both manually.
 
@@ -519,6 +533,8 @@ Do not accept "noted for future refactoring" — if it's broken, fix it now.
 ### Exit Gate: Phase 3b → Phase 4
 
 - [ ] Audit found no CRITICAL or WARNING issues (or all were fixed and re-audited)
+- [ ] Outside-voice attempts record completed and skipped counts; every skipped
+      pass has a reason, and every completed-pass finding has a disposition
 - [ ] Every high-speed interface has SI constraints applied and functional
 - [ ] PLAN.md updated with all rework tasks completed
 

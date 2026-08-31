@@ -153,17 +153,6 @@ def main():
         print()
         print("=== hard-fail patterns ===")
 
-    # SI / top-level applications outside designs/
-    # Catches calls like `with ReferencePlanes(...)`, `ConstrainDiffPair(...)`. Imports are not caught (no \( after the name).
-    run_check(
-        f"SI/top-level applications outside {TOP_LEVEL_PATH}/",
-        r"\b(ReferencePlanes|Constrain|ConstrainDiffPair|ConstrainReferenceDifference)\s*\(",
-        True,
-        "hard-fail",
-        src_dir,
-        quiet,
-    )
-
     # Net symbols outside designs/
     run_check(
         f"Net symbols (GroundSymbol/PowerSymbol) outside {TOP_LEVEL_PATH}/",
@@ -199,6 +188,20 @@ def main():
     if not quiet:
         print()
         print("=== review-required patterns ===")
+
+    # SI constructor calls outside designs/ need semantic review. A line regex
+    # cannot distinguish an application from a SignalConstraint definition, a
+    # module-scope Design/TestDesign in main.py or beside its harnessed module,
+    # or prose in a comment/docstring. Imports are not caught (no `(` after the
+    # name). Each hit receives a per-line disposition in the acceptance block.
+    run_check(
+        f"SI constructor call outside {TOP_LEVEL_PATH}/: review definition/application context",
+        r"\b(ReferencePlanes|Constrain|ConstrainDiffPair|ConstrainReferenceDifference)\s*\(",
+        True,
+        "review",
+        src_dir,
+        quiet,
+    )
 
     # Module-scope for-loops — anti-string-hacking theme 9. Module-import-time
     # logic populating global tables is the named failure mode.

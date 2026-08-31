@@ -34,12 +34,18 @@ Read your task definition from PLAN.md. Note:
 |-----------|----------------|-----------------------|
 | `component` | `jitx-component-modeler`; approved datasheet evidence | Checklists: Component Modeling, plus MCU/FPGA where the part is one. Invoke the skill. For complete-board work, use its `extract_pages.py` to read the real pinout, mechanical, and application pages, write `datasheets/<MPN>.spec.md`, then model from the note. For single-task work, model from the datasheet. Capture the IC's application circuit in Step 5. |
 | `circuit` | `jitx-circuit-builder` + `jitx-component-modeler`; every IC's datasheet evidence | Checklists: Power Circuit or Interface Circuit as applicable, Datasheet Compliance, General Gotcha Scrub. Answer every engineering question with cited evidence from the spec note for complete-board work or the datasheet for single-task work. The English datasheet for every IC remains at `datasheets/<mpn>.pdf`; the sub-agent counts and implements every required external component without simplification and captures each application circuit in component-modeler Step 5 before wiring. Expose bundle-typed ports, use `>>` through paths constrained at top level, and place shared-bus pull-ups or termination only at the bus-aggregation level. |
-| `assembly` | `jitx-circuit-builder` + `jitx-interconnect-constraints` + `jitx-layout-constraints`; accepted subcircuits and ARCHITECTURE.md | Checklists: General Gotcha Scrub. Instantiate every subcircuit; connect power and ground with `PowerSymbol` / `GroundSymbol`; tag those nets with `PowerTag` / `GroundTag`; wire bundles with `require()`; add shared-bus parts at the aggregation level; apply every SI constraint inside `ReferencePlanes(...)`; define board geometry; set manufacturing-appropriate `capacitor_defaults` / `resistor_defaults` and document specialty refinements; set the rule set by invoking `jitx-layout-constraints` (the four defaults, the net-class rules, any escape rules; its Layout Constraints checklist applies, and its check script's command and exit code go in the acceptance block). See `project-builder-flow.md` Phase 3. |
+| `assembly` | `jitx-circuit-builder` + `jitx-interconnect-constraints` + `jitx-layout-constraints`; accepted subcircuits and ARCHITECTURE.md | Checklists: General Gotcha Scrub. Instantiate every subcircuit; connect power and ground with `PowerSymbol` / `GroundSymbol`; tag those nets with `PowerTag` / `GroundTag`; wire bundles with `require()`; add shared-bus parts at the aggregation level; apply every SI constraint inside `ReferencePlanes(...)`; compare each constrained span with the accepted harness that exercised it; define board geometry; set manufacturing-appropriate `capacitor_defaults` / `resistor_defaults` and document specialty refinements; set the rule set by invoking `jitx-layout-constraints` (the four defaults, the net-class rules, any escape rules; its Layout Constraints checklist applies, and its check script's command and exit code go in the acceptance block). A missing or mismatched harness/assembly span blocks Step 6. See `project-builder-flow.md` Phase 3. |
 | `substrate` | `jitx-substrate-modeler` when custom; board specification | Checklists: Substrate. If JLCPCB is approved, check `JLC04161H_1080` (4L/1080, RS_50/DRS_90/DRS_100), `JLC04161H_7628` (4L/7628, RS_50/DRS_90/DRS_100), and `JLC06161H_7628` (6L/7628, RS_50/DRS_100); each includes its stackup, fab rules, and vias. Import the suitable class directly. Otherwise invoke the skill. Ensure the layer count, routing structures, and vias fit the interface speeds and component packages. |
 | `constraint` | `jitx-interconnect-constraints`; protocol spec and substrate | Checklists: Substrate, General Gotcha Scrub. Define the protocol constraint classes from the timing/impedance limits; use `ConstrainDiffPair` for differential pairs and the substrate's routing structure. Define here, but apply constraints only in top-level assembly. |
 | `pin-assignment` | `jitx-pin-assignment`; IC datasheet evidence and ARCHITECTURE.md `Interface Map` | Checklists: General Gotcha Scrub. Use the spec note for complete-board work or the datasheet for single-task work. Define the required provides and allowed mux flexibility; do not hardcode a pin choice that the provider should solve. |
 | `audit` | No skill; the orchestrator plus the outside voice in `outside-voice-review.md` | Checklists: the four Phase 3b passes in `project-builder-flow.md`. Read every IC's datasheet PDF, not its spec note, run the four passes, then the outside-voice review; a same-model `clean` verdict is not a verification. |
 | `verify` | No skill; top-level design and build artifacts | Checklists: the Phase 4 verification block in `completion-blocks.md`. Run the full build, inspect DRC and SI constraints in the Issues List, iterate on failures, and emit the Phase 4 verification block. |
+
+**PDF legibility gate:** text extraction is not evidence when a scanned page or
+table is interleaved, or values are detached from their rows. Step 2 does not
+write the spec note until the relevant page is rendered and read visually. If
+the selected extraction tool cannot render the page, the task reports a tooling
+blocker instead of inferring the missing table structure.
 
 **Parts not in jitxlib:** If a passive or simple component (LED, TVS diode, ferrite bead) is not available from jitxlib queries, check if the user provided a KiCad footprint or ask them for one. If the user has named LCSC/JLCPCB as the sourcing channel, `parts2jitx-lcsc` *lookup/evidence* (stock, lifecycle, datasheet URL, pinout) is implied — install `parts2jitx` and run it. **Footprint data ingestion** via `parts2jitx-lcsc --footprint` + `parts2jitx-kicad` still requires explicit per-project approval (EasyEDA terms-of-use). See `references/parts-sourcing.md` "LCSC / JLCPCB via parts2jitx" for the split-consent table. Do not give up on a component because it's not in the standard library.
 
@@ -71,6 +77,25 @@ python scripts/check.py <ns>/ --build <module.path.TestDesign>
 ```
 
 Don't run a concurrent build of the same design in parallel — see `jitx/SKILL.md` "Build Safety".
+
+Before this command, a task that used `parts2jitx-kicad` inspects the generated
+module for JITX class definitions inside functions or methods and moves them to
+module scope. Step 3 stops before acceptance when any generated `Pad`,
+`Landpattern`, `Component`, `Circuit`, or `Design` subclass remains nested.
+
+In headless bash, the command is
+`yes | python scripts/check.py <ns>/ --build <module.path.TestDesign>` because a
+component removal can prompt for assent and the CLI has no documented
+non-interactive flag. It does not add `| tail`. If the build produces no output
+and consumes little CPU, Step 3 pauses before retrying and follows the
+`jitx/SKILL.md` stalled-build check for accumulated `jitx interactive-client`
+processes.
+
+A unit test that constructs JITX objects outside a design context does not
+satisfy Step 3 structural verification. Those constructors return deferred
+`Instantiable` proxies whose attributes are not the supplied values. Unit tests
+cover plain-data helpers; layer, rank, shape, and connectivity claims come from a
+submitted and captured design.
 
 If any line is `FAIL` or `ERROR`, fix the cause and re-run the command until every line is `PASS`. Do not proceed to Step 4 with a broken build.
 
@@ -125,7 +150,7 @@ Every summary line must report `PASS`; the `grep gates` line must show 0 hard-fa
 
 #### Step 6: Emit the Task Acceptance Block
 
-Emit the **task acceptance block** verbatim using the template in `references/completion-blocks.md`. The block is the report; prose summaries are not a substitute. Required fields include `Primary source`, `Secondary references`, `Footprint source`, `Checks run` (domain checklist + General Gotcha Scrub + the four exact `check.py` verification summary lines), `Interface notes`, and `Verdict (self): ready-for-review`.
+Emit the **task acceptance block** verbatim using the template in `references/completion-blocks.md`. The block is the report; prose summaries are not a substitute. Required fields include `Primary source`, `Secondary references`, `Footprint source`, `Checks run` (domain checklist + General Gotcha Scrub + the four exact `check.py` verification summary lines), `Interface notes`, `Harness / assembly constraint parity`, and `Verdict (self): ready-for-review`. An assembly task lists the constrained endpoint span in each accepted harness and in the shipping assembly, then states whether they match. Every other task gives a reason the field is not yet applicable.
 
 Rules (full set in `completion-blocks.md`):
 
@@ -186,10 +211,13 @@ Verify that the task output is compatible with downstream tasks:
 - Are provide/require bundles consistent with the pin-assignment plan?
 - Do power ports match the voltage/current the power tree will supply?
 - Are constraint interfaces (routing structures, topology ports) compatible?
+- For an assembly task, does every constrained span match the endpoint chain and
+  bridging-pin model exercised by its accepted harness? Missing evidence or a
+  mismatch returns `rework`; Part B does not issue an acceptance verdict.
 
 #### 5. Issue Verdict
 
-For **complete-board** tasks in the outside-voice trigger list (MCU/FPGA, RF, power converter, safety-critical, high-speed digital / controlled-impedance, battery charging / protection), **run an outside-voice (codex) pass before issuing `accept`**. The trigger list does not apply to single-task tier; for single-task, the block's `Outside-voice review` field is `not applicable: single-task tier`. See `references/outside-voice-review.md` for trigger rules, prompt shape, invocation, and the combined-verdict rule. Append the outside-voice result as a field in the task acceptance block; CRITICAL/WARNING findings block `accept` until fixed, downgraded with rationale, or user-approved.
+For **complete-board** tasks in the outside-voice trigger list (MCU/FPGA, RF, power converter, safety-critical, high-speed digital / controlled-impedance, battery charging / protection), **attempt an outside-voice (codex) pass before issuing `accept`**. The trigger list does not apply to single-task tier; for single-task, the block's `Outside-voice review` field is `not applicable: single-task tier`. See `references/outside-voice-review.md` for trigger rules, prompt shape, invocation, and the combined-verdict rule. The task block records a no-output attempt as `skipped: <reason>` rather than as a failed gate. CRITICAL/WARNING findings from completed passes block `accept` until fixed, downgraded with rationale, or user-approved.
 
 Append the acceptance verdict to the same task acceptance block the sub-agent emitted:
 
