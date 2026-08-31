@@ -54,13 +54,15 @@ Copy this template verbatim. Fill every field. Every `N/A` requires a reason.
 
 The two review fields are always present. `JITX code review (self)` is mandatory for complete-board tasks, except verify-only tasks with no JITX Python change; see `jitx-code-review/SKILL.md`. For single-task work it is `not applicable: single-task tier` unless the user invoked the review. `Outside-voice review (codex)` follows `references/outside-voice-review.md`; its complete-board trigger list does not apply to single-task work. A required review that did not run blocks unless the user approves. CRITICAL or WARNING findings produce `issues-pending` until fixed, downgraded with rationale, or user-approved.
 
+Run `python scripts/check.py <ns>/ --build <module.path.DesignClass>` once from the project root. The `Build` field and the four verification rows report the corresponding summary lines from that invocation. Review-required grep hits retain their per-hit dispositions in the `Grep gates` row.
+
 ```markdown
 ## Task complete: <task-id-or-short-name>
 
 | Field | Value |
 |-------|-------|
 | What was built | <paths; classes> |
-| Build | <status; command> |
+| Build | <command; exact `build` summary line> |
 | Primary source | <path; cites; channel evidence> |
 | Secondary references | <list/none> |
 | Footprint source | <source> |
@@ -72,10 +74,10 @@ The two review fields are always present. `JITX code review (self)` is mandatory
 | Domain checklist | <name; N/N; M fixed; K N/A + reasons> |
 | General Gotcha Scrub | N/N |
 | Layout rules | <command; exit; witnessed/unwitnessed> |
-| `ruff check` | <result> |
-| `ruff format` | applied |
-| `pyright` | <result/reason> |
-| Grep gates | <command; hard-fail; review-required + dispositions> |
+| `ruff check` | <exact `ruff check` summary line> |
+| `ruff format` | <exact `ruff format` summary line> |
+| `pyright` | <exact `pyright` summary line> |
+| Grep gates | <exact `grep gates` summary line; review-required dispositions> |
 
 ### Interface notes
 
@@ -115,7 +117,7 @@ The orchestrator (or user) then appends the acceptance decision:
 - **No block, not done.** A task without the block is `in-progress`, regardless of build state. "Build clean" alone does not move a task to `review`.
 - **`N/A` requires a reason.** Bare `N/A` in any field is rejected on review.
 - **Primary source must be ground truth.** A prior project as primary source is a flag — the orchestrator should reject and ask for the datasheet (or user-confirmed exception). Prior projects belong under "Secondary references".
-- **Static checks are required where Python was touched.** `ruff check` and `ruff format` always run. `pyright` runs if installed; `not available` requires a reason and may be rejected for high-risk tasks (MCUs, RF, power converters, safety).
+- **Static checks are required where Python was touched.** `python scripts/check.py <ns>/` always runs `ruff check`, `ruff format --check`, `pyright`, and the grep gates. A missing tool reports `ERROR` and blocks acceptance.
 - **JITX code review (self) is required for complete-board tier.** A complete-board task acceptance block with `JITX code review (self): not run` defaults to `block`. Bulk dispositions on findings ("all accepted, framework code") without per-line rationale fail review. See `jitx-code-review/SKILL.md`.
 - **Verdict (self): ready-for-review** is the only valid sub-agent verdict. Any other value (e.g. `done`, `complete`) means the protocol was not followed.
 
@@ -131,7 +133,7 @@ The orchestrator (or user) then appends the acceptance decision:
 
 ## Grep Gate Patterns
 
-The `Grep gates` row in the task acceptance block reports the result of running `jitx/scripts/grep_gates.py` against the project's source tree. The script is the executable source of truth; copy it into the project's `scripts/` directory. This section summarizes which patterns are checked and why.
+The `Grep gates` row in the task acceptance block reports the `grep gates` summary line from `python scripts/check.py <ns>/`. The check entry point runs `jitx/scripts/grep_gates.py --quiet` against the project's source tree. The grep-gate script remains the executable source of truth. This section summarizes which patterns are checked and why.
 
 > **Note on table display.** The regex patterns below are rendered inside markdown tables, so `|` in alternations is escaped as `\|` for readability. The script in `jitx/scripts/grep_gates.py` carries the exact regexes — read it for the runnable form.
 
@@ -175,13 +177,13 @@ Pattern 10 (broader `getattr(`) is intentionally a wider net than Pattern 3 (`ge
 When the grep gates pass with no hits:
 
 ```
-| Grep gates | `python scripts/grep_gates.py <ns>/`; hard-fail 0; review-required 0 |
+| Grep gates | `grep gates     PASS   0 hard-fail, 0 review-required` |
 ```
 
 When there are review-required hits:
 
 ```
-| Grep gates | `python scripts/grep_gates.py <ns>/`; hard-fail 0; review-required 2: `<ns>/circuits/usb.py:88`, deferred to Pass 3; `<ns>/circuits/power.py:42`, fixed with `isinstance` |
+| Grep gates | `grep gates     PASS   0 hard-fail, 2 review-required`; `<ns>/circuits/usb.py:88`, deferred to Pass 3; `<ns>/circuits/power.py:42`, fixed with `isinstance` |
 ```
 
 When there are hard-fail hits, the task is not done. Fix and re-run.
@@ -192,11 +194,11 @@ The script defaults to excluding `**/designs/**` from the top-level-only checks.
 
 ```bash
 # bash (macOS / Linux / WSL / Git Bash)
-TOP_LEVEL_PATH=top python scripts/grep_gates.py <ns>/
+TOP_LEVEL_PATH=top python scripts/check.py <ns>/
 ```
 ```powershell
 # PowerShell (Windows) — Remove-Item keeps it one-shot (else it persists for the session)
-$env:TOP_LEVEL_PATH="top"; python scripts/grep_gates.py <ns>/; Remove-Item Env:TOP_LEVEL_PATH
+$env:TOP_LEVEL_PATH="top"; python scripts/check.py <ns>/; Remove-Item Env:TOP_LEVEL_PATH
 ```
 
 ---
@@ -244,7 +246,7 @@ The criteria mirror the exit-gate bullet lists in `references/project-builder-fl
 | Build status | <result> |
 | Spot-check items reviewed | <list> |
 | Interface notes consistency | <result/details> |
-| Grep gates | <command; results; dispositions> |
+| Grep gates | <exact `grep gates` summary line; dispositions> |
 | Open from this phase | <list/none> |
 | Verdict | <advance/block + reason> |
 ```
@@ -287,7 +289,7 @@ For `N >= 3`, `B == N` fails this gate. The orchestrator re-dispatches or names,
 | `require()` calls have matching provides | <result> |
 | JITX UI errors | <result/reason> |
 | Build warnings | <result> |
-| Grep gates, top-level enforcement | <command; results; dispositions> |
+| Grep gates, top-level enforcement | <exact `grep gates` summary line; dispositions> |
 | Passive defaults | <result; overrides> |
 | Default design rules | <four-rule result> |
 | Board geometry | <result> |
@@ -388,7 +390,11 @@ Final verification before declaring the project done.
 ```markdown
 ## Phase 4 Verification: <project-name>
 
-**Final build:** `status: ok` (via `<exact build command — usually `jitx build <ns>.designs.Design`>`)
+**Verification command:** `python scripts/check.py <ns>/ --build <ns>.designs.Design`
+
+**Check summary:** <the five exact summary lines from the verification command>
+
+**Final build:** <exact `build` summary line>
 
 **Build warnings:** none | <list — every warning needs a disposition>
 

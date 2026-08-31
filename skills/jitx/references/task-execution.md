@@ -64,15 +64,15 @@ This ensures reproducibility across sessions and avoids repeated downloads.
 
 #### Step 3: Initial Build Test
 
-Run the test build:
+Run the required checks and test build once from the project root:
 
 ```bash
-jitx build <module.path.TestDesign>
+python scripts/check.py <ns>/ --build <module.path.TestDesign>
 ```
 
 Don't run a concurrent build of the same design in parallel — see `jitx/SKILL.md` "Build Safety".
 
-If it fails, fix errors and rebuild until `status: ok`. Do not proceed to Step 4 with a broken build.
+If any line is `FAIL` or `ERROR`, fix the cause and re-run the command until every line is `PASS`. Do not proceed to Step 4 with a broken build.
 
 #### Step 4: Domain Checklist Review + Grep Gates (CRITICAL)
 
@@ -96,17 +96,11 @@ This step typically catches 3-5 issues. Common misses by domain:
 
 **Substrate**: missing via definition for a needed layer transition, routing structure velocity in wrong units
 
-After the domain checklist, run the grep gates:
-
-```bash
-python <project>/scripts/grep_gates.py <ns>/
-```
-
-The script reports hard-fail and review-required hits. Hard-fail hits must be fixed before proceeding. Review-required hits get a disposition (`fixed`, `accepted with rationale: <why>`, or `deferred to <named follow-up>`) when reported in the task acceptance block in Step 6.
+The Step 3 `check.py` invocation runs the grep gates. Its `grep gates` summary line reports the hard-fail and review-required counts. Hard-fail hits must be fixed before proceeding. Review-required hits get a disposition (`fixed`, `accepted with rationale: <why>`, or `deferred to <named follow-up>`) when reported in the task acceptance block in Step 6. If the domain checklist changes Python code, re-run the single Step 3 command in Step 5.
 
 For the full pattern set and copy-paste templates: read `references/completion-blocks.md` "Grep Gate Patterns" section.
 
-After grep gates pass clean, run the same-model code review:
+After the `grep gates` line reports `PASS`, run the same-model code review:
 
 ```
 Skill: jitx-code-review
@@ -121,24 +115,24 @@ If `jitx-code-review` is unavailable (skill not loaded, errored), record `JITX c
 
 #### Step 5: Fix and Rebuild
 
-If Step 4 found issues (it usually does — checklist or grep), fix them all and rebuild:
+If Step 4 found issues (it usually does; checklist or grep), fix them all and re-run the required checks and build:
 
 ```bash
-jitx build <module.path.TestDesign>
+python scripts/check.py <ns>/ --build <module.path.TestDesign>
 ```
 
-Verify `status: ok`. Re-run `python <project>/scripts/grep_gates.py <ns>/` if any code changed; the hard-fail set must now show 0 hits. Re-run `jitx-code-review` if the fix touched code the previous review flagged.
+Every summary line must report `PASS`; the `grep gates` line must show 0 hard-fail hits. Re-run `jitx-code-review` if the fix touched code the previous review flagged.
 
 #### Step 6: Emit the Task Acceptance Block
 
-Emit the **task acceptance block** verbatim using the template in `references/completion-blocks.md`. The block is the report — prose summaries are not a substitute. Required fields include `Primary source`, `Secondary references`, `Footprint source`, `Checks run` (domain checklist + General Gotcha Scrub + `ruff check` + `ruff format` + `pyright`), `Interface notes`, and `Verdict (self): ready-for-review`.
+Emit the **task acceptance block** verbatim using the template in `references/completion-blocks.md`. The block is the report; prose summaries are not a substitute. Required fields include `Primary source`, `Secondary references`, `Footprint source`, `Checks run` (domain checklist + General Gotcha Scrub + the four exact `check.py` verification summary lines), `Interface notes`, and `Verdict (self): ready-for-review`.
 
 Rules (full set in `completion-blocks.md`):
 
 - **No block, not done.** A task without the block is `in-progress` regardless of build state.
 - **`N/A` requires a reason.** Bare `N/A` in any field is rejected on review.
 - **Primary source must be ground truth.** Datasheet, manufacturer reference design, vendor mechanical drawing, or protocol spec — not a prior project. Prior projects belong only under `Secondary references`.
-- **Static checks** (`ruff check`, `ruff format`) are required where Python was touched. `pyright`: `clean | issues | not available (<reason>)`.
+- **Static checks** run through `python scripts/check.py <ns>/` where Python was touched. A `FAIL` or `ERROR` line blocks acceptance.
 
 #### Step 7: Return
 
@@ -165,10 +159,10 @@ Open each file the sub-agent created or modified. Scan for:
 
 #### 2. Verify the Build Claim
 
-If the sub-agent's block says `status: ok`, confirm by checking for the test harness file and that the code structure is plausible. For critical tasks, re-run the build:
+If the sub-agent's block reports a passing build, confirm by checking for the test harness file and that the code structure is plausible. For critical tasks, re-run the required checks and build:
 
 ```bash
-jitx build <module.path.TestDesign>
+python scripts/check.py <ns>/ --build <module.path.TestDesign>
 ```
 
 #### 3. Spot-Check High-Risk Checklist Items

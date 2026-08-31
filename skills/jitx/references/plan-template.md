@@ -17,7 +17,7 @@ Everything above that block is guidance for filling it, and none of it belongs i
 - **Never write a value a table already owns.** Name the row or the section instead. The generic instruction to cross-reference proved not to be enough on its own, so the list is explicit: MPN and package belong to `Data Sources`; rail voltage, load and current to ARCHITECTURE.md `Power Tree`; protocol, impedance and routing structure to `Interface Map`; board dimensions, layer count, stackup order and mechanical constraints to `Board`; parametric shape commitments to `Object-Hierarchy Decisions`. A task body that repeats any of them has created a second owner, even when the two copies agree today.
 - `Data` names the rows and sections a task reads. It does not reproduce their contents.
 - `Specifics` carries only what no table owns and no task of the same type shares: the one gotcha, the topology choice, the exception.
-- The `Verify` module path is where the task's file lives: `jitx build <ns>.circuits.usb.TestDesign` commits the task to `<ns>/circuits/usb.py`. That gives the path one owner, so no task restates it and no two sub-agents place the same module differently. `jitx/SKILL.md` "Project Structure" gives the directory shape.
+- The `Verify` module path is where the task's file lives: `python scripts/check.py <ns>/ --build <ns>.circuits.usb.TestDesign` commits the task to `<ns>/circuits/usb.py`. That gives the path one owner, so no task restates it and no two sub-agents place the same module differently. `jitx/SKILL.md` "Project Structure" gives the directory shape.
 
 **Requirements Lock**
 
@@ -90,14 +90,14 @@ See ARCHITECTURE.md sections `Power Tree`, `Interface Map`, `Board`, and, when p
 - **Type / skill / deps:** substrate | [jitx-substrate-modeler, or `—` for a predefined class] | —
 - **Data:** [ARCHITECTURE.md `Board`; the predefined class or the stackup source]
 - **Specifics:** [via choices and package-density constraints this board imposes]
-- **Verify:** `jitx build <ns>.substrate.TestDesign`
+- **Verify:** `python scripts/check.py <ns>/ --build <ns>.substrate.TestDesign`
 - **Status:** pending
 
 ### [comp-01] [Component name]
 - **Type / skill / deps:** component | jitx-component-modeler | —
 - **Data:** [`Data Sources` row for this part; any task-only input]
 - **Specifics:** [pin count, and the one gotcha that matters for this part]
-- **Verify:** `jitx build <ns>.components.<category>.<name>.TestDesign`
+- **Verify:** `python scripts/check.py <ns>/ --build <ns>.components.<category>.<name>.TestDesign`
 - **Status:** pending
 
 ## Phase 2: Constraints + Circuits + Pin Assignment
@@ -106,14 +106,14 @@ See ARCHITECTURE.md sections `Power Tree`, `Interface Map`, `Board`, and, when p
 - **Type / skill / deps:** pin-assignment | jitx-pin-assignment | [component task id]
 - **Data:** [component model; ARCHITECTURE.md `Interface Map`]
 - **Specifics:** [the provides and the flexibility unique to this IC]
-- **Verify:** `jitx build <ns>.circuits.<wrapper>.TestDesign`
+- **Verify:** `python scripts/check.py <ns>/ --build <ns>.circuits.<wrapper>.TestDesign`
 - **Status:** pending
 
 ### [cst-01] [Protocol] Constraints
 - **Type / skill / deps:** constraint | jitx-interconnect-constraints | [substrate task id]
 - **Data:** [protocol specification; ARCHITECTURE.md `Interface Map` row]
 - **Specifics:** [limits this protocol imposes that the Interface Map does not carry]
-- **Verify:** `jitx build <ns>.constraints.<name>.TestDesign`
+- **Verify:** `python scripts/check.py <ns>/ --build <ns>.constraints.<name>.TestDesign`
 - **Status:** pending
 
 ### [cir-01] [Circuit name]
@@ -123,7 +123,7 @@ See ARCHITECTURE.md sections `Power Tree`, `Interface Map`, `Board`, and, when p
 - **Engineering questions:**
   - [question, and the datasheet section or specification that settles it]
 - **Shape:** [parametric tasks only — the collection or typed object committed to]
-- **Verify:** `jitx build <ns>.circuits.<name>.TestDesign`
+- **Verify:** `python scripts/check.py <ns>/ --build <ns>.circuits.<name>.TestDesign`
 - **Status:** pending
 
 ## Phase 3: Top-Level Assembly
@@ -132,7 +132,7 @@ See ARCHITECTURE.md sections `Power Tree`, `Interface Map`, `Board`, and, when p
 - **Type / skill / deps:** assembly | jitx-circuit-builder + jitx-interconnect-constraints | [every Phase 2 id, listed out]
 - **Data:** [accepted Phase 2 outputs; ARCHITECTURE.md sections by name]
 - **Specifics:** [assembly decisions no other document owns]
-- **Verify:** `jitx build <ns>.main.Design`
+- **Verify:** `python scripts/check.py <ns>/ --build <ns>.main.Design`
 - **Status:** pending
 
 ## Phase 3b: Design Review and Loopback
@@ -141,7 +141,7 @@ See ARCHITECTURE.md sections `Power Tree`, `Interface Map`, `Board`, and, when p
 - **Type / skill / deps:** audit | — (orchestrator plus the outside voice) | [assembly task id]
 - **Data:** [top-level design; accepted task acceptance blocks; ARCHITECTURE.md]
 - **Specifics:** [the design-level risks this board raises]
-- **Verify:** `python scripts/grep_gates.py <ns>/` exits 0, and the audit block carries all four passes plus the outside-voice findings and their disposition
+- **Verify:** `python scripts/check.py <ns>/` exits 0, and the audit block carries all four passes plus the outside-voice findings and their disposition
 - **Status:** pending
 
 ## Phase 4: Build + Verify + Iterate
@@ -150,7 +150,7 @@ See ARCHITECTURE.md sections `Power Tree`, `Interface Map`, `Board`, and, when p
 - **Type / skill / deps:** verify | — | [audit task id]
 - **Data:** [top-level design; required verification artifacts]
 - **Specifics:** [board-specific checks or tool constraints]
-- **Verify:** `jitx build <ns>.main.Design`
+- **Verify:** `python scripts/check.py <ns>/ --build <ns>.main.Design`
 - **Status:** pending
 
 ## Gate status

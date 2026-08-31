@@ -152,7 +152,7 @@ ALL of the following must be true:
 - [ ] Substrate builds with all routing structures and via definitions
 - [ ] Orchestrator has spot-checked high-risk items per task type (see task-execution.md Part B)
 - [ ] `Interface notes` fields in task acceptance blocks are consistent (port names, power requirements match ARCHITECTURE.md)
-- [ ] Orchestrator has run `python scripts/grep_gates.py <ns>/`; hard-fail hits are 0 and review-required hits have dispositions
+- [ ] Orchestrator has run `python scripts/check.py <ns>/`; every summary line passes, hard-fail hits are 0, and review-required hits have dispositions
 
 **Emit the `Gate: Phase 1 → Phase 2` block** from `references/completion-blocks.md` before advancing.
 
@@ -191,8 +191,8 @@ Subcircuits that expose bundles (I2C, ULPI, USB2, etc.) for any signal that will
 - [ ] Provide/require interfaces are consistent across wrapper and consuming circuits
 - [ ] **Interface circuits expose bundle-typed ports** (I2S, I2C, SPI, USB2, GPIO, Power) — not individual signal ports. If a circuit wraps individual-pin components, the bundle wiring happens inside the circuit.
 - [ ] **For any signal that will receive an SI constraint at top level, the subcircuit's bundle wiring uses `>>` (not `+`)** between component pins and bundle sub-ports — see Phase 3 "Topology vs net membership"
-- [ ] **No anonymous `Resistor` / `Capacitor` / `Inductor` `.insert(...)` calls and no bare `+` / `>>` expressions** in the subcircuit — every structural object stored on `self` (see Phase 3 "Silent-drop patterns"). Enforced via `python scripts/grep_gates.py <ns>/` — hard-fail hits block this gate.
-- [ ] **Every power-rail capacitor `.insert(...)` call uses `short_trace=True`** — decoupling, bypass, bulk, output filter. Non-power-rail caps (AC coupling, RC time constants, RF matching, compensation, crystal load) and non-cap inserts (resistors, inductors) are dispositioned in the task acceptance block as exceptions or N/A. See `jitx-circuit-builder/SKILL.md` "short_trace=True is the default for power-rail capacitors". The grep gate `python scripts/grep_gates.py <ns>/` flags every `.insert(...)` missing `short_trace=` as review-required.
+- [ ] **No anonymous `Resistor` / `Capacitor` / `Inductor` `.insert(...)` calls and no bare `+` / `>>` expressions** in the subcircuit; every structural object is stored on `self` (see Phase 3 "Silent-drop patterns"). The `grep gates` line from `python scripts/check.py <ns>/` enforces this rule; hard-fail hits block this gate.
+- [ ] **Every power-rail capacitor `.insert(...)` call uses `short_trace=True`** for decoupling, bypass, bulk, and output filter capacitors. Non-power-rail caps (AC coupling, RC time constants, RF matching, compensation, crystal load) and non-cap inserts (resistors, inductors) are dispositioned in the task acceptance block as exceptions or N/A. See `jitx-circuit-builder/SKILL.md` "short_trace=True is the default for power-rail capacitors". The `grep gates` line from `python scripts/check.py <ns>/` flags every `.insert(...)` missing `short_trace=` as review-required.
 - [ ] Port names and bundle types match between providers and consumers
 - [ ] Power circuit outputs match the voltage/current needs documented in ARCHITECTURE.md
 
@@ -434,7 +434,7 @@ These editor-side checks won't catch Pattern 1 (the `.insert(...)` call has a si
 
 ### Exit Gate: Phase 3 → Phase 3b
 
-- [ ] Top-level design builds with `status: ok`
+- [ ] `python scripts/check.py <ns>/ --build <ns>.main.Design` reports `PASS` for every check
 - [ ] All nets connected (no floating ports on instantiated circuits)
 - [ ] Power tree complete (every load rail connected to a regulator output)
 - [ ] All require() calls have matching provides
@@ -446,7 +446,7 @@ These editor-side checks won't catch Pattern 1 (the `.insert(...)` call has a si
 - [ ] Board geometry defined (shape, mounting holes, pours)
 - [ ] `capacitor_defaults` and `resistor_defaults` set on Design class to match the design's manufacturing path and circuit role — per-circuit refinements documented for any specialty parts (HV, RF, bulk, precision, hand-build)
 - [ ] **Default design rules set on Design class**: the four canonical rules are present on `self.rules`, values calibrated to the substrate's fab floors (see "Default design rules" above and the `jitx-layout-constraints` skill)
-- [ ] `python scripts/grep_gates.py <ns>/` reports 0 hard-fail hits; review-required hits dispositioned
+- [ ] The `grep gates` summary line reports 0 hard-fail hits; review-required hits are dispositioned
 
 **Emit the `Gate: Phase 3 → Phase 3b` block** from `references/completion-blocks.md` before advancing.
 
@@ -532,17 +532,17 @@ Do not accept "noted for future refactoring" — if it's broken, fix it now.
 
 ### Process
 
-1. Run full build: `jitx build <ns>.main.Design`
+1. Run the full verification command: `python scripts/check.py <ns>/ --build <ns>.main.Design`
 2. Check output for:
-   - `status: ok` — proceed to verification
-   - `status: error`: read traceback, dispatch a fix sub-agent, review its acceptance block, rebuild
+   - Every summary line reports `PASS`: proceed to verification
+   - Any `FAIL` or `ERROR`: read the full tool output, dispatch a fix sub-agent, review its acceptance block, and re-run the command
 3. Open the popout viewer (`jitx ui open --board --design <ns>.main.Design` and `jitx ui open --schematic --design <ns>.main.Design`) and verify:
    - Schematic: all connections present, symbols readable
    - Board: components placed (or floating), no overlaps
    - Issues List: SI constraints satisfied or flagged
    - DRC: clean or flagged
 4. Iterate:
-   - Build errors → dispatch a code fix, review, rebuild
+   - Build errors → dispatch a code fix, review, and re-run the verification command
    - DRC violations → dispatch a clearance or routing-structure fix
    - SI constraint failures → dispatch parameter and routing-structure review
    - Missing connections → trace back to Phase 2/3 and dispatch the fix

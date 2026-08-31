@@ -9,6 +9,7 @@
 #
 # Usage:
 #   python grep_gates.py <src-dir>
+#   python grep_gates.py <src-dir> --quiet
 #   TOP_LEVEL_PATH=designs python grep_gates.py <src-dir>      # bash — default 'designs'
 #   $env:TOP_LEVEL_PATH="top"; python grep_gates.py <src-dir>; Remove-Item Env:TOP_LEVEL_PATH   # PowerShell override (one-shot)
 #
@@ -42,13 +43,24 @@ review = 0
 
 def usage_error():
     prog = os.path.basename(sys.argv[0])
-    print(f"Usage: python {prog} <src-dir>", file=sys.stderr)
+    print(f"Usage: python {prog} <src-dir> [--quiet]", file=sys.stderr)
     print(
         "  TOP_LEVEL_PATH (env, default 'designs'): top-level design dir name "
         "to exclude from top-level-only checks",
         file=sys.stderr,
     )
     sys.exit(2)
+
+
+def print_help():
+    prog = os.path.basename(sys.argv[0])
+    print(f"Usage: python {prog} <src-dir> [--quiet]")
+    print()
+    print("Run the JITX grep-gate pattern set against Python source files.")
+    print()
+    print("Options:")
+    print("  --quiet  print only hits, counts, and the final verdict")
+    print("  -h, --help  show this help message and exit")
 
 
 def iter_py_files(root, exclude_top):
@@ -71,7 +83,9 @@ def run_search(pattern, exclude_top, src_dir):
         try:
             with open(path, "r", encoding="utf-8", errors="replace") as fh:
                 for lineno, raw in enumerate(fh, start=1):
-                    line = raw.rstrip("\r\n")  # strip EOL (incl. Windows CRLF) so $ anchors match
+                    line = raw.rstrip(
+                        "\r\n"
+                    )  # strip EOL (incl. Windows CRLF) so $ anchors match
                     if rx.search(line):
                         hits.append((path, lineno, line))
         except OSError:
@@ -79,10 +93,11 @@ def run_search(pattern, exclude_top, src_dir):
     return hits
 
 
-def report(label, hits, severity):
+def report(label, hits, severity, quiet):
     global hard_fail, review
     if not hits:
-        print(f"  ok    no hits: {label}")
+        if not quiet:
+            print(f"  ok    no hits: {label}")
         return
     count = len(hits)  # matching LINES, == `wc -l` on grep output
     print(f"  HIT {count} {label}")
@@ -94,54 +109,79 @@ def report(label, hits, severity):
         review += count
 
 
-def run_check(label, pattern, exclude_top, severity, src_dir):
-    report(label, run_search(pattern, exclude_top, src_dir), severity)
+def run_check(label, pattern, exclude_top, severity, src_dir, quiet):
+    report(label, run_search(pattern, exclude_top, src_dir), severity, quiet)
 
 
-def report_insert(hits):
+def report_insert(hits, quiet):
     # Special case keeps the .sh's two slightly different labels (ok vs HIT line).
     global review
     if not hits:
-        print("  ok    no hits: .insert(...) missing short_trace= (power-rail cap default)")
+        if not quiet:
+            print(
+                "  ok    no hits: .insert(...) missing short_trace= (power-rail cap default)"
+            )
         return
     count = len(hits)
-    print(f"  HIT {count} .insert(...) calls missing short_trace= (power-rail cap default)")
+    print(
+        f"  HIT {count} .insert(...) calls missing short_trace= (power-rail cap default)"
+    )
     for path, lineno, line in hits:
         print(f"      {path}:{lineno}:{line}")
     review += count
 
 
 def main():
-    if len(sys.argv) < 2 or not sys.argv[1]:
+    args = sys.argv[1:]
+    if "-h" in args or "--help" in args:
+        print_help()
+        sys.exit(0)
+    quiet = "--quiet" in args
+    positional = [arg for arg in args if arg != "--quiet"]
+    if (
+        len(positional) != 1
+        or not positional[0]
+        or any(arg.startswith("-") for arg in positional)
+    ):
         usage_error()
-    src_dir = sys.argv[1]
+    src_dir = positional[0]
     if not os.path.isdir(src_dir):
         usage_error()
 
-    print(f"grep_gates: scanning {src_dir} (top-level dir = {TOP_LEVEL_PATH})")
-    print()
-    print("=== hard-fail patterns ===")
+    if not quiet:
+        print(f"grep_gates: scanning {src_dir} (top-level dir = {TOP_LEVEL_PATH})")
+        print()
+        print("=== hard-fail patterns ===")
 
     # SI / top-level applications outside designs/
     # Catches calls like `with ReferencePlanes(...)`, `ConstrainDiffPair(...)`. Imports are not caught (no \( after the name).
     run_check(
         f"SI/top-level applications outside {TOP_LEVEL_PATH}/",
         r"\b(ReferencePlanes|Constrain|ConstrainDiffPair|ConstrainReferenceDifference)\s*\(",
-        True, "hard-fail", src_dir,
+        True,
+        "hard-fail",
+        src_dir,
+        quiet,
     )
 
     # Net symbols outside designs/
     run_check(
         f"Net symbols (GroundSymbol/PowerSymbol) outside {TOP_LEVEL_PATH}/",
         r"\b(GroundSymbol|PowerSymbol)\s*\(",
-        True, "hard-fail", src_dir,
+        True,
+        "hard-fail",
+        src_dir,
+        quiet,
     )
 
     # setattr/getattr on self anywhere — JITX convention violation
     run_check(
         "setattr/getattr on self (JITX convention)",
         r"\b(setattr|getattr)\s*\(\s*self\b",
-        False, "hard-fail", src_dir,
+        False,
+        "hard-fail",
+        src_dir,
+        quiet,
     )
 
     # Anonymous structural insert anywhere — silent-drop pattern 1
@@ -150,25 +190,35 @@ def main():
     run_check(
         "Anonymous structural .insert(...) — silent-drop pattern 1",
         r"\b(Capacitor|Resistor|Inductor)\s*\([^)]*\)\s*\.insert\s*\(",
-        False, "hard-fail", src_dir,
+        False,
+        "hard-fail",
+        src_dir,
+        quiet,
     )
 
-    print()
-    print("=== review-required patterns ===")
+    if not quiet:
+        print()
+        print("=== review-required patterns ===")
 
     # Module-scope for-loops — anti-string-hacking theme 9. Module-import-time
     # logic populating global tables is the named failure mode.
     run_check(
         "Module-scope for-loop — review for module-import-time logic",
         r"^for\s+\w+\s+in\s+",
-        False, "review", src_dir,
+        False,
+        "review",
+        src_dir,
+        quiet,
     )
 
     # Pour(..., isolate=...) — legacy parameter, Pass 3 deprecates in favor of design_constraint with Tags
     run_check(
         "Pour(..., isolate=...) — legacy parameter (see Pass 3 deprecation)",
         r"\bPour\s*\([^)]*\bisolate\s*=",
-        False, "review", src_dir,
+        False,
+        "review",
+        src_dir,
+        quiet,
     )
 
     # Bare net/topology expression — silent-drop pattern 2
@@ -176,14 +226,20 @@ def main():
     run_check(
         "Bare net/topology expression — silent-drop pattern 2",
         r"^\s*self\.\w+(\.\w+|\[[^\]]+\])*\s*(\+|>>)\s*self\.\w+(\.\w+|\[[^\]]+\])*(\s*#.*)?$",
-        False, "review", src_dir,
+        False,
+        "review",
+        src_dir,
+        quiet,
     )
 
     # Dynamic type(...) call — JITX disallows runtime type construction; isinstance is the right check
     run_check(
         "type(...) call — verify not used for runtime type construction",
         r"\btype\s*\(",
-        False, "review", src_dir,
+        False,
+        "review",
+        src_dir,
+        quiet,
     )
 
     # Tag-like f-string construction — anti-string-hacking theme 1. f-strings
@@ -192,7 +248,10 @@ def main():
     run_check(
         "Tag-like f-string (anti-string-hacking — string-keyed names)",
         r"""[fF]["'][A-Z][A-Za-z0-9_]*\{""",
-        False, "review", src_dir,
+        False,
+        "review",
+        src_dir,
+        quiet,
     )
 
     # Broader getattr( call — the narrower hard-fail above catches getattr(self, ...).
@@ -200,7 +259,10 @@ def main():
     run_check(
         "getattr( — review for string-keyed indirection on non-self objects",
         r"\bgetattr\s*\(",
-        False, "review", src_dir,
+        False,
+        "review",
+        src_dir,
+        quiet,
     )
 
     # I2C pull-ups outside designs/ — shared-bus components belong at the
@@ -208,7 +270,10 @@ def main():
     run_check(
         f"I2C pull-up (r_sda/r_scl) outside {TOP_LEVEL_PATH}/ — review bus-aggregation level",
         r"\br_(sda|scl)\b",
-        True, "review", src_dir,
+        True,
+        "review",
+        src_dir,
+        quiet,
     )
 
     # .insert(...) calls missing short_trace= — Phase 2 power-rail cap gate.
@@ -222,19 +287,22 @@ def main():
         for (p, n, t) in run_search(r"\.insert\s*\(", False, src_dir)
         if "short_trace" not in t
     ]
-    report_insert(insert_hits)
+    report_insert(insert_hits, quiet)
 
-    print()
-    print("=== summary ===")
+    if not quiet:
+        print()
+        print("=== summary ===")
     print(f"hard-fail hits: {hard_fail}")
     print(f"review-required hits: {review} (need disposition in task acceptance block)")
 
     if hard_fail > 0:
-        print()
+        if not quiet:
+            print()
         print("FAIL — fix hard-fail hits before emitting the task acceptance block.")
         sys.exit(1)
 
-    print()
+    if not quiet:
+        print()
     print("PASS (hard-fail set clean)")
     sys.exit(0)
 

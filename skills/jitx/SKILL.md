@@ -212,8 +212,9 @@ or
 npm install -g pyright
 ```
 
-**Verify:** Ask the agent to "check for type errors" or run manually, **from inside the project's
-virtual environment**:
+**Verify:** Ask the agent to "check for type errors" or run pyright manually, **from inside the project's
+virtual environment**. This step confirms the pyright install itself, before `scripts/check.py` is
+copied into the project:
 ```bash
 source .venv/bin/activate      # or: hatch run types:check, uv run pyright, etc.
 pyright <ns>/
@@ -275,8 +276,8 @@ Durable rules for JITX Python user code. The architectural rules below protect a
 
 ### Dos
 
-- **Run pyright** for type checking and language-server diagnostics.
-- **Run `ruff check`** for common-mistake analysis (the `ruff` package is already installed by the environment-setup step).
+- **Run `python scripts/check.py <ns>/`** for common-mistake analysis, formatting verification, type checking, and grep-gate enforcement. The command runs `ruff check`, `ruff format --check`, pyright, and the grep gates in that order.
+  - **The `ruff` package is already installed by the environment-setup step.**
   - **`RUF012` is a false positive against JITX's port-array declaration — ignore it, don't "fix" it.**
     `GND = [Port() for _ in range(689)]` in a class body is flagged as `Mutable default value for
     class attribute`, and on a large component that is one finding per rail. It is the exact form the
@@ -290,7 +291,7 @@ Durable rules for JITX Python user code. The architectural rules below protect a
     than shared class state, so it buys silence at the cost of a false statement in the source.
     Prefer neither: silence the rule per-file in `[tool.ruff.lint.per-file-ignores]` for the design
     package, with a comment saying why.
-- **Run `ruff format`** for style consistency.
+- **Use `ruff format`** to apply style consistency. `check.py` verifies the result with `ruff format --check`.
   - **Commit a ruff config, and run ruff from the project directory.** Config discovery walks up
     from the working directory, so a check run from somewhere else silently resolves *that* tree's
     settings. An agent working in a scratch directory under a repo has had `ruff check` report clean
@@ -510,13 +511,13 @@ For ad-hoc work outside the project-builder flow: just don't run two `jitx build
 
 ### Grep Gate Enforcement
 
-Copy `scripts/grep_gates.py` from this skill into the project's `scripts/` directory. Sub-agents (and the orchestrator at every phase exit gate) run it against the project's Python package (e.g. `<ns>/`) to enforce JITX code conventions and top-level-only rules:
+Copy `scripts/grep_gates.py` from this skill into the project's `scripts/` directory. Copy `scripts/check.py` into the project's `scripts/` directory alongside it. Sub-agents and the orchestrator at every phase exit gate run the single entry point against the project's Python package (e.g. `<ns>/`) to enforce lint, formatting, type, and JITX grep-gate checks:
 
 ```bash
-python scripts/grep_gates.py <ns>/
+python scripts/check.py <ns>/
 ```
 
-The script reports hard-fail hits (which block task acceptance and gate transitions) and review-required hits (which need a disposition in the task acceptance block). Pattern set and disposition rules: `references/completion-blocks.md` "Grep Gate Patterns".
+Use `--build <module.path.DesignClass>` when the verification also requires a build. The command prints one summary line per check. Those exact lines populate the matching acceptance-block fields. The `grep gates` line reports hard-fail hits, which block task acceptance and gate transitions, and review-required hits, which need a disposition in the task acceptance block. Pattern set and disposition rules: `references/completion-blocks.md` "Grep Gate Patterns".
 
 ### Two-Tier Quality System
 
@@ -530,7 +531,7 @@ After initial implementation, sub-agents MUST stop and run the domain-specific c
 
 The orchestrator does NOT blindly trust the self-validation block. For each returned task:
 - Read the generated code for obvious issues
-- Verify the build claim (re-run `jitx build` for critical tasks)
+- Verify the build claim (re-run `python scripts/check.py <ns>/ --build <module.path.DesignClass>` for critical tasks)
 - Spot-check high-risk checklist items independently against the cited datasheet spec note for complete-board work or the datasheet for single-task work
 - Verify interface compatibility with downstream tasks
 - Append the acceptance verdict to the same block: **accept** / **rework** (send back with specific issues) / **reject** (replan)
@@ -836,4 +837,5 @@ ruff format path/to/file.py
 | Open board viewer | `jitx ui open --board --design module.Design` |
 | Open schematic viewer | `jitx ui open --schematic --design module.Design` |
 | Submit support bundle | `jitx support request` |
+| Verify project | `python scripts/check.py <ns>/ [--build module.Design]` |
 | Format code | `ruff format path/to/file.py` |

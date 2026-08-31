@@ -6,17 +6,17 @@
     {
       "text": "the substrate task carries a runnable build command, not a prose excuse. The tracked template offered 'skip if using predefined \u2014 no separate file to test', which manufactured a task nobody could check.",
       "check": "deterministic",
-      "cmd": "sed -n '/\\[sub-01\\]/,/Status:/p' skills/jitx/references/plan-template.md | grep -E '^- \\*\\*Verify' | grep -q 'jitx build'"
+      "cmd": "sed -n '/\\[sub-01\\]/,/Status:/p' skills/jitx/references/plan-template.md | grep -E '^- \\*\\*Verify' | grep -q 'python scripts/check.py.*--build'"
     },
     {
-      "text": "every task entry in the template has a Verify line naming a command that runs (jitx build or a python script), with no exceptions",
+      "text": "every task entry in the template has a Verify line naming the consolidated Python check command, with no exceptions",
       "check": "deterministic",
-      "cmd": "test $(grep -c '^- \\*\\*Verify:\\*\\*' skills/jitx/references/plan-template.md) -eq $(grep '^- \\*\\*Verify:\\*\\*' skills/jitx/references/plan-template.md | grep -cE 'jitx build|python ')"
+      "cmd": "test $(grep -c '^- \\*\\*Verify:\\*\\*' skills/jitx/references/plan-template.md) -eq $(grep '^- \\*\\*Verify:\\*\\*' skills/jitx/references/plan-template.md | grep -c 'python scripts/check.py')"
     },
     {
       "text": "the Phase 3b audit task's verification is a command plus an outside-voice requirement, not a same-model 'clean' verdict. Both judges flagged the condition-shaped Verify on both cycle-3 samples.",
       "check": "deterministic",
-      "cmd": "sed -n '/\\[aud-01\\]/,/Status:/p' skills/jitx/references/plan-template.md | grep -q 'grep_gates.py'"
+      "cmd": "sed -n '/\\[aud-01\\]/,/Status:/p' skills/jitx/references/plan-template.md | grep -q 'python scripts/check.py'"
     },
     {
       "text": "a task's declared dependencies match its real data flow, so a decision owned by a later task is either a declared edge or an open question",
