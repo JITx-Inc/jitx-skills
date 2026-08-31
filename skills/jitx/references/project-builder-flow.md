@@ -46,6 +46,8 @@ blocked: OQ-n             ├→ rework → review → accepted (max 2 cycles)
 - `rework`: orchestrator found issues, sent back with specific feedback
 - `rejected`: fundamental problem, task needs replanning
 
+Every transition above runs through `python scripts/plan_status.py <task-id> <status> [--note "<short note>"]`. Rewriting PLAN.md wholesale to change a status is not allowed.
+
 ---
 
 ## Phase 0: Requirements + Architecture
@@ -131,23 +133,26 @@ Please confirm data sources or provide alternatives (datasheets, footprints, spe
 ### Orchestrator Actions
 
 1. For each Phase 1 task in PLAN.md:
-   a. Update status to `in-progress`
-   b. Spawn a sub-agent with the task definition, relevant datasheets, and instruction to follow `references/task-execution.md`
-2. As sub-agents return, perform acceptance review (Part B of task-execution.md).
-3. Issue verdicts: accept, rework, or reject.
+   a. Run `python scripts/plan_status.py <task-id> in-progress`
+   b. Prepare a spawn call with the task definition, relevant datasheet spec notes, and instruction to follow `references/task-execution.md`. For a component whose note does not exist, give that component-modeling sub-agent the PDF path and require it to write the note before modeling.
+2. Dispatch every startable Phase 1 spawn batch in a single message carrying multiple spawn calls, not one message per task. Record `N`, `B`, and `C` for the Phase 1 exit gate.
+3. As sub-agents return, perform acceptance review (Part B of task-execution.md).
+4. Issue verdicts: accept, rework, or reject.
 
 ### Parallel Safety
 
-Phase 1 tasks are independent at the *design* level — each sub-agent writes its own component file with its own test design. Parallel sub-agents each build their own test design; because each agent's design is distinct (different module paths, different component class names), concurrent builds against the same project are acceptable — the JITX backend serializes internally on the WebSocket. What is NOT safe is two agents building the same design at the same time; the orchestrator should never spawn two tasks targeting the same test design class. See `jitx/SKILL.md` "Build Safety".
+Phase 1 tasks are independent at the *design* level. Each sub-agent writes its own component file with its own test design. Parallel sub-agents each build their own test design; because each agent's design is distinct (different module paths, different component class names), concurrent builds against the same project are acceptable. The JITX backend serializes internally on the WebSocket. What is NOT safe is two agents building the same design at the same time; the orchestrator should never spawn two tasks targeting the same test design class. The spawn-batch rule does not change this same-design build-safety rule. See `jitx/SKILL.md` "Build Safety".
 
 ### Exit Gate: Phase 1 → Phase 2
 
 ALL of the following must be true:
+- [ ] Dispatch record names `N` Phase 1 tasks, `B` spawn batches, and maximum concurrency `C`; for `N >= 3`, `B == N` blocks unless each serialized task names the dependency that forced it
 - [ ] Every Phase 1 task has status `accepted`
 - [ ] Every component builds with `status: ok` in its test harness
 - [ ] Substrate builds with all routing structures and via definitions
 - [ ] Orchestrator has spot-checked high-risk items per task type (see task-execution.md Part B)
 - [ ] `Interface notes` fields in task acceptance blocks are consistent (port names, power requirements match ARCHITECTURE.md)
+- [ ] Orchestrator has run `python scripts/grep_gates.py <ns>/`; hard-fail hits are 0 and review-required hits have dispositions
 
 **Emit the `Gate: Phase 1 → Phase 2` block** from `references/completion-blocks.md` before advancing.
 
@@ -201,7 +206,7 @@ Subcircuits that expose bundles (I2C, ULPI, USB2, etc.) for any signal that will
 
 ### Process
 
-The orchestrator (or a single sub-agent) assembles the top-level design.
+A single sub-agent assembles the top-level design. The orchestrator reviews its code and acceptance block but does not author files under `<ns>/`.
 
 **CRITICAL**: Net symbols (`GroundSymbol`, `PowerSymbol`) and SI constraints (`Constrain`, `ConstrainDiffPair`, `ReferencePlanes`) MUST be applied at the top-level design — not inside subcircuits. Subcircuits create topologies with `>>` but constraints are applied here where the full signal path is visible.
 
@@ -449,26 +454,27 @@ These editor-side checks won't catch Pattern 1 (the `.insert(...)` call has a si
 
 ## Phase 3b: Design Review and Loopback
 
-**Who**: orchestrator spawns a **read-only audit agent** (critic only — no code edits), then separately spawns fix agents for issues found.
+**Who**: orchestrator spawns a **read-only audit agent** (critic only, with no design-code edits), then separately spawns fix agents for issues found.
 
 Each subcircuit was designed in isolation. Now review the assembled design as a system. **Do not proceed to Phase 4 with known electrical errors.**
 
 ### Audit Structure
 
-Spawn a sub-agent to perform the design-level audit. The audit agent reads code and datasheets but **does not edit any files**. It produces a **Phase 3b Audit Block** with issues classified as CRITICAL / WARNING / NOTE — see the template in `references/completion-blocks.md` "Phase 3b Design Audit Block".
+Spawn a sub-agent to perform the design-level audit. The audit agent reads code and the datasheet PDFs but **does not edit design files**. It reads the PDFs and not the spec notes: its job is to catch what the building chain missed, and the spec notes are that chain's own output. Where a note and the datasheet disagree, the note is the defect. It runs in its own context, so the pages cost the orchestrator nothing. It produces a **Phase 3b Audit Block** with issues classified as CRITICAL / WARNING / NOTE; see the template in `references/completion-blocks.md` "Phase 3b Design Audit Block".
 
 **After the same-model audit, run an outside-voice (codex) pass — mandatory for complete-board tier.** The two reviews are additive: the same-model audit uses skill knowledge, codex provides independent perspective from outside the conversation. See `references/outside-voice-review.md` for the trigger rules, prompt shape, invocation command, and combined-verdict rule (any CRITICAL/WARNING outside-voice finding makes the combined verdict `issues-pending` even if the same-model audit said `clean`).
 
-Before the audit runs, the orchestrator must have already addressed the build-time silent-drop patterns documented in Phase 3 → "Silent-drop patterns" — those bugs build with `status: ok` but produce a wrong design, and the audit agent's datasheet-comparison passes assume the netlist matches the source. JITX emits a `Reference to structural object … lost during instantiation` warning for some of these cases (constraint and similar structural classes), but not for bare net or topology expressions — handle both manually.
+Before the audit runs, the orchestrator must have already dispatched and accepted fixes for the build-time silent-drop patterns documented in Phase 3 → "Silent-drop patterns". Those bugs build with `status: ok` but produce a wrong design, and the audit agent's datasheet-comparison passes assume the netlist matches the source. JITX emits a `Reference to structural object … lost during instantiation` warning for some of these cases (constraint and similar structural classes), but not for bare net or topology expressions. Handle both manually.
 
 The audit runs four passes:
 
 #### Pass 1: Circuit vs Datasheet Application Schematic
 
-For each major IC circuit, open the datasheet's typical application schematic and compare component-by-component:
+For each major IC circuit, open the datasheet's typical application schematic and compare component-by-component. Count from the datasheet, not from the spec note; a count taken from the note cannot catch a component the note itself omitted.
 - Count external components in the datasheet. Count components in the code. Flag any missing.
 - Check passive values match datasheet recommendations (cap values, resistor values, inductor values).
 - Check component types match (e.g., datasheet says 0.22uF bootstrap but code has 0.1uF).
+- Where the datasheet and `datasheets/<MPN>.spec.md` disagree, raise it as a finding against the note.
 - Note every assumption the circuit makes about its operating environment (input voltage, load current, enable timing, power sequencing).
 
 #### Pass 2: Assumption Compatibility
@@ -501,8 +507,8 @@ For every interface connecting two or more ICs, trace the complete signal path f
 After the audit report, the orchestrator (not the audit agent) decides what to fix:
 
 - **CRITICAL issues**: must fix before Phase 4. Spawn a separate sub-agent for each fix with the specific issue and datasheet reference.
-- **WARNING issues**: should fix. Spawn fix agents or fix directly.
-- **NOTE issues**: document for the user, fix if straightforward.
+- **WARNING issues**: should fix. Spawn fix agents.
+- **NOTE issues**: document for the user; spawn a fix sub-agent if a fix is straightforward.
 
 After fixes, **re-run the audit** to verify the fixes didn't introduce new issues and the original issues are resolved. Do not skip the re-audit.
 
@@ -529,17 +535,17 @@ Do not accept "noted for future refactoring" — if it's broken, fix it now.
 1. Run full build: `jitx build <ns>.main.Design`
 2. Check output for:
    - `status: ok` — proceed to verification
-   - `status: error` — read traceback, fix, rebuild
+   - `status: error`: read traceback, dispatch a fix sub-agent, review its acceptance block, rebuild
 3. Open the popout viewer (`jitx ui open --board --design <ns>.main.Design` and `jitx ui open --schematic --design <ns>.main.Design`) and verify:
    - Schematic: all connections present, symbols readable
    - Board: components placed (or floating), no overlaps
    - Issues List: SI constraints satisfied or flagged
    - DRC: clean or flagged
 4. Iterate:
-   - Build errors → fix code, rebuild
-   - DRC violations → adjust clearances or routing structures
-   - SI constraint failures → review parameters, check routing structure impedance
-   - Missing connections → trace back to Phase 2/3 and fix
+   - Build errors → dispatch a code fix, review, rebuild
+   - DRC violations → dispatch a clearance or routing-structure fix
+   - SI constraint failures → dispatch parameter and routing-structure review
+   - Missing connections → trace back to Phase 2/3 and dispatch the fix
 
 5. **Emit the Phase 4 Verification Block** from `references/completion-blocks.md`. The block requires JITX UI / Issues List / DRC / SI / placement-overlap rows with explicit pass/fail status, or a `not run` reason for any row the environment can't run (e.g. headless CI). PLAN reconciliation, deferred items, and blocking items also belong in the block. **Blocking items must be empty for `Verdict: done`.**
 
@@ -613,4 +619,4 @@ If a Phase 2 task fails because of a Phase 1 output:
 1. Identify the upstream task that produced the bad output.
 2. Send the upstream task back to rework (with the downstream failure as evidence).
 3. After upstream is fixed, re-run the downstream task.
-4. Update PLAN.md statuses for both tasks.
+4. Update both statuses with `python scripts/plan_status.py <task-id> <status>`.

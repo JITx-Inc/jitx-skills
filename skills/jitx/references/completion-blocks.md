@@ -50,52 +50,57 @@ If a job classified as `single-task` grows beyond a single artifact mid-work, re
 
 Copy this template verbatim. Fill every field. Every `N/A` requires a reason.
 
+`Primary source` names the ground-truth source and exact pages or sections. In complete-board work, cite `datasheets/<MPN>.spec.md` and the PDF pages recorded there. In single-task work, cite the PDF directly. When the user named a sourcing channel for an IC, connector, or other non-passive part, include the saved channel-evidence path required by `parts-sourcing.md`. Prior projects belong under `Secondary references`, never `Primary source`. Bare "datasheet (from memory)" or "typical dimensions" is invalid for a real MPN.
+
+The two review fields are always present. `JITX code review (self)` is mandatory for complete-board tasks, except verify-only tasks with no JITX Python change; see `jitx-code-review/SKILL.md`. For single-task work it is `not applicable: single-task tier` unless the user invoked the review. `Outside-voice review (codex)` follows `references/outside-voice-review.md`; its complete-board trigger list does not apply to single-task work. A required review that did not run blocks unless the user approves. CRITICAL or WARNING findings produce `issues-pending` until fixed, downgraded with rationale, or user-approved.
+
 ```markdown
 ## Task complete: <task-id-or-short-name>
 
-**What was built:** <one sentence — file path + class name>
+| Field | Value |
+|-------|-------|
+| What was built | <paths; classes> |
+| Build | <status; command> |
+| Primary source | <path; cites; channel evidence> |
+| Secondary references | <list/none> |
+| Footprint source | <source> |
 
-**Build:** `status: ok` (via `<exact build command run>`)
+### Checks run
 
-**Primary source:** <datasheet PDF path + sections referenced (cite page/figure for any mechanical dimension), OR the equivalent source-of-truth — manufacturer reference design, vendor mechanical drawing, protocol spec. **For any named IC / connector / non-passive part where the user named a sourcing channel:** the row must also include channel evidence (e.g. for LCSC: `parts2jitx-lcsc <C-number>` output path saved to project). See `parts-sourcing.md` "Required-Sourcing Rule". Bare "datasheet (from memory)" or "typical dimensions" is invalid for a real MPN.>
+| Check | Result |
+|-------|--------|
+| Domain checklist | <name; N/N; M fixed; K N/A + reasons> |
+| General Gotcha Scrub | N/N |
+| Layout rules | <command; exit; witnessed/unwitnessed> |
+| `ruff check` | <result> |
+| `ruff format` | applied |
+| `pyright` | <result/reason> |
+| Grep gates | <command; hard-fail; review-required + dispositions> |
 
-**Secondary references:** <list, or "none">
-- <e.g. "User-supplied known-good design at <path> — used to cross-check pinout">
-- <e.g. "Prior internal project <path> — used for X only after datasheet confirmed">
+### Interface notes
 
-**Footprint source:** <KiCad file path + origin> | <JITX standard generator: QFN/SOIC/etc.> | <vendor mechanical drawing — for pad-only / mechanical footprints>
+| Field | Value |
+|-------|-------|
+| Ports exposed | <bundles; directions> |
+| Power requirements | <voltage; current> |
+| Constraints needed at top level | <list/none> |
 
-**Checks run:**
-- <Domain checklist name linked from domain-checklists.md>: N/N items, M issues fixed, K items N/A (with reasons)
-- General Gotcha Scrub: N/N items
-- Layout rules (tasks that declare design rules): `python <check script>` exit <code>; N rules witnessed, M unwitnessed named as open items
-- `ruff check`: clean | <N issues, fixed>
-- `ruff format`: applied
-- `pyright`: clean | <N issues, fixed> | not available (<reason>)
-- Grep gates (`python <project>/scripts/grep_gates.py <ns>/`): hard-fail 0 hits, review-required <0 | N hits with disposition>
+### Reviews
 
-**Interface notes:** <compact — only fields downstream tasks need>
-- Ports exposed: <bundle types, e.g. "I2S (out), Power (3V3 in), GPIO (status)">
-- Power requirements: <voltage and current draw>
-- Constraints needed at top level: <SI constraints to apply, or "none">
-
-**JITX code review (self):** clean | <N> findings | not applicable: single-task tier | not applicable: no JITX Python changed (verify-only task) | not run: <reason — blocking unless user approves>
-- CRITICAL: <one-line> — file:line — rule source (e.g., `jitx/SKILL.md` Don'ts, `architectural-patterns.md` § N) — disposition: fix | accept with rationale: <why>
-- WARNING: ...
-- NOTE: ...
-
-See `jitx-code-review/SKILL.md` for what this pass covers and `jitx-code-review/references/checklist.md` for the pattern taxonomy. The field is **mandatory for complete-board tier task acceptance blocks** (the review runs at Think Twice Step 4 — see `task-execution.md`). For single-task tier, value is `not applicable: single-task tier` unless the user explicitly invoked `jitx-code-review`. For verify-type tasks (no Python written, just `jitx build` and inspection of the build output), use `not applicable: no JITX Python changed`. The field is **scoped to the task acceptance block only** — the Phase 3b audit block uses the four-pass audit instead (see `Phase 3b Design Audit Block` below). CRITICAL or WARNING findings change the combined verdict to `issues-pending` until fixed, downgraded with rationale, or user-approved — same precedence rule as `Outside-voice review (codex)` below.
-
-**Outside-voice review (codex):** clean | <N> findings | not applicable: single-task tier | not applicable: complete-board, task class not in trigger list | not run: <reason — blocking unless user approves on trigger-list tasks>
-- CRITICAL: <one-line> — file:line — datasheet p.M fig.N (or "inference") — disposition
-- WARNING: ...
-- NOTE: ...
-
-See `references/outside-voice-review.md` for trigger list and prompt shape. The field is always present. `not applicable: single-task tier` is the correct value whenever the task is in single-task tier (regardless of task class) — the trigger list only applies to complete-board.
+| Field | Result |
+|-------|--------|
+| JITX code review (self) | <result/reason> |
+| JITX CRITICAL | <file:line; rule; disposition / none> |
+| JITX WARNING | <file:line; rule; disposition / none> |
+| JITX NOTE | <file:line; rule / none> |
+| Outside-voice review (codex) | <result/reason> |
+| Outside-voice CRITICAL | <file:line; cite/inference; disposition / none> |
+| Outside-voice WARNING | <file:line; cite/inference; disposition / none> |
+| Outside-voice NOTE | <file:line; cite/inference / none> |
 
 **Verdict (self):** ready-for-review
 
-**Open issues / deferred:** <list, or "none">
+**Open issues / deferred:** <list/none>
 ```
 
 The orchestrator (or user) then appends the acceptance decision:
@@ -118,15 +123,15 @@ The orchestrator (or user) then appends the acceptance decision:
 
 | Acceptance verdict | Effect |
 |--------------------|--------|
-| `accept` | Task status `review` → `accepted`. Downstream tasks unblock. |
-| `rework` | Task status `review` → `rework`. Sub-agent respawned with the issues list and instructed to fix only those issues. Status becomes `in-progress` on respawn. Maximum 2 rework cycles. |
-| `reject` | Task status → `rejected`. Replan: rewrite the task definition, split it, or escalate to user. Update PLAN.md. |
+| `accept` | Run `python scripts/plan_status.py <task-id> accepted`. Downstream tasks unblock. |
+| `rework` | Run `python scripts/plan_status.py <task-id> rework --note "<issue summary>"`; respawn with the issues; then set `in-progress`. Maximum 2 cycles. |
+| `reject` | Run `python scripts/plan_status.py <task-id> rejected --note "<reason>"`; replan, split, or escalate. |
 
 ---
 
 ## Grep Gate Patterns
 
-The `Grep gates:` line in the task acceptance block reports the result of running `jitx/scripts/grep_gates.py` against the project's source tree. The script is the executable source of truth — copy it into the project's `scripts/` directory. This section summarizes which patterns are checked and why.
+The `Grep gates` row in the task acceptance block reports the result of running `jitx/scripts/grep_gates.py` against the project's source tree. The script is the executable source of truth; copy it into the project's `scripts/` directory. This section summarizes which patterns are checked and why.
 
 > **Note on table display.** The regex patterns below are rendered inside markdown tables, so `|` in alternations is escaped as `\|` for readability. The script in `jitx/scripts/grep_gates.py` carries the exact regexes — read it for the runnable form.
 
@@ -170,15 +175,13 @@ Pattern 10 (broader `getattr(`) is intentionally a wider net than Pattern 3 (`ge
 When the grep gates pass with no hits:
 
 ```
-- Grep gates (`python scripts/grep_gates.py <ns>/`): hard-fail 0 hits, review-required 0 hits
+| Grep gates | `python scripts/grep_gates.py <ns>/`; hard-fail 0; review-required 0 |
 ```
 
 When there are review-required hits:
 
 ```
-- Grep gates (`python scripts/grep_gates.py <ns>/`): hard-fail 0 hits, review-required 2 hits:
-    - <ns>/circuits/usb.py:88 — `Pour(..., isolate=0.15)` — deferred to Pass 3 deprecation
-    - <ns>/circuits/power.py:42 — `type(x) is Foo` — fixed: changed to `isinstance(x, Foo)`
+| Grep gates | `python scripts/grep_gates.py <ns>/`; hard-fail 0; review-required 2: `<ns>/circuits/usb.py:88`, deferred to Pass 3; `<ns>/circuits/power.py:42`, fixed with `isinstance` |
 ```
 
 When there are hard-fail hits, the task is not done. Fix and re-run.
@@ -209,20 +212,21 @@ The criteria mirror the exit-gate bullet lists in `references/project-builder-fl
 ```markdown
 ## Gate: Phase 0 → Phase 1
 
-**Environment probe:** all of `jitx`, `jitxlib`, `jitxlib.parts`, `jitxlib.symbols.box`, `jitxlib.voltage_divider` import; target substrate package imports (e.g. `jitxlib.jlcpcb` for JLCPCB). See `jitx/SKILL.md` "Environment Setup".
-**Requirements lock complete:** yes — see `decomposition-guide.md` "Requirements Lock" — all eight rows in PLAN.md name their source. Rows reading `not specified` are listed here with the assumption standing in for them: <list, or "none">. No row states a value ARCHITECTURE.md owns, and no row records a datasheet-settled fact as an assumption rather than an open question
-**PLAN.md exists:** yes — `<path>` (referenced)
-**ARCHITECTURE.md exists:** yes — `<path>` (`Power Tree`, `Interface Map`, `Board`, and applicable `Object-Hierarchy Decisions` / `Design Notes`)
-**No fact copied between documents:** <N> task bodies checked against `Data Sources` and ARCHITECTURE.md for repeated MPNs, packages, rail values, impedances, routing structures, board dimensions and layer counts — <clean | list each copy and the owner it belongs to>
-**Planning docs within budget:** ARCHITECTURE.md <N> lines; PLAN.md <N> lines for <N> tasks — <within budget | over budget: one-line justification>
-**Data source audit completed:** yes — table presented to user, user approved on <date>
-**Component-choice rationale documented:** yes — table presented at the data source audit per `parts-sourcing.md` "Component-Choice Rationale Table"; every proposed part has assembly tier, stock, package, fabrication risk, and a named rejected alternative, with the outcome recorded in PLAN.md `Data Sources`
-**All datasheets and reference materials identified:** <yes | partial — list missing items>
-**Dependencies acyclic:** yes (verified by reading PLAN.md task graph)
-**No ambiguous requirements:** yes | <list of open questions for user>
-**User approval recorded:** yes — <quote or note>
-
-**Verdict:** advance | block (reason: ...)
+| Field | Result |
+|-------|--------|
+| Environment probe | <imports; result> |
+| Requirements lock complete | <result; assumptions> |
+| PLAN.md exists | <path> |
+| ARCHITECTURE.md exists | <path; sections> |
+| No fact copied between documents | <N checked; result> |
+| Planning docs within budget | <line counts; result> |
+| Data source audit completed | <approval; date> |
+| Component-choice rationale documented | <result; PLAN.md location> |
+| All datasheets and reference materials identified | <result> |
+| Dependencies acyclic | <result> |
+| No ambiguous requirements | <result/questions> |
+| User approval recorded | <evidence> |
+| Verdict | <advance/block + reason> |
 ```
 
 ### Phase 1 → Phase 2
@@ -230,40 +234,40 @@ The criteria mirror the exit-gate bullet lists in `references/project-builder-fl
 ```markdown
 ## Gate: Phase 1 → Phase 2
 
-**Tasks accepted:** <count> / <total in phase>
-- Component tasks: <list of task IDs with `accept` verdicts>
-- Substrate task: <task ID with verdict — a predefined class still gets a task, scoped to selection and verification rather than modeling>
+**Dispatch:** <N> Phase 1 tasks in <B> spawn batches, max <C> concurrent
 
-**Build status:** every task's test harness produced `status: ok`
-
-**Spot-check items reviewed:** <list of high-risk items verified per task type — see task-execution.md Part B Step 3>
-
-**Interface notes consistency:** <pass | fail with details — `Interface notes` fields in task acceptance blocks line up with ARCHITECTURE.md power tree and interface map>
-
-**Open from this phase:** <list of issues deferred with rationale, or "none">
-
-**Verdict:** advance | block (reason: ...)
+| Field | Result |
+|-------|--------|
+| Tasks accepted | <count/total> |
+| Component tasks | <IDs; verdicts> |
+| Substrate task | <ID; verdict> |
+| Build status | <result> |
+| Spot-check items reviewed | <list> |
+| Interface notes consistency | <result/details> |
+| Grep gates | <command; results; dispositions> |
+| Open from this phase | <list/none> |
+| Verdict | <advance/block + reason> |
 ```
+
+For `N >= 3`, `B == N` fails this gate. The orchestrator re-dispatches or names, for each serialized task, the dependency that forced serialization. "It seemed simpler" is not a dependency.
 
 ### Phase 2 → Phase 3
 
 ```markdown
 ## Gate: Phase 2 → Phase 3
 
-**Tasks accepted:** <count> / <total in phase>
-
-**Build status:** every circuit / constraint / pin-assignment task built `status: ok` individually
-
-**Constraint classes instantiate:** verified via test build of `<task ID>`
-**Provide/require interfaces consistent:** confirmed across wrappers and consumers
-**Bundle-typed ports:** every interface circuit exposes bundle-typed ports (I2S, I2C, SPI, USB2, etc.) — not individual signal ports — confirmed by code review
-**Topology vs net wiring:** subcircuits exposing bundles for SI-constrained signals wire bundle sub-ports with `>>` not `+` — confirmed
-**`short_trace=True` on power-rail caps:** every decoupling / bypass / bulk / output-filter capacitor `.insert(...)` uses `short_trace=True`. Non-power-rail caps (AC coupling, RC, RF, crystal load) and non-cap inserts dispositioned in task acceptance blocks. `python scripts/grep_gates.py <ns>/` review-required hits all resolved.
-**Power circuit outputs match ARCHITECTURE.md:** voltage and current ratings line up with the documented power tree
-
-**Open from this phase:** <list, or "none">
-
-**Verdict:** advance | block (reason: ...)
+| Field | Result |
+|-------|--------|
+| Tasks accepted | <count/total> |
+| Build status | <result> |
+| Constraint classes instantiate | <evidence> |
+| Provide/require interfaces consistent | <result> |
+| Bundle-typed ports | <result> |
+| Topology vs net wiring | <result> |
+| `short_trace=True` on power-rail caps | <result; dispositions> |
+| Power circuit outputs match ARCHITECTURE.md | <result> |
+| Open from this phase | <list/none> |
+| Verdict | <advance/block + reason> |
 ```
 
 ### Phase 3 → Phase 3b
@@ -271,33 +275,24 @@ The criteria mirror the exit-gate bullet lists in `references/project-builder-fl
 ```markdown
 ## Gate: Phase 3 → Phase 3b
 
-**Top-level build:** `status: ok` (via `<exact build command>`)
-
-**Net completeness:** all nets connected — no floating ports on instantiated circuits
-
-**Power tree complete:** every load rail connected to a regulator output
-
-**Symbols and constraints:**
-- `GroundSymbol` on GND net: yes
-- `PowerSymbol` on every power rail: yes
-- All SI constraints applied at top level inside `ReferencePlanes(...)`: yes
-- All `require()` calls have matching provides: yes
-
-**JITX UI errors:** no "Invalid Topology Definitions" or "No path for signal constraint" issues | <list> | not run because <reason>
-
-**Build warnings:** no `Reference to structural object … lost during instantiation` warnings | <list>
-
-**Grep gates (top-level-only enforcement):** `python scripts/grep_gates.py <ns>/` — hard-fail 0 hits, review-required <count + disposition>
-
-**Passive defaults:** `capacitor_defaults` and `resistor_defaults` set on the Design class to match the manufacturing path and circuit role; per-circuit overrides for specialty parts documented
-
-**Default design rules:** `self.rules` on the Design class contains the four canonical entries: default trace width (`IsTrace`), copper-to-copper clearance (`IsCopper`, `IsCopper`), thermal relief on pads (`IsPad`), and wider trace rule for tagged power/ground rails (`PowerTag | GroundTag`, `priority=1`). Values calibrated to substrate fab class. See `project-builder-flow.md` "Default design rules" and the `jitx-layout-constraints` skill
-
-**Board geometry:** shape, mounting holes, pours defined
-
-**Open from this phase:** <list, or "none">
-
-**Verdict:** advance | block (reason: ...)
+| Field | Result |
+|-------|--------|
+| Top-level build | <status; command> |
+| Net completeness | <result> |
+| Power tree complete | <result> |
+| Symbols and constraints | <result> |
+| `GroundSymbol` on GND | <result> |
+| `PowerSymbol` on each rail | <result> |
+| SI constraints at top level in `ReferencePlanes(...)` | <result> |
+| `require()` calls have matching provides | <result> |
+| JITX UI errors | <result/reason> |
+| Build warnings | <result> |
+| Grep gates, top-level enforcement | <command; results; dispositions> |
+| Passive defaults | <result; overrides> |
+| Default design rules | <four-rule result> |
+| Board geometry | <result> |
+| Open from this phase | <list/none> |
+| Verdict | <advance/block + reason> |
 ```
 
 ### Phase 3b → Phase 4
@@ -305,105 +300,71 @@ The criteria mirror the exit-gate bullet lists in `references/project-builder-fl
 ```markdown
 ## Gate: Phase 3b → Phase 4
 
-**Phase 3b audit block emitted:** yes — see audit block below or `<link>`
-
-**CRITICAL findings:** <count> — all fixed and re-audited
-**WARNING findings:** <count> — fixed | accepted with rationale (each accept needs the rationale here, not just a count)
-**NOTE findings:** <count> — for documentation only
-
-**Loopback tasks completed:** <list of task IDs that came out of the audit, all with `accept` verdicts>
-
-**Re-audit status:** done — no new CRITICAL/WARNING introduced | not needed (no fixes applied)
-
-**Open from this phase:** <list, or "none">
-
-**Verdict:** advance | block (reason: ...)
+| Field | Result |
+|-------|--------|
+| Phase 3b audit block emitted | <block/link> |
+| CRITICAL findings | <count; result> |
+| WARNING findings | <count; dispositions> |
+| NOTE findings | <count> |
+| Loopback tasks completed | <IDs; verdicts> |
+| Re-audit status | <result/reason> |
+| Open from this phase | <list/none> |
+| Verdict | <advance/block + reason> |
 ```
 
 ---
 
 ## Phase 3b Design Audit Block (complete-board only)
 
-The audit happens in Phase 3b. A read-only audit agent (no code edits) reviews the assembled design across four passes and emits this block. The orchestrator decides which findings to fix; fix sub-agents handle the loopback. After fixes, the audit re-runs and the block is updated (or a new block is emitted alongside the first).
+The audit happens in Phase 3b. A read-only audit agent (no design-code edits) reviews the assembled design across four passes and emits this block. It reads the datasheet PDFs rather than the spec notes, because the notes are the building chain's own output and an audit anchored to them cannot catch an extraction error. The orchestrator decides which findings to fix; fix sub-agents handle the loopback. After fixes, the audit re-runs and the block is updated (or a new block is emitted alongside the first).
+
+The four pass scopes remain those in `references/project-builder-flow.md`: application-circuit external parts and values; every circuit assumption against the system; every interface path including power; and every regulator's load margin, thermal/package limit, and hot-plug behavior.
+
+The outside-voice pass is required for complete-board work and follows `references/outside-voice-review.md`. Any CRITICAL or WARNING outside-voice finding makes the combined verdict `issues-pending`, even when the four passes are clean.
 
 ```markdown
 ## Phase 3b Audit: <project-name>
 
-**Auditor:** <agent name or "manual self-audit">
-**Audited from:** <commit hash, or files reviewed at this snapshot>
+**Auditor:** <name>
+**Audited from:** <commit/files>
 
 ### Pass 1: Circuit vs Datasheet Application Schematic
 
-| IC | Datasheet figure / page | External components in datasheet | External components in code | Status | Findings |
-|----|--------------------------|----------------------------------|-----------------------------|--------|----------|
-| <MPN> | Fig N, p.M | <count> | <count> | match | full | partial | <link to finding below> |
-
-Findings (one bullet per CRITICAL / WARNING / NOTE):
-- **CRITICAL** <IC>: <one-line description>. Datasheet says X, code does Y. Loopback: <task to create>.
-- **WARNING** <IC>: ...
-- **NOTE** <IC>: ...
+| IC | Spec cite | Datasheet externals | Code externals | Status | Findings |
+|----|-----------|---------------------|----------------|--------|----------|
+| <MPN> | <page> | <N> | <N> | <status> | <IDs/none> |
 
 ### Pass 2: Assumption Compatibility
 
-For each circuit, list every assumption (input voltage, load current, enable timing, sequencing) and verify against the system. Findings:
-
-- **CRITICAL** ...
-- **WARNING** ...
-- **NOTE** ...
+| Circuit | Assumption | System evidence | Status | Finding ID |
+|---------|------------|-----------------|--------|------------|
+| <name> | <assumption> | <source> | <status> | <ID/none> |
 
 ### Pass 3: Interface-by-Interface Trace
 
-For every interface connecting two or more ICs, trace source → destination through every component. Power rails included.
-
 | Interface | From | To | Hops verified | SI constraint? | Findings |
 |-----------|------|----|---------------|----------------|----------|
-| USB | mcu.usb | conn.J1 | mcu → ESD → conn | yes (top-level) | none |
-| I2C bus 1 | mcu.i2c1 | sensor U3 | direct | n/a | <finding> |
-
-Findings:
-- **CRITICAL** ...
-- **WARNING** ...
-- **NOTE** ...
+| <name> | <source> | <destination> | <hops> | <result> | <ID/none> |
 
 ### Pass 4: Power and Thermal
 
-For every regulator: load sum + margin, thermal dissipation, package rating, hot-plug behavior.
-
-| Rail | Regulator | Sum of loads | Output rating | Margin | Thermal | Findings |
-|------|-----------|--------------|---------------|--------|---------|----------|
-| 3V3 | LDO U2 | 350 mA | 800 mA | OK | OK | none |
-| ... | ... | ... | ... | ... | ... | ... |
-
-Findings:
-- **CRITICAL** ...
-- **WARNING** ...
-- **NOTE** ...
+| Rail | Regulator | Load sum | Rating | Margin | Thermal/package | Hot-plug | Finding ID |
+|------|-----------|----------|--------|--------|-----------------|----------|------------|
+| <rail> | <part> | <load> | <rating> | <margin> | <result> | <result> | <ID/none> |
 
 ### Outside-Voice Review (codex)
 
-**Required for complete-board.** Run after the four passes above; codex provides an independent perspective from outside the conversation context. See `references/outside-voice-review.md` for invocation, prompt shape, and combined-verdict rule.
+**Outside-voice review (codex):** <result/reason>
 
-```
-Outside-voice review (codex): clean | <N> findings | not run: <reason — blocking unless user approves>
-- CRITICAL: <one-line> — file:line — datasheet p.M fig.N (or "inference") — disposition: fix → new task `<task-id>` | accept with rationale: <why>
-- WARNING: ...
-- NOTE: ...
-```
+### Findings and Loopback Decisions
 
-Any CRITICAL or WARNING outside-voice finding changes the combined audit verdict to `issues-pending`, even if the four passes above were `clean`.
+| ID | Pass/source | Severity | Finding + evidence | Decision | Owner |
+|----|-------------|----------|--------------------|----------|-------|
+| <ID> | <pass/source> | <severity> | <finding; evidence> | <decision> | <owner> |
 
-### Loopback Decisions
+**Re-audit needed:** <yes/no + reason>
 
-| Finding | Severity | Source | Decision | Owner |
-|---------|----------|--------|----------|-------|
-| <one-line> | CRITICAL | same-model | fix → new task `<task-id>` | <sub-agent> |
-| <one-line> | WARNING | outside-voice | fix inline | orchestrator |
-| <one-line> | NOTE | same-model | document only | — |
-| <one-line> | WARNING | outside-voice | accepted with rationale: <why> | — |
-
-**Re-audit needed:** yes (after fixes land) | no (no fixes)
-
-**Audit verdict (combined):** clean | issues-pending (returns to phase chain after fixes)
+**Audit verdict (combined):** <clean/issues-pending>
 ```
 
 Severity definitions:
@@ -414,7 +375,7 @@ Severity definitions:
 
 Rules:
 
-- Audit agent does not edit files. Findings → orchestrator → fix agents.
+- Audit agent does not edit design files. It may correct a datasheet spec note that disagrees with the datasheet, and raises that disagreement as a finding. Findings → orchestrator → fix agents.
 - "Noted for future refactoring" is not a valid disposition for CRITICAL or WARNING.
 - After any fix lands, re-audit. The re-audit does not need to repeat passes that didn't touch the changed code, but must re-verify the original findings are resolved.
 

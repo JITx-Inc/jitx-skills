@@ -48,7 +48,7 @@ For other task classes (passive circuit, low-speed interface like I2C/SPI/UART, 
 
 ## What outside-voice reviews — prompt shape
 
-Prompts are **narrow and evidence-anchored**, not "review everything". The prompt names: the target directory codex can read, the exact files/datasheets that constitute the evidence packet, the specific failure modes to look for, and the output format the orchestrator can fold back into the block.
+Prompts are **narrow and evidence-anchored**, not "review everything". The prompt names: the target directory codex can read, the exact files and datasheets that constitute the evidence packet, the specific failure modes to look for, and the output format the orchestrator can fold back into the block. Codex reads the datasheet PDFs, not the spec notes. It is the reviewer of last resort, and a spec note is the building chain's own output, so a review anchored to it cannot catch an extraction error. Codex runs in its own context, so the pages cost the orchestrator nothing.
 
 | Trigger | Target dir | Evidence packet | Prompt focus |
 |---------|------------|-----------------|---------------|
@@ -62,7 +62,7 @@ Prompts are **narrow and evidence-anchored**, not "review everything". The promp
 
 Append a catch-all line at the end of every prompt: **"Also flag any directly observable blocking electrical or geometry mismatch in the reviewed files."** This preserves narrow focus while allowing obvious unknown unknowns to surface.
 
-Every finding from codex must include a file:line citation and (if it references a datasheet) the page/figure or "inference" label. Findings without that anchoring are downgraded to NOTE.
+Every finding from codex must include a file:line citation and, when it references a datasheet, the page/figure or an "inference" label. Findings without that anchoring are downgraded to NOTE.
 
 ## How to invoke
 
@@ -85,14 +85,7 @@ Any read-only outside-voice reviewer that takes a prompt and produces severity-t
 
 ## Integrating findings — combined verdict rule
 
-Codex findings get appended to the relevant block as a new field:
-
-```markdown
-**Outside-voice review (codex):** clean | <N> findings | not applicable: <reason> | not run: <reason — blocking unless user approves>
-- CRITICAL: <one-line description> — file:line — datasheet p.M fig.N (or "inference") — disposition: fix → new task `<task-id>` | accept with rationale: <why>
-- WARNING: <one-line> — file:line — disposition
-- NOTE: <one-line> — file:line — for documentation only
-```
+Codex findings fill the `Outside-voice review (codex)`, `Outside-voice CRITICAL`, `Outside-voice WARNING`, and `Outside-voice NOTE` rows in the task acceptance block. Phase 3b records the overall result in its outside-voice field and puts each finding in `Findings and Loopback Decisions`. The canonical compact shapes live in `references/completion-blocks.md`.
 
 The field is **always present** in the task acceptance block and the Phase 3b audit block. Valid values: `clean`, `<N> findings`, `not applicable: <reason>`, `not run: <reason/blocking status>`. A missing field fails review.
 
