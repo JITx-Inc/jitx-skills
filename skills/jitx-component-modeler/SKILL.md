@@ -491,6 +491,8 @@ Validate the **cross-axis** rules too, not only the individual ones. The combina
 
 Overview and selector-guide editions routinely omit the per-size value lineup the full series datasheet carries. Validate what the document *does* state — the ordering code, the published significand grid, the size / voltage / dielectric offering — record the gap in the docstring, and tell the user which envelope is checked and which is not. Do not invent ranges to make the validation look complete: a range nothing backs is the same failure as a dimension nothing backs.
 
+**Check for a second gap before concluding there is one.** A catalog that specifies its cases by standard size code often publishes **no chip outline table either** — size codes and thickness codes, but no length, width or termination band. That is a legitimate reason to take the geometry from the standard chip table (see "Taking the standard table's dimensions is a verification obligation"), but it is a *different provenance claim* from a family whose datasheet tabulates its own dimensions, and it has to be said out loud per dimension rather than absorbed. Where the catalog does publish one dimension and not the rest — thickness is the common case — say which came from where; the completeness check's **Library defaults** row separates a default that *agrees* with the source from one relied on because the source is silent, and will not fill without the split. Expect coverage to fall out of this too: a size the vendor offers may have no standard-table entry and no published outline to override it with, in which case it is excluded, and the exclusion and its reason are reportable rather than silent.
+
 ## Package-Specific Examples
 
 For complete examples of each package type (SOIC, SOT, SON, QFN, QFP, BGA), including thermal pads,
@@ -1022,7 +1024,9 @@ Landpattern: <generator + args> from <page/figure>; <N> pads; dimensions transcr
         each cited; Toleranced from the drawing's min/max, not nominal-only
 Library defaults: generator/table defaults relied on: <list | none> — each checked
         against the source where the source speaks to it; agreements <list>,
-        overrides <item + reason | none>
+        overrides <item + reason | none>; defaults relied on because the source
+        publishes nothing to check against: <list per dimension | none>, and sizes
+        excluded for having neither: <list | none>
         Density level: <A | B | C> — <what the source asks for, or "no preference stated">;
         installed default is <level> — <set explicitly | default already matches>
 Value / BOM: .value renders as "<string>" — asserted in a test
@@ -1031,8 +1035,13 @@ No-field walk: datasheet-stated facts with no JITX field, recorded in the docstr
 Provenance: values traceable to no datasheet page: NONE | <list + the labeled rule backing each>
 Checks: pyright <clean | N errors>; pytest <N passed | not run: <reason>>;
         build <status: ok via <command> | not run: <reason>>
-Verdict: complete | open items: <list>   (any non-clean check, or build not run, is an
-        open item — "complete" with a failing or unrun check is not a valid combination)
+Verdict: complete | open items: <list>
+        Derive this line from the Checks row above, do not compose it: every check
+        there that is not clean — failed, skipped, or unavailable in this
+        environment — is copied here as an open item, and the count must match.
+        "complete" with an empty open-items list asserts every check ran clean.
+        An unavailable environment is an open item, not an exemption: "no runtime,
+        so no build" is exactly the case this line exists to record.
 ```
 
 Row-by-row intent — the *why*, so the block stays evidence rather than ceremony:

@@ -3,7 +3,7 @@
 {"intent": "the 0.4 mm rail width from our board rules will not fit the QFN pad", "expected_skill": "jitx-layout-constraints"}
 {"intent": "why isn't my clearance rule applying", "expected_skill": "jitx-layout-constraints"}
 {"intent": "what trace width should I use for a 3 A rail", "expected_skill": "jitx-layout-constraints"}
-{"intent": "set up decoupling placement and short routes for the MCU", "expected_skill": "jitx-layout-constraints"}
+{"intent": "set up decoupling placement and short routes for the MCU", "expected_skill": "jitx-layout-constraints", "ambiguous_with": ["jitx-circuit-builder"]}
 {"intent": "add thermal relief rules to the pads", "expected_skill": "jitx-layout-constraints"}
 {"intent": "stitch the ground pour with the substrate's ground via", "expected_skill": "jitx-layout-constraints"}
 {"intent": "give the board a default trace width and copper clearance", "expected_skill": "jitx-layout-constraints"}

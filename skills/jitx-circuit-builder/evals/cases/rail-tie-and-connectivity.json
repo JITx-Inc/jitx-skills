@@ -1,0 +1,52 @@
+{
+  "name": "rail-tie-and-connectivity",
+  "prompt": "This BGA brings ground out on two repeated-name rails (GND, RSVDGND) and its core supply on VCCINT plus a single VCCAUX pin. Tie both ground rails to one net and the core balls plus VCCAUX to another, then write tests that prove the ties actually held. I have no runtime available, so the tests must run offline.",
+  "inputs": {
+    "reference": "evals/cases/reference/rail-tie/design.py",
+    "notes": "A wide repeated-name rail is the first thing written against a large part, and it is where the net API's shape bites: Net(...) takes an iterable, += takes a port or a Net and never a bare list. The reference part is a stand-in with 24 GND, 6 RSVDGND and 8 VCCINT ports — the shape of the tie is what is under test, not the part.",
+    "environment": "Offline. jitx.test.TestCase activates the instantiation context with no runtime and no parts database, so nothing here needs auth or a network."
+  },
+  "expected_output": "A Circuit that ties both ground rails in one Net(...) call and the core rail plus the scalar pin into a second net, with a test module subclassing jitx.test.TestCase that asserts port counts and per-port membership over list(net) rather than with `in`, and a check entry point that exits nonzero on failure.",
+  "assertions": [
+    {
+      "text": "the reference connectivity checks pass offline, with no runtime running",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-circuit-builder/evals/cases/reference/rail-tie/check.py"
+    },
+    {
+      "text": "the reference design and its checks type-check against the installed JITX package",
+      "check": "deterministic",
+      "cmd": "python3 -m pyright --pythonpath \"$(command -v python3)\" skills/jitx-circuit-builder/evals/cases/reference/rail-tie/design.py skills/jitx-circuit-builder/evals/cases/reference/rail-tie/check.py"
+    },
+    {
+      "text": "the candidate's own tests pass, and they subclass jitx.test.TestCase rather than plain unittest.TestCase — outside the JITX instantiation context a design reads as empty and the suite goes green having compared nothing",
+      "check": "deterministic",
+      "cmd": "grep -q 'jitx.test.TestCase' <output>/*test*.py && ! grep -qE 'class .*\\(unittest\\.TestCase\\)' <output>/*test*.py"
+    },
+    {
+      "text": "no bare list is passed to `+=` anywhere in the output — the form raises at instantiation, and on an empty net it raises an unhashable-type TypeError that names neither the call nor the fix",
+      "check": "deterministic",
+      "cmd": "! grep -nE '\\+=\\s*\\[' <output>/*.py"
+    },
+    {
+      "text": "membership is asserted over list(net), never with `in` against the net directly: Net.__contains__ stops at the first nested net, so a port after it reports False while iteration finds it",
+      "check": "judge"
+    },
+    {
+      "text": "port COUNTS are asserted, not only membership — 30 on the ground net and 9 on the core net. A membership check alone cannot see a rail that lost half its balls",
+      "check": "judge"
+    },
+    {
+      "text": "both ground rails reach one net. Tying GND and leaving RSVDGND floating is the failure this case exists to catch, and it type-checks, builds, and passes any test that only asserts membership of the ports it did tie",
+      "check": "judge"
+    },
+    {
+      "text": "the two nets are asserted NOT to be shorted to each other, not merely asserted to contain what they should",
+      "check": "judge"
+    },
+    {
+      "text": "every net expression is stored on self. An unstored `a + b` is a discarded connection and nothing downstream reports it",
+      "check": "judge"
+    }
+  ]
+}

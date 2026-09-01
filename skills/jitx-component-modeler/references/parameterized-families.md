@@ -25,12 +25,22 @@ class AcmeSeries(jitx.Component):
 
     # Bare annotations: these depend on constructor arguments, so they are
     # assigned on self in __init__, not at class level.
+    #
+    # Never NARROW an inherited attribute's type. A mutable attribute's type is
+    # invariant, so re-declaring one with a tighter type is a pyright error
+    # (reportIncompatibleVariableOverride). `mpn` is inherited as `str | None`
+    # and `value` as `str | PlainQuantity | None`, so `mpn: str` and
+    # `value: PlainQuantity` are two errors the gate forbids you to suppress.
+    # Repeating the base type exactly type-checks, but it buys nothing -- the
+    # simplest way to comply is not to annotate an inherited name at all and
+    # just assign it in __init__. The inherited names are `mpn`, `value`,
+    # `manufacturer`, `reference_designator`, `reference_designator_prefix`,
+    # `in_bom`, `soldered` and `schematic_x_out`; annotate freely below that
+    # line, as `p1`/`p2`/`landpattern`/`symbol` do.
     p1: Port
     p2: Port
     landpattern: SMT
     symbol: ResistorSymbol
-    mpn: str
-    value: PlainQuantity
 
     def __init__(
         self,

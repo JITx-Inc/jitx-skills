@@ -1,5 +1,5 @@
 // Routing fixtures for jitx-substrate-modeler: should-trigger / should-not-trigger phrasings.
-// Positives paraphrase real user phrasing, including the jumpstart-kit shape
+// Positives paraphrase real user phrasing, including the fab-report shape
 // ("model this substrate from the csv"); negatives are near-misses that share
 // substrate vocabulary but belong to a sibling skill.
 {"intent": "model this substrate from the csv", "expected_skill": "jitx-substrate-modeler"}

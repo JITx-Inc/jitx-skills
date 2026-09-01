@@ -215,6 +215,14 @@ When writing PLAN.md task `Specifics` for circuit tasks:
 
 ## Common Design Patterns
 
+### Every powered IC needs a task that owns its support circuitry
+
+Rails and interfaces get tasks because the user names them. **Support circuitry gets forgotten because nobody names it.** The membership test is the datasheet, not a list: *every external component the part's own application circuit shows, that no other task already owns.* Per-supply-pin decoupling, reset and its cap, boot/config straps, the clock source and unused-pin tie-offs are the ones that recur — so are enable and shutdown networks, reference-voltage filters, bus termination, regulator compensation, current-sense and feedback dividers, and a crystal's load caps. Do not treat that as the set; run the test against the application circuit in front of you. None of it appears in the request, all of it is required for the board to run, and it belongs to the IC rather than to the rail, so a power task does not cover it.
+
+Walk the component list at the end of decomposition and ask of each part that takes a supply: **which task owns this one's support circuitry?** Every part gets a named answer or an explicit "none needed, per <datasheet section>". A part whose answer is silence is the defect this rule exists to catch, and it survives every other check — the graph is still acyclic, every task still has a verify command, and the board still builds without decoupling.
+
+The gate's **Support circuitry owned** row is where that walk is recorded, and it does not fill from a task list; it fills from the component list.
+
 ### Simple MCU Board (e.g., STM32 + sensors + USB)
 ```
 Phase 1 (parallel, ~4 tasks):
@@ -226,8 +234,9 @@ Phase 1 (parallel, ~4 tasks):
 Phase 2 (partially parallel, ~4 tasks):
   pin-01: MCU provides (GPIO, SPI, I2C, USB) — depends on comp-01
   cir-01: Power circuit (LDO from USB VBUS) — depends on comp-02
-  cir-02: Sensor interface (I2C + decoupling) — depends on comp-01, comp-03
-  cir-03: USB interface (with ESD protection) — depends on comp-01, comp-02
+  cir-02: MCU support (per-VDD decoupling, NRST, boot straps, clock source) — depends on comp-01
+  cir-03: Sensor interface (I2C + decoupling) — depends on comp-01, comp-03
+  cir-04: USB interface (with ESD protection) — depends on comp-01, comp-02
 
 Phase 3: Top-level assembly
 Phase 4: Build + verify + iterate

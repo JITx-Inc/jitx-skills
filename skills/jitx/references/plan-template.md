@@ -31,7 +31,7 @@ Everything above that block is guidance for filling it, and none of it belongs i
 
 **Data Sources**
 
-- Every row reads `ready` before the Phase 0 gate opens. A `needs input` row is a blocker and gets an Open Questions row.
+- Every row's `Source status` reads `source approved` before the Phase 0 gate opens. A `needs input` row is a blocker and gets an Open Questions row. The column says only whether *the data source* is settled — never whether a task can start, which is the per-task `Status` field's job alone.
 - `Chosen over` is the surviving record of the component-choice rationale: one rejected part and why, in a few words. The full rationale table in `parts-sourcing.md` is presented to the user in chat at the data source audit, not filed here.
 
 **Open Questions**
@@ -43,7 +43,19 @@ Everything above that block is guidance for filling it, and none of it belongs i
 
 - Engineering questions: one test decides whether a question belongs on a task. Could the sub-agent answer it by reading the datasheet's own application circuit, or does it already appear on a checklist for this task type? Then it is checklist work with a second owner, not a question. Write at most three, name the datasheet section or specification that settles each, and give a part whose application circuit answers everything none at all.
 - The `Shape` line is for parametric or generator tasks only (BGA ballout, deskew geometry, antipad fence, N-lane fanout, per-layer table, repeating-block scene graph) and states the collection or typed object committed to. The three questions behind it are in `decomposition-guide.md` Step 3b: record the answer, never the prohibitions the questions enforce.
-- `Status` is one of `pending`, `blocked: OQ-n`, `in-progress`, `review`, `accepted`, `rework`, `rejected`. Blocking is transitive: a task whose dependency is blocked is blocked, not pending. A resumed session reads Status first, so blocked state belongs there and not only in the Open Questions `Blocks` column.
+- `Status` is one of `pending`, `blocked: OQ-n`, `in-progress`, `review`, `accepted`, `rework`, `rejected`. Blocking is transitive: a task whose dependency is blocked is blocked, not pending.
+
+- **Per-task `Status` is the only owner of task state.** Three columns in this template can look like they carry it, and a plan that lets them is a plan that disagrees with itself — this is the single most common defect in Phase 0 output. What each one is actually for:
+
+  | Field | Owns | Must not |
+  |---|---|---|
+  | per-task **`Status`** | whether *this task* can be started, and if not, which OQ stops it | — |
+  | Open Questions **`Blocks`** | a *pointer*: which task ids this question gates | assert a state; it is the index you walk to check `Status`, not a second copy of it |
+  | Data Sources **`Source status`** | whether *the data source* is settled — approved, or missing and what | say anything about whether a task can start |
+
+  The last distinction is the one that slips: "the datasheet is approved" and "the task is startable" are different facts that a single word like `ready` collapses. A task can have an approved source and still be blocked on something else.
+
+  A resumed session reads `Status` first. If `Blocks` names a task whose `Status` does not name that OQ, `Status` is what a reader believes and the plan has already drifted — the Phase 0 gate's *Task status reconciles with open questions* row exists to catch exactly that, and it walks `Blocks` first for a reason: reading `Status` first cannot show you a task that should be blocked and isn't.
 
 **State**
 
@@ -74,9 +86,9 @@ See ARCHITECTURE.md sections `Power Tree`, `Interface Map`, `Board`, and, when p
 
 ## Data Sources (approved by user)
 
-| Component | MPN | Package | Datasheet source | Footprint method | Chosen over | Status |
-|-----------|-----|---------|------------------|------------------|-------------|--------|
-| [component] | [MPN] | [package] | [approved source] | [generator or approved file/source] | [one rejected part, and why] | [ready \| needs input: what is missing] |
+| Component | MPN | Package | Datasheet source | Footprint method | Chosen over | Source status |
+|-----------|-----|---------|------------------|------------------|-------------|---------------|
+| [component] | [MPN] | [package] | [approved source] | [generator or approved file/source] | [one rejected part, and why] | [source approved \| needs input: what is missing] |
 
 ## Open Questions
 

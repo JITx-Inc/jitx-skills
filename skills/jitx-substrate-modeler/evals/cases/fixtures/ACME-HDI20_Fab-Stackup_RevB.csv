@@ -6,7 +6,7 @@ Facility,Plant 2 / HDI,,
 Quote number,ACME-Q26-0417,,
 Revision,B,,Supersedes Rev A - see REVISION_HISTORY
 Issue date,2026-07-14,,
-Customer part number,JS1-1A-HDI-20L,,
+Customer part number,HDI-20L-EVAL,,
 Board size,80.0 x 80.0,mm,4.0 mm corner radius
 Layer count,20,copper layers,
 Construction,5 + 10 + 5,,5 sequential build-up laminations per side on a 10-layer sub-composite
@@ -143,7 +143,7 @@ Minimum dielectric between adjacent copper layers,2.95,0.075,,No JITX field - th
 
 SECTION,NOTES
 Note
-"This is a synthetic example document prepared for the JITX Jumpstart Kit. ACME Circuit Technology is a fictional fabricator. The laminate and copper foil products referenced are real; confirm Dk, Df and foil roughness against the manufacturer's current datasheet before releasing a design."
+"This is a synthetic example document. ACME Circuit Technology is a fictional fabricator. The laminate and copper foil products referenced are real; confirm Dk, Df and foil roughness against the manufacturer's current datasheet before releasing a design."
 "Construction is 5 + 10 + 5. A 10-layer sub-composite (L6 to L15) is laminated first around the L10-L11 core, then through-drilled L6 to L15 (BV-1), plated, filled and capped. Five sequential build-up laminations are then added per side, each adding one copper layer and one laser microvia level. The full-stack through hole (TH-1) is drilled last."
 "The sub-composite core carries an internal L10-L11 drill as part of its own fabrication. It is not available to the designer and is deliberately absent from the VIAS table - only the 12 structures listed there may be placed."
 "Depth_mm is stated on the convention normal to each drill type, and the two conventions differ. For the laser microvias it is the ablated dielectric alone - one build-up lamination, 0.100 mm - excluding the copper at either end, and the aspect ratio is that dielectric depth over the finished hole. For the mechanical drills it is the full drilled depth including the copper at both ends: BV-1 is the 1.810 mm L6 to L15 interior plus the two 0.035 mm end foils, and TH-1 is the finished board thickness. Check every aspect ratio on the basis that matches its drill."

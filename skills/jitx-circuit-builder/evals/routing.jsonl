@@ -1,0 +1,39 @@
+// Routing fixtures for jitx-circuit-builder: should-trigger / should-not-trigger phrasings.
+// Positives paraphrase real user phrasing for the lanes this skill owns — netting ports
+// together, choosing and inserting queried passives, decoupling, and basic top-level pours.
+// Negatives are near-misses that share circuit vocabulary but belong to a sibling: the
+// boundary that matters most is passives (choosing and placing a QUERIED passive is here;
+// MODELLING a part from a datasheet is the component modeler) and rules (connecting copper
+// is here; constraining its width or clearance is jitx-layout-constraints).
+{"intent": "wire up the buck converter and connect its feedback divider", "expected_skill": "jitx-circuit-builder"}
+{"intent": "tie all 96 ground balls on this BGA to one net", "expected_skill": "jitx-circuit-builder"}
+{"intent": "drop a 100 nF decoupling cap on every VDD pin and add a ground pour under the part", "expected_skill": "jitx-circuit-builder"}
+{"intent": "connect the capacitor bank to the rail and ground nets", "expected_skill": "jitx-circuit-builder", "ambiguous_with": ["jitx-layout-constraints"]}
+{"intent": "my rail net only has half the pins I expected — how do I assert connectivity in a test?", "expected_skill": "jitx-circuit-builder"}
+{"intent": "build the application circuit for this LDO — input caps, output caps, enable pull-up", "expected_skill": "jitx-circuit-builder"}
+{"intent": "pick a 1% 10k resistor for the divider and one for the pull-up", "expected_skill": "jitx-circuit-builder"}
+{"intent": "these three regulator stages are copy-pasted — make them one block", "expected_skill": "jitx-circuit-builder"}
+{"intent": "I got 'Incompatible ports on Net: Port and list' when I tied the ground rail", "expected_skill": "jitx-circuit-builder"}
+{"intent": "what temperature coefficient should I ask for on these decoupling caps", "expected_skill": "jitx-circuit-builder"}
+{"intent": "add a ground pour on the bottom layer of the top-level design", "expected_skill": "jitx-circuit-builder"}
+{"intent": "connect the sensor's I2C to the MCU and put the pull-ups at the bus level", "expected_skill": "jitx-circuit-builder"}
+// Negatives: circuit-adjacent, another skill's lane.
+{"intent": "model this QFN part and its thermal pad from the datasheet", "expected_skill": "jitx-component-modeler", "ambiguous_with": ["jitx-layout-constraints"]}
+{"intent": "build me parameterized component families from these two datasheets — no parts DB, the class should be the data", "expected_skill": "jitx-component-modeler"}
+{"intent": "this MCU can bring SPI out on two different pin groups — let the assignment pick which", "expected_skill": "jitx-pin-assignment"}
+{"intent": "let the solver swap the P and N of this differential pair if it routes better", "expected_skill": "jitx-pin-assignment"}
+{"intent": "keep the 5 V copper 0.3 mm from ground on the inner layers", "expected_skill": "jitx-layout-constraints"}
+{"intent": "what trace width should I use for a 3 A rail", "expected_skill": "jitx-layout-constraints"}
+{"intent": "constrain the skew on this differential pair", "expected_skill": "jitx-interconnect-constraints", "ambiguous_with": ["jitx-layout-constraints"]}
+{"intent": "model the stackup and fab limits from this fabrication CSV", "expected_skill": "jitx-substrate-modeler", "ambiguous_with": ["jitx-layout-constraints"]}
+{"intent": "draw an antenna from code with custom copper geometry", "expected_skill": "jitx-physical-layout", "ambiguous_with": ["jitx-layout-constraints"]}
+{"intent": "stitch vias into the QFN's thermal pad and fan the escapes out to layer 3", "expected_skill": "jitx-physical-layout"}
+{"intent": "import the board edge and keepout outline from DXF", "expected_skill": "jitx-mechanical", "ambiguous_with": ["jitx-layout-constraints"]}
+{"intent": "I just wired nine subcircuits — check them for string-hacking before I merge", "expected_skill": "jitx-code-review"}
+// Genuinely ambiguous: decoupling is wired here but PLACED and routed by the rules skill,
+// and the datasheet's application circuit is handed off from the component modeler's Step 5.
+{"intent": "set up decoupling placement and short routes for the MCU", "expected_skill": "jitx-layout-constraints", "ambiguous_with": ["jitx-circuit-builder"]}
+{"intent": "capture the typical application circuit from this datasheet too — the input caps and the feedback divider", "expected_skill": "jitx-circuit-builder", "ambiguous_with": ["jitx-component-modeler"]}
+// Outside this skill bundle.
+{"intent": "calculate the resistor values for an analog filter", "expected_skill": null}
+{"intent": "simulate this power supply's transient response in SPICE", "expected_skill": null}

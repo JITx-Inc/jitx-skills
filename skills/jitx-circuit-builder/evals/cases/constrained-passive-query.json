@@ -1,0 +1,49 @@
+{
+  "name": "constrained-passive-query",
+  "prompt": "Build the feedback divider for a 3.3 V buck (0.8 V reference, ~10 uA through the divider) and the output filter caps. This is a precision rail — it needs to hold over temperature.",
+  "inputs": {
+    "notes": "Every axis left unstated in a passive query is an axis the parts database decides. This case tests whether the runner constrains the axes that matter for a precision rail, and whether it knows which axis belongs to which part type.",
+    "environment": "A parts-database query is available. Values should be checked against the eseries package rather than written by hand."
+  },
+  "expected_output": "A divider whose resistor values are legal E-series parts with a stated tolerance and a stated temperature coefficient, and output capacitors with a stated dielectric and a voltage rating chosen with DC-bias derating in mind.",
+  "assertions": [
+    {
+      "text": "every passive query states tolerance",
+      "check": "deterministic",
+      "cmd": "python3 -c \"import glob,re,sys; s=''.join(open(f).read() for f in glob.glob('<output>/*.py')); q=re.findall(r'(?:Resistor|Capacitor|Inductor)\\((?:[^()]|\\([^()]*\\))*\\)', s); bad=[x for x in q if 'tolerance' not in x]; print('\\n'.join(bad)); sys.exit(1 if bad else 0)\""
+    },
+    {
+      "text": "temperature_coefficient_code is passed only to Capacitor queries — it is a capacitor field, and a resistor's temperature behaviour is tcr_pos / tcr_neg",
+      "check": "deterministic",
+      "cmd": "! grep -nE '(Resistor|Inductor)\\((?:[^()]|\\([^()]*\\))*temperature_coefficient_code' <output>/*.py"
+    },
+    {
+      "text": "resistor values are legal E-series values, produced through the eseries package rather than written by hand",
+      "check": "judge"
+    },
+    {
+      "text": "the divider ratio actually produces 3.3 V from a 0.8 V reference with the chosen E-series values, and the error introduced by rounding to the series is stated",
+      "check": "judge"
+    },
+    {
+      "text": "the divider current is in the neighbourhood the prompt asked for, so the resistor magnitudes follow from the requirement rather than from habit",
+      "check": "judge"
+    },
+    {
+      "text": "the resistors' temperature coefficient is constrained, because the prompt asked the rail to hold over temperature and an unconstrained TCR is the axis that breaks that",
+      "check": "judge"
+    },
+    {
+      "text": "the ceramics state a dielectric — unconstrained, a query can return Y5V or Z5U, which lose most of their capacitance across temperature and DC bias",
+      "check": "judge"
+    },
+    {
+      "text": "capacitor voltage rating is above the rail with derating headroom, not merely above the rail",
+      "check": "judge"
+    },
+    {
+      "text": "no invented part: every passive is a query result, not an MPN written from memory",
+      "check": "judge"
+    }
+  ]
+}
