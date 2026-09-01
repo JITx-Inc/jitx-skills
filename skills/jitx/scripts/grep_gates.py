@@ -109,8 +109,33 @@ def report(label, hits, severity, quiet):
         review += count
 
 
-def run_check(label, pattern, exclude_top, severity, src_dir, quiet):
-    report(label, run_search(pattern, exclude_top, src_dir), severity, quiet)
+def run_check(label, pattern, exclude_top, severity, src_dir, quiet, skip=None):
+    hits = run_search(pattern, exclude_top, src_dir)
+    if skip:
+        hits = [h for h in hits if not skip(h[0])]
+    report(label, hits, severity, quiet)
+
+
+def is_si_definition_site(path):
+    """Paths where an SI constructor call is a definition or a harness, not a
+    misplaced application.
+
+    The pattern below cannot tell `Constrain(...)` inside a SignalConstraint
+    class from `Constrain(...)` misapplied inside an ordinary subcircuit, and a
+    hard-fail that fires on correct code teaches agents to route around the gate.
+    Narrowing where it looks is the fix; dropping its severity would leave the
+    rule enforced only by self-reported prose.
+    """
+    norm = path.replace(os.sep, "/")
+    parts = norm.split("/")
+    base = parts[-1]
+    return (
+        "constraints" in parts
+        or base == "main.py"
+        or base.startswith("test_")
+        or base.endswith("_test.py")
+        or "tests" in parts
+    )
 
 
 def report_insert(hits, quiet):
@@ -153,6 +178,19 @@ def main():
         print()
         print("=== hard-fail patterns ===")
 
+    # SI / top-level applications outside designs/, excluding the paths where
+    # such a call is a definition or a harness rather than a misplaced
+    # application. Imports are not caught (no `(` after the name).
+    run_check(
+        f"SI/top-level applications outside {TOP_LEVEL_PATH}/",
+        r"\b(ReferencePlanes|Constrain|ConstrainDiffPair|ConstrainReferenceDifference)\s*\(",
+        True,
+        "hard-fail",
+        src_dir,
+        quiet,
+        skip=is_si_definition_site,
+    )
+
     # Net symbols outside designs/
     run_check(
         f"Net symbols (GroundSymbol/PowerSymbol) outside {TOP_LEVEL_PATH}/",
@@ -188,20 +226,6 @@ def main():
     if not quiet:
         print()
         print("=== review-required patterns ===")
-
-    # SI constructor calls outside designs/ need semantic review. A line regex
-    # cannot distinguish an application from a SignalConstraint definition, a
-    # module-scope Design/TestDesign in main.py or beside its harnessed module,
-    # or prose in a comment/docstring. Imports are not caught (no `(` after the
-    # name). Each hit receives a per-line disposition in the acceptance block.
-    run_check(
-        f"SI constructor call outside {TOP_LEVEL_PATH}/: review definition/application context",
-        r"\b(ReferencePlanes|Constrain|ConstrainDiffPair|ConstrainReferenceDifference)\s*\(",
-        True,
-        "review",
-        src_dir,
-        quiet,
-    )
 
     # Module-scope for-loops — anti-string-hacking theme 9. Module-import-time
     # logic populating global tables is the named failure mode.

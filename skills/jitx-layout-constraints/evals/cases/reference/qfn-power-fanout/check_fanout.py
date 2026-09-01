@@ -20,7 +20,11 @@ import jitx
 
 
 DESIGN_TARGET = "qfn_power_fanout.qfn_power_fanout.QfnPowerFanoutDesign"
-WIDTH_TOLERANCE_MM = 1e-6  # skill default: 1e-6 mm width comparison
+WIDTH_TOLERANCE_MM = 1e-7  # one decade below the 1e-6 mm width quantum
+# The comparison tolerance must be tighter than the quantum the escape width is
+# stepped by. At 1e-6 it equals that quantum, so a trace realized at the full pad
+# width separates from the intended one-quantum-inside value only by floating-point
+# error, and the assertion written to catch that case decides it on rounding.
 PYPROJECT = """\
 [build-system]
 requires = ["hatchling>=1.27.0,<2.0"]

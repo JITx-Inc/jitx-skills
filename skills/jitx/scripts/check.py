@@ -16,6 +16,7 @@ class Result:
     status: str
     output: str = ""
     detail: str = ""
+    returncode: int | None = None
 
 
 def parse_args():
@@ -56,19 +57,26 @@ def run_command(label, command, failure_codes=(1,)):
 
     output = completed.stdout or ""
     if completed.returncode == 0:
-        return Result(label, "PASS", output=output)
+        return Result(label, "PASS", output=output, returncode=completed.returncode)
 
     if is_import_error(output):
-        return Result(label, "ERROR", output=output, detail="import error")
+        return Result(
+            label,
+            "ERROR",
+            output=output,
+            detail="import error",
+            returncode=completed.returncode,
+        )
 
     if completed.returncode in failure_codes:
-        return Result(label, "FAIL", output=output)
+        return Result(label, "FAIL", output=output, returncode=completed.returncode)
 
     return Result(
         label,
         "ERROR",
         output=output,
         detail=f"unexpected exit code {completed.returncode}",
+        returncode=completed.returncode,
     )
 
 
@@ -117,10 +125,51 @@ def run_grep_gates(src_dir):
     return result
 
 
+def confirm_build_witness(result):
+    """Require the printed `status:` line, not just a zero exit.
+
+    A jitx command has been observed exiting 0 while printing a failure
+    ("`jitx runtime status` exits 0 and prints Runtime: not running"), so an exit
+    code alone is not evidence that this build succeeded. A PASS therefore has to
+    carry `status: ok` in the output. An exit 0 with `status: error`, or with no
+    status line at all, is ERROR: the check could not establish what happened,
+    which is not the same as the build being fine.
+    """
+    if result.status == "ERROR":
+        return result
+    text = result.output or ""
+    if "status: error" in text:
+        return Result(
+            "build",
+            "FAIL",
+            output=text,
+            detail="status: error",
+            returncode=result.returncode,
+        )
+    if result.returncode != 0:
+        # A nonzero exit is already sufficient evidence of failure. A real failed
+        # build prints `errors:` and a traceback rather than a `status:` line, so
+        # demanding one here would turn a definite failure into "could not tell".
+        return result
+    if "status: ok" not in text:
+        return Result(
+            "build",
+            "ERROR",
+            output=text,
+            detail="exit 0 but no `status:` line to confirm it",
+            returncode=result.returncode,
+        )
+    return result
+
+
 def print_result(result, verbose):
     detail = f"   {result.detail}" if result.detail else ""
     print(f"{result.label:<15}{result.status}{detail}")
-    if result.output and (verbose or result.status != "PASS"):
+    # The build always prints. Later gate rows ask for build warnings (for example
+    # "Reference to structural object ... lost during instantiation"), which a
+    # passing build emits and a suppressed PASS would hide.
+    always = result.label == "build"
+    if result.output and (verbose or always or result.status != "PASS"):
         sys.stdout.write(result.output)
         if not result.output.endswith(("\n", "\r")):
             sys.stdout.write(os.linesep)
@@ -148,6 +197,7 @@ def main():
         build_result = run_command(
             "build", ["jitx", "build", args.build], failure_codes=(1,)
         )
+        build_result = confirm_build_witness(build_result)
         build_result.detail = (
             f"{build_result.detail}; {args.build}"
             if build_result.detail

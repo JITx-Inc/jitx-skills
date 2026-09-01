@@ -248,7 +248,7 @@ A single sub-agent assembles the top-level design. The orchestrator reviews its 
 
 ### Passive query defaults — match manufacturing and circuit role
 
-The top-level Design class should set `capacitor_defaults` and `resistor_defaults` so auto-selected passives match the design's manufacturing path and circuit role. The right defaults depend on the design:
+The top-level Design class sets `capacitor_query`, `resistor_query` and `inductor_query` so auto-selected passives match the design's manufacturing path and circuit role. `*_defaults` attributes do not refine part selection: they are accepted and ignored, so a design that sets them resolves the physically smallest matching part and still builds clean. See `jitx-circuit-builder/SKILL.md` "Passive query constraints" for which query fields bind. The right values depend on the design:
 
 | Design class | Typical defaults | Why |
 |--------------|------------------|-----|
@@ -266,12 +266,12 @@ class Design(...):
     # Example for an SMT-production design. Adjust per the design's class above.
     # Per-circuit refinement via `with CapacitorQuery.refine(...)` for bulk caps,
     # RF parts, thermal-limited regulators, etc.
-    capacitor_defaults = CapacitorQuery(
+    capacitor_query = CapacitorQuery(
         mounting="smd",
         type="ceramic",
         case=["0402", "0603", "0805"],
     )
-    resistor_defaults = ResistorQuery(
+    resistor_query = ResistorQuery(
         mounting="smd",
         case=["0402", "0603", "0805"],
     )
@@ -452,7 +452,7 @@ These editor-side checks won't catch Pattern 1 (the `.insert(...)` call has a si
 - [ ] **No `Reference to structural object … lost during instantiation` warnings in the build output** — every structural object stored on `self`; no bare `+` / `>>` expressions (see "Silent-drop patterns" above)
 - [ ] `ReferencePlanes(...)` context wraps all constraint applications
 - [ ] Board geometry defined (shape, mounting holes, pours)
-- [ ] `capacitor_defaults` and `resistor_defaults` set on Design class to match the design's manufacturing path and circuit role — per-circuit refinements documented for any specialty parts (HV, RF, bulk, precision, hand-build)
+- [ ] `capacitor_query`, `resistor_query` and `inductor_query` set on the Design class to match the design's manufacturing path and circuit role, with per-circuit refinements documented for any specialty parts (HV, RF, bulk, precision, hand-build). A `*_defaults` attribute anywhere in the design fails this gate: it is ignored at selection time, so it reads as handled while the smallest matching part ships.
 - [ ] **Default design rules set on Design class**: the four canonical rules are present on `self.rules`, values calibrated to the substrate's fab floors (see "Default design rules" above and the `jitx-layout-constraints` skill)
 - [ ] The `grep gates` summary line reports 0 hard-fail hits; review-required hits are dispositioned
 

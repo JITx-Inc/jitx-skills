@@ -21,9 +21,14 @@ After the same-model audit produces its block (see `completion-blocks.md` "Phase
 
 Tool unavailability, a nonzero reviewer exit, or an invocation that produces no
 non-empty findings output is recorded as `skipped: <reason>`. A skipped reviewer
-has made no claim about the design, so it is not a failed review and does not by
-itself block Phase 3b → 4. Any output that does exist is integrated under the
-combined-verdict rule. The audit block records attempted, completed, and skipped
+has made no claim about the design, so it is not a *failed* review: it does not
+carry findings and does not set the combined verdict to `issues-pending`. It is
+still an *absent* mandatory review, so the Phase 3b → 4 gate defaults to `block`
+until the user explicitly approves proceeding without it, recorded in the audit
+block as `skipped: <reason> — blocking unless user approves`. The distinction
+that matters is between a reviewer that found nothing and a reviewer that never
+ran; only the first is evidence. Any output that does exist is integrated under
+the combined-verdict rule. The audit block records attempted, completed, and skipped
 pass counts so a missing reviewer is visible rather than silently treated as
 `clean`.
 

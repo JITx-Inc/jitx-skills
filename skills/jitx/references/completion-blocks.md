@@ -74,9 +74,9 @@ Run `python scripts/check.py <ns>/ --build <module.path.DesignClass>` once from 
 | Domain checklist | <name; N/N; M fixed; K N/A + reasons> |
 | General Gotcha Scrub | N/N |
 | Layout rules | <command; exit; witnessed/unwitnessed> |
-| `ruff check` | <exact `ruff check` summary line> |
-| `ruff format` | <exact `ruff format` summary line> |
-| `pyright` | <exact `pyright` summary line> |
+| `ruff check` | <`ruff check` summary line; PASS, or FAIL fixed and re-run> |
+| `ruff format` | <`ruff format` summary line; PASS, or reformatted and re-run> |
+| `pyright` | <`pyright` summary line; PASS, or FAIL fixed and re-run; ERROR needs a reason> |
 | Grep gates | <exact `grep gates` summary line; review-required dispositions> |
 
 ### Interface notes
@@ -118,7 +118,7 @@ The orchestrator (or user) then appends the acceptance decision:
 - **No block, not done.** A task without the block is `in-progress`, regardless of build state. "Build clean" alone does not move a task to `review`.
 - **`N/A` requires a reason.** Bare `N/A` in any field is rejected on review.
 - **Primary source must be ground truth.** A prior project as primary source is a flag — the orchestrator should reject and ask for the datasheet (or user-confirmed exception). Prior projects belong under "Secondary references".
-- **Static checks are required where Python was touched.** `python scripts/check.py <ns>/` always runs `ruff check`, `ruff format --check`, `pyright`, and the grep gates. A missing tool reports `ERROR` and blocks acceptance.
+- **Static checks are required where Python was touched.** `python scripts/check.py <ns>/` always runs `ruff check`, `ruff format --check`, `pyright`, and the grep gates. Every check reports `PASS`, `FAIL` or `ERROR`, and only `PASS` reaches acceptance. A `FAIL` is fixed and the command re-run, so the block carries the passing line rather than a recorded violation; a `FAIL` line in a submitted block returns the task to `rework`. An `ERROR` means the check did not run, which is not a pass: it blocks acceptance until the tool is available, or the orchestrator records why the environment cannot run it.
 - **JITX code review (self) is required for complete-board tier.** A complete-board task acceptance block with `JITX code review (self): not run` defaults to `block`. Bulk dispositions on findings ("all accepted, framework code") without per-line rationale fail review. See `jitx-code-review/SKILL.md`.
 - **Harness / assembly constraint parity is required at assembly acceptance.** The
   assembly block names each constrained endpoint span in its accepted harness and
@@ -162,7 +162,7 @@ A review-required hit does not block, but each hit must appear in the task accep
 
 | # | Rule | Pattern | Where checked |
 |---|------|---------|----|
-| 1 | SI constructor call outside the conventional top-level directory. The line regex cannot distinguish an application from a `SignalConstraint` definition, a `Design` / `TestDesign` beside its harnessed module or in `main.py`, or prose. Disposition: `accept (constraint definition)`, `accept (inside <Design subclass>)`, `accept (comment/docstring)`, or `fix (move application to top-level design)`. | `\b(ReferencePlanes\|Constrain\|ConstrainDiffPair\|ConstrainReferenceDifference)\s*\(` | `<ns>/` excluding `<ns>/designs/` |
+| 1 | SI application outside the conventional top-level directory. The search skips the paths where such a call is a definition or a harness rather than a misplaced application: any `constraints/` directory, `main.py`, and test modules. What remains is an SI constraint applied inside an ordinary subcircuit, which is the failure the rule names. Prose in a comment or docstring inside a non-skipped path is the one false positive left; disposition `accept (comment/docstring)`. | `\b(ReferencePlanes\|Constrain\|ConstrainDiffPair\|ConstrainReferenceDifference)\s*\(` | `<ns>/` excluding `<ns>/designs/`, `constraints/`, `main.py`, tests |
 | 5 | Module-scope `for` loop — anti-string-hacking theme 9. Module-import-time logic that *might* populate a global table; legitimate uses (dispatch registration, static data generation) exist. Disposition: `fix (move into function)` or `accept (legitimate import-time logic: <reason>)`. See `jitx/SKILL.md` Don'ts and `references/architectural-patterns.md` § "No code at module-import time". | `^for\s+\w+\s+in\s+` | anywhere in `<ns>/` |
 | 6 | `Pour(..., isolate=...)` — legacy parameter (Pass 3 deprecates in favor of `design_constraint(...)` with Tags) | `\bPour\s*\([^)]*\bisolate\s*=` | anywhere in `<ns>/` |
 | 7 | Bare net/topology expression (silent-drop pattern 2 — `self.a + self.b` or `self.a >> self.b` with no LHS assignment) | `^\s*self\.\w+(\.\w+\|\[[^]]+\])*\s*(\+\|>>)\s*self\.\w+(\.\w+\|\[[^]]+\])*(\s*#.*)?$` | anywhere in `<ns>/` |
@@ -249,6 +249,8 @@ The criteria mirror the exit-gate bullet lists in `references/project-builder-fl
 ## Gate: Phase 1 → Phase 2
 
 **Dispatch:** <N> Phase 1 tasks in <B> spawn batches, max <C> concurrent
+(for `N >= 3`: `B == N` fails, and so does `C < 3`; recording two batches that each
+run one task at a time is serial work with a batch count on it)
 
 | Field | Result |
 |-------|--------|
@@ -346,7 +348,7 @@ The bounded outside-voice fan-out is a required attempt for complete-board work 
 
 ### Pass 1: Circuit vs Datasheet Application Schematic
 
-| IC | Spec cite | Datasheet externals | Code externals | Status | Findings |
+| IC | Datasheet page/figure | Datasheet externals | Code externals | Status | Findings |
 |----|-----------|---------------------|----------------|--------|----------|
 | <MPN> | <page> | <N> | <N> | <status> | <IDs/none> |
 
