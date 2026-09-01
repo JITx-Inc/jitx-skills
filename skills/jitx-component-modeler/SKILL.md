@@ -36,11 +36,36 @@ The base `jitx` skill handles environment setup and runs first.
 
 **The agent does not write dimensions, pin labels, pad assignments, or an MPN from memory.** For a named part, it obtains the manufacturer's current datasheet or package document, uses a manufacturer machine-readable pin file for names, balls, and banks only, uses named sourcing-channel data as secondary evidence, or asks the user. Datasheet evidence outranks channel evidence where they conflict. Geometry still comes from the package document when a pin file exists.
 
+**A user's typed description is a claim, not a source.** A datasheet PDF, a package
+drawing, a vendor pin file or a `.kicad_mod` the user hands over is evidence. A pin list,
+a package name or a pin count the user types into the request is a transcription, and
+transcriptions of real parts are wrong often enough that treating one as authoritative is
+how a component ends up confidently describing a device that does not exist. For a named
+MPN, the typed description is what the agent verifies against the manufacturer document,
+not what it implements. Where the two disagree, the document wins and the disagreement is
+reported to the user rather than silently resolved: they may have named the wrong part,
+the wrong package variant, or be reading an older revision, and which of those it is
+changes what they want built. Nothing here weakens a user's authority over what to build,
+which package to use, or which trade-off to accept; it applies only to facts about a real
+part that a document already settles.
+
+**"The source is unavailable" is a conclusion that needs evidence.** Before recording a
+source as unreachable, the agent tries to reach it: the manufacturer URL, the named
+sourcing channel, the local project directories. A statement in the request that no
+datasheet is available is the user's belief about their situation, not a verified fact
+about the environment, and a fetch that would have succeeded is the cheapest defect in
+this whole skill to prevent. If a probe succeeds, the source is available and the source
+gate applies normally, whatever the request said. If every probe fails, the completion
+artifact records what was tried and what each attempt returned, so a reader can tell an
+unreachable source from an unattempted one.
+
 A real component with no source is blocked before land-pattern or pin code is written. The only exception is an explicitly authorized non-MPN generic placeholder; the completion artifact records that authorization under `Notes`. A parameterized family may compute its MPN from the source's ordering grammar, but every table and range still traces to that source and a generated MPN reproduces its worked example.
 
 When no document states an orderable MPN, the identity gate asks the user while device and package are being confirmed. A device string or package name does not become an MPN. The agreed value records what it does and does not identify. No test or build catches a fabricated MPN, so component generation does not proceed past the identity gate without that answer.
 
 The agent never reads a full datasheet PDF. It saves the PDF locally or in the project's gitignored source scratch area, verifies that its bytes begin `%PDF-`, locates relevant pages with `scripts/extract_pages.py`, and reads only the extract. A manufacturer URL that times out is not silently replaced with an aggregator copy. Citations use the figure or table caption as the primary key, then figure number, edition, and page.
+
+A `Component check` whose `Source reached by` row is unset, or whose `Probes` row is `n/a` while no source was reached, is not a completed check: the component returns for rework rather than being accepted. A recorded disagreement between a user-typed fact and the document blocks acceptance until the user rules on it, because implementing either reading silently is how the wrong part ships looking finished.
 
 If `extract_pages.py` exits non-zero or no relevant pages are found, the source gate remains closed and component code does not start. The agent reports the failed extraction or asks for the required pages.
 
@@ -108,6 +133,13 @@ A component is judged by whether every value in it traces back to a source — t
 ## Component check
 Source: <manufacturer + document number + revision/date>; page/figure cited per claim below
         (+ channel evidence where the user named a sourcing channel)
+        Source reached by: <fetched from <url> | supplied by the user as <path> | local <path>>
+        Probes, when any source was recorded unreachable: <what was tried, and what each
+        attempt returned> | n/a (a source was reached)
+        User-typed facts checked against it: <each typed pin name, number, package or count,
+        and whether the document confirms it> | none (the user typed no part facts)
+        Disagreements found: NONE | <each, with the document's value, and confirmation that
+        it went back to the user>
 Identity: <class name> — mpn <literal | computed from <scheme>, cross-checked against
         <the datasheet's ordering example or a real catalog part>>; manufacturer,
         refdes prefix and datasheet URL set on the class

@@ -2,7 +2,7 @@
 
 The agent opens this file when the task starts from a datasheet, drawing, URL, sourcing-channel record, KiCad footprint, or user specification. It carries source acquisition, citation, output-location, page-extraction, package-selection, and standard-versus-imported-footprint rules.
 
-Generate JITX Python component code from datasheets, user-provided KiCad footprints, or specifications. Data can come from multiple sources — always prefer user-provided data over automated lookups.
+Generate JITX Python component code from datasheets, user-provided KiCad footprints, or specifications. Data can come from multiple sources. Prefer a user-provided artifact (a datasheet, a package drawing, a `.kicad_mod`) over an automated lookup: the user knows which document is the right one. That preference covers artifacts the user hands over, not facts they type from memory. For a named MPN, a typed pin list or package name is a claim to check against the manufacturer document, and where they disagree the document wins and the disagreement goes back to the user. See `jitx-component-modeler/SKILL.md` "Universal source gate".
 
 ## No fabrication — source authority for geometry and pinout
 
