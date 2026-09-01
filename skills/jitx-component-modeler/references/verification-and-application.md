@@ -147,6 +147,8 @@ from jitx import Circuit, Net
 from jitx.toleranced import Toleranced
 from jitx.common import Power
 from jitxlib.parts import Capacitor, CapacitorQuery, Resistor, Inductor, ResistorQuery
+# jitxlib.voltage_divider is absent from some installs (including jitxlib
+# shipped with jitx 4.4.0rc5) — import it and check before relying on it.
 from jitxlib.voltage_divider import VoltageDividerConstraints, voltage_divider_from_constraints
 
 from .texas_instruments_TPS62933DRLR import TPS62933DRLR

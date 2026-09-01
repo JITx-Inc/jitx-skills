@@ -23,7 +23,6 @@ JITX uses two packages — know which one to import from:
   - `jitxlib.parts`: `Resistor`, `Capacitor`, `Inductor`, `ResistorQuery`, `CapacitorQuery`, `InductorQuery`
   - `jitxlib.protocols.serial`: protocol bundles including `I2C`, `I2S`, `SPI`, and `UART`; inspect the module for the current full export list
   - `jitxlib.symbols.net_symbols`: `GroundSymbol`, `PowerSymbol`
-  - `jitxlib.voltage_divider`: `VoltageDividerConstraints`, `voltage_divider_from_constraints`
 
 **These modules DO NOT EXIST — NEVER import from them:**
 `jitx.passives`, `jitx.passive`, `jitx.bundles`, `jitx.bundle`, `jitx.provide`,
@@ -200,7 +199,7 @@ self.c_bulk.insert(self.ic.VCC, self.ic.GND, short_trace=True)
 self.inductor = Inductor(inductance=4.7e-6, current_rating=AtLeast(3.0))
 ```
 
-For all passive values, especially those that are calculated, use the eseries Python package to ensure that the value is legal. If not otherwise specified use the E96 range of values.
+Calculated passive values must land on a real series value. The `eseries` package does this and is not installed by default, so check for it before depending on it; where it is absent, snap to the series by hand and name the series you used. If nothing else is specified, E96.
 
 ### Constrain the query, or the database picks for you
 
@@ -353,9 +352,26 @@ Pours / Copper Geometry / Placement sections below are the basics.
 
 ### Voltage Divider — Critical Rules
 
-**NEVER manually calculate resistor values for voltage dividers.** Manual values like 8kΩ or 25kΩ
-are often not standard E-series values and will fail with "No components meeting requirements".
-Always use `voltage_divider_from_constraints()`:
+**Do not invent resistor values for a divider.** A ratio worked out by hand lands on values
+like 8 kΩ or 25 kΩ that no series stocks, and the query then fails with "No components
+meeting requirements".
+
+**Check what the install actually provides before reaching for a solver.** `jitxlib` has
+carried a `voltage_divider` module with `VoltageDividerConstraints` and
+`voltage_divider_from_constraints`, and it is **not present in every install** — it is
+absent from jitxlib as shipped alongside jitx 4.4.0rc5, where `jitxlib` exposes bundles,
+circuits, geometry, jlcpcb, landpatterns, parts, physics, protocols, symbols and
+via_structures, and no divider helper anywhere. Import it and see, in the environment you
+are building in. If it is there, the pattern below is the one to use. If it is not, say so
+and pick standard values from the series explicitly, stating the series and the resulting
+ratio error, rather than reporting a solver you could not run.
+
+The same caution applies to the `eseries` package: it is a third-party dependency, it is
+not pulled in by jitxlib, and on this install it is absent. If a task needs series snapping
+and the package is missing, that is a dependency to add deliberately or a table to write
+out, not an import to assume.
+
+When the helper is present:
 
 ```python
 # WRONG — manual resistor values, 8k is not a standard E-series value
