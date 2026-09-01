@@ -261,7 +261,26 @@ spacing. If the installed package cannot import that reverse-flow surface or the
 geometry cannot be read safely, the command exits 2; it never converts missing
 evidence into a pass. What the command cannot witness it names as
 unwitnessed; it does not accept build status as evidence, and it does not send
-the reader to the fabrication export to close the gap. The export is a handoff
+the reader to the fabrication export to close the gap.
+
+**Reverse flow is the realization surface.** After `capture()`, the reverse-flow
+linker assigns the runtime's output back onto the objects the design authored:
+`LayoutOutput.computed_shape` onto the pour, and `ComputedStitchVia` /
+`ComputedFenceVia` (in `jitx._translate.reverse_flow.applied`, applied through
+registered transformers) onto the copper their rules produced. Read realization
+there.
+
+It is the better surface, not merely the cheaper one. A fabrication export
+carries geometry stripped of meaning: features on a layer, with no net and no
+owning instance, so proving a pour reached the right net means reconstructing
+connectivity the design already knows. Reverse flow carries the realized shape
+together with its net and its owner, which is what a question like "did this
+pour connect to the rail it was drawn for" actually needs. The export can only
+answer a shape question; reverse flow answers the electrical one.
+
+What it does not witness on the 4.4 line: trace-to-pour clearance, thermal
+relief spoke geometry, and sliver removal. Those are reported unwitnessed, with
+one line each. Do not open an export to chase them. The export is a handoff
 artifact for a fab, not a verification loop for an agent: an agent that starts
 parsing exported geometry to confirm its own rules spends heavily and learns
 little that the runtime could not have told it.

@@ -9,10 +9,10 @@ dimensions:
   - "REALIZATION_PRECONDITIONS: Does the workflow require a real design context, production-equivalent substrate and rules, and explicit or stored placement before it interprets captured geometry?"
   - "POUR_AND_STITCH_REALIZATION: Does verification detect Empty pours, missing layer anchors, non-Pour stitch targets, zero realized stitch vias, and inset containment failures instead of trusting rule reachability or build status?"
   - "CAPTURE_INTERPRETATION: Does the workflow treat capture as an in-place runtime mutation, guard Empty before to_shapely, compose coordinate frames correctly, and choose a surface that can witness the property under test?"
-  - "FABRICATION_GEOMETRY: Does the final check verify copper-to-edge pullback, keepout voiding, thermal connections, bounds, net membership, and export survival on a runtime or fabrication-output surface that exposes each effect?"
+  - "FABRICATION_GEOMETRY: Does the final check verify copper-to-edge pullback, keepout voiding, thermal connection, bounds and net membership against the reverse-flow surface, which carries realized geometry together with the net and owning instance, and does it name what that surface cannot witness instead of leaving the gap implied or reaching for the fabrication export to close it?"
 hard_fails:
   - "The workflow accepts status: ok as proof even though a required route, pour, or stitch-via field has no realized geometry."
   - "A required pour returns Empty(), or a required stitch-via rule returns zero vias, and the task is still reported complete."
   - "A higher Pour.rank is presented as overriding KeepOut(pour=True)."
-  - "A board-wide pour uses the board profile unchanged and no fabrication-output check proves the minimum copper-to-edge spacing."
+  - "A board-wide pour uses the board profile unchanged and nothing establishes the minimum copper-to-edge spacing against the realized geometry."
   - "Assertions read Pour.layer or Pour.shape from an Instantiable constructed outside a design context as if those attributes were the constructor values."
