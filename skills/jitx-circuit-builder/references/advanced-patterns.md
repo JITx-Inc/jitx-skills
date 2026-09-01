@@ -97,7 +97,7 @@ self.nets.append(self.fb_div.out + self.buck.FB)
 
 ## Net Symbols
 
-`GroundSymbol()` / `PowerSymbol()` are **top-level only** — `scripts/grep_gates.py` hard-fails them outside `TOP_LEVEL_PATH` (default `designs/`). The example below shows the pattern in a top-level design.
+`GroundSymbol()` / `PowerSymbol()` are **top-level only** — `<project>/scripts/grep_gates.py` hard-fails them outside `TOP_LEVEL_PATH` (default `designs/`). The example below shows the pattern in a top-level design.
 
 ```python
 # Top-level design (in <ns>/designs/...) only.
@@ -141,6 +141,35 @@ stitch-via output, captured shapes, and empty results, belongs to
 Layer selection, clearances, thermal relief, sliver removal, direct connect, and
 stitching expressed as rules belong to `jitx-layout-constraints`. Stackups, via
 definitions, and fenced pour outlines belong to `jitx-substrate-modeler`.
+
+### `isolate=` is legacy — do not use it
+
+The `Pour(..., isolate=...)` parameter is being removed. Pour clearance is governed by the substrate's `FabricationConstraints` (the default copper-to-edge and copper-to-net spacing) and by per-net-class `design_constraint(...)` rules with Tags, owned by the `jitx-layout-constraints` skill. Express non-default clearance there, not on the pour:
+
+- For a net class that needs wider keepout (HV creepage, switch-node spacing, RF clearance under an antenna), declare a Tag and apply a two-condition rule, `design_constraint(<MyTag>(), IsPour, priority=N).clearance(...)`, against tagged nets (clearance is only available on two-condition rules; see `jitx-layout-constraints`, Pours).
+- For substrate-wide changes, edit the `FabricationConstraints` on the substrate.
+
+New skill examples must not introduce `isolate=`. Existing user code that has it should migrate to `design_constraint(...)` when convenient — `<project>/scripts/grep_gates.py` flags it as review-required, dispositioned `fixed (migrated)` or `deferred (legacy file)`.
+
+### Fenced pour outlines (Pour as fence-via trigger)
+
+To ring an arbitrary closed shape with fence vias (antipad outlines around signal-via pairs, RF cavities, BGA breakout boundaries, deskew arc cutouts), pair a tagged Pour with an optional same-shape KeepOut. The pour goes on a conductor layer the fence via reaches — typically the via's termination layer.
+
+```python
+from jitx import Pour
+from jitx.feature import KeepOut
+from jitx.layerindex import LayerSet
+
+# `shape` is the outline; `FenceOutlineTag` and the fence_via rule live in the substrate.
+fence_pour = Pour(shape, layer=6)
+FenceOutlineTag().assign(fence_pour)
+self.GND += fence_pour
+
+# Optional — add a same-shape KeepOut ONLY when the pour copper itself is unwanted.
+self.fence_outline_keepout = KeepOut(shape, layers=LayerSet(6), pour=True, via=True)
+```
+
+The Tag + `design_constraint(...).fence_via(...)` rule must already be declared on the substrate — see [jitx-substrate-modeler/SKILL.md](../../jitx-substrate-modeler/SKILL.md) "Fenced Pour Outlines".
 
 ## Copper Geometry
 

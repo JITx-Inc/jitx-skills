@@ -26,12 +26,22 @@ class AcmeSeries(jitx.Component):
 
     # Bare annotations: these depend on constructor arguments, so they are
     # assigned on self in __init__, not at class level.
+    #
+    # Never NARROW an inherited attribute's type. A mutable attribute's type is
+    # invariant, so re-declaring one with a tighter type is a pyright error
+    # (reportIncompatibleVariableOverride). `mpn` is inherited as `str | None`
+    # and `value` as `str | PlainQuantity | None`, so `mpn: str` and
+    # `value: PlainQuantity` are two errors the gate forbids you to suppress.
+    # Repeating the base type exactly type-checks, but it buys nothing -- the
+    # simplest way to comply is not to annotate an inherited name at all and
+    # just assign it in __init__. The inherited names are `mpn`, `value`,
+    # `manufacturer`, `reference_designator`, `reference_designator_prefix`,
+    # `in_bom`, `soldered` and `schematic_x_out`; annotate freely below that
+    # line, as `p1`/`p2`/`landpattern`/`symbol` do.
     p1: Port
     p2: Port
     landpattern: SMT
     symbol: ResistorSymbol
-    mpn: str
-    value: PlainQuantity
 
     def __init__(
         self,
@@ -233,3 +243,6 @@ When the opt-in check is enabled, MPN construction raises `ValueError` for a val
 ### When the catalog does not publish what you need, say so
 
 Overview and selector-guide editions routinely omit the per-size value lineup the full series datasheet carries. Validate what the document *does* state — the ordering code, the published significand grid, the size / voltage / dielectric offering — record the gap in the docstring, and tell the user which envelope is checked and which is not. Do not invent ranges to make the validation look complete: a range nothing backs is the same failure as a dimension nothing backs.
+
+**Check for a second gap before concluding there is one.** A catalog that specifies its cases by standard size code often publishes **no chip outline table either** — size codes and thickness codes, but no length, width or termination band. That is a legitimate reason to take the geometry from the standard chip table (see "Taking the standard table's dimensions is a verification obligation"), but it is a *different provenance claim* from a family whose datasheet tabulates its own dimensions, and it has to be said out loud per dimension rather than absorbed. Where the catalog does publish one dimension and not the rest — thickness is the common case — say which came from where; the completeness check's **Library defaults** row separates a default that *agrees* with the source from one relied on because the source is silent, and will not fill without the split. Expect coverage to fall out of this too: a size the vendor offers may have no standard-table entry and no published outline to override it with, in which case it is excluded, and the exclusion and its reason are reportable rather than silent.
+

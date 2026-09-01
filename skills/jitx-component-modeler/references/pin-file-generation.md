@@ -243,5 +243,11 @@ Everything in [verification-and-application.md](verification-and-application.md#
 - **A regeneration-idempotency test** that runs `--check`, skipped when the vendor file is absent so
   the suite still passes on a fresh clone. Make sure it is *not* skipping when you are relying on it.
 
-Share one cached design instantiation across the suite — a part this size costs seconds per build,
-and a per-test instantiation turns a fast suite into a slow one for no added coverage.
+**Share one cached design instantiation across the suite, and assert with `subTest`.** This is a
+structural requirement at this scale, not a preference. A four-figure pin count costs on the order of
+half a minute to instantiate *once*, so the generic one-behaviour-per-test-method shape multiplies
+that by the number of assertions and produces a suite that runs for many minutes and times out under
+an agent. Memoize the design behind a module-level `@cache`d helper, build it once per test class,
+and put the per-item assertions in `subTest` — same coverage, and the difference is a suite measured
+in seconds rather than minutes. Reported from a 1369-ball run where the two shapes measured 27
+seconds against over eight minutes.

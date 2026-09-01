@@ -118,7 +118,9 @@ Landpattern: <generator + args> from <page/figure>; <N> pads; dimensions transcr
         each cited; Toleranced from the drawing's min/max, not nominal-only
 Library defaults: generator/table defaults relied on: <list | none> — each checked
         against the source where the source speaks to it; agreements <list>,
-        overrides <item + reason | none>
+        overrides <item + reason | none>; defaults relied on because the source
+        publishes nothing to check against: <list per dimension | none>, and sizes
+        excluded for having neither: <list | none>
         Density level: <A | B | C> — <what the source asks for, or "no preference stated">;
         installed default is <level> — <set explicitly | default already matches>
 Value / BOM: .value renders as "<string>" — asserted in a test
@@ -127,8 +129,13 @@ No-field walk: datasheet-stated facts with no JITX field, recorded in the docstr
 Provenance: values traceable to no datasheet page: NONE | <list + the labeled rule backing each>
 Checks: pyright <clean | N errors>; pytest <N passed | not run: <reason>>;
         build <status: ok via <command> | not run: <reason>>
-Verdict: complete | open items: <list>   (any non-clean check, or build not run, is an
-        open item — "complete" with a failing or unrun check is not a valid combination)
+Verdict: complete | open items: <list>
+        Derive this line from the Checks row above, do not compose it: every check
+        there that is not clean — failed, skipped, or unavailable in this
+        environment — is copied here as an open item, and the count must match.
+        "complete" with an empty open-items list asserts every check ran clean.
+        An unavailable environment is an open item, not an exemption: "no runtime,
+        so no build" is exactly the case this line exists to record.
 ```
 
 Row-by-row intent — the *why*, so the block stays evidence rather than ceremony:

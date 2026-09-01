@@ -1,24 +1,52 @@
-{"intent":"Wire the USB-C controller VBUS output through a sense resistor to the regulator input.","expected_skill":"jitx-circuit-builder"}
-{"intent":"Build the application circuit around this buck converter, including its input caps, inductor, feedback divider, and output caps.","expected_skill":"jitx-circuit-builder"}
-{"intent":"Connect these Power bundles to named VCC and GND nets in my Circuit class.","expected_skill":"jitx-circuit-builder"}
-{"intent":"Add a 10 kΩ pull-up and a 100 nF bypass capacitor to this existing JITX circuit.","expected_skill":"jitx-circuit-builder"}
-{"intent":"Choose assemblable resistor and capacitor packages instead of the tiny parts my passive queries currently resolve.","expected_skill":"jitx-circuit-builder"}
-{"intent":"Make the feedback resistors no worse than one percent tolerance without excluding tighter parts.","expected_skill":"jitx-circuit-builder"}
-{"intent":"Create a 3.3 V to 0.8 V divider with the JITX voltage-divider solver.","expected_skill":"jitx-circuit-builder"}
-{"intent":"Remove the series resistor, leave the IC input deliberately unconnected, and prove the netlist changed only there.","expected_skill":"jitx-circuit-builder"}
-{"intent":"Why does this a + b connection vanish even though pyright passes?","expected_skill":"jitx-circuit-builder"}
-{"intent":"Fix my capacitor insert call: short_trace says its first argument cannot be a net.","expected_skill":"jitx-circuit-builder"}
-{"intent":"Refine this inductor query so it selects a power part rated for at least 3 A.","expected_skill":"jitx-circuit-builder"}
-{"intent":"Check cache/netlist.json to confirm U4.EN moved from the old rail to the new enable net.","expected_skill":"jitx-circuit-builder"}
-{"intent":"Generate three repeated RC filter channels inside one Circuit without losing their structural objects.","expected_skill":"jitx-circuit-builder"}
-{"intent":"My named net collides with a public port named BOOT; repair the circuit wiring.","expected_skill":"jitx-circuit-builder"}
-{"intent":"Draw a ground pour around the board edge and shape a copper keepout under the antenna.","expected_skill":"jitx-physical-layout","ambiguous_with":["jitx-circuit-builder"]}
-{"intent":"Inspect the realized copper geometry after build and verify the route coordinates from RuntimeDesign.","expected_skill":"jitx-physical-layout","ambiguous_with":["jitx-circuit-builder"]}
-{"intent":"Write a trace-to-pour clearance rule for the high-voltage net class.","expected_skill":"jitx-layout-constraints","ambiguous_with":["jitx-circuit-builder"]}
-{"intent":"Place and route the decoupling capacitors with escape-width and loop-inductance constraints.","expected_skill":"jitx-layout-constraints","ambiguous_with":["jitx-circuit-builder"]}
-{"intent":"Use provide and require to map one SPI peripheral onto either of two MCU pin groups.","expected_skill":"jitx-pin-assignment","ambiguous_with":["jitx-circuit-builder"]}
-{"intent":"Support optional UART pin muxing with provide.one_of on this FPGA interface.","expected_skill":"jitx-pin-assignment","ambiguous_with":["jitx-circuit-builder"]}
-{"intent":"Define the USB differential-pair topology, reference plane, impedance, and skew limits.","expected_skill":"jitx-interconnect-constraints","ambiguous_with":["jitx-circuit-builder"]}
-{"intent":"Add RGMII timing constraints and length-match the data lanes to the clock.","expected_skill":"jitx-interconnect-constraints","ambiguous_with":["jitx-circuit-builder"]}
-{"intent":"Model this STM32 QFN component from its datasheet and create the landpattern.","expected_skill":"jitx-component-modeler","ambiguous_with":["jitx-circuit-builder"]}
-{"intent":"Create a parameterized 0603 resistor-family component with computed manufacturer part numbers.","expected_skill":"jitx-component-modeler","ambiguous_with":["jitx-circuit-builder"]}
+{"intent": "wire up the buck converter and connect its feedback divider", "expected_skill": "jitx-circuit-builder"}
+{"intent": "tie all 96 ground balls on this BGA to one net", "expected_skill": "jitx-circuit-builder"}
+{"intent": "drop a 100 nF decoupling cap on every VDD pin and add a ground pour under the part", "expected_skill": "jitx-circuit-builder"}
+{"intent": "connect the capacitor bank to the rail and ground nets", "expected_skill": "jitx-circuit-builder", "ambiguous_with": ["jitx-layout-constraints"]}
+{"intent": "my rail net only has half the pins I expected — how do I assert connectivity in a test?", "expected_skill": "jitx-circuit-builder"}
+{"intent": "build the application circuit for this LDO — input caps, output caps, enable pull-up", "expected_skill": "jitx-circuit-builder"}
+{"intent": "pick a 1% 10k resistor for the divider and one for the pull-up", "expected_skill": "jitx-circuit-builder"}
+{"intent": "these three regulator stages are copy-pasted — make them one block", "expected_skill": "jitx-circuit-builder"}
+{"intent": "I got 'Incompatible ports on Net: Port and list' when I tied the ground rail", "expected_skill": "jitx-circuit-builder"}
+{"intent": "what temperature coefficient should I ask for on these decoupling caps", "expected_skill": "jitx-circuit-builder"}
+{"intent": "add a ground pour on the bottom layer of the top-level design", "expected_skill": "jitx-circuit-builder"}
+{"intent": "connect the sensor's I2C to the MCU and put the pull-ups at the bus level", "expected_skill": "jitx-circuit-builder"}
+{"intent": "model this QFN part and its thermal pad from the datasheet", "expected_skill": "jitx-component-modeler", "ambiguous_with": ["jitx-layout-constraints"]}
+{"intent": "build me parameterized component families from these two datasheets — no parts DB, the class should be the data", "expected_skill": "jitx-component-modeler"}
+{"intent": "this MCU can bring SPI out on two different pin groups — let the assignment pick which", "expected_skill": "jitx-pin-assignment"}
+{"intent": "let the solver swap the P and N of this differential pair if it routes better", "expected_skill": "jitx-pin-assignment"}
+{"intent": "keep the 5 V copper 0.3 mm from ground on the inner layers", "expected_skill": "jitx-layout-constraints"}
+{"intent": "what trace width should I use for a 3 A rail", "expected_skill": "jitx-layout-constraints"}
+{"intent": "constrain the skew on this differential pair", "expected_skill": "jitx-interconnect-constraints", "ambiguous_with": ["jitx-layout-constraints"]}
+{"intent": "model the stackup and fab limits from this fabrication CSV", "expected_skill": "jitx-substrate-modeler", "ambiguous_with": ["jitx-layout-constraints"]}
+{"intent": "draw an antenna from code with custom copper geometry", "expected_skill": "jitx-physical-layout", "ambiguous_with": ["jitx-layout-constraints"]}
+{"intent": "stitch vias into the QFN's thermal pad and fan the escapes out to layer 3", "expected_skill": "jitx-physical-layout"}
+{"intent": "import the board edge and keepout outline from DXF", "expected_skill": "jitx-mechanical", "ambiguous_with": ["jitx-layout-constraints"]}
+{"intent": "I just wired nine subcircuits — check them for string-hacking before I merge", "expected_skill": "jitx-code-review"}
+{"intent": "set up decoupling placement and short routes for the MCU", "expected_skill": "jitx-layout-constraints", "ambiguous_with": ["jitx-circuit-builder"]}
+{"intent": "capture the typical application circuit from this datasheet too — the input caps and the feedback divider", "expected_skill": "jitx-circuit-builder", "ambiguous_with": ["jitx-component-modeler"]}
+{"intent": "calculate the resistor values for an analog filter", "expected_skill": null}
+{"intent": "simulate this power supply's transient response in SPICE", "expected_skill": null}
+{"intent": "Wire the USB-C controller VBUS output through a sense resistor to the regulator input.", "expected_skill": "jitx-circuit-builder"}
+{"intent": "Build the application circuit around this buck converter, including its input caps, inductor, feedback divider, and output caps.", "expected_skill": "jitx-circuit-builder"}
+{"intent": "Connect these Power bundles to named VCC and GND nets in my Circuit class.", "expected_skill": "jitx-circuit-builder"}
+{"intent": "Add a 10 kΩ pull-up and a 100 nF bypass capacitor to this existing JITX circuit.", "expected_skill": "jitx-circuit-builder"}
+{"intent": "Choose assemblable resistor and capacitor packages instead of the tiny parts my passive queries currently resolve.", "expected_skill": "jitx-circuit-builder"}
+{"intent": "Make the feedback resistors no worse than one percent tolerance without excluding tighter parts.", "expected_skill": "jitx-circuit-builder"}
+{"intent": "Create a 3.3 V to 0.8 V divider with the JITX voltage-divider solver.", "expected_skill": "jitx-circuit-builder"}
+{"intent": "Remove the series resistor, leave the IC input deliberately unconnected, and prove the netlist changed only there.", "expected_skill": "jitx-circuit-builder"}
+{"intent": "Why does this a + b connection vanish even though pyright passes?", "expected_skill": "jitx-circuit-builder"}
+{"intent": "Fix my capacitor insert call: short_trace says its first argument cannot be a net.", "expected_skill": "jitx-circuit-builder"}
+{"intent": "Refine this inductor query so it selects a power part rated for at least 3 A.", "expected_skill": "jitx-circuit-builder"}
+{"intent": "Check cache/netlist.json to confirm U4.EN moved from the old rail to the new enable net.", "expected_skill": "jitx-circuit-builder"}
+{"intent": "Generate three repeated RC filter channels inside one Circuit without losing their structural objects.", "expected_skill": "jitx-circuit-builder"}
+{"intent": "My named net collides with a public port named BOOT; repair the circuit wiring.", "expected_skill": "jitx-circuit-builder"}
+{"intent": "Draw a ground pour around the board edge and shape a copper keepout under the antenna.", "expected_skill": "jitx-physical-layout", "ambiguous_with": ["jitx-circuit-builder"]}
+{"intent": "Inspect the realized copper geometry after build and verify the route coordinates from RuntimeDesign.", "expected_skill": "jitx-physical-layout", "ambiguous_with": ["jitx-circuit-builder"]}
+{"intent": "Write a trace-to-pour clearance rule for the high-voltage net class.", "expected_skill": "jitx-layout-constraints", "ambiguous_with": ["jitx-circuit-builder"]}
+{"intent": "Place and route the decoupling capacitors with escape-width and loop-inductance constraints.", "expected_skill": "jitx-layout-constraints", "ambiguous_with": ["jitx-circuit-builder"]}
+{"intent": "Use provide and require to map one SPI peripheral onto either of two MCU pin groups.", "expected_skill": "jitx-pin-assignment", "ambiguous_with": ["jitx-circuit-builder"]}
+{"intent": "Support optional UART pin muxing with provide.one_of on this FPGA interface.", "expected_skill": "jitx-pin-assignment", "ambiguous_with": ["jitx-circuit-builder"]}
+{"intent": "Define the USB differential-pair topology, reference plane, impedance, and skew limits.", "expected_skill": "jitx-interconnect-constraints", "ambiguous_with": ["jitx-circuit-builder"]}
+{"intent": "Add RGMII timing constraints and length-match the data lanes to the clock.", "expected_skill": "jitx-interconnect-constraints", "ambiguous_with": ["jitx-circuit-builder"]}
+{"intent": "Model this STM32 QFN component from its datasheet and create the landpattern.", "expected_skill": "jitx-component-modeler", "ambiguous_with": ["jitx-circuit-builder"]}
+{"intent": "Create a parameterized 0603 resistor-family component with computed manufacturer part numbers.", "expected_skill": "jitx-component-modeler", "ambiguous_with": ["jitx-circuit-builder"]}

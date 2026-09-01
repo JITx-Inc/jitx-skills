@@ -1,16 +1,30 @@
+# Eval contract for jitx-circuit-builder.
+# The dimensions mirror what a circuit is judged on in review: did every intended
+# connection get made, is the power structure sound, are the parts real, and does
+# the result build. Connectivity is the one thing a type checker cannot see, so it
+# carries the most weight.
 goal: |
-  The skill guides an agent to create or edit JITX Circuit code whose objects remain
-  structurally owned, whose intended pins share the correct nets, whose passive parts
-  satisfy electrical and assembly constraints, and whose build artifacts prove the
-  requested connectivity change.
+  An engineer describes a circuit — a rail, a regulator, an MCU with its passives,
+  a sensor on a bus — and gets back a JITX `Circuit` whose nets say exactly what
+  was asked for: every intended connection present, no accidental short, every
+  passive a real queried part with a stated tolerance, and the whole thing builds.
+  Excellent = a reviewer reading the net declarations can name every connection
+  the request implied and find nothing extra — and a weaker agent model
+  (customers run Sonnet-class agents and tools like Devin) still gets the
+  connectivity right by following the skill, because the skill carries the
+  operator discipline rather than assuming the model remembers it.
 dimensions:
-  - "CIRCUIT_STRUCTURE: Does the circuit retain every component and net expression under the correct Circuit owner, with class-level ports and supported connection APIs?"
-  - "NET_CONNECTIVITY: Do named nets, insertions, removals, deliberate no-connects, and power connections match the requested electrical intent without dropped or accidental connections?"
-  - "PASSIVE_SELECTION: Do passive queries use real design-context attributes, correct interval directions, datasheet constraints, and packages within the declared assembly capability?"
-  - "APPLICATION_CIRCUIT_FIDELITY: Do voltage dividers, rail capacitors, inductors, and other external parts follow the source circuit requirements and the documented JITX APIs?"
-  - "ARTIFACT_VERIFICATION: Does verification include a successful type check and build plus discriminating assertions against cache/netlist.json and the resolved part records?"
+  - "NET_INTEGRITY — is every connection the request implies actually made, with `+`/`+=`/`>>` rather than `=`, each net stored (an unstored `a + b` is a lost connection), and no port silently dropped from a multi-port tie?"
+  - "POWER_STRUCTURE — do rails and grounds resolve to the right domains, is every supply pin tied, and is decoupling present, valued and placed against the pin it serves rather than scattered?"
+  - "PASSIVE_SELECTION — are queried passives real parts with stated tolerance/package/voltage rating, values on the right E-series, and is a component's purpose readable from the code rather than from a comment?"
+  - "STRUCTURAL_ECONOMY — Circuit composition and declared ports over reflection and string-keyed lookup; a subcircuit where the request has a repeated block; no parallel model of the design held alongside the JITX objects?"
+  - "VERIFICATION_INTEGRITY — does the result build, and do the tests assert connectivity (net membership, port counts) rather than only that the module imports?"
 hard_fails:
-  - "A passive query resolves to a package outside the declared assembly capability while the design still reports status: ok."
-  - "A numeric rating is treated as a scalar minimum, or a maximum tolerance is expressed with the wrong field or interval direction."
-  - "The requested connection, removal, or deliberate no-connect is accepted from build status alone without a positive-control assertion against cache/netlist.json."
-  - "A component or net expression loses structural ownership, so the source type-checks but the object or connection disappears during build."
+  - "`=` used where an electrical connection was meant — the assignment silently produces no net, and nothing downstream reports it."
+  - "A net expression evaluated but not stored, so the connection is discarded."
+  - "A multi-port tie that drops ports — passing a list where a single port is expected, or looping over a subset of the rails the request named."
+  - "An invented part: a passive presented as sourced without a query, or an MPN that does not resolve."
+  - "The circuit is presented as complete without a build having been run, or with a failing build reported as complete."
+  - "A parallel string-keyed model of the design maintained alongside the JITX objects (a dict of net names, a list of pin-name strings) where the framework's own objects carry the same facts."
+  - "A passive query resolves to a package outside the declared assembly capability while the design builds clean — an unconstrained query returns the physically smallest matching part, so 009005 and 01005 parts reach a board that passed every gate."
+  - "A numeric rating is treated as a scalar minimum. A bare value on a query field is an exact match, not a floor; a floor is AtLeast and a maximum magnitude tolerance needs both bounds, so the wrong form silently selects on equality or not at all."

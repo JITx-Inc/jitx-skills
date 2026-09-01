@@ -239,7 +239,9 @@ The criteria mirror the exit-gate bullet lists in `references/project-builder-fl
 | Requirements lock complete | <result; assumptions> |
 | PLAN.md exists | <path> |
 | ARCHITECTURE.md exists | <path; sections> |
-| No fact copied between documents | <N checked; result> |
+| No fact copied between documents | <N checked; name the specific pairs compared; clean, or each copy and its owner> |
+| Support circuitry owned | <part -> task, per powered part, from each application circuit; or "none needed, per <datasheet section>"> |
+| Task status reconciles with open questions | <N blocking relationships walked from the Blocks column; all reconcile, or each disagreeing task> |
 | Planning docs within budget | <line counts; result> |
 | Data source audit completed | <approval; date> |
 | Component-choice rationale documented | <result; PLAN.md location> |
