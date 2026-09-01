@@ -259,8 +259,12 @@ captured `Pour`. `check_realization.py` preserves `PolygonSet` holes while
 converting that shape and uses it for presence, keepout voiding, and final edge
 spacing. If the installed package cannot import that reverse-flow surface or the
 geometry cannot be read safely, the command exits 2; it never converts missing
-evidence into a pass. Legacy ODB++ layer `features` remain a useful independent
-cross-check. Neither surface accepts build status as evidence.
+evidence into a pass. What the command cannot witness it names as
+unwitnessed; it does not accept build status as evidence, and it does not send
+the reader to the fabrication export to close the gap. The export is a handoff
+artifact for a fab, not a verification loop for an agent: an agent that starts
+parsing exported geometry to confirm its own rules spends heavily and learns
+little that the runtime could not have told it.
 
 **OverlappableCopper is netless.** Its electrical connection comes from the **pads it
 overlaps**, not from the copper itself. A net-tie is the minimal case: the bridging

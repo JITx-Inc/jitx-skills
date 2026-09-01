@@ -347,14 +347,12 @@ Read these fields from the selected substrate. The class values are examples, no
 
 Result, observed on 4.4.0rc5.dev2 on one pad shape (a 1.6 mm round pad):
 candidate 2 below produces a direct connect and candidate 1 does not. Before
-reusing the pattern on another pad shape, size, or runtime, confirm with the
-ODB++ export that the tagged pad's void is gone. A higher-priority `thermal_relief` whose spoke width
+reusing the pattern on another pad shape, size or runtime, treat it as
+unconfirmed for that case and say so. A higher-priority `thermal_relief` whose spoke width
 equals the pad diameter leaves the runtime's computed pour copper with no gap
 and no spokes at the tagged pad, while a default-relief pad on the same net
 keeps its four 0.2 mm spokes; the higher-priority rule carrying no effect leaves
-both pads identical. Only two surfaces show that copper, the raw
-`LayoutOutput.computed_shape` and the legacy ODB++ `features` file for the
-pour's layer. Captured-query interpretation is owned by
+both pads identical. The raw `LayoutOutput.computed_shape` is the surface that shows that copper. Captured-query interpretation is owned by
 [Pour realization semantics](../../jitx-physical-layout/SKILL.md#pour-realization-semantics);
 `rd.query(Pour)` is not a valid witness for these voids on the tested 4.4 line
 (numbers in `evals/cases/reference/direct-connect/NOTES.md`).
@@ -395,10 +393,15 @@ pour copper. The reference case checked these surfaces:
    `jitx/_translate/reverse_flow/linker.py:1329`).
 3. `Route.derived` for route-derived pours and features (`jitx/circuit.py:564`,
    `jitx/circuit.py:613`).
-4. The legacy ODB++ `features` files, parsed around both test pads.
+Surface 2 shows the voided pour; surfaces 1 and 3 do not on the 4.4 line, so it
+is the one to read. A successful build alone is not evidence of direct
+connection.
 
-Surfaces 2 and 4 show the voided pour; surfaces 1 and 3 do not on the 4.4 line.
-A successful build alone is not evidence of direct connection.
+The fabrication export also shows it, and is deliberately not listed as a
+surface here. It is a handoff artifact for a fab, not a verification loop: an
+export, a directory walk and a feature-file parse per rule is a large amount of
+work to reach a fact `computed_shape` already carries, and an agent that starts
+inspecting exported geometry to confirm its own rules tends to keep doing it.
 
 ## 9. Power puddle from a pad list
 

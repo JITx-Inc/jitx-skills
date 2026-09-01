@@ -207,8 +207,9 @@ of area `399.9976` after capture, so `rd.query(Pour)` is not a preserved authore
 outline. The supported reverse-flow adapter applies
 `LayoutOutput.computed_shape`; `scripts/check_realization.py` preserves its
 `PolygonSet` holes and uses it for keepout and edge checks. An installed package
-that cannot expose or decode that surface makes the command exit 2. Legacy ODB++
-layer features remain an independent output check. A removed pour returns `Empty()`;
+that cannot expose or decode that surface makes the command exit 2, which is the
+correct outcome: the check did not run. It is not a cue to go parse the
+fabrication export instead. A removed pour returns `Empty()`;
 calling `.to_shapely()` on it raises
 `ValueError: Unhandled primitive geometry type: Empty()`, so the realization check
 reports the net and layer and exits 1 before any conversion.
@@ -228,9 +229,13 @@ provenance limitation above.
   (disposable) → `DesignContext(rd.root)` → `SubstrateContext(rd.root.substrate)` —
   entering a plugin context without an active frame raises "Structure not active"
   (see `jitx/_cli/design/export.py::_run_export` for the canonical sequence).
-- Legacy exporters (`legacy-odb++` etc.) remain available and are a useful
-  *runtime-side* cross-check of realized copper (ODB `features` files are plain
-  text, `UNITS=MM`).
+- Legacy exporters (`legacy-odb++` etc.) exist and produce the artifacts a fab
+  needs. They are not a verification surface for this workflow. Confirming a
+  rule through one costs an export, a directory walk and a per-layer feature
+  parse, to reach a fact the captured design already carries, and the habit is
+  self-sustaining: an agent that inspects exported geometry once tends to keep
+  doing it for every effect the capture cannot see. Where a capture cannot
+  witness an effect, name it as unwitnessed and move on.
 - `design-info/` state is **encoding-versioned**: state written by one
   py-jitx/runtime pairing can be unreadable by another, failing builds/submits with
   a cryptic `No field with key '$_...' under O.../C...`. Remedy: restore
