@@ -152,7 +152,8 @@ self.SIG += Copper(rectangle(10, 0.5).at(0, 5), layer=0)  # copper shape on a ne
 A `Pour` is an authored fill request. The runtime decides whether copper
 materializes, replaces the captured shape with runtime output, and may return a
 successful build with no realized copper or stitch vias. The realization gate
-therefore refuses completion on `status: ok` alone.
+therefore runs `scripts/check_realization.py`; the Physical realization rows in
+the task and Phase 4 completion blocks refuse a missing command or nonzero exit.
 
 ### Construction and placement prerequisites
 
@@ -160,28 +161,29 @@ therefore refuses completion on `status: ok` alone.
 `Instantiable` proxy. Its `.layer` and `.shape` attributes are accessors, not the
 values passed to the constructor. A unit probe must submit a `Design` and call
 `capture()` before it asserts per-pour layer, shape, or identity. Unit tests may
-check plain-data helpers and outline factories outside the runtime, but the
-realization gate stops before accepting structural JITX assertions from proxies.
+check plain-data helpers and outline factories outside the runtime, but they are
+not structural realization evidence. `check_realization.py` performs submit and
+capture before reading those fields.
 
 Placement is also a realization prerequisite. Top-level subsystem circuits use
 `.at(floating=True)` when a person will place them interactively; otherwise they
 pile up at the parent origin. A headless geometry harness gives them explicit
 positions. A floating circuit with no stored interactive placement is parked off
 the board, which leaves routes unrealized and board-wide pours `Empty()` while the
-build still reports `status: ok`. Before checking geometry, the placement gate
-requires either explicit positions or completed interactive placements stored in
-`design-info/`. If that prerequisite is unknown, it stops and reports placement
-state rather than diagnosing a pour or rule failure. Capture itself cannot report
-which objects lacked authored placement because auto-placement and stored state
-give every captured component a position.
+build still reports `status: ok`. Record either explicit positions or completed
+interactive placements stored in `design-info/` before interpreting a realization
+failure. Capture cannot report which objects lacked authored placement because
+auto-placement and stored state give every captured component a position; this is
+a stated limitation, not a placement gate the shipped checker claims to enforce.
 
 ### Conditions for realized copper
 
 A pour survives only when its net has a pad or via reaching the pour's layer. If
 nothing on the net reaches that layer, the runtime silently deletes the pour and
 capture returns `Empty()`. Calling `.to_shapely()` on that value raises
-`ValueError: Unhandled primitive geometry type: Empty()`. The pour gate checks for
-`Empty()` before conversion and stops on every required empty pour. The
+`ValueError: Unhandled primitive geometry type: Empty()`. The realization command
+checks for `Empty()` before conversion, reports the pour's net and layer, and exits
+1 on every required empty pour. The
 `orphans` constructor field is documented as currently not respected, so it is
 not a keep-or-drop control and never substitutes for the captured-shape check.
 
@@ -189,8 +191,9 @@ not a keep-or-drop control and never substitutes for the captured-shape check.
 `KeepOut` has no rank field, and the translated forbid-copper feature receives no
 rank input. Raising `Pour.rank` does not fill over the keepout at any rank; rank
 only prioritizes competing pours. `KeepOut(via=True)` blocks automatically placed
-vias, not vias explicitly placed in code. The keepout gate inspects the runtime
-ODB++ layer features and stops if forbidden copper is present.
+vias, not vias explicitly placed in code. `check_realization.py` intersects the
+captured computed pour copper with every same-layer `KeepOut(pour=True)` and exits
+1 if forbidden area is present.
 
 A pour authored directly from `current.design.board.shape` receives no automatic
 copper-to-edge pullback and lands flush with the board profile. A board-wide pour
@@ -210,9 +213,10 @@ self.ground_return = Pour(pour_outline, layer=return_layer)
 self.GND += self.ground_return
 ```
 
-The construction gate refuses a board-wide pour that uses the board profile
-unchanged. The fabrication-output gate then measures final copper against the
-profile and stops when the spacing is below `min_copper_edge_space`.
+Name every board-wide pour with repeatable `--board-wide-pour`. The realization
+command measures its captured copper against the profile and exits 1 when it is
+outside the board or the spacing is below `min_copper_edge_space`; using the board
+profile unchanged therefore cannot pass.
 
 ### Stitch-via realization
 
@@ -234,10 +238,12 @@ axis follows:
 
 The exact boundary is not fully characterized. On a 3.10 mm axis with 1.2 mm
 pitch, `inset=0.125` produced one via where both tested count formulas predicted
-three. The stitching gate therefore treats a count formula as a planning estimate
-and stops unless every realized via pad is contained inside the pour by the
-requested inset. It also requires a nonzero realized-via count whenever stitching
-is required.
+three. Treat a count formula as a planning estimate. The shipped checker proves
+that each named stitch target is a `Pour` and that at least one solver-emitted
+stitch-via center lies inside it. The capture record does not bind a stitch group
+back to its rule or expose a direct "requested inset satisfied" flag, so exact pad-
+edge inset compliance remains a stated limitation requiring a project-specific
+geometry check.
 
 ### Captured pour geometry
 
@@ -248,13 +254,13 @@ with area `399.9976`, not a `Rectangle` with area `400.0`. Code that needs the
 authored geometry records its expected bounds or reconstructs its outline before
 capture rather than reusing `pour.shape` afterwards.
 
-On the tested 4.4 line, the captured runtime shape still omits keepout voids, pad
-thermal reliefs, and edge pullback. The raw `LayoutOutput.computed_shape` and the
-legacy ODB++ layer `features` files witness pour voiding; the ODB++ features also
-witness final copper-to-edge spacing. The realization gate uses the captured pour
-for presence, type, area, bounds, and net membership. The fabrication-output gate
-uses the raw layout output or ODB++ for voiding and ODB++ for copper-to-edge checks.
-Neither gate accepts build status as evidence.
+The supported reverse-flow adapter applies `LayoutOutput.computed_shape` to the
+captured `Pour`. `check_realization.py` preserves `PolygonSet` holes while
+converting that shape and uses it for presence, keepout voiding, and final edge
+spacing. If the installed package cannot import that reverse-flow surface or the
+geometry cannot be read safely, the command exits 2; it never converts missing
+evidence into a pass. Legacy ODB++ layer `features` remain a useful independent
+cross-check. Neither surface accepts build status as evidence.
 
 **OverlappableCopper is netless.** Its electrical connection comes from the **pads it
 overlaps**, not from the copper itself. A net-tie is the minimal case: the bridging
@@ -447,10 +453,11 @@ dataclass attributes** — never `getattr(self, f"via_{i}")` (see Anti-string-ha
 
 Within a reusable circuit, code places only the anchor component whose frame local
 geometry depends on. It leaves the other components to a placement solver or the
-interactive layout instead of deriving offsets from nominal package sizes. The
-post-placement gate measures realized pad extents, rejects collisions and
-out-of-board bounds, and refuses to treat captured auto-placement as evidence of an
-authored placement plan.
+interactive layout instead of deriving offsets from nominal package sizes.
+Captured pad extents can be measured for collisions and out-of-board bounds, but
+capture cannot prove whether those positions were authored or auto-placed. Record
+the placement plan separately instead of presenting that blind spot as an
+enforced gate.
 
 ## Keepouts that shape pours
 
@@ -591,10 +598,28 @@ for code-authored layout. Validate shapely outputs (non-empty
 `Polygon`/`MultiPolygon`) before they reach a fab feature. Sequence builds — don't
 parallelize against the same design.
 
+For pours, keepouts, stitching, and board-edge spacing, copy and run the shipped
+checker. It submits and captures the zero-argument design target itself, checks
+every authored `Pour`, reconstructs each stitching rule's selected pours, and
+prints the witness paths. Use explicit names for stitching selections and
+board-wide pours when the completion record needs stable human-facing aliases:
+
+```bash
+python scripts/check_realization.py my_project.designs.Design \
+  --stitch-target circuit.thermal_ground \
+  --board-wide-pour circuit.ground_return
+```
+
+Repeat either option as needed. The task and Phase 4 Physical realization rows
+are blocked unless this exact command exits 0 and carry the authored-pour,
+stitch-target, and board-wide-pour names it checked. Exit 2 means the capture or
+geometry read did not run, not that the layout passed.
+
 A `SampleDesign` harness is a smoke test, not a geometry acceptance environment.
 Before the realization gate runs, the harness must carry the production substrate,
-passive-query defaults, and board rule set. If any differ, the gate stops and names
-the mismatch; a clean harness build cannot prove the shipping board's copper.
+passive-query defaults, and board rule set. `check_realization.py` cannot compare a
+harness configuration with production; record any mismatch as a limitation and do
+not use a clean harness build to claim the shipping board's copper was checked.
 
 ## API Reference
 

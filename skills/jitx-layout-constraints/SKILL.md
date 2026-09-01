@@ -574,11 +574,9 @@ Check in this order:
     `scripts/layout_checks.py`; its non-zero exit is a failed task, and the
     completion block is not written until it exits 0 or the unmeasurable
     rules are named as open items.
-11. The stitching target is not a `Pour`: `stitch_via` silently realizes zero
-    vias on a `Pad`, `Copper`, or board-wide `IsPad` selection while the build
-    reports `status: ok`. The project's realization check refuses completion
-    when required stitch-via count is zero; target and inset semantics are in
-    [Pour realization semantics](../jitx-physical-layout/SKILL.md#pour-realization-semantics).
+11. Stitch-target type or materialization: diagnose it with the owning
+    [Pour realization semantics](../jitx-physical-layout/SKILL.md#pour-realization-semantics)
+    and its executable realization check.
 
 Behaviors settled by a built design are recorded, with the design that
 settled them, in `references/rule-reference.md`, "Verified behaviors"; a row

@@ -214,7 +214,7 @@ capture semantics are owned by
 [Pour realization semantics](../../jitx-physical-layout/SKILL.md#pour-realization-semantics).
 
 ```python
-from jitx import Pour, current
+from jitx import current
 from jitx.constraints import (
     BinaryDesignConstraint,
     IsHole,
@@ -223,18 +223,9 @@ from jitx.constraints import (
     IsTrace,
     OnLayer,
 )
-# Inside the top-level circuit's __init__: the circuit owns its pour.
+# Inside the top-level circuit's __init__. Creation of self.ground_return uses
+# the edge-pullback pattern owned by jitx-physical-layout at the link above.
 fab = current.design.substrate.constraints
-return_shape = current.design.board.shape.to_shapely().buffer(
-    -fab.min_copper_edge_space
-)
-if return_shape.g.is_empty or return_shape.g.geom_type not in (
-    "Polygon",
-    "MultiPolygon",
-):
-    raise ValueError("board edge pullback removed or invalidated the pour outline")
-self.ground_return = Pour(return_shape, layer=return_layer)
-self.GND += self.ground_return
 TRACE_POUR_MARGIN = 0.11  # skill default: 0.11 mm beyond the fab floor
 trace_pour_clearance = fab.min_copper_copper_space + TRACE_POUR_MARGIN  # FabricationConstraints floor plus skill default margin
 pour_hole_clearance = fab.min_copper_hole_space  # FabricationConstraints field

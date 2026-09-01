@@ -16,7 +16,7 @@
 # Exit codes:
 #   0  — no hard-fail hits (review-required hits don't fail; they need disposition in task acceptance block)
 #   1  — at least one hard-fail hit
-#   2  — usage error
+#   2  — usage or environment error (including an incomplete source scan)
 #
 # Output format mirrors completion-blocks.md "Grep gates" reporting:
 #   ok    no hits: <label>
@@ -63,33 +63,50 @@ def print_help():
     print("  -h, --help  show this help message and exit")
 
 
-def iter_py_files(root, exclude_top):
-    for dirpath, dirnames, filenames in os.walk(root):
-        if exclude_top:
-            # Prune any directory component named TOP_LEVEL_PATH at any depth —
-            # mirrors `rg --glob "!**/<top>/**"` / `grep --exclude-dir=<top>`.
-            dirnames[:] = [d for d in dirnames if d != TOP_LEVEL_PATH]
+def iter_py_files(root, errors):
+    """Yield Python paths and retain every directory traversal error."""
+
+    def onerror(error):
+        errors.append(error)
+
+    for dirpath, dirnames, filenames in os.walk(root, onerror=onerror):
         dirnames.sort()
         for fn in sorted(filenames):
             if fn.endswith(".py"):
                 yield os.path.join(dirpath, fn)
 
 
-def run_search(pattern, exclude_top, src_dir):
+def scan_sources(src_dir):
+    """Read the source tree once, returning files and every traversal/open error."""
+
+    files = {}
+    errors = []
+    for path in iter_py_files(src_dir, errors):
+        try:
+            with open(path, "r", encoding="utf-8", errors="replace") as fh:
+                files[path] = [raw.rstrip("\r\n") for raw in fh]
+        except OSError as error:
+            errors.append(error)
+    return files, errors
+
+
+def excluded_from_top_level_check(path, src_dir):
+    """Return whether a file is below a directory named TOP_LEVEL_PATH."""
+
+    relative = os.path.relpath(path, src_dir)
+    return TOP_LEVEL_PATH in relative.split(os.sep)[:-1]
+
+
+def run_search(pattern, exclude_top, src_dir, source_files):
     """Return [(path, lineno, line), ...] — mirrors `grep -rEn` / `rg -n`."""
     rx = re.compile(pattern)
     hits = []
-    for path in iter_py_files(src_dir, exclude_top):
-        try:
-            with open(path, "r", encoding="utf-8", errors="replace") as fh:
-                for lineno, raw in enumerate(fh, start=1):
-                    line = raw.rstrip(
-                        "\r\n"
-                    )  # strip EOL (incl. Windows CRLF) so $ anchors match
-                    if rx.search(line):
-                        hits.append((path, lineno, line))
-        except OSError:
+    for path, lines in source_files.items():
+        if exclude_top and excluded_from_top_level_check(path, src_dir):
             continue
+        for lineno, line in enumerate(lines, start=1):
+            if rx.search(line):
+                hits.append((path, lineno, line))
     return hits
 
 
@@ -109,8 +126,17 @@ def report(label, hits, severity, quiet):
         review += count
 
 
-def run_check(label, pattern, exclude_top, severity, src_dir, quiet, skip=None):
-    hits = run_search(pattern, exclude_top, src_dir)
+def run_check(
+    label,
+    pattern,
+    exclude_top,
+    severity,
+    src_dir,
+    source_files,
+    quiet,
+    skip=None,
+):
+    hits = run_search(pattern, exclude_top, src_dir, source_files)
     if skip:
         hits = [h for h in hits if not skip(h[0])]
     report(label, hits, severity, quiet)
@@ -173,6 +199,18 @@ def main():
     if not os.path.isdir(src_dir):
         usage_error()
 
+    source_files, scan_errors = scan_sources(src_dir)
+    if scan_errors:
+        for error in scan_errors:
+            path = getattr(error, "filename", None) or src_dir
+            detail = getattr(error, "strerror", None) or str(error)
+            print(f"ERROR scanning {path}: {detail}", file=sys.stderr)
+        print(
+            "ERROR — source scan incomplete; grep gates did not run.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
     if not quiet:
         print(f"grep_gates: scanning {src_dir} (top-level dir = {TOP_LEVEL_PATH})")
         print()
@@ -187,6 +225,7 @@ def main():
         True,
         "hard-fail",
         src_dir,
+        source_files,
         quiet,
         skip=is_si_definition_site,
     )
@@ -198,6 +237,7 @@ def main():
         True,
         "hard-fail",
         src_dir,
+        source_files,
         quiet,
     )
 
@@ -208,6 +248,7 @@ def main():
         False,
         "hard-fail",
         src_dir,
+        source_files,
         quiet,
     )
 
@@ -220,6 +261,7 @@ def main():
         False,
         "hard-fail",
         src_dir,
+        source_files,
         quiet,
     )
 
@@ -235,6 +277,7 @@ def main():
         False,
         "review",
         src_dir,
+        source_files,
         quiet,
     )
 
@@ -245,6 +288,7 @@ def main():
         False,
         "review",
         src_dir,
+        source_files,
         quiet,
     )
 
@@ -256,6 +300,7 @@ def main():
         False,
         "review",
         src_dir,
+        source_files,
         quiet,
     )
 
@@ -266,6 +311,7 @@ def main():
         False,
         "review",
         src_dir,
+        source_files,
         quiet,
     )
 
@@ -278,6 +324,7 @@ def main():
         False,
         "review",
         src_dir,
+        source_files,
         quiet,
     )
 
@@ -289,6 +336,7 @@ def main():
         False,
         "review",
         src_dir,
+        source_files,
         quiet,
     )
 
@@ -300,6 +348,7 @@ def main():
         True,
         "review",
         src_dir,
+        source_files,
         quiet,
     )
 
@@ -311,7 +360,7 @@ def main():
     # jitx-circuit-builder/SKILL.md "short_trace=True is the default for power-rail capacitors".
     insert_hits = [
         (p, n, t)
-        for (p, n, t) in run_search(r"\.insert\s*\(", False, src_dir)
+        for (p, n, t) in run_search(r"\.insert\s*\(", False, src_dir, source_files)
         if "short_trace" not in t
     ]
     report_insert(insert_hits, quiet)

@@ -537,7 +537,16 @@ For ad-hoc work outside the project-builder flow: just don't run two `jitx build
 
 ### Grep Gate Enforcement
 
-Copy `scripts/grep_gates.py` from this skill into the project's `scripts/` directory. Copy `scripts/check.py` into the project's `scripts/` directory alongside it. Sub-agents and the orchestrator at every phase exit gate run the single entry point against the project's Python package (e.g. `<ns>/`) to enforce lint, formatting, type, and JITX grep-gate checks:
+Copy `scripts/grep_gates.py` from this skill into the project's `scripts/`
+directory. Copy `scripts/check.py` alongside it, copy
+`jitx-interconnect-constraints/scripts/check_si_spans.py` as
+`scripts/check_si_spans.py`, and copy
+`jitx-physical-layout/scripts/check_realization.py` as
+`scripts/check_realization.py`. The base skill's `scripts/plan_status.py` is
+copied when PLAN.md is created as described below. Sub-agents and the
+orchestrator at every phase exit gate run the single static-check entry point
+against the project's Python package (e.g. `<ns>/`) to enforce lint, formatting,
+type, and JITX grep-gate checks:
 
 ```bash
 python scripts/check.py <ns>/

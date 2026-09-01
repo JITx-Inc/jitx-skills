@@ -64,12 +64,12 @@ circuits only after their placements have been stored in `design-info/`.
 An unplaced floating circuit is parked off the board. Its routes have no realized
 traces, stitch vias disappear, and board-wide pours come back as `Empty()`, all
 while the build may report `status: ok`. Those results look the same as real route,
-stitching, and pour failures. The geometry check therefore starts with a placement
-gate: it requires explicit positions or confirmed stored interactive placements and
-stops before interpreting geometry if neither is present. When diagnosing an
-existing ambiguous failure, an explicitly anchored control capture distinguishes
-placement state from broken geometry: if the copper returns, placement was the
-failed prerequisite.
+stitching, and pour failures. Record explicit positions or confirmed stored
+interactive placements before interpreting geometry. When diagnosing an existing
+ambiguous failure, an explicitly anchored control capture distinguishes placement
+state from broken geometry: if the copper returns, placement was the failed
+prerequisite. Capture cannot enforce this provenance check; that limitation is
+recorded rather than called a placement gate.
 
 Capture cannot supply an "unplaced" predicate. It reports positions produced by
 auto-placement or stored state even for components with no `.at()` in the source.
@@ -204,18 +204,20 @@ polygons, so rebuild pour geometry ring by ring before measuring against it.
 `capture()` also overwrites an authored `Pour.shape` in place with reverse-flow
 runtime output. An authored `rectangle(20, 20)` was observed as a `MultiPolygon`
 of area `399.9976` after capture, so `rd.query(Pour)` is not a preserved authored
-outline. On the 4.4 line that mutated result still omits keepout voids, thermal
-reliefs, and edge pullback. The check reads the raw `LayoutOutput.computed_shape`
-or legacy ODB++ layer features for voiding, and ODB++ for final edge spacing. A
-removed pour instead returns `Empty()`;
+outline. The supported reverse-flow adapter applies
+`LayoutOutput.computed_shape`; `scripts/check_realization.py` preserves its
+`PolygonSet` holes and uses it for keepout and edge checks. An installed package
+that cannot expose or decode that surface makes the command exit 2. Legacy ODB++
+layer features remain an independent output check. A removed pour returns `Empty()`;
 calling `.to_shapely()` on it raises
 `ValueError: Unhandled primitive geometry type: Empty()`, so the realization check
-stops on `Empty()` before any conversion.
+reports the net and layer and exits 1 before any conversion.
 One more: `Route(..., sketch=[...])` intermediate points are dropped on runtime
 4.4.0-rc.9 and the route realizes straight between its endpoints, so a probe
 that relies on a sketch to bend a route passes vacuously; author turns with
 `RoutePoint`s and assert the realized bounds. And a circuit placed with
-`.at(floating=True)` but never placed interactively fails the placement gate above.
+`.at(floating=True)` but never placed interactively is subject to the placement
+provenance limitation above.
 
 ## Interop notes
 

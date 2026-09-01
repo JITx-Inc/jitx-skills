@@ -7,16 +7,17 @@ tables, joins ``topologySegments`` with ``pinModels``, and walks every emitted
 routing-structure and insertion-loss span from begin to end.
 
 Exit codes: 0 means every emitted span has a complete path and covers its
-connected chain; 1 means a span is unbound, partial, or absent; 2 means usage or
-the internal cache schema is unsupported. ``--allow-partial`` permits a
-deliberately partial constraint after the caller records why the remainder of
-the chain is outside the task's SI scope.
+connected chain; 1 means a span is unbound, partial, or absent; 2 means usage,
+an unreadable cache, or a malformed internal cache schema. ``--allow-partial``
+accepts one exact printed span label per use, so an intentional partial span
+cannot disable coverage checking for any other constraint.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Collection
 from collections import deque
 from itertools import pairwise
 from pathlib import Path
@@ -25,12 +26,14 @@ from typing import Any
 
 PathId = tuple[int, ...]
 Graph = dict[PathId, set[PathId]]
-REQUIRED_CACHE_FIELDS = {
+OPTIONAL_MODULE_COLLECTIONS = {
     "topologySegments",
     "pinModels",
     "structures",
     "differentialStructures",
     "constrainInsertionLosses",
+    "constrainTimings",
+    "constrainTimingDifferences",
 }
 
 
@@ -51,18 +54,26 @@ def definitions(cache: dict[str, Any]) -> dict[int, dict[str, Any]]:
 def validate_schema(cache: dict[str, Any]) -> None:
     """Fails loudly when the internal cache surface changes."""
 
-    required_root = {"module", "modules", "components", "bundles"}
+    if not isinstance(cache, dict):
+        raise CacheSchemaError("load-cache v1 document is not an object")
+    required_root = {"module", "modules"}
     missing_root = sorted(required_root - cache.keys())
     if missing_root:
         raise CacheSchemaError(
             f"load-cache v1 is missing root fields: {', '.join(missing_root)}"
         )
-    module_fields = {key for module in cache["modules"] for key in module.keys()}
-    missing_fields = sorted(REQUIRED_CACHE_FIELDS - module_fields)
-    if missing_fields:
-        raise CacheSchemaError(
-            "load-cache v1 has no supported SI fields: " + ", ".join(missing_fields)
-        )
+    for field in ("modules", "components", "bundles"):
+        value = cache.get(field, [])
+        if not isinstance(value, list):
+            raise CacheSchemaError(f"load-cache v1 field {field} is not a collection")
+    for index, module in enumerate(cache["modules"]):
+        if not isinstance(module, dict):
+            raise CacheSchemaError(f"load-cache v1 module {index} is not an object")
+        for field in OPTIONAL_MODULE_COLLECTIONS:
+            if field in module and not isinstance(module[field], list):
+                raise CacheSchemaError(
+                    f"load-cache v1 module {index} field {field} is not a collection"
+                )
     if cache["module"] not in definitions(cache):
         raise CacheSchemaError("load-cache v1 root module id is unresolved")
 
@@ -101,7 +112,7 @@ def name_of(
 def walk_instances(cache: dict[str, Any], defs: dict[int, dict[str, Any]]):
     """Yields each module definition with its absolute instance-path prefix."""
 
-    module_ids = {module["id"] for module in cache["modules"]}
+    module_ids = {module["id"] for module in cache.get("modules", [])}
     queue: deque[tuple[PathId, dict[str, Any]]] = deque([((), defs[cache["module"]])])
     while queue:
         prefix, module = queue.popleft()
@@ -177,36 +188,86 @@ def chain_edges(node: PathId, edges: Graph) -> set[frozenset[PathId]]:
     return found
 
 
+def legitimate_branch_edges(
+    route: list[PathId], edges: Graph
+) -> set[frozenset[PathId]]:
+    """Return off-route limbs rooted at a degree-greater-than-two route node."""
+
+    route_nodes = set(route)
+    found: set[frozenset[PathId]] = set()
+    for branch in route:
+        if len(edges.get(branch, ())) <= 2:
+            continue
+        for neighbor in edges.get(branch, ()):
+            if neighbor in route_nodes:
+                continue
+            pending = [(branch, neighbor)]
+            seen = {branch}
+            while pending:
+                previous, node = pending.pop()
+                edge = frozenset((previous, node))
+                if edge in found:
+                    continue
+                found.add(edge)
+                seen.add(node)
+                for next_node in edges.get(node, ()):
+                    if next_node in route_nodes or next_node in seen:
+                        continue
+                    pending.append((node, next_node))
+    return found
+
+
 def constraints(cache: dict[str, Any], defs: dict[int, dict[str, Any]]):
     """Yields every emitted span as ``(label, absolute begin, absolute end)``."""
 
     for prefix, module in walk_instances(cache, defs):
-        for entry in module.get("structures", []) or []:
+        for index, entry in enumerate(module.get("structures", []) or []):
             path = entry["path"]
             yield (
-                f"structure {entry['routingStructure']}",
+                f"structure {entry['routingStructure']}[{index}]",
                 prefix + tuple(path["key"]["path"]),
                 prefix + tuple(path["value"]["path"]),
             )
-        for entry in module.get("differentialStructures", []) or []:
+        for index, entry in enumerate(module.get("differentialStructures", []) or []):
             for leg in ("path1", "path2"):
                 path = entry[leg]
                 yield (
-                    f"diff structure {entry['differentialRoutingStructure']}",
+                    f"diff structure {entry['differentialRoutingStructure']}"
+                    f"[{index}] {leg}",
                     prefix + tuple(path["key"]["path"]),
                     prefix + tuple(path["value"]["path"]),
                 )
-        for entry in module.get("constrainInsertionLosses", []) or []:
+        for index, entry in enumerate(module.get("constrainInsertionLosses", []) or []):
             path = entry["path"]
             limit = entry["constraint"]
             yield (
-                f"insertion loss <= {limit['maxLoss']} dB",
+                f"insertion loss[{index}] <= {limit['maxLoss']} dB",
                 prefix + tuple(path["key"]["path"]),
                 prefix + tuple(path["value"]["path"]),
             )
+        for index, entry in enumerate(module.get("constrainTimings", []) or []):
+            path = entry["path"]
+            limit = entry["constraint"]
+            yield (
+                f"timing[{index}] {limit['minDelay']}..{limit['maxDelay']} s",
+                prefix + tuple(path["key"]["path"]),
+                prefix + tuple(path["value"]["path"]),
+            )
+        for index, entry in enumerate(
+            module.get("constrainTimingDifferences", []) or []
+        ):
+            limit = entry["constraint"]
+            for leg in ("path1", "path2"):
+                path = entry[leg]
+                yield (
+                    "timing difference "
+                    f"[{index}] {limit['minDelta']}..{limit['maxDelta']} s {leg}",
+                    prefix + tuple(path["key"]["path"]),
+                    prefix + tuple(path["value"]["path"]),
+                )
 
 
-def check_cache(path: Path, allow_partial: bool = False) -> int:
+def check_cache(path: Path, allow_partial: Collection[str] | None = None) -> int:
     """Checks one cache and prints each emitted span with its resolved path."""
 
     document = json.loads(path.read_text(encoding="utf-8"))
@@ -217,38 +278,58 @@ def check_cache(path: Path, allow_partial: bool = False) -> int:
     defs = definitions(cache)
     root = defs[cache["module"]]
     edges = topology_graph(cache, defs)
+    allowed_labels = set(allow_partial or ())
+    used_allowances: set[str] = set()
 
     failures = 0
     checked = 0
     for label, begin, end in constraints(cache, defs):
         checked += 1
         names = f"{name_of(begin, defs, root)} -> {name_of(end, defs, root)}"
+        span_label = f"{label}: {names}"
         missing_endpoints = [
             endpoint for endpoint in (begin, end) if endpoint not in edges
         ]
         route = None if missing_endpoints else span(begin, end, edges)
         if route is None:
             failures += 1
-            print(f"FAIL  {label:<26} {names}")
+            print(f"FAIL  {span_label}")
             print("      NO PATH: the endpoints are not joined by the emitted topology")
             continue
 
         covered = {frozenset(edge) for edge in pairwise(route)}
-        outside = chain_edges(begin, edges) - covered
-        partial_failure = bool(outside) and not allow_partial
+        branches = legitimate_branch_edges(route, edges)
+        outside = chain_edges(begin, edges) - covered - branches
+        partial_allowed = bool(outside) and span_label in allowed_labels
+        if partial_allowed:
+            used_allowances.add(span_label)
+        partial_failure = bool(outside) and not partial_allowed
         failures += int(partial_failure)
         status = "FAIL" if partial_failure else "PASS"
-        print(f"{status}  {label:<26} {names}   {len(route) - 1} hops")
+        print(f"{status}  {span_label}   {len(route) - 1} hops")
         for node in route:
             print(f"      {name_of(node, defs, root)}")
+        for edge in sorted(branches, key=lambda item: sorted(item)):
+            first, second = sorted(edge)
+            print(
+                f"      BRANCH: {name_of(first, defs, root)} >> "
+                f"{name_of(second, defs, root)}"
+            )
         for edge in sorted(outside, key=lambda item: sorted(item)):
             first, second = sorted(edge)
-            prefix = "ALLOWED PARTIAL" if allow_partial else "UNCOVERED"
+            prefix = "ALLOWED PARTIAL" if partial_allowed else "UNCOVERED"
             print(
                 f"      {prefix}: {name_of(first, defs, root)} >> "
                 f"{name_of(second, defs, root)}"
             )
 
+    unused_allowances = sorted(allowed_labels - used_allowances)
+    if unused_allowances:
+        print(
+            "ERROR unknown or unnecessary --allow-partial span label(s): "
+            + ", ".join(unused_allowances)
+        )
+        return 2
     if not checked:
         print("FAIL  no emitted SI constraint spans were found")
         return 1
@@ -263,8 +344,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("cache", type=Path, help="path to cache/load-cache.json")
     parser.add_argument(
         "--allow-partial",
-        action="store_true",
-        help="allow connected chain segments outside the declared span",
+        action="append",
+        default=[],
+        metavar="SPAN_LABEL",
+        help="allow uncovered linear segments for this exact printed span label; repeatable",
     )
     return parser.parse_args(argv)
 
@@ -275,10 +358,18 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     try:
         return check_cache(args.cache, allow_partial=args.allow_partial)
-    except (CacheSchemaError, KeyError, TypeError, json.JSONDecodeError) as error:
+    except (
+        CacheSchemaError,
+        AttributeError,
+        IndexError,
+        KeyError,
+        TypeError,
+        ValueError,
+        json.JSONDecodeError,
+    ) as error:
         print(f"ERROR unsupported load-cache schema: {error}")
         return 2
-    except OSError as error:
+    except (OSError, UnicodeError) as error:
         print(f"ERROR cannot read {args.cache}: {error}")
         return 2
 

@@ -12,13 +12,13 @@
 {"intent":"Check cache/netlist.json to confirm U4.EN moved from the old rail to the new enable net.","expected_skill":"jitx-circuit-builder"}
 {"intent":"Generate three repeated RC filter channels inside one Circuit without losing their structural objects.","expected_skill":"jitx-circuit-builder"}
 {"intent":"My named net collides with a public port named BOOT; repair the circuit wiring.","expected_skill":"jitx-circuit-builder"}
-{"intent":"Draw a ground pour around the board edge and shape a copper keepout under the antenna.","expected_skill":null}
-{"intent":"Inspect the realized copper geometry after build and verify the route coordinates from RuntimeDesign.","expected_skill":null}
-{"intent":"Write a trace-to-pour clearance rule for the high-voltage net class.","expected_skill":null}
-{"intent":"Place and route the decoupling capacitors with escape-width and loop-inductance constraints.","expected_skill":null}
-{"intent":"Use provide and require to map one SPI peripheral onto either of two MCU pin groups.","expected_skill":null}
-{"intent":"Support optional UART pin muxing with provide.one_of on this FPGA interface.","expected_skill":null}
-{"intent":"Define the USB differential-pair topology, reference plane, impedance, and skew limits.","expected_skill":null}
-{"intent":"Add RGMII timing constraints and length-match the data lanes to the clock.","expected_skill":null}
-{"intent":"Model this STM32 QFN component from its datasheet and create the landpattern.","expected_skill":null}
-{"intent":"Create a parameterized 0603 resistor-family component with computed manufacturer part numbers.","expected_skill":null}
+{"intent":"Draw a ground pour around the board edge and shape a copper keepout under the antenna.","expected_skill":"jitx-physical-layout","ambiguous_with":["jitx-circuit-builder"]}
+{"intent":"Inspect the realized copper geometry after build and verify the route coordinates from RuntimeDesign.","expected_skill":"jitx-physical-layout","ambiguous_with":["jitx-circuit-builder"]}
+{"intent":"Write a trace-to-pour clearance rule for the high-voltage net class.","expected_skill":"jitx-layout-constraints","ambiguous_with":["jitx-circuit-builder"]}
+{"intent":"Place and route the decoupling capacitors with escape-width and loop-inductance constraints.","expected_skill":"jitx-layout-constraints","ambiguous_with":["jitx-circuit-builder"]}
+{"intent":"Use provide and require to map one SPI peripheral onto either of two MCU pin groups.","expected_skill":"jitx-pin-assignment","ambiguous_with":["jitx-circuit-builder"]}
+{"intent":"Support optional UART pin muxing with provide.one_of on this FPGA interface.","expected_skill":"jitx-pin-assignment","ambiguous_with":["jitx-circuit-builder"]}
+{"intent":"Define the USB differential-pair topology, reference plane, impedance, and skew limits.","expected_skill":"jitx-interconnect-constraints","ambiguous_with":["jitx-circuit-builder"]}
+{"intent":"Add RGMII timing constraints and length-match the data lanes to the clock.","expected_skill":"jitx-interconnect-constraints","ambiguous_with":["jitx-circuit-builder"]}
+{"intent":"Model this STM32 QFN component from its datasheet and create the landpattern.","expected_skill":"jitx-component-modeler","ambiguous_with":["jitx-circuit-builder"]}
+{"intent":"Create a parameterized 0603 resistor-family component with computed manufacturer part numbers.","expected_skill":"jitx-component-modeler","ambiguous_with":["jitx-circuit-builder"]}

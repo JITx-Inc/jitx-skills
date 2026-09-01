@@ -719,7 +719,11 @@ python scripts/check_si_spans.py path/to/Design/cache/load-cache.json
 ```
 
 The task completion block is refused unless the command exits 0 and names the
-expected constrained spans. `status: ok`, a zero-exit type check, or the
+expected routing, insertion-loss, timing, and timing-difference spans. An
+intentional partial linear span uses repeatable
+`--allow-partial "<exact printed span label>"`; there is no bare global form,
+because allowing one span must not disable coverage for another. `status: ok`,
+a zero-exit type check, or the
 existence of a test harness cannot replace this result. An unavailable artifact
 or exit 2 records binding as an open item, and the task may claim only that the
 constraint translated.
