@@ -20,6 +20,7 @@ dimensions:
   - "FAB_RULES_COMPLETE — every source rule that maps to a FabricationConstraints field present and correct, capability limits with no JITX field documented rather than dropped or force-fit?"
   - "PROVENANCE — does every number trace to a source row, with unstated values asked about or documented as omissions rather than invented (including to satisfy a type checker)?"
 hard_fails:
+  - "A substrate is generated at all from something that is not a source document: a relayed stackup, a chat description, a remembered construction. The correct output there is the transcription with its blanks visible and a request for the report, and a scaffold with its gaps labelled is the same failure wearing a disclosure."
   - "A numeric value in the generated substrate that traces to no source row and carries no skill-default label on its own line at the call site (an invented number). A declared, per-call-site-labeled skill default — e.g. reference-plane width = 3x dielectric height — is rule-backed, not invented."
   - "Via structures beyond the source's stated inventory."
   - "The generated file fails Python syntax or type checking, when the environment can run those checks."

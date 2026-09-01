@@ -85,23 +85,28 @@ Everything goes in **one Python file** per substrate:
 
 ## Source Documents
 
-**A description of a document is not a document.** A user relaying a stackup in prose,
-in a chat message or from memory, has given you a handful of the roughly forty facts a
-real report carries, and the ones they omit are the ones they did not think to mention
-rather than the ones that do not matter. Ask for the report. It exists: the fab produced
-it, and a stackup nobody can produce a document for is not a stackup anyone should build
-against.
+**A description of a document is not a document, and it does not yield a substrate.**
+A user relaying a stackup in prose, in a chat message or from memory, has given you a
+handful of the roughly forty facts a real report carries, and the ones they omit are the
+ones they did not think to mention rather than the ones that do not matter. Do not
+generate a substrate from it. Not a partial one, not a scaffold, not one with the gaps
+named: every value that traces to no source row is an invented number, and labelling it
+`UNSOURCED` is a disclosure rather than a provenance. A file that looks like a substrate
+will be built on, and the label will not travel with the number.
 
-If the user cannot supply it yet and wants something to work with, what you produce is a
-**scaffold, not a substrate**, and the difference is stated everywhere it appears: it is
-not presented as complete, it does not pass the completeness check, and the
-Provenance row names every value the relay did not state. Do not let a named constant, a
-registry of open questions, or a release gate stand in for the document. Those are good
-practice and they are not provenance: a value nothing sourced is an invented number
-whether or not it is labelled as one, and an elaborate structure around it makes the
-result look more trustworthy rather than less. Give the count of unstated values in the
-first line of what you hand back, so the reader sees the shape of what is missing before
-they see the code.
+**The deliverable is the transcription, with the blanks visible.** Write the source
+document out in this skill's fab-CSV schema, fill the cells the relay actually states,
+and leave every other cell empty. That artifact has zero invented values in it, tells the
+user exactly what to ask the fab for, and becomes a substrate the moment the empty cells
+are filled. Lead with the count of empty cells and group them by who can answer them:
+most stackups need one email to the fab.
+
+Ask for the report as well. It exists, because the fab produced it to build against, and
+a stackup nobody can produce a document for is not one anyone should build to.
+
+This is the whole of the answer for a relayed stackup. There is no path here that
+produces substrate code, and a user asking again for one is asking for a file whose
+numbers nobody can stand behind. Say that plainly rather than producing it with caveats.
 
 When the substrate comes from a source document — a fab's stackup report or quote, a laminate datasheet, a written spec — the document is **ground truth**: transcribe it, and trace every value in the substrate to a row, table cell, or field of the source. The only derived values are this skill's named engineering defaults (e.g. the reference-plane width default), each labeled at its call site and in the completeness check's Provenance row; anything else the source doesn't state is a question for the user, not an estimate. Parse the document and restate it to the user before writing code — layer count and construction, each dielectric's Dk/Df and their quoted frequency, foil weights and Rz, the via inventory, the impedance targets, the fab rules — and flag anything ambiguous; everything downstream is a transcription of that reading. Where the source disagrees with this skill's reference tables (a Dk, an Rz), the source wins. A format not listed below (a PDF report, an HFSS 3D Layout stackup XML) gets the same treatment: find the document's own structure, then map it onto the sections of this skill.
 
