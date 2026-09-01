@@ -117,76 +117,36 @@ For all provide/require patterns (`@provide`, `@provide.one_of`, `@provide.subse
 
 ## Pours
 
-Pours belong in the **top-level circuit**, not subcircuits. Pour every plane intended as a return path; the reference plane for an outer-layer signal can be an adjacent inner-layer pour (microstrip over an inner ground pour is fine) — what matters is continuity, not which layer the pour sits on. Split or interrupted reference planes underneath high-speed signals are the SI failure, not whether the pour is outer or inner.
-
-> **Exception — local pours/keepouts that track a placed sub-circuit.** A pour or
-> keepout that must follow a self-contained, placed block (e.g. an antenna's ground
-> island that moves with the antenna under interactive placement) lives *inside* that
-> circuit, not top-level. Board-wide return-path pours stay top-level. See the
-> **jitx-physical-layout** subskill ("Keepouts that shape pours").
+The simple circuit-level pattern is:
 
 ```python
 from jitx import Pour, current
 
-board_shape = current.design.board.shape
-
-# Pour(shape, layer, *, rank=0, orphans=True)
-# layer is an int: 0=top, -1=bottom, 1/2/...=inner layers
-self.gnd += Pour(layer=0, shape=board_shape)             # Top layer
-self.gnd += Pour(layer=-1, shape=board_shape)            # Bottom layer
-self.gnd += Pour(layer=2, shape=board_shape, rank=1)     # Inner layer
+fab = current.design.substrate.constraints
+ground_shape = current.design.board.shape.to_shapely().buffer(
+    -fab.min_copper_edge_space
+)
+if ground_shape.g.is_empty or ground_shape.g.geom_type not in (
+    "Polygon",
+    "MultiPolygon",
+):
+    raise ValueError("board edge pullback removed or invalidated the pour outline")
+self.ground_pour = Pour(shape=ground_shape, layer=-1)
+self.gnd += self.ground_pour
 ```
 
-> **`orphans=True` is the API default.** Leaving it produces orphan copper regions (islands of pour not electrically connected to the named net) that the agent must consciously handle — either set `orphans=False` to drop them, or accept them with rationale (e.g. intentional thermal mass, antenna ground plane). Don't ship a design with orphans left over by default.
-
-### `isolate=` is legacy — do not use it
-
-The `Pour(..., isolate=...)` parameter is being removed. Pour clearance is governed by the substrate's `FabricationConstraints` (the default copper-to-edge and copper-to-net spacing) and by per-net-class `design_constraint(...)` rules with Tags, owned by the `jitx-layout-constraints` skill. Express non-default clearance there, not on the pour:
-
-- For a net class that needs wider keepout (HV creepage, switch-node spacing, RF clearance under an antenna), declare a Tag and apply a two-condition rule, `design_constraint(<MyTag>(), IsPour, priority=N).clearance(...)`, against tagged nets (clearance is only available on two-condition rules; see `jitx-layout-constraints`, Pours).
-- For substrate-wide changes, edit the `FabricationConstraints` on the substrate.
-
-New skill examples must not introduce `isolate=`. Existing user code that has it should migrate to `design_constraint(...)` when convenient — `grep_gates.py` flags it as review-required, dispositioned `fixed (migrated)` or `deferred (legacy file)`.
-
-### Fenced pour outlines (Pour as fence-via trigger)
-
-To ring an arbitrary closed shape with fence vias (antipad outlines around signal-via pairs, RF cavities, BGA breakout boundaries, deskew arc cutouts), pair a tagged Pour with an optional same-shape KeepOut. The pour goes on a conductor layer the fence via reaches — typically the via's termination layer.
-
-```python
-from jitx import Pour
-from jitx.feature import KeepOut
-from jitx.layerindex import LayerSet
-
-# `shape` is the outline; `FenceOutlineTag` and the fence_via rule live in the substrate.
-fence_pour = Pour(shape, layer=6)
-FenceOutlineTag().assign(fence_pour)
-self.GND += fence_pour
-
-# Optional — add a same-shape KeepOut ONLY when the pour copper itself is unwanted.
-self.fence_outline_keepout = KeepOut(shape, layers=LayerSet(6), pour=True, via=True)
-```
-
-The Tag + `design_constraint(...).fence_via(...)` rule must already be declared on the substrate — see [jitx-substrate-modeler/SKILL.md](../../jitx-substrate-modeler/SKILL.md) "Fenced Pour Outlines".
+Every other pour question, including layer reachability, keepouts, rank,
+stitch-via output, captured shapes, and empty results, belongs to
+[Pour realization semantics](../../jitx-physical-layout/SKILL.md#pour-realization-semantics).
+Layer selection, clearances, thermal relief, sliver removal, direct connect, and
+stitching expressed as rules belong to `jitx-layout-constraints`. Stackups, via
+definitions, and fenced pour outlines belong to `jitx-substrate-modeler`.
 
 ## Copper Geometry
 
-```python
-from jitx import Copper
-from jitx.shapes.composites import rectangle
-from jitx.anchor import Anchor
-
-self.nets = [
-    self.A + self.e.A + Copper(
-        rectangle(width=10.0, height=0.5, anchor=Anchor.W).at(0.0, 5.0),
-        0  # layer
-    ),
-]
-```
-
-For netless overlapping copper (`OverlappableCopper` — antennas, filters, net-ties;
-`Copper(..., exempt=True)` was removed in 4.2.0) and shapely-built custom shapes, use
-the **jitx-physical-layout** subskill — it has the decision table for `Pour` vs
-`Copper` vs `OverlappableCopper`.
+Custom `Copper`, netless overlapping copper, and shapely-built shapes belong to
+`jitx-physical-layout`, which carries the `Pour` vs `Copper` vs
+`OverlappableCopper` decision table and the realized-geometry checks.
 
 ## Placement
 

@@ -209,6 +209,9 @@ layer. The top-level circuit owns it. See the circuit builder's
 `references/advanced-patterns.md`, "Pours", for net attachment and placement.
 Bogatin recommends top-layer components, signals, and power traces over a
 continuous ground return. Do not rely on a top-layer ground fill as the return.
+Pour materialization, placement prerequisites, edge pullback, empty output, and
+capture semantics are owned by
+[Pour realization semantics](../../jitx-physical-layout/SKILL.md#pour-realization-semantics).
 
 ```python
 from jitx import Pour, current
@@ -221,9 +224,17 @@ from jitx.constraints import (
     OnLayer,
 )
 # Inside the top-level circuit's __init__: the circuit owns its pour.
-self.ground_return = Pour(current.design.board.shape, layer=return_layer)
+fab = current.design.substrate.constraints
+return_shape = current.design.board.shape.to_shapely().buffer(
+    -fab.min_copper_edge_space
+)
+if return_shape.g.is_empty or return_shape.g.geom_type not in (
+    "Polygon",
+    "MultiPolygon",
+):
+    raise ValueError("board edge pullback removed or invalidated the pour outline")
+self.ground_return = Pour(return_shape, layer=return_layer)
 self.GND += self.ground_return
-fab = self.substrate.constraints
 TRACE_POUR_MARGIN = 0.11  # skill default: 0.11 mm beyond the fab floor
 trace_pour_clearance = fab.min_copper_copper_space + TRACE_POUR_MARGIN  # FabricationConstraints floor plus skill default margin
 pour_hole_clearance = fab.min_copper_hole_space  # FabricationConstraints field
@@ -303,6 +314,15 @@ that is not an external layer (`jitx/constraints.py:486`). A per-index
 `OnLayer(index)` rule changes only the conductor whose modeled thickness
 crossed the threshold.
 
+The substrate class does not expose every field the same way. A fabrication
+floor such as `JLC04161H_7628.constraints.min_copper_edge_space` is readable at
+class scope, while `JLC04161H_7628.stackup.conductors` is a deferred
+`InstantiableAttribute`; calling `len()` on it raises `TypeError`. Instantiating
+the substrate outside a design context also does not make the stackup readable.
+The heavy-copper rule builder runs inside the design context through
+`current.design.substrate.stackup.conductors` and stops if that value has not
+resolved to the conductor sequence.
+
 The predefined example stackup models 0.035 mm outer copper (`jitxlib/jlcpcb/JLC04161H_7628.py:16`) and 0.0152 mm inner copper (`jitxlib/jlcpcb/JLC04161H_7628.py:17`). If a fab quote calls for a thicker
 layer, update the substrate before generating the rules.
 
@@ -343,9 +363,10 @@ and no spokes at the tagged pad, while a default-relief pad on the same net
 keeps its four 0.2 mm spokes; the higher-priority rule carrying no effect leaves
 both pads identical. Only two surfaces show that copper, the raw
 `LayoutOutput.computed_shape` and the legacy ODB++ `features` file for the
-pour's layer, because `rd.query(Pour)` and `rd.query(Copper)` return the
-pre-voiding outline (numbers in
-`evals/cases/reference/direct-connect/NOTES.md`).
+pour's layer. Captured-query interpretation is owned by
+[Pour realization semantics](../../jitx-physical-layout/SKILL.md#pour-realization-semantics);
+`rd.query(Pour)` is not a valid witness for these voids on the tested 4.4 line
+(numbers in `evals/cases/reference/direct-connect/NOTES.md`).
 
 The installed Python surface has no direct-connect effect. A unary rule can
 carry thermal relief, but the translator emits a thermal effect only when
@@ -376,7 +397,8 @@ Candidate 2 is the pattern; candidate 1 is recorded so nobody tries it again.
 When reusing candidate 2, read the result on a surface that shows computed
 pour copper. The reference case checked these surfaces:
 
-1. `rd.query(Copper)` and `rd.query(Pour)` after capture (`jitx/run/runtime.py:421`).
+1. `rd.query(Copper)` and `rd.query(Pour)` after capture
+   (`jitx/run/runtime.py:421`), neither a voiding witness on the tested line.
 2. The raw `LayoutOutput.computed_shape`, which reverse flow assigns back to
    an authored pour (`jitx/_translate/reverse_flow/linker.py:1313`,
    `jitx/_translate/reverse_flow/linker.py:1329`).

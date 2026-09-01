@@ -53,6 +53,29 @@ Notes on the loop:
   `controlpoint.traces`, and computed pour shapes are `None`/empty, and the
   route/control-point query transformers silently yield nothing.
 
+## Placement state is a prerequisite
+
+Top-level subsystem circuits need two distinct placement modes. A circuit intended
+for interactive placement uses `.at(floating=True)` so multiple subsystems do not
+pile up at the parent origin. A headless probe or geometry check gives every
+subsystem an explicit position. An interactively placed design may use floating
+circuits only after their placements have been stored in `design-info/`.
+
+An unplaced floating circuit is parked off the board. Its routes have no realized
+traces, stitch vias disappear, and board-wide pours come back as `Empty()`, all
+while the build may report `status: ok`. Those results look the same as real route,
+stitching, and pour failures. The geometry check therefore starts with a placement
+gate: it requires explicit positions or confirmed stored interactive placements and
+stops before interpreting geometry if neither is present. When diagnosing an
+existing ambiguous failure, an explicitly anchored control capture distinguishes
+placement state from broken geometry: if the copper returns, placement was the
+failed prerequisite.
+
+Capture cannot supply an "unplaced" predicate. It reports positions produced by
+auto-placement or stored state even for components with no `.at()` in the source.
+Placement checks run only after placement and compare realized pad extents for
+collisions and board bounds; they cannot prove which positions were authored.
+
 ## `query` vs `visit`
 
 `jitx.inspect.visit(root, Type)` walks the structural tree and yields objects that
@@ -173,23 +196,26 @@ shapely geometry is its `.g`) — bounds, area, distance, intersection checks al
 work from there. Authoring in the other direction (shapely → jitx features) is
 covered in the main skill page ("Custom shapes with shapely").
 
-Two traps that produce confident wrong numbers: query-returned pad and via
+Three traps that produce confident wrong numbers: query-returned pad and via
 copper is in the source's local frame (compose `trace.transform`, see
 "Coordinate frames"; without it every distance reads 0.0000), and
 `PolygonSet.to_shapely()` turns a computed pour's cutout rings into solid
 polygons, so rebuild pour geometry ring by ring before measuring against it.
-A captured `Pour` is the pre-voiding input outline on the 4.4 line (the board
-plane returns at full area with no interior rings), so trace-to-pour
-clearance and thermal relief are not visible in `rd.query` output; the legacy
-ODB++ export below is the runtime-side cross-check for them.
+`capture()` also overwrites an authored `Pour.shape` in place with reverse-flow
+runtime output. An authored `rectangle(20, 20)` was observed as a `MultiPolygon`
+of area `399.9976` after capture, so `rd.query(Pour)` is not a preserved authored
+outline. On the 4.4 line that mutated result still omits keepout voids, thermal
+reliefs, and edge pullback. The check reads the raw `LayoutOutput.computed_shape`
+or legacy ODB++ layer features for voiding, and ODB++ for final edge spacing. A
+removed pour instead returns `Empty()`;
+calling `.to_shapely()` on it raises
+`ValueError: Unhandled primitive geometry type: Empty()`, so the realization check
+stops on `Empty()` before any conversion.
 One more: `Route(..., sketch=[...])` intermediate points are dropped on runtime
 4.4.0-rc.9 and the route realizes straight between its endpoints, so a probe
 that relies on a sketch to bend a route passes vacuously; author turns with
 `RoutePoint`s and assert the realized bounds. And a circuit placed with
-`.at(floating=True)` but never placed interactively is parked off the board by
-the runtime: its routes fail with `Route targets not in router: ... is off the
-board` and `traces` stays `None`, while `jitx build` reports `status: ok`. Give
-headless and reference designs explicit positions.
+`.at(floating=True)` but never placed interactively fails the placement gate above.
 
 ## Interop notes
 

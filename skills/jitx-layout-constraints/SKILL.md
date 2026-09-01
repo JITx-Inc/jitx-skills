@@ -1,6 +1,6 @@
 ---
 name: jitx-layout-constraints
-description: "Use when the user asks to set default trace width or clearance, write design rules, set net-to-net, trace-to-pour, trace-to-hole, or per-layer clearance, size power trace width by net class or current, keep one net's copper away from another, tag nets into classes with their own width and spacing, place and route decoupling capacitors, set pour rules (inner or outer layer, heavy copper, sliver removal, thermal relief, direct connect), stitch a pour or thermal pad with vias, step a wide power trace down to fit a QFN, BGA, or passive pad (fanout or escape width), verify widths and clearances after build, or find out why a design rule did not apply. Covers Tag, design_constraint, UnaryDesignConstraint, BinaryDesignConstraint, builtin tags, OnLayer, AnyObject, priority, all rule effects, FabricationConstraints floors, the Bogatin power and decoupling habits, and after-build checks. Fab minimums, stackups, vias, and routing-structure definitions belong to jitx-substrate-modeler ('set fabrication rules' means the fab floor; design rules above the floor live here). Drawing copper, control-point mechanics, and the geometry-verification loop belong to jitx-physical-layout. Topology and timing constraints belong to jitx-interconnect-constraints."
+description: "Use when the user asks to set default trace width or clearance, write design rules, set net-to-net, trace-to-pour, trace-to-hole, or per-layer clearance, size power trace width by net class or current, keep one net's copper away from another, tag nets into classes with their own width and spacing, place and route decoupling capacitors, set pour rules (inner or outer layer, heavy copper, sliver removal, thermal relief, direct connect), express pour stitching as a rule or build an explicit thermal-pad via field, step a wide power trace down to fit a QFN, BGA, or passive pad (fanout or escape width), verify widths and clearances after build, or find out why a design rule did not apply. Covers Tag, design_constraint, UnaryDesignConstraint, BinaryDesignConstraint, builtin tags, OnLayer, AnyObject, priority, all rule effects, FabricationConstraints floors, the Bogatin power and decoupling habits, and after-build checks. Fab minimums, stackups, vias, and routing-structure definitions belong to jitx-substrate-modeler ('set fabrication rules' means the fab floor; design rules above the floor live here). Drawing copper, diagnosing realized pours or stitch vias, control-point mechanics, and the geometry-verification loop belong to jitx-physical-layout. Topology and timing constraints belong to jitx-interconnect-constraints."
 ---
 
 # JITX Layout Constraints
@@ -330,6 +330,10 @@ Detail and worked derivations: `references/power-and-pours.md`.
 
 ## Pours
 
+This section owns pour rules. Pour materialization, empty output, stitch-via
+realization, edge pullback, and captured-shape semantics are owned by
+[Pour realization semantics](../jitx-physical-layout/SKILL.md#pour-realization-semantics).
+
 - Ground gets one board-wide pour on its own return layer (Bogatin: a
   continuous return under every signal). Do not rely on a top-side copper
   fill for ground, and do not fill between signal traces to reduce
@@ -360,7 +364,9 @@ Detail and worked derivations: `references/power-and-pours.md`.
 - Stitching a pour: `design_constraint(GndPourTag()).stitch_via(ViaClass,
   SquareViaStitchGrid(pitch=, inset=))`; on 4.4 the via class may be reached
   through the substrate's mixin, re-declared on the substrate, or declared at
-  module scope (verified). For an exposed thermal pad, the soldermask-defined
+  module scope (verified). The target and inset realization semantics are in
+  [Pour realization semantics](../jitx-physical-layout/SKILL.md#pour-realization-semantics).
+  For an exposed thermal pad, the soldermask-defined
   via field with its mask dams is `scripts/thermal_via_stitch.py`, which reads
   its constants from `FabricationConstraints` and the via class and raises
   `ValueError` on a pad too small for the grid or an opening that is not a
@@ -504,9 +510,11 @@ constraint-specific checks, packaged in `scripts/layout_checks.py`:
   with no width field is a failed width realization, not a missing attribute to
   skip and not evidence that the route is absent.
 
-Capture limits and traps (pre-voiding pours, transform composition, sketch
+Capture limits and traps (runtime-mutated pours, transform composition, sketch
 points, floating circuits) are owned by `jitx-physical-layout`
-`references/geometry-verification.md`. The consequence for rules: trace-to-
+`references/geometry-verification.md` and its
+[Pour realization semantics](../jitx-physical-layout/SKILL.md#pour-realization-semantics).
+The consequence for rules: trace-to-
 pour clearance, thermal relief, and sliver removal are not measurable from
 `rd.query` on the 4.4 line, so report those rules as not verified from
 capture unless you read the legacy ODB++ export.
@@ -566,6 +574,11 @@ Check in this order:
     `scripts/layout_checks.py`; its non-zero exit is a failed task, and the
     completion block is not written until it exits 0 or the unmeasurable
     rules are named as open items.
+11. The stitching target is not a `Pour`: `stitch_via` silently realizes zero
+    vias on a `Pad`, `Copper`, or board-wide `IsPad` selection while the build
+    reports `status: ok`. The project's realization check refuses completion
+    when required stitch-via count is zero; target and inset semantics are in
+    [Pour realization semantics](../jitx-physical-layout/SKILL.md#pour-realization-semantics).
 
 Behaviors settled by a built design are recorded, with the design that
 settled them, in `references/rule-reference.md`, "Verified behaviors"; a row

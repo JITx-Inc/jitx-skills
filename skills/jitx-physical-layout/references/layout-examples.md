@@ -6,7 +6,7 @@ package before reusing — JITX moves and APIs get renamed across releases.
 ## Table of Contents
 
 - [Soldermask-defined thermal pad (shapely CSG + attached vias)](#soldermask-defined-thermal-pad)
-- [OverlappableCopper antenna + local ground island](#overlappablecopper-antenna)
+- [OverlappableCopper antenna + local keepout](#overlappablecopper-antenna)
 - [Custom-pad soldermask / paste helpers](#custom-pad-soldermask--paste-helpers)
 
 ## Soldermask-defined thermal pad
@@ -92,14 +92,13 @@ for via in self.thermal_vias.vias:
 ## OverlappableCopper antenna
 
 A PCB inverted-F antenna. The structure is a small `Component` with two **anchor
-pads** (feed + short) that carry the nets — so the router has explicit points to land
-on — plus the radiating shape drawn as **netless `OverlappableCopper`** that overlaps
-those pads. A local ground island (keepout + higher-rank pour) lives **inside** the
-circuit so it tracks the antenna wherever it is placed.
+pads** (feed + short) that carry the nets, plus the radiating shape drawn as
+**netless `OverlappableCopper`** that overlaps those pads. A local keepout lives
+inside the circuit so it tracks the antenna wherever it is placed.
 
 ```python
 import jitx
-from jitx import OverlappableCopper, PadMapping, Pour, Tag
+from jitx import OverlappableCopper, PadMapping
 from jitx.circuit import Circuit
 from jitx.feature import KeepOut
 from jitx.landpattern import Landpattern, Pad
@@ -107,12 +106,6 @@ from jitx.layerindex import LayerSet
 from jitx.net import Net, Port
 from jitx.shapes.composites import rectangle
 from jitxlib.symbols.box import BoxSymbol
-
-
-# Define Tag subclasses at MODULE scope — never inside a method (subclassing a JITX
-# class in a function breaks instantiation tracking; see base skill conventions).
-class AntennaGroundTag(Tag):
-    """Marks the antenna's local GND pour for the substrate's fence-via rule."""
 
 
 class _AnchorPad(Pad):
@@ -160,9 +153,8 @@ class AntennaMatching(Circuit):
         self.copper_feed_leg  = OverlappableCopper(rectangle(0.5, 10.0).at(3.25, 0.0), layer=0)
         self.copper_short_stub = OverlappableCopper(rectangle(0.5, 10.0).at(0.25, 0.0), layer=0)
 
-        # Local ground island that tracks the antenna. KeepOut clears the board's
-        # default pour/vias/traces from the antenna region; a higher-rank GND Pour of
-        # the same shape fills GND back on the radiator's layer.
+        # Local keepout that tracks the antenna. KeepOut clears the board's
+        # pours, automatic vias, and autorouted traces from the antenna region.
         # NOTE on flags (per the KeepOut API): route=True DISALLOWS autorouter traces,
         # via=True blocks auto-vias, pour=True keeps pours out. Set the flags to the
         # behavior you actually want — here we want no stray traces/vias/pours under
@@ -172,14 +164,6 @@ class AntennaMatching(Circuit):
             KeepOut(shape=island, layers=LayerSet(layer), pour=True, via=True, route=True)
             for layer in (0, 1, 2, -1)
         ]
-        self.gnd_pour = Pour(island, layer=0, rank=1)   # rank=1 overrides the keepout for GND
-        self.GND += self.gnd_pour
-
-        # Tag the pour so the substrate's fence-via rule selects it. This skill owns the
-        # tagged-pour GEOMETRY; the design_constraint(AntennaGroundTag()).fence_via(...)
-        # RULE that rings it with vias is declared in the substrate / top-level design —
-        # see jitx-substrate-modeler "Fenced Pour Outlines".
-        AntennaGroundTag().assign(self.gnd_pour)
 ```
 
 > The original project file commented `route=False` as "so signal traces can't cross
@@ -187,10 +171,9 @@ class AntennaMatching(Circuit):
 > `route=True` is what disallows autorouter traces. The example above uses the correct
 > flag. Always read the `route`/`via`/`pour` semantics from `jitx/feature.py`.
 
-`AntennaGroundTag` is defined at **module scope** above — subclassing a JITX class
-inside a method breaks instantiation tracking (see the base skill conventions). The
-fence-via *rule* that consumes the tag lives in `jitx-substrate-modeler`; this example
-owns only the tagged-pour geometry.
+`KeepOut(pour=True)` excludes pours at every rank. It does not provide a local
+ground-island exception. See the main skill's
+[Pour realization semantics](../SKILL.md#pour-realization-semantics).
 
 ## Custom-pad soldermask / paste helpers
 
