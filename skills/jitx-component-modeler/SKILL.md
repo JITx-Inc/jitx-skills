@@ -72,10 +72,28 @@ After code exists, the agent performs these steps in order:
 1. Tests that construct components subclass `jitx.test.TestCase`; pure helper tests may use `unittest.TestCase`. Every package variant, and every family case size, gets a pad-count check. For a land pattern `lp`, the documented count is:
 
    ```python
+   # Linear numbering (SOIC, SOT, QFN, QFP, SON, chip): pads live in lp.p.
    pad_count = len(lp.p) + (len(lp.thermal_pads) if hasattr(lp, "thermal_pads") else 0)
    ```
 
-   `lp.p` is a dictionary keyed by pad number. `thermal_pads` is absent, not empty, when no thermal pad was declared, so the `hasattr` guard is required. `lp.pads` is not an accessor. If this count cannot be established, the pad-count row remains open and verification stops.
+   `lp.p` is a dictionary keyed by pad number, and it exists only for the linearly
+   numbered generators. A BGA numbers alpha-numerically: its generator mixes in
+   `AlphaDictNumbering`, which stores one `dict[int, Pad]` per row letter as an
+   attribute (`lp.A`, `lp.B`, ...) and defines no `lp.p`, so the formula above
+   raises there. Count a BGA over its declared row attributes instead:
+
+   ```python
+   # Alpha-dict numbering (BGA): one dict per row letter, no lp.p.
+   rows = [getattr(lp, r) for r in dir(lp) if len(r) == 1 and r.isalpha() and r.isupper()]
+   pad_count = sum(len(d) for d in rows if isinstance(d, dict))
+   pad_count += len(lp.thermal_pads) if hasattr(lp, "thermal_pads") else 0
+   ```
+
+   `thermal_pads` is absent, not empty, when no thermal pad was declared, which is why
+   the `hasattr` guard is required and why the library's own code guards it the same
+   way. `lp.pads` is not an accessor on either scheme. If the count cannot be
+   established for the package at hand, the pad-count row remains open and
+   verification stops rather than recording an unchecked number.
 2. Run the generated test suite and `pyright`. Tests also assert metadata, pin and pad counts, any ordering example or value encoder, the rendered `.value` or its deliberate absence, validation failures, and every relied-on library default.
 3. Run `jitx find`, take its printed build target verbatim, then build in the available virtual environment. If no environment is present, stop and ask. JITX builds run sequentially, never in parallel against one project.
 4. Write the task acceptance block from the base skill, with the complete `Component check` below embedded under `Checks run`, into `COMPLETION.md` or the project's existing equivalent.

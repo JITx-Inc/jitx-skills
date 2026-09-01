@@ -173,9 +173,11 @@ For all passive values, especially those that are calculated, use the eseries Py
 
 An unconstrained passive query selects the smallest matching physical part. A clean
 build can therefore contain 009005, 01005, or signal-grade 0201 parts that the target
-assembly process cannot place. The design context uses the singular attributes
-`resistor_query`, `capacitor_query`, and `inductor_query`; `*_defaults` attributes do
-not refine part selection. Resistor and capacitor defaults constrain `mounting` and
+assembly process cannot place. Put the query on the design as a class attribute. The framework activates any class
+attribute holding a query object; it does not inspect the attribute's name, so the
+singular `resistor_query`, `capacitor_query` and `inductor_query` are a naming
+convention that keeps one obvious home per passive type, not a magic spelling. Use them
+so a reader can find the design's selection policy in one place. Resistor and capacitor defaults constrain `mounting` and
 `case` to the declared assembly capability. An inductor query does not use the same
 chip-size ceiling because power inductors can be larger; each inductor instead carries
 the applicable current and saturation requirements from its datasheet. Step 2 refuses
@@ -184,12 +186,18 @@ to proceed until the resolved package and electrical ratings satisfy those const
 A scalar on a numeric query field is an exact match, not a floor. Minimum ratings use
 `AtLeast(value)`.
 
-Two of those fields accept the constraint and do not act on it. A `rated_power` floor on
-a resistor query returns rows whose `rated_power` is `None`, and the resolved part can sit
-well under the floor. A `saturation_current` floor on an inductor query returns nothing at
-any value, including values real parts meet. Neither can be relied on, so a dissipation or
-saturation requirement from a datasheet is a verification obligation against the resolved
-MPN, not something the query enforces. `case` and `mounting` do bind. A maximum magnitude tolerance does not use `tolerance=AtMost(...)`
+An interval is transmitted: the query serializer emits `min-<field>` and `max-<field>`
+database parameters for any interval value, and a bare value as an exact match. So
+`AtLeast` is the difference between a floor and an equality test, and it is worth using.
+
+What a bound cannot do is filter on a rating the catalogue does not record. Resistor rows
+have been observed carrying `rated_power: None`, and an inductor `saturation_current`
+bound has been observed returning nothing at values real parts meet. A field the database
+leaves null cannot be compared against, so the bound narrows nothing there rather than
+being ignored. Express the requirement in the query anyway, and additionally verify
+dissipation and saturation against the resolved MPN's datasheet: the query is a filter
+over catalogue scalars with no min/typ/max provenance, not a substitute for reading the
+part's rating. `case` and `mounting` filter reliably. A maximum magnitude tolerance does not use `tolerance=AtMost(...)`
 or `precision=...`; those fields do not express that interval. It uses both bounds:
 
 ```python

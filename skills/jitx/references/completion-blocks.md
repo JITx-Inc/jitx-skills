@@ -393,7 +393,7 @@ Severity definitions:
 
 Rules:
 
-- Audit agent does not edit design files. It may correct a datasheet spec note that disagrees with the datasheet, and raises that disagreement as a finding. Findings → orchestrator → fix agents.
+- Audit agent edits nothing, including the datasheet spec notes. A note that disagrees with the datasheet is a finding like any other. Letting the auditor correct it would have the independent verifier rewrite the artifact it is auditing, which erases the discrepancy before the builder ever sees it and leaves no record that the extraction was wrong. Findings → orchestrator → fix agents → re-audit.
 - "Noted for future refactoring" is not a valid disposition for CRITICAL or WARNING.
 - After any fix lands, re-audit. The re-audit does not need to repeat passes that didn't touch the changed code, but must re-verify the original findings are resolved.
 

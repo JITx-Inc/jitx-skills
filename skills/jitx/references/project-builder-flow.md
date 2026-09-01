@@ -248,7 +248,7 @@ A single sub-agent assembles the top-level design. The orchestrator reviews its 
 
 ### Passive query defaults — match manufacturing and circuit role
 
-The top-level Design class sets `capacitor_query`, `resistor_query` and `inductor_query` so auto-selected passives match the design's manufacturing path and circuit role. `*_defaults` attributes do not refine part selection: they are accepted and ignored, so a design that sets them resolves the physically smallest matching part and still builds clean. See `jitx-circuit-builder/SKILL.md` "Passive query constraints" for which query fields bind. The right values depend on the design:
+The top-level Design class sets `capacitor_query`, `resistor_query` and `inductor_query` so auto-selected passives match the design's manufacturing path and circuit role. Without them the query returns the physically smallest matching part, which is how 01005 and 009005 parts reach a design that builds clean. See `jitx-circuit-builder/SKILL.md` "Passive query constraints" for which fields filter reliably and which need a datasheet check against the resolved MPN. The right values depend on the design:
 
 | Design class | Typical defaults | Why |
 |--------------|------------------|-----|
@@ -452,7 +452,7 @@ These editor-side checks won't catch Pattern 1 (the `.insert(...)` call has a si
 - [ ] **No `Reference to structural object … lost during instantiation` warnings in the build output** — every structural object stored on `self`; no bare `+` / `>>` expressions (see "Silent-drop patterns" above)
 - [ ] `ReferencePlanes(...)` context wraps all constraint applications
 - [ ] Board geometry defined (shape, mounting holes, pours)
-- [ ] `capacitor_query`, `resistor_query` and `inductor_query` set on the Design class to match the design's manufacturing path and circuit role, with per-circuit refinements documented for any specialty parts (HV, RF, bulk, precision, hand-build). A `*_defaults` attribute anywhere in the design fails this gate: it is ignored at selection time, so it reads as handled while the smallest matching part ships.
+- [ ] `capacitor_query`, `resistor_query` and `inductor_query` set on the Design class to match the design's manufacturing path and circuit role, with per-circuit refinements documented for any specialty parts (HV, RF, bulk, precision, hand-build). The gate is the resolved parts, not the source: check the resolved package of each auto-selected passive against the declared assembly capability, because a design with no query at all also builds clean.
 - [ ] **Default design rules set on Design class**: the four canonical rules are present on `self.rules`, values calibrated to the substrate's fab floors (see "Default design rules" above and the `jitx-layout-constraints` skill)
 - [ ] The `grep gates` summary line reports 0 hard-fail hits; review-required hits are dispositioned
 
@@ -462,13 +462,13 @@ These editor-side checks won't catch Pattern 1 (the `.insert(...)` call has a si
 
 ## Phase 3b: Design Review and Loopback
 
-**Who**: orchestrator spawns a **read-only audit agent** (critic only, with no design-code edits), then separately spawns fix agents for issues found.
+**Who**: orchestrator spawns a **read-only audit agent** (critic only, editing nothing at all, including the datasheet spec notes), then separately spawns fix agents for issues found.
 
 Each subcircuit was designed in isolation. Now review the assembled design as a system. **Do not proceed to Phase 4 with known electrical errors.**
 
 ### Audit Structure
 
-Spawn a sub-agent to perform the design-level audit. The audit agent reads code and the datasheet PDFs but **does not edit design files**. It reads the PDFs and not the spec notes: its job is to catch what the building chain missed, and the spec notes are that chain's own output. Where a note and the datasheet disagree, the note is the defect. It runs in its own context, so the pages cost the orchestrator nothing. It produces a **Phase 3b Audit Block** with issues classified as CRITICAL / WARNING / NOTE; see the template in `references/completion-blocks.md` "Phase 3b Design Audit Block".
+Spawn a sub-agent to perform the design-level audit. The audit agent reads code and the datasheet PDFs and **edits nothing**. It reads the PDFs and not the spec notes: its job is to catch what the building chain missed, and the spec notes are that chain's own output. Where a note and the datasheet disagree, the note is the defect. It runs in its own context, so the pages cost the orchestrator nothing. It produces a **Phase 3b Audit Block** with issues classified as CRITICAL / WARNING / NOTE; see the template in `references/completion-blocks.md` "Phase 3b Design Audit Block".
 
 **After the same-model audit, attempt the bounded outside-voice (codex) fan-out
 defined in `references/outside-voice-review.md`.** The attempt is mandatory for

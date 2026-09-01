@@ -23,7 +23,7 @@ Generate JITX Python component code from datasheets, user-provided KiCad footpri
 >
 > The rule is also about values that could be wrong, not about labels the source never supplied. A two-terminal chip datasheet does not name its terminations, so `p1`/`p2` with declaration-order pad mapping is the framework's sanctioned idiom, not an invented pin label.
 >
-> This callout exists because a test session loaded the former monolithic skill body, said "I have the patterns, I'll proceed without invoking the modeler skill further — writing each component directly with reasonable typical dimensions" — and then fabricated nine components. That is the failure this rule forbids.
+> This callout exists because the failure it forbids is one an agent talks itself into: having read the patterns once, it concludes it can write the remaining components directly from "reasonable typical dimensions" and skip the skill. Every component produced that way is fabricated, and they arrive in a batch, because the reasoning that justifies the first one justifies all of them.
 
 ### When no document states an MPN
 
