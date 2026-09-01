@@ -18,6 +18,9 @@ import sys
 from dataclasses import dataclass
 from typing import Any
 
+# Slack for float representation in captured geometry, well under any fab floor.
+EDGE_EPSILON_MM = 1e-6
+
 
 @dataclass(frozen=True)
 class CheckResult:
@@ -155,8 +158,25 @@ def check_stitch_targets(
     return results
 
 
+def _holds_circle(geometry: object, diameter: float) -> bool:
+    """True when `geometry` contains a circle of `diameter`, i.e. real copper.
+
+    Erosion by half the diameter leaves something only where the shape is at
+    least that wide, which distinguishes a sliver the process cannot produce
+    from a region it can.
+    """
+    if geometry is None or getattr(geometry, "is_empty", True):
+        return False
+    try:
+        return not geometry.buffer(-diameter / 2.0).is_empty
+    except Exception:
+        return float(getattr(geometry, "area", 0.0)) > 0.0
+
+
 def check_keepouts(
-    pours: tuple[PourWitness, ...], keepouts: tuple[KeepOutWitness, ...]
+    pours: tuple[PourWitness, ...],
+    keepouts: tuple[KeepOutWitness, ...],
+    min_feature: float,
 ) -> list[CheckResult]:
     """Reject captured pour area inside every same-layer pour keepout."""
 
@@ -167,15 +187,25 @@ def check_keepouts(
             if pour.layer not in keepout.layers or pour.geometry is None:
                 continue
             comparisons += 1
-            overlap = float(pour.geometry.intersection(keepout.geometry).area)
+            residue = pour.geometry.intersection(keepout.geometry)
+            overlap = float(residue.area)
+            # `overlap == 0.0` is not reachable on real output. The runtime rounds
+            # the void's inner corners, leaving a few micron-scale triangles inside
+            # the keepout on an otherwise correct design: measured at 9.46e-05 mm^2
+            # across four ~9 um corners. A gate that cannot pass correct work gets
+            # routed around, so ask the manufacturable question instead of the
+            # arithmetic one: can what is left hold a feature the process can make?
+            # Anything that can is real copper in the keepout and fails.
+            holdable = _holds_circle(residue, min_feature)
             results.append(
                 CheckResult(
                     name="pour-keepout",
-                    passed=overlap == 0.0,
+                    passed=not holdable,
                     measured=overlap,
-                    expected=0.0,
+                    expected=f"no residue holding a {min_feature:g} mm feature",
                     detail=(
                         f"pour={pour.label} keepout={keepout.label} layer={pour.layer}"
+                        + ("" if not holdable else "; residue is manufacturable copper")
                     ),
                 )
             )
@@ -208,7 +238,12 @@ def check_board_edge(
             if geometry is None
             else float(geometry.distance(board_profile.boundary))
         )
-        passed = inside and spacing is not None and spacing + 1e-9 >= minimum
+        # A pour buffered inward by exactly the floor captures back at
+        # 0.29999997 against a 0.3 floor: a representation artifact, not a
+        # spacing violation, and 1e-9 is tighter than that error. Allow one
+        # micron, which is far below any fabrication floor and far above the
+        # noise, and say so rather than tuning a magic number.
+        passed = inside and spacing is not None and spacing + EDGE_EPSILON_MM >= minimum
         results.append(
             CheckResult(
                 name="copper-edge-spacing",
@@ -513,7 +548,13 @@ def _capture_checks(
     pours = tuple(pour_samples)
     checks = check_pours(pours)
     checks.extend(check_stitch_targets(tuple(stitch_samples), stitch_rule_count))
-    checks.extend(check_keepouts(pours, tuple(keepout_samples)))
+    # The smallest copper the process can make. Residue narrower than this inside a
+    # keepout is a rounding artifact of the void, not copper anyone can fabricate.
+    try:
+        min_feature = float(rd.root.substrate.constraints.min_copper_width)
+    except Exception:
+        min_feature = 0.09  # JLCPCB-class floor; only used to size the predicate
+    checks.extend(check_keepouts(pours, tuple(keepout_samples), min_feature))
 
     for label, target in board_wide_targets:
         if not isinstance(target, Pour):

@@ -85,12 +85,15 @@ class StitchRealizationTests(unittest.TestCase):
         self.assertIn("selected-pour-targets=0", result.detail)
 
 
+MIN_FEATURE = 0.09  # a JLCPCB-class minimum copper width, in mm
+
+
 class KeepoutAndEdgeTests(unittest.TestCase):
     def test_realized_pour_inside_keepout_fails(self) -> None:
         keepout = KeepOutWitness(
             "circuit.keepout", frozenset({1}), shapely.box(4, 4, 6, 6)
         )
-        result = check_keepouts((pour(),), (keepout,))[0]
+        result = check_keepouts((pour(),), (keepout,), MIN_FEATURE)[0]
         self.assertFalse(result.passed)
         self.assertGreater(result.measured, 0.0)  # type: ignore[operator]
 
@@ -100,8 +103,50 @@ class KeepoutAndEdgeTests(unittest.TestCase):
             "circuit.keepout", frozenset({1}), shapely.box(4, 4, 6, 6)
         )
         self.assertTrue(
-            check_keepouts((pour(geometry=geometry),), (keepout,))[0].passed
+            check_keepouts((pour(geometry=geometry),), (keepout,), MIN_FEATURE)[0].passed
         )
+
+    def test_micron_corner_residue_does_not_fail_a_correct_void(self) -> None:
+        # Regression for a gate that could not pass correct work. The runtime
+        # rounds a void's inner corners, leaving micron-scale triangles inside the
+        # keepout: measured at 9.46e-05 mm^2 over four ~9 um corners on a real
+        # build, against an exact `overlap == 0.0` test. Residue this small is not
+        # copper any process can make, so it must not fail the check.
+        keepout = shapely.box(4, 4, 6, 6)
+        void = keepout.buffer(-0.009, join_style=1)  # rounded inner corners
+        geometry = shapely.box(1, 1, 9, 9).difference(void)
+        result = check_keepouts(
+            (pour(geometry=geometry),),
+            (KeepOutWitness("circuit.keepout", frozenset({1}), keepout),),
+            MIN_FEATURE,
+        )[0]
+        self.assertGreater(result.measured, 0.0)  # residue is genuinely present
+        self.assertTrue(result.passed)  # and is below anything manufacturable
+
+    def test_manufacturable_copper_in_keepout_still_fails(self) -> None:
+        # The other side of the same predicate: residue wide enough to build is a
+        # real violation however small its area looks next to the pour.
+        keepout = shapely.box(4, 4, 6, 6)
+        intruder = shapely.box(4.5, 4.5, 5.5, 5.5)
+        result = check_keepouts(
+            (pour(geometry=intruder),),
+            (KeepOutWitness("circuit.keepout", frozenset({1}), keepout),),
+            MIN_FEATURE,
+        )[0]
+        self.assertFalse(result.passed)
+
+    def test_edge_spacing_tolerates_representation_error(self) -> None:
+        # A pour buffered inward by exactly the floor captures back at 0.29999997
+        # against a 0.3 floor. That is float representation, not a spacing
+        # violation, and the previous 1e-9 slack was tighter than the error.
+        board = shapely.box(0, 0, 10, 10)
+        just_under = pour(geometry=shapely.box(0.29999997, 0.29999997, 9.7, 9.7))
+        self.assertTrue(check_board_edge(board, (just_under,), 0.3)[0].passed)
+
+    def test_edge_spacing_still_fails_a_real_violation(self) -> None:
+        board = shapely.box(0, 0, 10, 10)
+        too_close = pour(geometry=shapely.box(0.2, 0.2, 9.8, 9.8))
+        self.assertFalse(check_board_edge(board, (too_close,), 0.3)[0].passed)
 
     def test_board_wide_pour_must_meet_fabrication_minimum(self) -> None:
         board = shapely.box(0, 0, 10, 10)

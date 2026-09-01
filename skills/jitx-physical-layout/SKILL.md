@@ -180,7 +180,21 @@ a stated limitation, not a placement gate the shipped checker claims to enforce.
 
 A pour survives only when its net has a pad or via reaching the pour's layer. If
 nothing on the net reaches that layer, the runtime silently deletes the pour and
-capture returns `Empty()`. Calling `.to_shapely()` on that value raises
+capture returns `Empty()`.
+
+**Solver-emitted stitch vias do not satisfy that precondition, and neither do
+top-side pads.** This is the trap, because it looks solved: a stitch rule can
+emit hundreds of vias, the build reports `status: ok`, and the inner and bottom
+pours still capture back `Empty()`. Measured on 4.4.0rc5: 519 emitted stitch
+vias, pours on layers 1 and 3 both empty. What holds a pour alive is copper the
+design placed on that net and layer itself, an explicitly placed through via or a
+pad; a control with anchor vias and no stitch rule at all realized 2222.04 mm²
+per pour. Place the anchors first and treat stitching as what thins the return
+path, not what creates it. The order matters: a stitch rule added to a pour with
+no anchor produces a large via count and no copper.
+
+This is also why an emitted-via count is not evidence of realization. Count
+realized pour area, per layer, and let the via count be a secondary reading. Calling `.to_shapely()` on that value raises
 `ValueError: Unhandled primitive geometry type: Empty()`. The realization command
 checks for `Empty()` before conversion, reports the pour's net and layer, and exits
 1 on every required empty pour. The
