@@ -1,8 +1,12 @@
 .socket.jitx
 SKILLS_PLAN.md
 
-# Eval run outputs (receipts, raw judge output) are regenerable local
-# artifacts — only the harness (cases, contract, routing fixtures) is tracked.
+# Eval run outputs. The receipts and raw judge output are bulky local forensics
+# and carry candid commentary about the skills, which a shipped bundle should not
+# distribute. What has to survive the machine is EVAL-LOG.md at the repo root:
+# the scores as they stood at PR time, generated from these receipts by
+# skillify's `receipt.py log`. Without it the no-regression baseline lives on one
+# laptop and a fresh clone has nothing to compare against.
 skills/*/evals/receipts/
 .DS_Store
 __pycache__/
