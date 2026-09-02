@@ -85,39 +85,6 @@ Everything goes in **one Python file** per substrate:
 
 ## Source Documents
 
-**A partial source still yields a substrate. Work from what you were given.**
-A relayed stackup, a quote that states ten of the forty facts, a report with columns
-missing: build the substrate from the values that are stated, and handle the rest by one
-of exactly three moves. There is no fourth.
-
-1. **Trace it to a source row.** The default, and the only one that needs no comment.
-2. **Use a rule-backed skill default, labelled on its own line at the call site.** Only
-   the defaults this skill actually declares, like reference-plane width at 3x the
-   dielectric height, each carrying its label where it is used and a line in the
-   completeness check's Provenance row. A named default with a rule behind it is not an
-   invented number. The label lives at the call site because that is where the next
-   reader meets the value.
-3. **Omit it, and record the omission.** A field the source does not state and this skill
-   has no default for does not get a number. Leave it out and name it in the completeness
-   check. An omission a reader can see is worth more than a plausible value they cannot
-   check.
-
-**What is forbidden is the fourth move: inventing a value and labelling it.** A constant
-named `PROBE_` or `UNSOURCED` is still an invented number; the name is a disclosure, not a
-provenance, and it does not travel with the value once someone builds on the file. This
-includes inventing a number to satisfy a type checker or to make a total reconcile, which
-is where it usually happens.
-
-Where a field is mandatory for translation, has no source row and no skill default, that
-is the case to take back to the user rather than fill. Say which field, why it is
-mandatory, and what you need. Alongside the substrate, write the source document out in
-this skill's fab-CSV schema with the stated cells filled and the rest empty: it costs
-nothing, it shows the user exactly what to ask the fab for, and the blanks are the
-omissions from move 3 in the form the fab can answer.
-
-Lead with the counts: values sourced, values on a labelled skill default, fields omitted,
-fields blocking. A reader should see the shape of what is known before the code.
-
 When the substrate comes from a source document — a fab's stackup report or quote, a laminate datasheet, a written spec — the document is **ground truth**: transcribe it, and trace every value in the substrate to a row, table cell, or field of the source. The only derived values are this skill's named engineering defaults (e.g. the reference-plane width default), each labeled at its call site and in the completeness check's Provenance row; anything else the source doesn't state is a question for the user, not an estimate. Parse the document and restate it to the user before writing code — layer count and construction, each dielectric's Dk/Df and their quoted frequency, foil weights and Rz, the via inventory, the impedance targets, the fab rules — and flag anything ambiguous; everything downstream is a transcription of that reading. Where the source disagrees with this skill's reference tables (a Dk, an Rz), the source wins. A format not listed below (a PDF report, an HFSS 3D Layout stackup XML) gets the same treatment: find the document's own structure, then map it onto the sections of this skill.
 
 ### Fab stackup report CSV
