@@ -16,8 +16,19 @@ Everything above that block is guidance for filling it, and none of it belongs i
 
 - **Never write a value a table already owns.** Name the row or the section instead. The generic instruction to cross-reference proved not to be enough on its own, so the list is explicit: MPN and package belong to `Data Sources`; rail voltage, load and current to ARCHITECTURE.md `Power Tree`; protocol, impedance and routing structure to `Interface Map`; board dimensions, layer count, stackup order and mechanical constraints to `Board`; parametric shape commitments to `Object-Hierarchy Decisions`. A task body that repeats any of them has created a second owner, even when the two copies agree today.
 - `Data` names the rows and sections a task reads. It does not reproduce their contents.
-- `Specifics` carries only what no table owns and no task of the same type shares: the one gotcha, the topology choice, the exception.
-- The `Verify` module path is where the task's file lives: `jitx build <ns>.circuits.usb.TestDesign` commits the task to `<ns>/circuits/usb.py`. That gives the path one owner, so no task restates it and no two sub-agents place the same module differently. `jitx/SKILL.md` "Project Structure" gives the directory shape.
+- **A task body carries no execution policy.** Generator escalation rules, audit-pass ceremony, solver instructions, modeling conventions and anything else that would read identically on a different board belong to the skill and its references, which every sub-agent already reads. A sentence in a task body that would survive unchanged on another project is one that should not be there.
+- **A concern gets exactly one home.** A risk, a boundary or a worry is either settled, in which case ARCHITECTURE.md owns it as a design note, or unsettled, in which case PLAN.md `Open Questions` owns it with an owner and the tasks it gates. Never both. Two homes is how the two documents come to disagree, and the copy nobody updates is the one a resumed session believes.
+- `Specifics` carries only what no table owns and no task of the same type shares: the one gotcha, the topology choice, the exception. **One line, roughly 25 words.** It is the field that silently absorbs a plan: given a paragraph, it fills with design reasoning that ARCHITECTURE.md owns and with rules the skill already states, and neither belongs in a task body. If the note needs a second line, the fact belongs in ARCHITECTURE.md and the task should name the section instead. If it needs a caveat a sub-agent must not miss, that is an engineering question or an open question, not a `Specifics` sentence.
+- The `Verify` module path is where the task's file lives: `python scripts/check.py <ns>/ --build <ns>.circuits.usb.TestDesign` commits the task to `<ns>/circuits/usb.py`. That gives the path one owner, so no task restates it and no two sub-agents place the same module differently. `jitx/SKILL.md` "Project Structure" gives the directory shape.
+
+**Support circuitry is visible in the graph, not only at the gate**
+
+- Every powered IC's support circuitry (decoupling, reset, straps, clock source, enable,
+  reference filters, termination) is owned by a named task, and that ownership shows in the
+  task graph: the owning task's `Data` names the part, or the part's own task lists it as a
+  dependency. The Phase 0 gate asks which task owns each part's support circuitry, and an
+  answer that exists only in the gate narrative is an answer no sub-agent ever reads. A
+  reader should be able to point at the owner from PLAN.md alone.
 
 **Requirements Lock**
 
@@ -31,6 +42,11 @@ Everything above that block is guidance for filling it, and none of it belongs i
 
 **Data Sources**
 
+- Approval is a per-row state in this table and is recorded nowhere else. Do not title the
+  section as approved and do not restate an approval in prose: a heading or a sentence
+  saying the sources are approved becomes a second owner, and it is the copy that stays
+  stale after the gate blocks. A gate block recording that no user approval exists, above
+  a table presenting itself as approved, is the contradiction this rule prevents.
 - Every row's `Source status` reads `source approved` before the Phase 0 gate opens. A `needs input` row is a blocker and gets an Open Questions row. The column says only whether *the data source* is settled — never whether a task can start, which is the per-task `Status` field's job alone.
 - `Chosen over` is the surviving record of the component-choice rationale: one rejected part and why, in a few words. The full rationale table in `parts-sourcing.md` is presented to the user in chat at the data source audit, not filed here.
 
@@ -43,7 +59,7 @@ Everything above that block is guidance for filling it, and none of it belongs i
 
 - Engineering questions: one test decides whether a question belongs on a task. Could the sub-agent answer it by reading the datasheet's own application circuit, or does it already appear on a checklist for this task type? Then it is checklist work with a second owner, not a question. Write at most three, name the datasheet section or specification that settles each, and give a part whose application circuit answers everything none at all.
 - The `Shape` line is for parametric or generator tasks only (BGA ballout, deskew geometry, antipad fence, N-lane fanout, per-layer table, repeating-block scene graph) and states the collection or typed object committed to. The three questions behind it are in `decomposition-guide.md` Step 3b: record the answer, never the prohibitions the questions enforce.
-- `Status` is one of `pending`, `blocked: OQ-n`, `in-progress`, `review`, `accepted`, `rework`, `rejected`. Blocking is transitive: a task whose dependency is blocked is blocked, not pending.
+- `Status` is one of `pending`, `blocked: OQ-n`, `in-progress`, `review`, `accepted`, `rework`, `rejected`. Blocking is transitive: a task whose dependency is blocked is blocked, not pending. A resumed session reads Status first, so blocked state belongs there and not only in the Open Questions `Blocks` column. The orchestrator changes it with `python scripts/plan_status.py <task-id> <status> [--note "<short note>"]`. A status containing a space is one argument, so blocking is `python scripts/plan_status.py cir-02 "blocked: OQ-3"`; the optional note is stored after the status as `; note: <text>`. It does not rewrite PLAN.md wholesale for a status change.
 
 - **Per-task `Status` is the only owner of task state.** Three columns in this template can look like they carry it, and a plan that lets them is a plan that disagrees with itself — this is the single most common defect in Phase 0 output. What each one is actually for:
 
@@ -84,7 +100,7 @@ Everything above that block is guidance for filling it, and none of it belongs i
 
 See ARCHITECTURE.md sections `Power Tree`, `Interface Map`, `Board`, and, when present, `Object-Hierarchy Decisions` and `Design Notes`.
 
-## Data Sources (approved by user)
+## Data Sources
 
 | Component | MPN | Package | Datasheet source | Footprint method | Chosen over | Source status |
 |-----------|-----|---------|------------------|------------------|-------------|---------------|
@@ -102,14 +118,14 @@ See ARCHITECTURE.md sections `Power Tree`, `Interface Map`, `Board`, and, when p
 - **Type / skill / deps:** substrate | [jitx-substrate-modeler, or `—` for a predefined class] | —
 - **Data:** [ARCHITECTURE.md `Board`; the predefined class or the stackup source]
 - **Specifics:** [via choices and package-density constraints this board imposes]
-- **Verify:** `jitx build <ns>.substrate.TestDesign`
+- **Verify:** `python scripts/check.py <ns>/ --build <ns>.substrate.TestDesign`
 - **Status:** pending
 
 ### [comp-01] [Component name]
 - **Type / skill / deps:** component | jitx-component-modeler | —
 - **Data:** [`Data Sources` row for this part; any task-only input]
 - **Specifics:** [pin count, and the one gotcha that matters for this part]
-- **Verify:** `jitx build <ns>.components.<category>.<name>.TestDesign`
+- **Verify:** `python scripts/check.py <ns>/ --build <ns>.components.<category>.<name>.TestDesign`
 - **Status:** pending
 
 ## Phase 2: Constraints + Circuits + Pin Assignment
@@ -118,14 +134,14 @@ See ARCHITECTURE.md sections `Power Tree`, `Interface Map`, `Board`, and, when p
 - **Type / skill / deps:** pin-assignment | jitx-pin-assignment | [component task id]
 - **Data:** [component model; ARCHITECTURE.md `Interface Map`]
 - **Specifics:** [the provides and the flexibility unique to this IC]
-- **Verify:** `jitx build <ns>.circuits.<wrapper>.TestDesign`
+- **Verify:** `python scripts/check.py <ns>/ --build <ns>.circuits.<wrapper>.TestDesign`
 - **Status:** pending
 
 ### [cst-01] [Protocol] Constraints
 - **Type / skill / deps:** constraint | jitx-interconnect-constraints | [substrate task id]
 - **Data:** [protocol specification; ARCHITECTURE.md `Interface Map` row]
 - **Specifics:** [limits this protocol imposes that the Interface Map does not carry]
-- **Verify:** `jitx build <ns>.constraints.<name>.TestDesign`
+- **Verify:** `python scripts/check.py <ns>/ --build <ns>.constraints.<name>.TestDesign`
 - **Status:** pending
 
 ### [cir-01] [Circuit name]
@@ -135,7 +151,7 @@ See ARCHITECTURE.md sections `Power Tree`, `Interface Map`, `Board`, and, when p
 - **Engineering questions:**
   - [question, and the datasheet section or specification that settles it]
 - **Shape:** [parametric tasks only — the collection or typed object committed to]
-- **Verify:** `jitx build <ns>.circuits.<name>.TestDesign`
+- **Verify:** `python scripts/check.py <ns>/ --build <ns>.circuits.<name>.TestDesign`
 - **Status:** pending
 
 ## Phase 3: Top-Level Assembly
@@ -144,7 +160,7 @@ See ARCHITECTURE.md sections `Power Tree`, `Interface Map`, `Board`, and, when p
 - **Type / skill / deps:** assembly | jitx-circuit-builder + jitx-interconnect-constraints | [every Phase 2 id, listed out]
 - **Data:** [accepted Phase 2 outputs; ARCHITECTURE.md sections by name]
 - **Specifics:** [assembly decisions no other document owns]
-- **Verify:** `jitx build <ns>.main.Design`
+- **Verify:** `python scripts/check.py <ns>/ --build <ns>.main.Design`
 - **Status:** pending
 
 ## Phase 3b: Design Review and Loopback
@@ -153,7 +169,7 @@ See ARCHITECTURE.md sections `Power Tree`, `Interface Map`, `Board`, and, when p
 - **Type / skill / deps:** audit | — (orchestrator plus the outside voice) | [assembly task id]
 - **Data:** [top-level design; accepted task acceptance blocks; ARCHITECTURE.md]
 - **Specifics:** [the design-level risks this board raises]
-- **Verify:** `python scripts/grep_gates.py <ns>/` exits 0, and the audit block carries all four passes plus the outside-voice findings and their disposition
+- **Verify:** `python scripts/check.py <ns>/` exits 0, and the audit block carries all four passes plus the outside-voice findings and their disposition
 - **Status:** pending
 
 ## Phase 4: Build + Verify + Iterate
@@ -162,7 +178,7 @@ See ARCHITECTURE.md sections `Power Tree`, `Interface Map`, `Board`, and, when p
 - **Type / skill / deps:** verify | — | [audit task id]
 - **Data:** [top-level design; required verification artifacts]
 - **Specifics:** [board-specific checks or tool constraints]
-- **Verify:** `jitx build <ns>.main.Design`
+- **Verify:** `python scripts/check.py <ns>/ --build <ns>.main.Design`
 - **Status:** pending
 
 ## Gate status

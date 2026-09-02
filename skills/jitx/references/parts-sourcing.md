@@ -87,6 +87,13 @@ parts2jitx-kicad my_footprint.kicad_mod --class-name MyConnector --manufacturer 
 
 This works with any `.kicad_mod` file regardless of source — not just LCSC/EasyEDA.
 
+Converter output is an input to component modeling, not build-ready evidence.
+Some output places `Pad` or `Landpattern` subclasses inside a component's
+`__init__`, which the runtime rejects as dynamic JITX class creation. The
+component-modeling task inspects the generated module and moves every JITX class
+definition to module scope before its initial build. `task-execution.md` Step 3
+does not advance when a generated class remains inside a function or method.
+
 ## Data Audit (Project Builder)
 
 In the Project Builder workflow, Phase 0 includes a **data source audit** before any work begins. The orchestrator presents a table showing where each component's data will come from, and the user approves or provides alternatives. See `references/project-builder-flow.md` Phase 0 for details.

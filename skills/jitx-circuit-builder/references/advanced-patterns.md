@@ -16,29 +16,51 @@
 ### Design-level defaults
 
 ```python
-from jitxlib.parts import ResistorQuery, CapacitorQuery, SortDir, SortKey
+from jitx.interval import AtLeast, AtMost
+from jitxlib.parts import (
+    CapacitorQuery,
+    InductorQuery,
+    ResistorQuery,
+    SortDir,
+    SortKey,
+)
 
 class MyDesign(SampleDesign):
-    resistor_defaults = ResistorQuery(case=["0402"], tolerance=0.01)
-    capacitor_defaults = CapacitorQuery(
-        case=["0402", "0603", "0805", "1206"],
+    resistor_query = ResistorQuery(
+        mounting="smd",
+        case=("0402", "0603", "0805"),
+        tolerance_min=AtLeast(-0.01),
+        tolerance_max=AtMost(0.01),
+    )
+    capacitor_query = CapacitorQuery(
+        mounting="smd",
+        case=("0402", "0603", "0805", "1206"),
         sort=SortKey('area', SortDir.INCREASING)
     )
+    # Power inductors do not use the chip-passive case ceiling. Each instance
+    # carries any current and saturation bounds required by its datasheet.
+    inductor_query = InductorQuery(mounting="smd")
     circuit = MyCircuit()
     board = MyBoard()
     substrate = MySubstrate()
 ```
 
+These design-context attributes are singular `*_query` names. Attributes named
+`resistor_defaults`, `capacitor_defaults`, or `inductor_defaults` are ignored and do
+not constrain the selected parts. The verification process in the main skill refuses
+to proceed until the resolved package, ratings, MPN, and price are inspected.
+
 ### Circuit-level context manager
 
 ```python
+from jitx.interval import AtLeast
 from jitxlib.parts import Capacitor, CapacitorQuery
 
 with CapacitorQuery.refine(type="ceramic", case="0805"):
-    self.c_bulk_0 = Capacitor(capacitance=10e-6, rated_voltage=50.0)
+    self.c_bulk_0 = Capacitor(capacitance=10e-6, rated_voltage=AtLeast(50.0))
     self.c_bulk_0.insert(self.buck.VIN, self.buck.GND, short_trace=True)
 
-    self.c_bulk_1 = Capacitor(capacitance=10e-6, rated_voltage=50.0)
+    self.c_bulk_1 = Capacitor(capacitance=10e-6, rated_voltage=AtLeast(50.0))
     self.c_bulk_1.insert(self.buck.VIN, self.buck.GND, short_trace=True)
 
     self.c_hf = Capacitor(capacitance=100e-9)
@@ -54,6 +76,10 @@ Two critical requirements:
 - **`prec_series` is required** — e.g., `[1.00, 0.10]`. Tells the solver which resistor precision grades to search.
 
 ```python
+# jitxlib.voltage_divider is absent from some installs (including jitxlib
+# shipped with jitx 4.4.0rc5) — import it and check before relying on it.
+# jitxlib.voltage_divider is absent from some installs (including jitxlib
+# shipped with jitx 4.4.0rc5) — import it and check before relying on it.
 from jitxlib.voltage_divider import VoltageDividerConstraints, voltage_divider_from_constraints
 from jitxlib.parts import ResistorQuery
 from jitx.toleranced import Toleranced
@@ -95,27 +121,30 @@ For all provide/require patterns (`@provide`, `@provide.one_of`, `@provide.subse
 
 ## Pours
 
-Pours belong in the **top-level circuit**, not subcircuits. Pour every plane intended as a return path; the reference plane for an outer-layer signal can be an adjacent inner-layer pour (microstrip over an inner ground pour is fine) — what matters is continuity, not which layer the pour sits on. Split or interrupted reference planes underneath high-speed signals are the SI failure, not whether the pour is outer or inner.
-
-> **Exception — local pours/keepouts that track a placed sub-circuit.** A pour or
-> keepout that must follow a self-contained, placed block (e.g. an antenna's ground
-> island that moves with the antenna under interactive placement) lives *inside* that
-> circuit, not top-level. Board-wide return-path pours stay top-level. See the
-> **jitx-physical-layout** subskill ("Keepouts that shape pours").
+The simple circuit-level pattern is:
 
 ```python
 from jitx import Pour, current
 
-board_shape = current.design.board.shape
-
-# Pour(shape, layer, *, rank=0, orphans=True)
-# layer is an int: 0=top, -1=bottom, 1/2/...=inner layers
-self.gnd += Pour(layer=0, shape=board_shape)             # Top layer
-self.gnd += Pour(layer=-1, shape=board_shape)            # Bottom layer
-self.gnd += Pour(layer=2, shape=board_shape, rank=1)     # Inner layer
+fab = current.design.substrate.constraints
+ground_shape = current.design.board.shape.to_shapely().buffer(
+    -fab.min_copper_edge_space
+)
+if ground_shape.g.is_empty or ground_shape.g.geom_type not in (
+    "Polygon",
+    "MultiPolygon",
+):
+    raise ValueError("board edge pullback removed or invalidated the pour outline")
+self.ground_pour = Pour(shape=ground_shape, layer=-1)
+self.gnd += self.ground_pour
 ```
 
-> **`orphans=True` is the API default.** Leaving it produces orphan copper regions (islands of pour not electrically connected to the named net) that the agent must consciously handle — either set `orphans=False` to drop them, or accept them with rationale (e.g. intentional thermal mass, antenna ground plane). Don't ship a design with orphans left over by default.
+Every other pour question, including layer reachability, keepouts, rank,
+stitch-via output, captured shapes, and empty results, belongs to
+[Pour realization semantics](../../jitx-physical-layout/SKILL.md#pour-realization-semantics).
+Layer selection, clearances, thermal relief, sliver removal, direct connect, and
+stitching expressed as rules belong to `jitx-layout-constraints`. Stackups, via
+definitions, and fenced pour outlines belong to `jitx-substrate-modeler`.
 
 ### `isolate=` is legacy — do not use it
 
@@ -148,23 +177,9 @@ The Tag + `design_constraint(...).fence_via(...)` rule must already be declared 
 
 ## Copper Geometry
 
-```python
-from jitx import Copper
-from jitx.shapes.composites import rectangle
-from jitx.anchor import Anchor
-
-self.nets = [
-    self.A + self.e.A + Copper(
-        rectangle(width=10.0, height=0.5, anchor=Anchor.W).at(0.0, 5.0),
-        0  # layer
-    ),
-]
-```
-
-For netless overlapping copper (`OverlappableCopper` — antennas, filters, net-ties;
-`Copper(..., exempt=True)` was removed in 4.2.0) and shapely-built custom shapes, use
-the **jitx-physical-layout** subskill — it has the decision table for `Pour` vs
-`Copper` vs `OverlappableCopper`.
+Custom `Copper`, netless overlapping copper, and shapely-built shapes belong to
+`jitx-physical-layout`, which carries the `Pour` vs `Copper` vs
+`OverlappableCopper` decision table and the realized-geometry checks.
 
 ## Placement
 
@@ -206,7 +221,10 @@ control points — see the **jitx-physical-layout** subskill.
 from jitx import Circuit, Net
 from jitx.common import Power
 from jitx.constraints import Tag, design_constraint
+from jitx.interval import AtLeast
 from jitxlib.parts import Capacitor, CapacitorQuery, Resistor, Inductor, ResistorQuery
+# jitxlib.voltage_divider is absent from some installs (including jitxlib
+# shipped with jitx 4.4.0rc5) — import it and check before relying on it.
 from jitxlib.voltage_divider import VoltageDividerConstraints, voltage_divider_from_constraints
 from jitx.toleranced import Toleranced
 
@@ -236,10 +254,10 @@ class BuckConverterCircuit(Circuit):
 
         # Input caps — ALWAYS assign to self
         with CapacitorQuery.refine(type="ceramic", case="0805"):
-            self.c_in1 = Capacitor(capacitance=10e-6, rated_voltage=50.0)
+            self.c_in1 = Capacitor(capacitance=10e-6, rated_voltage=AtLeast(50.0))
             self.c_in1.insert(self.buck.VIN, self.buck.GND, short_trace=True)
 
-            self.c_in2 = Capacitor(capacitance=10e-6, rated_voltage=50.0)
+            self.c_in2 = Capacitor(capacitance=10e-6, rated_voltage=AtLeast(50.0))
             self.c_in2.insert(self.buck.VIN, self.buck.GND, short_trace=True)
 
             self.c_in_hf = Capacitor(capacitance=100e-9)
@@ -259,16 +277,19 @@ class BuckConverterCircuit(Circuit):
         self.feedback_nets = [self.fb_div.out + self.buck.FB]
 
         # Output inductor
-        self.L = Inductor(inductance=4.7e-6, current_rating=output_current * 1.3)
+        self.L = Inductor(
+            inductance=4.7e-6,
+            current_rating=AtLeast(output_current * 1.3),
+        )
         self.SW_NODE += self.buck.SW + self.L.p1
         self.VOUT += self.L.p2
 
         # Output caps
         with CapacitorQuery.refine(type="ceramic", case="1206"):
-            self.c_out1 = Capacitor(capacitance=22e-6, rated_voltage=10.0)
+            self.c_out1 = Capacitor(capacitance=22e-6, rated_voltage=AtLeast(10.0))
             self.c_out1.insert(self.vout.Vp, self.vout.Vn, short_trace=True)
 
-            self.c_out2 = Capacitor(capacitance=22e-6, rated_voltage=10.0)
+            self.c_out2 = Capacitor(capacitance=22e-6, rated_voltage=AtLeast(10.0))
             self.c_out2.insert(self.vout.Vp, self.vout.Vn, short_trace=True)
 
         # Design constraint for switch node clearance

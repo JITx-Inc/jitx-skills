@@ -1,10 +1,3 @@
-// Routing fixtures for jitx-circuit-builder: should-trigger / should-not-trigger phrasings.
-// Positives paraphrase real user phrasing for the lanes this skill owns — netting ports
-// together, choosing and inserting queried passives, decoupling, and basic top-level pours.
-// Negatives are near-misses that share circuit vocabulary but belong to a sibling: the
-// boundary that matters most is passives (choosing and placing a QUERIED passive is here;
-// MODELLING a part from a datasheet is the component modeler) and rules (connecting copper
-// is here; constraining its width or clearance is jitx-layout-constraints).
 {"intent": "wire up the buck converter and connect its feedback divider", "expected_skill": "jitx-circuit-builder"}
 {"intent": "tie all 96 ground balls on this BGA to one net", "expected_skill": "jitx-circuit-builder"}
 {"intent": "drop a 100 nF decoupling cap on every VDD pin and add a ground pour under the part", "expected_skill": "jitx-circuit-builder"}
@@ -17,7 +10,6 @@
 {"intent": "what temperature coefficient should I ask for on these decoupling caps", "expected_skill": "jitx-circuit-builder"}
 {"intent": "add a ground pour on the bottom layer of the top-level design", "expected_skill": "jitx-circuit-builder"}
 {"intent": "connect the sensor's I2C to the MCU and put the pull-ups at the bus level", "expected_skill": "jitx-circuit-builder"}
-// Negatives: circuit-adjacent, another skill's lane.
 {"intent": "model this QFN part and its thermal pad from the datasheet", "expected_skill": "jitx-component-modeler", "ambiguous_with": ["jitx-layout-constraints"]}
 {"intent": "build me parameterized component families from these two datasheets — no parts DB, the class should be the data", "expected_skill": "jitx-component-modeler"}
 {"intent": "this MCU can bring SPI out on two different pin groups — let the assignment pick which", "expected_skill": "jitx-pin-assignment"}
@@ -30,10 +22,31 @@
 {"intent": "stitch vias into the QFN's thermal pad and fan the escapes out to layer 3", "expected_skill": "jitx-physical-layout"}
 {"intent": "import the board edge and keepout outline from DXF", "expected_skill": "jitx-mechanical", "ambiguous_with": ["jitx-layout-constraints"]}
 {"intent": "I just wired nine subcircuits — check them for string-hacking before I merge", "expected_skill": "jitx-code-review"}
-// Genuinely ambiguous: decoupling is wired here but PLACED and routed by the rules skill,
-// and the datasheet's application circuit is handed off from the component modeler's Step 5.
 {"intent": "set up decoupling placement and short routes for the MCU", "expected_skill": "jitx-layout-constraints", "ambiguous_with": ["jitx-circuit-builder"]}
 {"intent": "capture the typical application circuit from this datasheet too — the input caps and the feedback divider", "expected_skill": "jitx-circuit-builder", "ambiguous_with": ["jitx-component-modeler"]}
-// Outside this skill bundle.
 {"intent": "calculate the resistor values for an analog filter", "expected_skill": null}
 {"intent": "simulate this power supply's transient response in SPICE", "expected_skill": null}
+{"intent": "Wire the USB-C controller VBUS output through a sense resistor to the regulator input.", "expected_skill": "jitx-circuit-builder"}
+{"intent": "Build the application circuit around this buck converter, including its input caps, inductor, feedback divider, and output caps.", "expected_skill": "jitx-circuit-builder"}
+{"intent": "Connect these Power bundles to named VCC and GND nets in my Circuit class.", "expected_skill": "jitx-circuit-builder"}
+{"intent": "Add a 10 kΩ pull-up and a 100 nF bypass capacitor to this existing JITX circuit.", "expected_skill": "jitx-circuit-builder"}
+{"intent": "Choose assemblable resistor and capacitor packages instead of the tiny parts my passive queries currently resolve.", "expected_skill": "jitx-circuit-builder"}
+{"intent": "Make the feedback resistors no worse than one percent tolerance without excluding tighter parts.", "expected_skill": "jitx-circuit-builder"}
+{"intent": "Create a 3.3 V to 0.8 V divider with the JITX voltage-divider solver.", "expected_skill": "jitx-circuit-builder"}
+{"intent": "Remove the series resistor, leave the IC input deliberately unconnected, and prove the netlist changed only there.", "expected_skill": "jitx-circuit-builder"}
+{"intent": "Why does this a + b connection vanish even though pyright passes?", "expected_skill": "jitx-circuit-builder"}
+{"intent": "Fix my capacitor insert call: short_trace says its first argument cannot be a net.", "expected_skill": "jitx-circuit-builder"}
+{"intent": "Refine this inductor query so it selects a power part rated for at least 3 A.", "expected_skill": "jitx-circuit-builder"}
+{"intent": "Check cache/netlist.json to confirm U4.EN moved from the old rail to the new enable net.", "expected_skill": "jitx-circuit-builder"}
+{"intent": "Generate three repeated RC filter channels inside one Circuit without losing their structural objects.", "expected_skill": "jitx-circuit-builder"}
+{"intent": "My named net collides with a public port named BOOT; repair the circuit wiring.", "expected_skill": "jitx-circuit-builder"}
+{"intent": "Draw a ground pour around the board edge and shape a copper keepout under the antenna.", "expected_skill": "jitx-physical-layout", "ambiguous_with": ["jitx-circuit-builder"]}
+{"intent": "Inspect the realized copper geometry after build and verify the route coordinates from RuntimeDesign.", "expected_skill": "jitx-physical-layout", "ambiguous_with": ["jitx-circuit-builder"]}
+{"intent": "Write a trace-to-pour clearance rule for the high-voltage net class.", "expected_skill": "jitx-layout-constraints", "ambiguous_with": ["jitx-circuit-builder"]}
+{"intent": "Place and route the decoupling capacitors with escape-width and loop-inductance constraints.", "expected_skill": "jitx-layout-constraints", "ambiguous_with": ["jitx-circuit-builder"]}
+{"intent": "Use provide and require to map one SPI peripheral onto either of two MCU pin groups.", "expected_skill": "jitx-pin-assignment", "ambiguous_with": ["jitx-circuit-builder"]}
+{"intent": "Support optional UART pin muxing with provide.one_of on this FPGA interface.", "expected_skill": "jitx-pin-assignment", "ambiguous_with": ["jitx-circuit-builder"]}
+{"intent": "Define the USB differential-pair topology, reference plane, impedance, and skew limits.", "expected_skill": "jitx-interconnect-constraints", "ambiguous_with": ["jitx-circuit-builder"]}
+{"intent": "Add RGMII timing constraints and length-match the data lanes to the clock.", "expected_skill": "jitx-interconnect-constraints", "ambiguous_with": ["jitx-circuit-builder"]}
+{"intent": "Model this STM32 QFN component from its datasheet and create the landpattern.", "expected_skill": "jitx-component-modeler", "ambiguous_with": ["jitx-circuit-builder"]}
+{"intent": "Create a parameterized 0603 resistor-family component with computed manufacturer part numbers.", "expected_skill": "jitx-component-modeler", "ambiguous_with": ["jitx-circuit-builder"]}

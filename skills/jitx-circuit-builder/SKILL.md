@@ -21,9 +21,8 @@ JITX uses two packages — know which one to import from:
   - `jitx.layerindex`: `Side`
 - **`jitxlib`** — Parts library. Components, queries, protocols, symbols, solvers.
   - `jitxlib.parts`: `Resistor`, `Capacitor`, `Inductor`, `ResistorQuery`, `CapacitorQuery`, `InductorQuery`
-  - `jitxlib.protocols.serial`: `I2C`, `SPI`, `UART`
+  - `jitxlib.protocols.serial`: protocol bundles including `I2C`, `I2S`, `SPI`, and `UART`; inspect the module for the current full export list
   - `jitxlib.symbols.net_symbols`: `GroundSymbol`, `PowerSymbol`
-  - `jitxlib.voltage_divider`: `VoltageDividerConstraints`, `voltage_divider_from_constraints`
 
 **These modules DO NOT EXIST — NEVER import from them:**
 `jitx.passives`, `jitx.passive`, `jitx.bundles`, `jitx.bundle`, `jitx.provide`,
@@ -66,7 +65,8 @@ class MyCircuit(Circuit):
         self.VCC += self.power.Vp
         self.GND += self.power.Vn
 
-        # 5. Components — ALWAYS assign to self, then insert
+        # 5. Components use the design-level *_query defaults from Step 2.
+        #    ALWAYS assign to self, then insert.
         self.r1 = Resistor(resistance=10e3)
         self.r1.insert(self.power.Vp, self.signal)
 
@@ -108,6 +108,12 @@ self.my_net = Net([self.a], name="my_net")
 self.VCC = Net([self.power.Vp], name="VCC", symbol=PowerSymbol())
 self.GND = Net([*self.u1.GND, *self.u1.RSVDGND], name="GND")   # 689 balls, one call
 ```
+
+The first `Net(...)` argument is one iterable of ports, not positional port
+arguments. A named net and a public circuit port also share one namespace, so their
+names must differ. The Step 2 build refuses both an invalid port argument shape and a
+duplicate public name.
+
 ## Net Wiring
 
 Every `a + b` expression creates a Net — it **must** be stored or the connection is lost.
@@ -157,9 +163,20 @@ self.assertIn(self.u1.VCCINT[0], circuit.V1V0)         # can false-negative
 
 Count as well as contain — `len(list(net))` against the number of ports you expect is what catches a rail that lost half its balls, and a membership check on its own cannot.
 
+## Removing Components and Leaving Pins Unconnected
+
+An application-level pin that is deliberately not connected is left unreferenced: no
+`Net`, `insert()`, or topology expression includes that component `Port`. Removing a
+component also removes its stored `self.<name>` member and every connection that
+references it. The next build can report the removed instance and request confirmation
+before deleting attached objects. The edit does not pass Step 3 until the generated
+netlist shows the intended pin on no net, the removed instance absent, and an unchanged
+connected pin as a positive control.
+
 ## Passives
 
 ```python
+from jitx.interval import AtLeast
 from jitxlib.parts import Resistor, Capacitor, Inductor
 
 # ALWAYS assign to self — anonymous Component().insert() fails at build time
@@ -171,14 +188,18 @@ self.r_sense.insert(self.power.Vp, self.sense_out)
 self.c_bypass = Capacitor(capacitance=100e-9)
 self.c_bypass.insert(self.ic.VCC, self.ic.GND, short_trace=True)
 
-# With extra parameters
-self.c_bulk = Capacitor(capacitance=10e-6, rated_voltage=10.0, temperature_coefficient_code="X7R")
+# With datasheet parameters. Rating floors use AtLeast, not a scalar exact match.
+self.c_bulk = Capacitor(
+    capacitance=10e-6,
+    rated_voltage=AtLeast(10.0),
+    temperature_coefficient_code="X7R",
+)
 self.c_bulk.insert(self.ic.VCC, self.ic.GND, short_trace=True)
 
-self.inductor = Inductor(inductance=4.7e-6, current_rating=3.0)
+self.inductor = Inductor(inductance=4.7e-6, current_rating=AtLeast(3.0))
 ```
 
-For all passive values, especially those that are calculated, use the eseries Python package to ensure that the value is legal. If not otherwise specified use the E96 range of values.
+Calculated passive values must land on a real series value. The `eseries` package does this and is not installed by default, so check for it before depending on it; where it is absent, snap to the series by hand and name the series you used. If nothing else is specified, E96.
 
 ### Constrain the query, or the database picks for you
 
@@ -213,9 +234,64 @@ One HF cap per one-or-two core balls, plus bulk per rail, is the ordinary starti
 
 Three regulator stages that differ only in output voltage are one `Circuit` subclass instantiated three times, not three copies. Same for per-rail decoupling banks. The test is mechanical: if two blocks differ only in their arguments, they are one subcircuit with a parameter — and a difference the copies have drifted apart on is the bug this rule exists to prevent.
 
+### Passive query constraints
+
+An unconstrained passive query selects the smallest matching physical part. A clean
+build can therefore contain 009005, 01005, or signal-grade 0201 parts that the target
+assembly process cannot place. Put the query on the design as a class attribute. The framework activates any class
+attribute holding a query object; it does not inspect the attribute's name, so the
+singular `resistor_query`, `capacitor_query` and `inductor_query` are a naming
+convention that keeps one obvious home per passive type, not a magic spelling. Use them
+so a reader can find the design's selection policy in one place. Resistor and capacitor defaults constrain `mounting` and
+`case` to the declared assembly capability. An inductor query does not use the same
+chip-size ceiling because power inductors can be larger; each inductor instead carries
+the applicable current and saturation requirements from its datasheet. Step 2 refuses
+to proceed until the resolved package and electrical ratings satisfy those constraints.
+
+A scalar on a numeric query field is an exact match, not a floor. Minimum ratings use
+`AtLeast(value)`.
+
+An interval is transmitted: the query serializer emits `min-<field>` and `max-<field>`
+database parameters for any interval value, and a bare value as an exact match. So
+`AtLeast` is the difference between a floor and an equality test, and it is worth using.
+
+What a bound cannot do is filter on a rating the catalogue does not record. Resistor rows
+have been observed carrying `rated_power: None`, and an inductor `saturation_current`
+bound has been observed returning nothing at values real parts meet. A field the database
+leaves null cannot be compared against, so the bound narrows nothing there rather than
+being ignored. Express the requirement in the query anyway, and additionally verify
+dissipation and saturation against the resolved MPN's datasheet: the query is a filter
+over catalogue scalars with no min/typ/max provenance, not a substitute for reading the
+part's rating. `case` and `mounting` filter reliably. A maximum magnitude tolerance does not use `tolerance=AtMost(...)`
+or `precision=...`; those fields do not express that interval. It uses both bounds:
+
+```python
+from jitx.interval import AtLeast, AtMost
+from jitxlib.parts import ResistorQuery
+
+feedback_query = ResistorQuery(
+    case=("0402", "0603"),
+    tolerance_min=AtLeast(-0.01),
+    tolerance_max=AtMost(0.01),
+)
+```
+
+The installed field list lives in `jitxlib/parts/query_api.py`.
+Every passive characteristic specified by the datasheet appears in the query or in a
+page-cited comment beside the query when the catalogue cannot express it. For each new
+query term, Step 2 first tightens that term to an impossible bound and requires the
+build to fail, then restores the intended bound and rebuilds. A term that cannot be
+made to reject all candidates has not been shown to bind.
+
 ### `short_trace=True` is the default for power-rail capacitors
 
-Every capacitor `.insert(...)` call on a power rail — decoupling, bypass, bulk, output filter — **must** pass `short_trace=True`. The router uses this to minimize the trace length between the cap and its connected ports, which is what makes the cap actually decouple. Without it, the router may place a 0402 100 nF cap 20 mm from the IC and route through vias, defeating the purpose.
+Every capacitor `.insert(...)` call on a power rail, including decoupling, bypass,
+bulk, and output filter capacitors, **must** pass `short_trace=True`. The first
+argument must be a `Port`, not a `Net`; otherwise the Step 2 build stops with
+`Cannot make a shortrace with a net`. The router uses this to minimize the trace
+length between the cap and its connected ports, which is what makes the cap actually
+decouple. Without it, the router may place a 0402 100 nF cap 20 mm from the IC and
+route through vias, defeating the purpose.
 
 **So `pin_a` must be a `Port`, not a `Net`** — and this is the trap, because `insert`'s own signature says `pin_a: Port | Net` and accepts a net happily until you turn `short_trace` on:
 
@@ -242,10 +318,10 @@ The enum is `from jitxlib.parts.query_api import TwoPinShortTrace` — it is not
 
 ```python
 # DEFAULT — every power-rail cap
-self.c_bulk = Capacitor(capacitance=10e-6, rated_voltage=10.0)
+self.c_bulk = Capacitor(capacitance=10e-6, rated_voltage=AtLeast(10.0))
 self.c_bulk.insert(self.ic.VCC, self.GND, short_trace=True)
 
-self.c_hf = Capacitor(capacitance=100e-9, rated_voltage=10.0)
+self.c_hf = Capacitor(capacitance=100e-9, rated_voltage=AtLeast(10.0))
 self.c_hf.insert(self.ic.VCC, self.GND, short_trace=True)
 ```
 
@@ -276,9 +352,26 @@ Pours / Copper Geometry / Placement sections below are the basics.
 
 ### Voltage Divider — Critical Rules
 
-**NEVER manually calculate resistor values for voltage dividers.** Manual values like 8kΩ or 25kΩ
-are often not standard E-series values and will fail with "No components meeting requirements".
-Always use `voltage_divider_from_constraints()`:
+**Do not invent resistor values for a divider.** A ratio worked out by hand lands on values
+like 8 kΩ or 25 kΩ that no series stocks, and the query then fails with "No components
+meeting requirements".
+
+**Check what the install actually provides before reaching for a solver.** `jitxlib` has
+carried a `voltage_divider` module with `VoltageDividerConstraints` and
+`voltage_divider_from_constraints`, and it is **not present in every install** — it is
+absent from jitxlib as shipped alongside jitx 4.4.0rc5, where `jitxlib` exposes bundles,
+circuits, geometry, jlcpcb, landpatterns, parts, physics, protocols, symbols and
+via_structures, and no divider helper anywhere. Import it and see, in the environment you
+are building in. If it is there, the pattern below is the one to use. If it is not, say so
+and pick standard values from the series explicitly, stating the series and the resulting
+ratio error, rather than reporting a solver you could not run.
+
+The same caution applies to the `eseries` package: it is a third-party dependency, it is
+not pulled in by jitxlib, and on this install it is absent. If a task needs series snapping
+and the package is missing, that is a dependency to add deliberately or a table to write
+out, not an import to assume.
+
+When the helper is present:
 
 ```python
 # WRONG — manual resistor values, 8k is not a standard E-series value
@@ -320,7 +413,7 @@ pyright path/to/circuit.py
 ```
 Fix all import and type errors before proceeding. Ignore errors about `.prebuilt_components` relative imports — but always use the relative form (`from .prebuilt_components import ...`) since absolute imports fail at build time.
 
-### Step 2: Build Test
+### Step 2: Build and Part-Selection Test
 
 Create a test harness to verify the circuit builds with the JITX backend (utilizing the required virtual environment):
 
@@ -333,9 +426,17 @@ from jitxlib.parts import ResistorQuery, CapacitorQuery, InductorQuery
 from .circuit import Device
 
 class TestDesign(SampleDesign):
-    resistor_defaults = ResistorQuery(case=["0402", "0603", "0805"])
-    capacitor_defaults = CapacitorQuery(case=["0402", "0603", "0805", "1206"])
-    inductor_defaults = InductorQuery(mounting="smd")
+    resistor_query = ResistorQuery(
+        mounting="smd",
+        case=("0402", "0603", "0805"),
+    )
+    capacitor_query = CapacitorQuery(
+        mounting="smd",
+        case=("0402", "0603", "0805", "1206"),
+    )
+    # A generic chip-case ceiling is unsafe for power inductors. Each inductor
+    # carries any required AtLeast current and saturation bounds in the circuit.
+    inductor_query = InductorQuery(mounting="smd")
 
     @inline
     class circuit(Device):
@@ -348,12 +449,52 @@ jitx build <module>.design.TestDesign
 
 Don't run parallel JITX builds against the same project — sequence them. See `jitx/SKILL.md` "Build Safety".
 
-**If a `build_test` helper is available** (e.g., in the skill_eval package), use it instead:
+`status: ok` proves that the selected part exists, not that it is assemblable or
+electrically suitable. After every passive-query change, Step 2 inspects the resolved
+part records and refuses to proceed until each affected position has a recorded MPN,
+package or case within the declared assembly capability, datasheet electrical ratings,
+and unit price. A changed query can select a different or much more expensive first
+result because catalogue ranking is not stated or cost-aware.
+
+Catalogue search helpers run only while a JITX design is being instantiated. A
+read-only query probe therefore lives in a throwaway `SampleDesign` or `Circuit` file
+and runs as a build:
+
+```bash
+PYTHONPATH=/tmp jitx build /tmp/probe.py --project <project-root>
+```
+
+The probe directory must be on `PYTHONPATH`. The first resolved row remains useful for
+an MPN spot-check, but cached `parts-db/` results cannot support candidate-count claims
+because the cache key omits the query limit. Step 2 rejects a candidate count unless it
+comes from `jitxlib.parts.dbquery` with `jitxlib.parts.query_api.extract` and
+`skip_cache=True`.
+
+**If a `build_test` helper is available** (e.g., in the skill_eval package), it can
+replace the build command only when it exercises the same design context. It does not
+replace the resolved-part audit.
 ```bash
 python -m skill_eval.build_test path/to/circuit.py
 ```
 
-### Step 3: Fix Build Errors
+### Step 3: Verify Connectivity
+
+After every wiring, insertion, removal, or deliberate-NC edit, Step 3 reads
+`<design-output>/cache/netlist.json`. The file is a top-level JSON list with this shape:
+
+```json
+[
+  {"name": "VCC", "pins": ["dut.u1.VCC", "dut.c1.p1"], "requires": []}
+]
+```
+
+Pins use dotted instance paths. The check asserts every intended membership and
+non-membership, plus at least one known connected pin as a positive control. For a
+removal, it also compares the pre-edit and post-edit netlists so unrelated nets remain
+unchanged. The task refuses completion if the netlist is missing, an assertion fails,
+or the only evidence is `status: ok`.
+
+### Step 4: Fix Build Errors
 
 If the build fails:
 1. Read the traceback — the error message and the line number in the code indicate what went wrong

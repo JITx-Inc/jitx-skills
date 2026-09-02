@@ -1,7 +1,7 @@
 {
   "name": "qfn-power-fanout",
   "prompt": "Can you show me how to bring a 5 V rail into a QFN power pad? Use JLC04161H_7628 and a generated QFN-32 at 0.5 mm pitch (skill defaults: 32 leads and 0.5 mm pitch). The power class is 0.5 mm wide (skill default: 0.5 mm). I want a visible tag-based step-down on only the short pad escape. Derive the escape width and clearance from the actual landpattern and substrate, then build and read both route widths back.",
-  "expected_output": "A reference design and explanation that keep the 0.5 mm power-class trunk (skill default: 0.5 mm), derive QFN pad width and adjacent-pad gap with jitx.query, derive clearance from FabricationConstraints plus a labeled skill-default margin, split the route at a RoutePoint, tag only the escape Route, store routes and rules structurally, capture the design, and reject empty traces or realized widths that differ from the class and derived escape widths.",
+  "expected_output": "A reference design and explanation that keep the 0.5 mm power-class trunk (skill default: 0.5 mm), derive the narrowest selected QFN pad width and adjacent-pad gap with jitx.query, round the narrowest width to fixed 1 nm precision and subtract one 1 nm quantum so the escape stays strictly inside every selected pad, derive clearance from FabricationConstraints plus a labeled skill-default margin, split the route at a RoutePoint, tag only the escape Route, store routes and rules structurally, capture the design, and reject empty traces, Polygon realizations without a width, or realized widths that differ from the class and derived escape widths.",
   "assertions": [
     {
       "text": "the reference module and capture checker type-check against the installed jitx package",
@@ -14,7 +14,7 @@
       "cmd": "python3 skills/jitx-layout-constraints/evals/cases/reference/qfn-power-fanout/check_fanout.py"
     },
     {
-      "text": "the escape width is derived from queried placed-pad copper and FabricationConstraints, not typed as a package answer",
+      "text": "the escape width is derived strictly inside the narrowest selected placed-pad copper by fixed-precision rounding followed by an unconditional one-quantum subtraction, and is not typed as a package answer",
       "check": "judge"
     },
     {

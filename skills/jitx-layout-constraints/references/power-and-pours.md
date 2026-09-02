@@ -209,9 +209,12 @@ layer. The top-level circuit owns it. See the circuit builder's
 `references/advanced-patterns.md`, "Pours", for net attachment and placement.
 Bogatin recommends top-layer components, signals, and power traces over a
 continuous ground return. Do not rely on a top-layer ground fill as the return.
+Pour materialization, placement prerequisites, edge pullback, empty output, and
+capture semantics are owned by
+[Pour realization semantics](../../jitx-physical-layout/SKILL.md#pour-realization-semantics).
 
 ```python
-from jitx import Pour, current
+from jitx import current
 from jitx.constraints import (
     BinaryDesignConstraint,
     IsHole,
@@ -220,10 +223,9 @@ from jitx.constraints import (
     IsTrace,
     OnLayer,
 )
-# Inside the top-level circuit's __init__: the circuit owns its pour.
-self.ground_return = Pour(current.design.board.shape, layer=return_layer)
-self.GND += self.ground_return
-fab = self.substrate.constraints
+# Inside the top-level circuit's __init__. Creation of self.ground_return uses
+# the edge-pullback pattern owned by jitx-physical-layout at the link above.
+fab = current.design.substrate.constraints
 TRACE_POUR_MARGIN = 0.11  # skill default: 0.11 mm beyond the fab floor
 trace_pour_clearance = fab.min_copper_copper_space + TRACE_POUR_MARGIN  # FabricationConstraints floor plus skill default margin
 pour_hole_clearance = fab.min_copper_hole_space  # FabricationConstraints field
@@ -303,6 +305,15 @@ that is not an external layer (`jitx/constraints.py:486`). A per-index
 `OnLayer(index)` rule changes only the conductor whose modeled thickness
 crossed the threshold.
 
+The substrate class does not expose every field the same way. A fabrication
+floor such as `JLC04161H_7628.constraints.min_copper_edge_space` is readable at
+class scope, while `JLC04161H_7628.stackup.conductors` is a deferred
+`InstantiableAttribute`; calling `len()` on it raises `TypeError`. Instantiating
+the substrate outside a design context also does not make the stackup readable.
+The heavy-copper rule builder runs inside the design context through
+`current.design.substrate.stackup.conductors` and stops if that value has not
+resolved to the conductor sequence.
+
 The predefined example stackup models 0.035 mm outer copper (`jitxlib/jlcpcb/JLC04161H_7628.py:16`) and 0.0152 mm inner copper (`jitxlib/jlcpcb/JLC04161H_7628.py:17`). If a fab quote calls for a thicker
 layer, update the substrate before generating the rules.
 
@@ -336,16 +347,15 @@ Read these fields from the selected substrate. The class values are examples, no
 
 Result, observed on 4.4.0rc5.dev2 on one pad shape (a 1.6 mm round pad):
 candidate 2 below produces a direct connect and candidate 1 does not. Before
-reusing the pattern on another pad shape, size, or runtime, confirm with the
-ODB++ export that the tagged pad's void is gone. A higher-priority `thermal_relief` whose spoke width
+reusing the pattern on another pad shape, size or runtime, treat it as
+unconfirmed for that case and say so. A higher-priority `thermal_relief` whose spoke width
 equals the pad diameter leaves the runtime's computed pour copper with no gap
 and no spokes at the tagged pad, while a default-relief pad on the same net
 keeps its four 0.2 mm spokes; the higher-priority rule carrying no effect leaves
-both pads identical. Only two surfaces show that copper, the raw
-`LayoutOutput.computed_shape` and the legacy ODB++ `features` file for the
-pour's layer, because `rd.query(Pour)` and `rd.query(Copper)` return the
-pre-voiding outline (numbers in
-`evals/cases/reference/direct-connect/NOTES.md`).
+both pads identical. The raw `LayoutOutput.computed_shape` is the surface that shows that copper. Captured-query interpretation is owned by
+[Pour realization semantics](../../jitx-physical-layout/SKILL.md#pour-realization-semantics);
+`rd.query(Pour)` is not a valid witness for these voids on the tested 4.4 line
+(numbers in `evals/cases/reference/direct-connect/NOTES.md`).
 
 The installed Python surface has no direct-connect effect. A unary rule can
 carry thermal relief, but the translator emits a thermal effect only when
@@ -376,16 +386,22 @@ Candidate 2 is the pattern; candidate 1 is recorded so nobody tries it again.
 When reusing candidate 2, read the result on a surface that shows computed
 pour copper. The reference case checked these surfaces:
 
-1. `rd.query(Copper)` and `rd.query(Pour)` after capture (`jitx/run/runtime.py:421`).
+1. `rd.query(Copper)` and `rd.query(Pour)` after capture
+   (`jitx/run/runtime.py:421`), neither a voiding witness on the tested line.
 2. The raw `LayoutOutput.computed_shape`, which reverse flow assigns back to
    an authored pour (`jitx/_translate/reverse_flow/linker.py:1313`,
    `jitx/_translate/reverse_flow/linker.py:1329`).
 3. `Route.derived` for route-derived pours and features (`jitx/circuit.py:564`,
    `jitx/circuit.py:613`).
-4. The legacy ODB++ `features` files, parsed around both test pads.
+Surface 2 shows the voided pour; surfaces 1 and 3 do not on the 4.4 line, so it
+is the one to read. A successful build alone is not evidence of direct
+connection.
 
-Surfaces 2 and 4 show the voided pour; surfaces 1 and 3 do not on the 4.4 line.
-A successful build alone is not evidence of direct connection.
+The fabrication export also shows it, and is deliberately not listed as a
+surface here. It is a handoff artifact for a fab, not a verification loop: an
+export, a directory walk and a feature-file parse per rule is a large amount of
+work to reach a fact `computed_shape` already carries, and an agent that starts
+inspecting exported geometry to confirm its own rules tends to keep doing it.
 
 ## 9. Power puddle from a pad list
 

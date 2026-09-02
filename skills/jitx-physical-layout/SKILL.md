@@ -1,6 +1,6 @@
 ---
 name: jitx-physical-layout
-description: "Use when the user asks to author PCB physical layout from code: draw copper, antennas, filters, net ties, custom shapes, board outlines, custom pads, soldermask or paste openings, thermal pads with vias, code-placed vias, fanout or escape tags, direct-connect or thermal-relief tags, control points, code-based routes, diff-pair fans/trunks, escape routing, or deskew — or to inspect/verify realized geometry from python (jitx.query, RuntimeDesign capture, route realization checks). Covers shapely geometry, Copper, OverlappableCopper, Pour, pad features, PortAttachment, explicit placement, layout-intent tags, Route/control-point APIs, and the 4.3 reverse-flow geometry-verification workflow. Use jitx-substrate-modeler for stackups, vias, routing structures, fence-via rules, and fenced pours; use jitx-circuit-builder for net wiring, passives, and basic pours."
+description: "Use when the user asks to author PCB physical layout from code: draw copper, antennas, filters, net ties, custom shapes, board outlines, custom pads, soldermask or paste openings, thermal pads with vias, code-placed vias, fanout or escape tags, direct-connect or thermal-relief tags, control points, code-based routes, diff-pair fans/trunks, escape routing, or deskew, or to inspect or verify realized geometry from Python (jitx.query, RuntimeDesign capture, missing or Empty pours, missing stitch vias, route realization checks). Covers shapely geometry, Copper, OverlappableCopper, Pour realization semantics, pad features, PortAttachment, explicit placement, layout-intent tags, Route/control-point APIs, and the 4.3 reverse-flow geometry-verification workflow. Use jitx-layout-constraints to author pour and via-stitching rules, jitx-substrate-modeler for stackups, via definitions, routing structures, fence-via rules, and fenced pours, and jitx-circuit-builder for net wiring, passives, and basic pours."
 ---
 
 # JITX Physical Layout
@@ -26,6 +26,7 @@ geometry by **capturing and asserting the realized copper**
 | Add soldermask/paste/thermal-pad features, place vias/components from code | **this skill** |
 | Tag layout objects (fanout, escape, direct-connect) for selection | **this skill** (rule *mechanics* → `jitx-layout-constraints`) |
 | Code-based routes & control points (escape lanes, deskew) | **this skill** (advanced — see reference) |
+| Diagnose whether pours or stitch vias materialized and inspect captured pour geometry | **this skill** |
 | Design rules: clearances, widths, net classes, escape rule ladders, after-build width/clearance checks | `jitx-layout-constraints` |
 | Wire nets, add passives, voltage dividers, basic pours | `jitx-circuit-builder` |
 | Define the stackup, vias, routing structures, fence-via rules, fenced pour outlines | `jitx-substrate-modeler` |
@@ -127,7 +128,7 @@ copper is allowed to **overlap** other copper:
 
 | Construct | On a net? | Overlap-exempt? | Use for |
 |---|---|---|---|
-| `Pour(shape, layer, *, rank=0, orphans=True)` | yes (`net += Pour(...)`) | no | filled planes / shaped fills |
+| `Pour(shape, layer, *, rank=0)` | yes (`net += Pour(...)`) | no | filled planes / shaped fills |
 | `Copper(shape, layer)` | yes (`net += Copper(...)` or `a + Copper(...)`) | no | an explicit copper shape on one net |
 | `OverlappableCopper(shape, layer)` | **no** (netless) | **yes** | net-tie copper bridging two nets' pads, antenna radiators, filter copper — ignored by the router and overlap checks |
 
@@ -142,9 +143,167 @@ which is netless: its connectivity comes from the pads it overlaps.
 from jitx import Copper, Pour
 from jitx.feature import OverlappableCopper
 
-self.GND += Pour(current.design.board.shape, layer=0)     # board-wide top pour
+self.GND += Pour(rectangle(10, 10), layer=0)              # local filled region
 self.SIG += Copper(rectangle(10, 0.5).at(0, 5), layer=0)  # copper shape on a net
 ```
+
+## Pour realization semantics
+
+A `Pour` is an authored fill request. The runtime decides whether copper
+materializes, replaces the captured shape with runtime output, and may return a
+successful build with no realized copper or stitch vias. The realization gate
+therefore runs `scripts/check_realization.py`; the Physical realization rows in
+the task and Phase 4 completion blocks refuse a missing command or nonzero exit.
+
+### Construction and placement prerequisites
+
+`Pour(...)` constructed outside an active design context is a deferred
+`Instantiable` proxy. Its `.layer` and `.shape` attributes are accessors, not the
+values passed to the constructor. A unit probe must submit a `Design` and call
+`capture()` before it asserts per-pour layer, shape, or identity. Unit tests may
+check plain-data helpers and outline factories outside the runtime, but they are
+not structural realization evidence. `check_realization.py` performs submit and
+capture before reading those fields.
+
+Placement is also a realization prerequisite. Top-level subsystem circuits use
+`.at(floating=True)` when a person will place them interactively; otherwise they
+pile up at the parent origin. A headless geometry harness gives them explicit
+positions. A floating circuit with no stored interactive placement is parked off
+the board, which leaves routes unrealized and board-wide pours `Empty()` while the
+build still reports `status: ok`. Record either explicit positions or completed
+interactive placements stored in `design-info/` before interpreting a realization
+failure. Capture cannot report which objects lacked authored placement because
+auto-placement and stored state give every captured component a position; this is
+a stated limitation, not a placement gate the shipped checker claims to enforce.
+
+### Conditions for realized copper
+
+A pour survives only when its net has a pad or via reaching the pour's layer. If
+nothing on the net reaches that layer, the runtime silently deletes the pour and
+capture returns `Empty()`.
+
+**Solver-emitted stitch vias do not satisfy that precondition, and neither do
+top-side pads.** This is the trap, because it looks solved: a stitch rule can
+emit hundreds of vias, the build reports `status: ok`, and the inner and bottom
+pours still capture back `Empty()`. Measured on 4.4.0rc5: 519 emitted stitch
+vias, pours on layers 1 and 3 both empty. What holds a pour alive is copper the
+design placed on that net and layer itself, an explicitly placed through via or a
+pad; a control with anchor vias and no stitch rule at all realized 2222.04 mm²
+per pour. Place the anchors first and treat stitching as what thins the return
+path, not what creates it. The order matters: a stitch rule added to a pour with
+no anchor produces a large via count and no copper.
+
+This is also why an emitted-via count is not evidence of realization. Count
+realized pour area, per layer, and let the via count be a secondary reading. Calling `.to_shapely()` on that value raises
+`ValueError: Unhandled primitive geometry type: Empty()`. The realization command
+checks for `Empty()` before conversion, reports the pour's net and layer, and exits
+1 on every required empty pour. The
+`orphans` constructor field is documented as currently not respected, so it is
+not a keep-or-drop control and never substitutes for the captured-shape check.
+
+`KeepOut(..., pour=True)` always forbids realized pour copper in its shape. A
+`KeepOut` has no rank field, and the translated forbid-copper feature receives no
+rank input. Raising `Pour.rank` does not fill over the keepout at any rank; rank
+only prioritizes competing pours. `KeepOut(via=True)` blocks automatically placed
+vias, not vias explicitly placed in code. `check_realization.py` intersects the
+captured computed pour copper with every same-layer `KeepOut(pour=True)` and exits
+1 if forbidden area is present.
+
+A pour authored directly from `current.design.board.shape` receives no automatic
+copper-to-edge pullback and lands flush with the board profile. A board-wide pour
+must use an outline buffered inward by at least the active fabrication floor:
+
+```python
+fab = current.design.substrate.constraints
+pour_outline = current.design.board.shape.to_shapely().buffer(
+    -fab.min_copper_edge_space
+)
+if pour_outline.g.is_empty or pour_outline.g.geom_type not in (
+    "Polygon",
+    "MultiPolygon",
+):
+    raise ValueError("board edge pullback removed or invalidated the pour outline")
+self.ground_return = Pour(pour_outline, layer=return_layer)
+self.GND += self.ground_return
+```
+
+Name every board-wide pour with repeatable `--board-wide-pour`. The realization
+command measures its captured copper against the profile and exits 1 when it is
+outside the board or the spacing is below `min_copper_edge_space`; using the board
+profile unchanged therefore cannot pass.
+
+### Stitch-via realization
+
+`design_constraint(...).stitch_via(...)` materializes vias only when its selected
+object is a `Pour`. In a controlled test, the same 3.10 by 4.05 mm shape produced
+9 vias as a `Pour` and zero as a `Pad`, as `Copper`, and through a board-wide
+`IsPad` rule. Every zero-via case reported `status: ok`. To stitch a thermal-pad
+region with this rule, the circuit creates a `Pour` from the landpattern thermal
+pad's shape, joins it to the net, and tags that pour. A pad-specific explicit via
+field remains a separate physical-layout pattern.
+
+**`SquareViaStitchGrid.inset` is documented as boundary-to-via-*center*.** The
+installed docstring is explicit: "Minimum distance from the stitched region's
+boundary to the outermost via centers in millimetres". Take that as the semantics.
+
+A probe on the 4.4 line appeared to measure to the via *pad edge* instead, and
+the count it observed away from an exact boundary fitted
+`2 * floor((size / 2 - inset - via_pad_diameter / 2) / pitch) + 1`, which carries
+a pad-radius term the documented reading would not need. That probe also produced
+one via on a 3.10 mm axis at `pitch=1.2, inset=0.125` where both candidate
+formulas predicted three, so it did not cleanly establish either reading. The
+discrepancy is unresolved: the documented datum is centers, one measurement
+suggests otherwise, and a board whose grid fits both readings cannot arbitrate.
+Design to the documented semantics, and if a specific board's margin depends on
+which reading holds, measure that board rather than trusting either formula.
+
+**The inset is measurable from a capture, so do not report it as unwitnessable.**
+Realized via centers and the pour boundary are both available, and the via pad
+diameter is reachable from the via definition, so the achieved margin can be
+computed and compared against the requested inset. What capture does not give is
+a binding from a stitch group back to the rule that produced it, or a direct
+"requested inset satisfied" flag; neither prevents measuring the margin. A count
+formula stays a planning estimate.
+
+### Captured pour geometry
+
+`capture()` overwrites each authored `pour.shape` in place with reverse-flow
+runtime output. `rd.query(Pour)` therefore does not preserve the authored outline:
+an authored `rectangle(20, 20)` was observed after capture as a `MultiPolygon`
+with area `399.9976`, not a `Rectangle` with area `400.0`. Code that needs the
+authored geometry records its expected bounds or reconstructs its outline before
+capture rather than reusing `pour.shape` afterwards.
+
+The supported reverse-flow adapter applies `LayoutOutput.computed_shape` to the
+captured `Pour`. `check_realization.py` preserves `PolygonSet` holes while
+converting that shape and uses it for presence, keepout voiding, and final edge
+spacing. If the installed package cannot import that reverse-flow surface or the
+geometry cannot be read safely, the command exits 2; it never converts missing
+evidence into a pass. What the command cannot witness it names as
+unwitnessed; it does not accept build status as evidence, and it does not send
+the reader to the fabrication export to close the gap.
+
+**Reverse flow is the realization surface.** After `capture()`, the reverse-flow
+linker assigns the runtime's output back onto the objects the design authored:
+`LayoutOutput.computed_shape` onto the pour, and `ComputedStitchVia` /
+`ComputedFenceVia` (in `jitx._translate.reverse_flow.applied`, applied through
+registered transformers) onto the copper their rules produced. Read realization
+there.
+
+It is the better surface, not merely the cheaper one. A fabrication export
+carries geometry stripped of meaning: features on a layer, with no net and no
+owning instance, so proving a pour reached the right net means reconstructing
+connectivity the design already knows. Reverse flow carries the realized shape
+together with its net and its owner, which is what a question like "did this
+pour connect to the rail it was drawn for" actually needs. The export can only
+answer a shape question; reverse flow answers the electrical one.
+
+What it does not witness on the 4.4 line: trace-to-pour clearance, thermal
+relief spoke geometry, and sliver removal. Those are reported unwitnessed, with
+one line each. Do not open an export to chase them. The export is a handoff
+artifact for a fab, not a verification loop for an agent: an agent that starts
+parsing exported geometry to confirm its own rules spends heavily and learns
+little that the runtime could not have told it.
 
 **OverlappableCopper is netless.** Its electrical connection comes from the **pads it
 overlaps**, not from the copper itself. A net-tie is the minimal case: the bridging
@@ -310,7 +469,7 @@ the thermal-pad example, where JLCPCB charges nothing for tented vias inside a p
 ```python
 self.led = LED().at(10.0, 5.0, rotate=90)          # x, y, rotate (deg), on=Side — default form
 self.led_b = LED().at(10.0, 5.0, on=Side.Bottom)
-self.subckt = MySub().at(floating=True)            # let the layout engine choose the position
+self.subckt = MySub().at(floating=True)            # interactive placement; store it before capture checks
 # Circuit.place() — sparingly: records a DEFERRED placement request on the parent (the child's own
 # transform won't reflect it until placement resolves) and force-floats a placed subcircuit. Reserve
 # it for the one thing .at() can't express — placing relative to ANOTHER instance (for a
@@ -335,6 +494,14 @@ deferred placement request (and force-floats a placed *subcircuit*), so the anch
 the parent frame alongside its copper. Store attachments/vias/lanes as **list or
 dataclass attributes** — never `getattr(self, f"via_{i}")` (see Anti-string-hacking).
 
+Within a reusable circuit, code places only the anchor component whose frame local
+geometry depends on. It leaves the other components to a placement solver or the
+interactive layout instead of deriving offsets from nominal package sizes.
+Captured pad extents can be measured for collisions and out-of-board bounds, but
+capture cannot prove whether those positions were authored or auto-placed. Record
+the placement plan separately instead of presenting that blind spot as an
+enforced gate.
+
 ## Keepouts that shape pours
 
 `KeepOut(shape, layers=LayerSet(...), pour=, via=, route=)` — **at least one** of
@@ -344,15 +511,15 @@ dataclass attributes** — never `getattr(self, f"via_{i}")` (see Anti-string-ha
 - `via=True` — block the auto-router from dropping vias here
 - `route=True` — disallow auto-router traces here
 
-A higher-`rank` `Pour` of the same shape fills back **over** a keepout — the pattern
-for a deliberately-shaped local ground island (e.g. around an antenna) that the
-board-wide pour is otherwise cleared from.
+`pour=True` is a hard boundary for pours at every rank. The
+[Pour realization semantics](#pour-realization-semantics) section owns the
+realization and verification rules.
 
 **Local vs global pours.** Board-wide return-path pours belong in the **top-level**
-design (the convention in `jitx-circuit-builder`). The exception: a local
-pour/keepout that must **track a placed sub-circuit** — like an antenna's ground
-island — lives **inside that circuit** so it follows the circuit wherever it is
-placed. To ring an arbitrary shape with fence vias (antipads, RF cavities, BGA
+design (the convention in `jitx-circuit-builder`). The exception: a local pour or
+keepout that must **track a placed sub-circuit** lives **inside that circuit** so it
+follows the circuit wherever it is placed. To ring an arbitrary shape with fence
+vias (antipads, RF cavities, BGA
 breakouts), see `jitx-substrate-modeler` "Fenced Pour Outlines".
 
 ## Layout-intent tags (object selection)
@@ -473,6 +640,29 @@ them, `rd.nets().find(...)` on every net-bearing feature. The full loop, the
 for code-authored layout. Validate shapely outputs (non-empty
 `Polygon`/`MultiPolygon`) before they reach a fab feature. Sequence builds — don't
 parallelize against the same design.
+
+For pours, keepouts, stitching, and board-edge spacing, copy and run the shipped
+checker. It submits and captures the zero-argument design target itself, checks
+every authored `Pour`, reconstructs each stitching rule's selected pours, and
+prints the witness paths. Use explicit names for stitching selections and
+board-wide pours when the completion record needs stable human-facing aliases:
+
+```bash
+python scripts/check_realization.py my_project.designs.Design \
+  --stitch-target circuit.thermal_ground \
+  --board-wide-pour circuit.ground_return
+```
+
+Repeat either option as needed. The task and Phase 4 Physical realization rows
+are blocked unless this exact command exits 0 and carry the authored-pour,
+stitch-target, and board-wide-pour names it checked. Exit 2 means the capture or
+geometry read did not run, not that the layout passed.
+
+A `SampleDesign` harness is a smoke test, not a geometry acceptance environment.
+Before the realization gate runs, the harness must carry the production substrate,
+passive-query defaults, and board rule set. `check_realization.py` cannot compare a
+harness configuration with production; record any mismatch as a limitation and do
+not use a clean harness build to claim the shipping board's copper was checked.
 
 ## API Reference
 

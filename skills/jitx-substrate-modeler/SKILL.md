@@ -854,6 +854,13 @@ Verdict: complete | open items: <list>
 
 Row-by-row intent — the *why*, so the block stays evidence rather than ceremony:
 
+- **A total you solved for is not a total you checked.** Where a dielectric thickness is
+  unstated and the finished thickness is known, it is arithmetically tempting to solve the
+  unknown as the balancing term. Do that and the reconciliation becomes tautological: the
+  total agrees because it was constructed to agree, and the check that would have caught a
+  transcription slip can no longer fail. If a thickness is unstated, it is an open question
+  with the fab, and the reconciliation is reported as not performed rather than performed
+  and passed.
 - **Stackup** — the summed thickness must reconcile with the source's stated totals under the document's own stated inclusions and precision (which layers each total includes, how many digits it prints); an unexplained residual is a transcription slip to chase, not rounding to wave off. Name copper layers for their source id and function.
 - **Materials** — one class per distinct material/property set: never collapse two source rows that differ in any modeled property (Dk, Df, roughness, thickness); the collapsed row is untraceable. What the source states but JITX has no field for survives in docstrings, not by being dropped — and the walk covers *every* section of the document (tolerances, surface finish, plating class), not just the material tables.
 - **Vias** — every `Via` class on a substrate registers on the board automatically, so define exactly the source's inventory and nothing speculative. Fab reports state drill depth on different bases for laser vs mechanical drills — check each aspect ratio on the basis that matches its drill, not one convention for all.

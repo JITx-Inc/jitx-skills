@@ -6,7 +6,7 @@ package before reusing — JITX moves and APIs get renamed across releases.
 ## Table of Contents
 
 - [Soldermask-defined thermal pad (shapely CSG + attached vias)](#soldermask-defined-thermal-pad)
-- [OverlappableCopper antenna + local ground island](#overlappablecopper-antenna)
+- [OverlappableCopper antenna + local keepout and ground island](#overlappablecopper-antenna)
 - [Custom-pad soldermask / paste helpers](#custom-pad-soldermask--paste-helpers)
 
 ## Soldermask-defined thermal pad
@@ -92,27 +92,26 @@ for via in self.thermal_vias.vias:
 ## OverlappableCopper antenna
 
 A PCB inverted-F antenna. The structure is a small `Component` with two **anchor
-pads** (feed + short) that carry the nets — so the router has explicit points to land
-on — plus the radiating shape drawn as **netless `OverlappableCopper`** that overlaps
-those pads. A local ground island (keepout + higher-rank pour) lives **inside** the
-circuit so it tracks the antenna wherever it is placed.
+pads** (feed + short) that carry the nets, plus the radiating shape drawn as
+**netless `OverlappableCopper`** that overlaps those pads. A local keepout lives
+inside the circuit so it tracks the antenna wherever it is placed.
 
 ```python
 import jitx
-from jitx import OverlappableCopper, PadMapping, Pour, Tag
+from jitx import Board, Design, OverlappableCopper, PadMapping, Pour, Tag
 from jitx.circuit import Circuit
+from jitx.constraints import ViaFencePattern, design_constraint
 from jitx.feature import KeepOut
 from jitx.landpattern import Landpattern, Pad
 from jitx.layerindex import LayerSet
 from jitx.net import Net, Port
 from jitx.shapes.composites import rectangle
+from jitxlib.jlcpcb import JLC04161H_7628
 from jitxlib.symbols.box import BoxSymbol
 
 
-# Define Tag subclasses at MODULE scope — never inside a method (subclassing a JITX
-# class in a function breaks instantiation tracking; see base skill conventions).
 class AntennaGroundTag(Tag):
-    """Marks the antenna's local GND pour for the substrate's fence-via rule."""
+    """Marks the local RF ground island for the design's fence-via rule."""
 
 
 class _AnchorPad(Pad):
@@ -160,9 +159,8 @@ class AntennaMatching(Circuit):
         self.copper_feed_leg  = OverlappableCopper(rectangle(0.5, 10.0).at(3.25, 0.0), layer=0)
         self.copper_short_stub = OverlappableCopper(rectangle(0.5, 10.0).at(0.25, 0.0), layer=0)
 
-        # Local ground island that tracks the antenna. KeepOut clears the board's
-        # default pour/vias/traces from the antenna region; a higher-rank GND Pour of
-        # the same shape fills GND back on the radiator's layer.
+        # Local keepout that tracks the antenna. KeepOut clears the board's
+        # pours, automatic vias, and autorouted traces from the antenna region.
         # NOTE on flags (per the KeepOut API): route=True DISALLOWS autorouter traces,
         # via=True blocks auto-vias, pour=True keeps pours out. Set the flags to the
         # behavior you actually want — here we want no stray traces/vias/pours under
@@ -172,14 +170,41 @@ class AntennaMatching(Circuit):
             KeepOut(shape=island, layers=LayerSet(layer), pour=True, via=True, route=True)
             for layer in (0, 1, 2, -1)
         ]
-        self.gnd_pour = Pour(island, layer=0, rank=1)   # rank=1 overrides the keepout for GND
-        self.GND += self.gnd_pour
 
-        # Tag the pour so the substrate's fence-via rule selects it. This skill owns the
-        # tagged-pour GEOMETRY; the design_constraint(AntennaGroundTag()).fence_via(...)
-        # RULE that rings it with vias is declared in the substrate / top-level design —
-        # see jitx-substrate-modeler "Fenced Pour Outlines".
-        AntennaGroundTag().assign(self.gnd_pour)
+        # Correct local-ground-island pattern: a pour in the HOLE of a pour
+        # keepout ring, never under the keepout itself. This island surrounds the
+        # short anchor below the antenna region; the GND pad anchors its net on L1.
+        local_island = rectangle(3.0, 2.0).at(0.25, -4.8)
+        local_moat = (
+            local_island.to_shapely().buffer(0.8)
+            - local_island.to_shapely().buffer(0.2)
+        )
+        self.keepouts.append(
+            KeepOut(
+                shape=local_moat,
+                layers=LayerSet(0),
+                pour=True,
+                via=False,   # allow the fence-via rule to ring the island
+                route=False,
+            )
+        )
+        self.gnd_island = Pour(local_island, layer=0)
+        self.GND += self.gnd_island
+        AntennaGroundTag().assign(self.gnd_island)
+
+
+class AntennaBoard(Board):
+    shape = rectangle(50.0, 30.0)
+
+
+class AntennaDesign(Design):
+    board = AntennaBoard()
+    substrate = JLC04161H_7628()
+    circuit = AntennaMatching()
+    antenna_ground_fence = design_constraint(AntennaGroundTag()).fence_via(
+        JLC04161H_7628.StdViaPreferred,
+        ViaFencePattern(pitch=1.0, offset=0.5, num_rows=1),
+    )
 ```
 
 > The original project file commented `route=False` as "so signal traces can't cross
@@ -187,10 +212,14 @@ class AntennaMatching(Circuit):
 > `route=True` is what disallows autorouter traces. The example above uses the correct
 > flag. Always read the `route`/`via`/`pour` semantics from `jitx/feature.py`.
 
-`AntennaGroundTag` is defined at **module scope** above — subclassing a JITX class
-inside a method breaks instantiation tracking (see the base skill conventions). The
-fence-via *rule* that consumes the tag lives in `jitx-substrate-modeler`; this example
-owns only the tagged-pour geometry.
+`KeepOut(pour=True)` excludes pours at every rank. It does not provide a local
+ground-island exception. The replacement above uses disjoint geometry: the moat
+keepout surrounds but does not overlap `gnd_island`, the short pad anchors that
+island to GND, and `AntennaGroundTag` feeds the top-level `fence_via(...)` rule a
+concrete `Pour` target. The realization command names `circuit.gnd_island` when a
+stitch rule also selects it; a fence-via project check queries the computed
+fence-via group separately. See the main skill's
+[Pour realization semantics](../SKILL.md#pour-realization-semantics).
 
 ## Custom-pad soldermask / paste helpers
 

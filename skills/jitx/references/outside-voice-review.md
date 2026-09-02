@@ -9,7 +9,7 @@ This file specifies when to invoke outside-voice review, what to ask it, and how
 Codex outside-voice never runs first. A same-model pass always precedes it. The pre-pass differs by scope:
 
 - **Per-task (Think Twice — `task-execution.md` Part A Step 4):** the `jitx-code-review` skill runs as the same-model self-critique pre-pass. Catches architectural and code-craft smells: parallel string-keyed models, sibling-attribute reflection, substrate-shaped tables in design files, build-spec-then-iterate, name-construction patterns. Reads `jitx/SKILL.md` Don'ts and `jitx/references/architectural-patterns.md`. **Mandatory for every sub-agent task in complete-board tier**; user-invoked for single-task work. Codex then runs *per-task* only for trigger-list task classes (this file's "Per-task — mandatory for triggered tasks" section).
-- **Phase 3b (whole-design audit):** the **four-pass design audit** runs as the same-model pre-pass — Circuit-vs-Datasheet, Assumption Compatibility, Interface-by-Interface Trace, Power+Thermal (see `references/completion-blocks.md` "Phase 3b Design Audit Block"). `jitx-code-review` does **not** re-run at Phase 3b — by then every Phase 1/2/3 task has already passed its per-task `jitx-code-review`. Codex then runs the Phase 3b outside-voice pass after the four-pass audit.
+- **Phase 3b (whole-design audit):** the **four-pass design audit** runs as the same-model pre-pass: Circuit-vs-Datasheet, Assumption Compatibility, Interface-by-Interface Trace, Power+Thermal (see `references/completion-blocks.md` "Phase 3b Design Audit Block"). `jitx-code-review` does **not** re-run at Phase 3b because every Phase 1/2/3 task has already passed its per-task `jitx-code-review`. Codex then runs a bounded fan-out of outside-voice passes after the four-pass audit.
 
 In both scopes the two reviewers are additive — neither replaces the other. Findings from both get severity tags (`CRITICAL` / `WARNING` / `NOTE`) and feed the same combined-verdict precedence rule below. A CRITICAL or WARNING finding from *either* reviewer changes the combined verdict to `issues-pending`.
 
@@ -17,13 +17,24 @@ In both scopes the two reviewers are additive — neither replaces the other. Fi
 
 ### Phase 3b — mandatory for complete-board
 
-After the same-model audit produces its block (see `completion-blocks.md` "Phase 3b Design Audit Block"), the orchestrator runs an outside-voice pass. This is **mandatory for complete-board tier**, **not** optional. The two reviews are additive — neither replaces the other.
+After the same-model audit produces its block (see `completion-blocks.md` "Phase 3b Design Audit Block"), the orchestrator attempts the bounded outside-voice fan-out defined below. The attempt is **mandatory for complete-board tier**. The four-pass audit remains the primary gate evidence; the outside voice is additive.
 
-If the outside-voice tool is unavailable, the verdict for the Phase 3b → 4 gate defaults to **`block`** unless the user explicitly approves proceeding without it. Record `Outside-voice review: not run: <reason>` with `blocking unless user approves` in the audit block.
+Tool unavailability, a nonzero reviewer exit, or an invocation that produces no
+non-empty findings output is recorded as `skipped: <reason>`. A skipped reviewer
+has made no claim about the design, so it is not a *failed* review: it does not
+carry findings and does not set the combined verdict to `issues-pending`. It is
+still an *absent* mandatory review, so the Phase 3b → 4 gate defaults to `block`
+until the user explicitly approves proceeding without it, recorded in the audit
+block as `skipped: <reason> — blocking unless user approves`. The distinction
+that matters is between a reviewer that found nothing and a reviewer that never
+ran; only the first is evidence. Any output that does exist is integrated under
+the combined-verdict rule. The audit block records attempted, completed, and skipped
+pass counts so a missing reviewer is visible rather than silently treated as
+`clean`.
 
 ### Per-task — mandatory for triggered tasks (complete-board tier)
 
-During Part B (orchestrator acceptance review) — see `task-execution.md` Part B Step 5 — an outside-voice pass runs **before** issuing `accept` for any complete-board task in the trigger list below. **The trigger list applies only to complete-board tier.** In single-task tier, the task acceptance block's `Outside-voice review` field is always `not applicable: single-task tier`, regardless of whether the task class is in the list. A user invoking the component-modeler subskill directly for a single MCU does not trigger a codex pass; if they want an outside-voice review on that work, they invoke it themselves.
+During Part B (orchestrator acceptance review), see `task-execution.md` Part B Step 5, an outside-voice pass is attempted **before** issuing `accept` for any complete-board task in the trigger list below. **The trigger list applies only to complete-board tier.** In single-task tier, the task acceptance block's `Outside-voice review` field is always `not applicable: single-task tier`, regardless of whether the task class is in the list. A user invoking the component-modeler subskill directly for a single MCU does not trigger a codex pass; if they want an outside-voice review on that work, they invoke it themselves.
 
 **Trigger list (mandatory outside-voice):**
 
@@ -48,11 +59,12 @@ For other task classes (passive circuit, low-speed interface like I2C/SPI/UART, 
 
 ## What outside-voice reviews — prompt shape
 
-Prompts are **narrow and evidence-anchored**, not "review everything". The prompt names: the target directory codex can read, the exact files/datasheets that constitute the evidence packet, the specific failure modes to look for, and the output format the orchestrator can fold back into the block.
+Prompts are **narrow and evidence-anchored**, not "review everything". The prompt names: the target directory codex can read, the exact files and datasheets that constitute the evidence packet, the specific failure modes to look for, and the output format the orchestrator can fold back into the block. Codex reads the datasheet PDFs, not the spec notes. It is the reviewer of last resort, and a spec note is the building chain's own output, so a review anchored to it cannot catch an extraction error. Codex runs in its own context, so the pages cost the orchestrator nothing.
 
 | Trigger | Target dir | Evidence packet | Prompt focus |
 |---------|------------|-----------------|---------------|
-| Phase 3b complete-board | project root | `PLAN.md`, `ARCHITECTURE.md`, `<ns>/`, `datasheets/`, all accepted task acceptance blocks | Cross-reference PLAN.md task statuses vs `<ns>/` reality. For each high-stakes IC, compare code against datasheet sections. Surface CRITICAL/WARNING/NOTE findings the same-model audit missed. |
+| Phase 3b: accepted trigger-list task | project root | that task's acceptance block, files it owns or touches, and only its relevant datasheet or protocol PDF | Re-check that task's trigger-list failure modes against the shipping assembly integration. One accepted task produces one bounded pass and one output. |
+| Phase 3b: cross-cutting | project root | ARCHITECTURE.md `Power Tree` and only the regulator, protection, and load files plus their relevant datasheets | Power-tree arithmetic, sequencing, hot-plug behavior, and absolute-maximum compatibility only. |
 | Per-task: MCU/FPGA | component dir + datasheet PDF | `<ns>/components/<part>.py`, `datasheets/<part>.pdf` | Datasheet-vs-code: pin coverage, power-domain completeness, footprint dimensions vs mechanical drawing |
 | Per-task: RF | circuit dir + datasheets + relevant ref design | `<ns>/circuits/<this>.py`, component files, `datasheets/<rf-part>.pdf` | Impedance, return path, ESD, antenna feed structure |
 | Per-task: power converter | circuit dir + regulator datasheet | `<ns>/circuits/<this>.py`, `datasheets/<regulator>.pdf` | Voltage divider math, bootstrap, enable, compensation, dissipation |
@@ -62,7 +74,14 @@ Prompts are **narrow and evidence-anchored**, not "review everything". The promp
 
 Append a catch-all line at the end of every prompt: **"Also flag any directly observable blocking electrical or geometry mismatch in the reviewed files."** This preserves narrow focus while allowing obvious unknown unknowns to surface.
 
-Every finding from codex must include a file:line citation and (if it references a datasheet) the page/figure or "inference" label. Findings without that anchoring are downgraded to NOTE.
+Phase 3b never sends the project root as an undifferentiated evidence packet. It
+creates one pass per accepted trigger-list task and one cross-cutting pass, may
+run those independent passes concurrently, and writes each result separately.
+The prompt names the exact files in that pass. It does not include all of
+`<ns>/`, all datasheets, all acceptance blocks, or a generic "review everything"
+request.
+
+Every finding from codex must include a file:line citation and, when it references a datasheet, the page/figure or an "inference" label. Findings without that anchoring are downgraded to NOTE.
 
 ## How to invoke
 
@@ -75,26 +94,32 @@ Skills available in the current session appear in the agent skill list at startu
 - **Preferred:** look for `codex` in the session's available-skills list; if it's not there, treat the reviewer as unavailable.
 - **Shell-side cross-check:** `command -v codex` (PowerShell: `Get-Command codex`) returns non-empty if the codex CLI is on the `PATH`. Useful for scripted flows but does not guarantee the wrapping skill is loaded.
 
-If neither check passes, record `Outside-voice review: not run: codex skill not available` in the relevant block. Per the rule above, this **blocks complete-board Phase 3b advancement unless the user explicitly approves proceeding**.
+If neither check passes, the relevant block records
+`Outside-voice review: skipped: codex skill not available`. The skipped attempt is
+visible but is not a failed gate.
 
 ### Invocation pattern
 
-The codex skill itself documents how to run a focused review. Pass it: the target directory codex may read, an output file under `.context/`, and the prompt via stdin or as an argument per the skill's interface. Keep prompts narrow and evidence-anchored (see "What outside-voice reviews — prompt shape" above).
+The codex skill itself documents how to run a focused review. It receives the
+target directory it may read, one output file for this bounded pass, and the
+prompt via stdin or as an argument per the skill's interface. The output path is
+project-local and unique per pass. Prompts stay narrow and evidence-anchored (see
+"What outside-voice reviews: prompt shape" above).
 
-Any read-only outside-voice reviewer that takes a prompt and produces severity-tagged findings can substitute for codex. Document the configured reviewer in the project's `.context/` notes if it isn't codex.
+An invocation counts as completed only when it leaves a non-empty findings
+output. If it exits without that output, the orchestrator records the pass as
+`skipped: no reviewer output` and continues combining the passes that completed.
+It does not convert missing output into a `clean` result or a failed design gate.
+
+Any read-only outside-voice reviewer that takes a prompt and produces
+severity-tagged findings can substitute for codex. The audit block names the
+configured reviewer when it is not codex.
 
 ## Integrating findings — combined verdict rule
 
-Codex findings get appended to the relevant block as a new field:
+Codex findings fill the `Outside-voice review (codex)`, `Outside-voice CRITICAL`, `Outside-voice WARNING`, and `Outside-voice NOTE` rows in the task acceptance block. Phase 3b records the overall result in its outside-voice field and puts each finding in `Findings and Loopback Decisions`. The canonical compact shapes live in `references/completion-blocks.md`.
 
-```markdown
-**Outside-voice review (codex):** clean | <N> findings | not applicable: <reason> | not run: <reason — blocking unless user approves>
-- CRITICAL: <one-line description> — file:line — datasheet p.M fig.N (or "inference") — disposition: fix → new task `<task-id>` | accept with rationale: <why>
-- WARNING: <one-line> — file:line — disposition
-- NOTE: <one-line> — file:line — for documentation only
-```
-
-The field is **always present** in the task acceptance block and the Phase 3b audit block. Valid values: `clean`, `<N> findings`, `not applicable: <reason>`, `not run: <reason/blocking status>`. A missing field fails review.
+The field is **always present** in the task acceptance block and the Phase 3b audit block. Valid values: `clean`, `<N> findings`, `not applicable: <reason>`, `skipped: <reason>`. A missing field fails review.
 
 ### Precedence and combined verdict
 
@@ -105,6 +130,10 @@ The field is **always present** in the task acceptance block and the Phase 3b au
 - **User-approved** — user explicitly accepts the finding as known and acceptable for this design; recorded in deferred items
 
 NOTE findings document only; they don't block.
+
+A skipped outside-voice pass contributes no findings and does not change the
+combined verdict. It remains recorded with its reason. A later produced finding
+still takes precedence under the rules above.
 
 This precedence rule prevents either pass from being decorative — both reviewers' findings carry equal weight.
 
@@ -121,9 +150,9 @@ The mandatory invocation sites:
 
 The outside-voice pass can become ritual instead of real verification. Concrete signals the orchestrator should watch for:
 
-- **`Outside-voice review: clean`** on a trigger-list task with no codex output file under `.context/` to back it up
+- **`Outside-voice review: clean`** on a trigger-list task with no non-empty reviewer output file to back it up
 - **Findings without file:line citations or datasheet refs** — codex was asked but didn't actually inspect the evidence
-- **`not run: codex unavailable`** without a follow-up plan, on a complete-board project
+- **`skipped: codex unavailable`** recorded as `clean` or omitted from the attempt counts
 - **Same-model audit `clean` + outside-voice `<N> findings, all downgraded`** without specific rationale per finding
 
 A valid outside-voice section should let a reviewer reopen the codex output file and verify at least one finding against the cited source in under a minute.

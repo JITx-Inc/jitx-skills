@@ -227,12 +227,21 @@ def check_route_width(route: object, expected: float, tol: float) -> CheckResult
         for shape in getattr(trace, "shapes", ()):
             shapes.append(getattr(shape, "geometry", shape))
     widths = tuple(sorted(trace_widths(shapes)))
-    passed = bool(widths) and all(abs(width - expected) <= tol for width in widths)
-    detail = (
-        f"route={route!r} tol={tol:.4f} mm"
-        if widths
-        else f"route={route!r} has no realized trace width witness"
+    without_width = sum(1 for shape in shapes if getattr(shape, "width", None) is None)
+    passed = (
+        bool(widths)
+        and without_width == 0
+        and all(abs(width - expected) <= tol for width in widths)
     )
+    if without_width:
+        detail = (
+            f"route={route!r} has {without_width} realized shape(s) without "
+            "a width field; polygon realization is a width-rule failure"
+        )
+    elif widths:
+        detail = f"route={route!r} tol={tol:.4f} mm"
+    else:
+        detail = f"route={route!r} has no realized trace width witness"
     return CheckResult(
         name="route-width",
         passed=passed,

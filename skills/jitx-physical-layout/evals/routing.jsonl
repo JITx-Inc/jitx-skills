@@ -1,0 +1,23 @@
+{"intent":"My JITX build says status ok, but the inner ground pour captures as Empty(). Diagnose why no copper materialized.","expected_skill":"jitx-physical-layout","ambiguous_with":["jitx-layout-constraints"]}
+{"intent":"Inspect the realized pour geometry after RuntimeDesign.capture and tell me why its type and area changed.","expected_skill":"jitx-physical-layout"}
+{"intent":"The via-stitch rule matched and the build passed, but it generated zero vias. Check the realized target and grid.","expected_skill":"jitx-physical-layout","ambiguous_with":["jitx-layout-constraints"]}
+{"intent":"Verify that this KeepOut actually removed copper from the finished GND pour at every rank.","expected_skill":"jitx-physical-layout","ambiguous_with":["jitx-layout-constraints"]}
+{"intent":"Pull this board-wide copper fill back from the profile and verify the final copper-to-edge gap.","expected_skill":"jitx-physical-layout","ambiguous_with":["jitx-layout-constraints"]}
+{"intent":"Write a capture check that refuses Empty pours before calling to_shapely().","expected_skill":"jitx-physical-layout"}
+{"intent":"Why did floating=True make all my board pours and stitch vias disappear even though the design built?","expected_skill":"jitx-physical-layout"}
+{"intent":"Build a runtime probe for four Pour layers without reading Instantiable proxy attributes at module scope.","expected_skill":"jitx-physical-layout"}
+{"intent":"Draw a netless copper antenna that overlaps its feed and short pads without triggering copper overlap checks.","expected_skill":"jitx-physical-layout"}
+{"intent":"Create a custom polygonal copper shape with shapely and prove its realized bounds after capture.","expected_skill":"jitx-physical-layout"}
+{"intent":"Place these thermal vias in code, retain them structurally, and verify they survive the EDB export.","expected_skill":"jitx-physical-layout","ambiguous_with":["jitx-substrate-modeler"]}
+{"intent":"Author a code Route through control points and assert that every trace actually realized.","expected_skill":"jitx-physical-layout","ambiguous_with":["jitx-layout-constraints"]}
+{"intent":"Add soldermask and paste openings to this custom thermal pad and validate the generated polygons.","expected_skill":"jitx-physical-layout","ambiguous_with":["jitx-component-modeler"]}
+{"intent":"Compute board-global pad positions for a composite landpattern so I can place escape vias correctly.","expected_skill":"jitx-physical-layout"}
+{"intent":"Set a rule that stitches every tagged ground pour with the preferred via on a 2 mm pitch.","expected_skill":"jitx-layout-constraints","ambiguous_with":["jitx-physical-layout"]}
+{"intent":"Add thermal relief, direct-connect, and sliver-removal rules for the ground planes.","expected_skill":"jitx-layout-constraints","ambiguous_with":["jitx-physical-layout"]}
+{"intent":"Choose the return layer and write trace-to-pour clearance rules for the high-voltage class.","expected_skill":"jitx-layout-constraints","ambiguous_with":["jitx-physical-layout"]}
+{"intent":"Just connect GND and add a basic ground pour to the top-level circuit.","expected_skill":"jitx-circuit-builder","ambiguous_with":["jitx-physical-layout"]}
+{"intent":"Wire this regulator, add its passives, and put the GND net on a simple return pour.","expected_skill":"jitx-circuit-builder","ambiguous_with":["jitx-physical-layout"]}
+{"intent":"Define the six-layer stackup and the through, blind, and buried via classes.","expected_skill":"jitx-substrate-modeler","ambiguous_with":["jitx-physical-layout"]}
+{"intent":"Turn the fab report into FabricationConstraints, including minimum copper-to-edge spacing.","expected_skill":"jitx-substrate-modeler","ambiguous_with":["jitx-physical-layout"]}
+{"intent":"Create a fenced pour outline and select the substrate via definition for its fence rule.","expected_skill":"jitx-substrate-modeler","ambiguous_with":["jitx-physical-layout"]}
+{"intent":"Model this QFN component and its exposed thermal pad from the datasheet.","expected_skill":"jitx-component-modeler","ambiguous_with":["jitx-physical-layout"]}

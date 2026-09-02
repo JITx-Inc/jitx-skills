@@ -1,4 +1,4 @@
 interface:
   display_name: "JITX Physical Layout"
-  short_description: "Author JITX layout geometry in code"
-  default_prompt: "Use $jitx-physical-layout to draw copper, shapes, vias, pads, routes, or layout tags from code."
+  short_description: "Author and verify realized JITX layout geometry"
+  default_prompt: "Use $jitx-physical-layout to draw copper, shapes, vias, pads, or routes from code and verify what the runtime realized."

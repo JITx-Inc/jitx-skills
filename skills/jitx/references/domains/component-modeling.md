@@ -47,7 +47,9 @@ then verify these — each is a failure that leaves a land pattern valid, buildi
 - [ ] Density level set to what the datasheet asks for, or the installed default checked and
       recorded as matching — the default has changed between jitxlib versions, so assume neither
 - [ ] Two ports declared in pad order; standard two-pin symbol, not a `BoxSymbol`
-- [ ] `.value` renders as the value asked for, asserted in a test
+- [ ] `.value` renders as the value asked for, asserted in a submitted and
+      captured test harness rather than on a constructor proxy outside a design
+      context
 
 ---
 

@@ -92,7 +92,9 @@ class TraceStandIn:
 
 class CheckRouteWidthTests(unittest.TestCase):
     def test_passes_when_every_shape_matches(self) -> None:
-        route = RouteStandIn([TraceStandIn([ShapeWithWidth(0.25), ShapeWithWidth(0.25)])])
+        route = RouteStandIn(
+            [TraceStandIn([ShapeWithWidth(0.25), ShapeWithWidth(0.25)])]
+        )
         result = check_route_width(route, 0.25, 1e-6)
         self.assertTrue(result.passed)
         self.assertEqual(result.measured, (0.25,))
@@ -108,6 +110,12 @@ class CheckRouteWidthTests(unittest.TestCase):
         self.assertFalse(result.passed)
         self.assertIsNone(result.measured)
         self.assertIn("no realized trace width witness", result.detail)
+
+    def test_polygon_like_realization_is_a_width_failure(self) -> None:
+        route = RouteStandIn([TraceStandIn([object()])])
+        result = check_route_width(route, 0.25, 1e-6)
+        self.assertFalse(result.passed)
+        self.assertIn("polygon realization is a width-rule failure", result.detail)
 
 
 @dataclass

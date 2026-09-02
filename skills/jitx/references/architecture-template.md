@@ -9,6 +9,7 @@ Copy this into the project root alongside PLAN.md. Maintain it as the single own
 - **If a sentence would read identically for any board, delete it.** Banned forms, naming prohibitions and design rules are owned by `jitx/SKILL.md` and `references/architectural-patterns.md`, and every sub-agent already has them. Record the commitment this design made, never the rule behind it.
 - Name the routing structure rather than the ohms wherever the substrate owns one: a predefined class already defines what `DRS_90` and `RS_50` mean, so a repeated number is a second copy. Leave the cell `—` on rows with no structure; a routing structure on a plain GPIO row is noise.
 - Put a level-shift boundary, enable/PGOOD dependency, real regulator thermal budget, or shared-clock/jitter constraint in Design Notes only when its table row cannot express it.
+- **A Design Note is a settled constraint, never an open question.** If the fact is still unresolved it belongs in PLAN.md `Open Questions`, with an owner, a resolution path and the tasks it gates, and it appears nowhere else. Writing the same unresolved concern as both an open question and a design note is the most common way these two documents end up disagreeing: the open question gets resolved and closed, and the design note keeps asserting the worry forever. One sentence restating a PLAN.md question is one owner too many.
 - `Object-Hierarchy Decisions` is for parametric or generator subsystems only (BGA ballout, deskew geometry, antipad fence, N-lane fanout, per-layer table, repeating-block scene graph): commit to the object shape before sub-agents write code, 3 to 5 lines each. A subsystem that is not parametric (one MCU, one buck regulator, one ground pour) gets no entry at all, because a collection matters only when N > 1 and the things are siblings. Record the commitment, never the prohibition behind it: `jitx/SKILL.md` Don'ts and `references/architectural-patterns.md` own the banned forms.
 - Omit `Object-Hierarchy Decisions` and `Design Notes` entirely when the design has nothing for them. One bullet per Design Notes constraint.
 - Everything above the fenced block is guidance for filling it and belongs in none of it. The block carries headings, table skeletons and placeholders only.
@@ -48,5 +49,5 @@ Copy this into the project root alongside PLAN.md. Maintain it as the single own
 
 ## Design Notes
 
-- [Non-derivable constraint that is not already represented in a table]
+- [Settled non-derivable constraint that no table above represents. Not an open question: those live in PLAN.md]
 ```
