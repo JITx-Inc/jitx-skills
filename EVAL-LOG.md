@@ -18,6 +18,6 @@ run has to beat.
 | jitx-component-modeler | component-from-user-pinout | 8.92 | FAIL (1 hard fail) | SOURCE 8.0 PIN 10.0 LANDPATTERN 8.5 PARAMETERIZ 9.0 VERIFICATIO 10.0 BOM 8.0 | anthropic+openai | `fe0d4a8e` | 2026-09-01 |
 | jitx-interconnect-constraints | usb2-diffpair-binding | 9.5 | pass | TOPOLOGY 9.0 ENDPOINT 9.5 CONSTRAINT 10.0 TIMING 9.5 EMITTED 9.5 | anthropic+openai | `3e3c05dd` | 2026-09-01 |
 | jitx-layout-constraints | jlc4-rules-and-escape | 9.4 | pass | RULE 9.5 PROVENANCE 10.0 REALIZATION 10.0 FANOUT 10.0 OWNERSHIP 7.5 | anthropic+openai | `336022e1` | 2026-09-01 |
-| jitx-physical-layout | pour-stitch-realization | 8.6 | FAIL | GEOMETRY 9.0 REALIZATION 9.5 POUR 9.0 CAPTURE 9.0 FABRICATION 6.5 | anthropic+openai | `e009d4f5` | 2026-09-01 |
+| jitx-physical-layout | pour-stitch-realization | 9.0 | pass | GEOMETRY 9.5 REALIZATION 9.0 POUR 8.0 CAPTURE 9.5 FABRICATION 9.0 | anthropic+openai | `b162ad16` | 2026-09-02 |
 | jitx-substrate-modeler | js1-csv-sonnet | 9.25 | pass | STACKUP 10.0 MATERIAL 9.5 VIA 8.5 ROUTING 9.0 FAB 10.0 PROVENANCE 8.5 | anthropic+openai | `66b8fade` | 2026-08-14 |
-| jitx-substrate-modeler | substrate-from-partial-relay | 5.58 | FAIL (1 hard fail) | STACKUP 5.5 MATERIAL 5.5 VIA 6.5 ROUTING 5.5 FAB 5.5 PROVENANCE 5.0 | anthropic+openai | `1b9f82a0` | 2026-09-01 |
+| jitx-substrate-modeler | substrate-from-partial-relay | 7.08 | FAIL (1 hard fail) | STACKUP 6.5 MATERIAL 7.0 VIA 7.5 ROUTING 6.5 FAB 6.0 PROVENANCE 9.0 | anthropic+openai | `38c61d76` | 2026-09-02 |
