@@ -156,6 +156,36 @@ class KeepoutAndEdgeTests(unittest.TestCase):
         self.assertTrue(check_board_edge(board, (correct,), 0.2)[0].passed)
 
 
+class VacuousPassTests(unittest.TestCase):
+    """A green result has to be evidence. These pin the two rows that were not."""
+
+    def test_keepout_with_no_same_layer_pour_is_a_finding_not_a_pass(self) -> None:
+        # Previously reported PASS with same-layer-comparisons=0, which reads
+        # identically whether the keepout is working or is on the wrong layer.
+        keepout = KeepOutWitness(
+            "circuit.keepout", frozenset({7}), shapely.box(4, 4, 6, 6)
+        )
+        results = check_keepouts((pour(),), (keepout,), MIN_FEATURE)
+        self.assertEqual(len(results), 1)
+        self.assertFalse(results[0].passed)
+        self.assertIn("same-layer-comparisons=0", results[0].detail)
+
+    def test_no_keepouts_emits_no_row_at_all(self) -> None:
+        # An absent check must not look like a passing one.
+        self.assertEqual(check_keepouts((pour(),), (), MIN_FEATURE), [])
+
+    def test_edge_check_names_the_board_wide_target(self) -> None:
+        # The identity that board-wide-target used to carry now rides on the
+        # check that actually proves something about the pour.
+        board = shapely.box(0, 0, 10, 10)
+        witness = pour(geometry=shapely.box(0.4, 0.4, 9.6, 9.6))
+        result = check_board_edge(
+            board, (witness,), 0.3, {witness.label: "circuit.ground"}
+        )[0]
+        self.assertTrue(result.passed)
+        self.assertIn("board-wide-target=circuit.ground", result.detail)
+
+
 class CaptureAdapterTests(unittest.TestCase):
     def test_bottom_side_normalizes_pour_and_keepout_layers(self) -> None:
         class BottomSide:
@@ -315,9 +345,12 @@ class CaptureAdapterTests(unittest.TestCase):
                 "pour-realization",
                 "stitch-realization",
                 "pour-keepout",
-                "board-wide-target",
                 "copper-edge-spacing",
             },
+            "board-wide-target is deliberately absent: it passed unconditionally "
+            "once the path resolved to a Pour, so it inflated the passing count "
+            "with a row that tested nothing. The board-wide pour's edge spacing is "
+            "what the caller wants proved, and copper-edge-spacing proves it.",
         )
         self.assertTrue(all(result.passed for result in checks))
 

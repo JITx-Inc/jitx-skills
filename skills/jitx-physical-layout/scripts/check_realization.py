@@ -209,16 +209,28 @@ def check_keepouts(
                     ),
                 )
             )
-    if not comparisons:
+    if not comparisons and keepouts:
+        # A keepout was declared and no pour shares a layer with it, so nothing was
+        # compared. Reporting that as a pass is a green result that is not evidence:
+        # it reads identically whether the keepout is doing its job or is on the
+        # wrong layer. Either the keepout or the pour is misplaced, and both are
+        # worth a look, so this is a finding rather than a pass.
         results.append(
             CheckResult(
                 name="pour-keepout",
-                passed=True,
+                passed=False,
                 measured=0,
-                expected=0,
-                detail=f"same-layer-comparisons=0 keepouts={len(keepouts)}",
+                expected="at least one same-layer pour to compare against",
+                detail=(
+                    f"keepouts={len(keepouts)} pours={len(pours)} "
+                    "same-layer-comparisons=0; nothing was checked, so the keepout is "
+                    "unverified rather than satisfied. Check the keepout's layers "
+                    "against the pours' layers."
+                ),
             )
         )
+    # With no keepouts declared there is nothing to check and no row is emitted:
+    # an absent check is not a passing one.
     return results
 
 
@@ -226,6 +238,7 @@ def check_board_edge(
     board_profile: object,
     pours: tuple[PourWitness, ...],
     minimum: float,
+    board_wide_labels: dict[str, str] | None = None,
 ) -> list[CheckResult]:
     """Require realized pour copper to be inside and clear of the profile."""
 
@@ -250,7 +263,14 @@ def check_board_edge(
                 passed=passed,
                 measured=spacing,
                 expected=minimum,
-                detail=f"pour={pour.label} inside-profile={inside}",
+                detail=(
+                    f"pour={pour.label} inside-profile={inside}"
+                    + (
+                        f" board-wide-target={(board_wide_labels or {})[pour.label]}"
+                        if (board_wide_labels or {}).get(pour.label)
+                        else ""
+                    )
+                ),
             )
         )
     return results
@@ -556,6 +576,7 @@ def _capture_checks(
         min_feature = 0.09  # JLCPCB-class floor; only used to size the predicate
     checks.extend(check_keepouts(pours, tuple(keepout_samples), min_feature))
 
+    board_wide_labels: dict[str, str] = {}
     for label, target in board_wide_targets:
         if not isinstance(target, Pour):
             checks.append(
@@ -571,21 +592,20 @@ def _capture_checks(
         sample = samples_by_id.get(id(target))
         if sample is None:
             raise ValueError(f"board-wide target {label!r} is not an authored Pour")
-        checks.append(
-            CheckResult(
-                name="board-wide-target",
-                passed=True,
-                measured=1,
-                expected=1,
-                detail=f"target={label} pour={sample.label}",
-            )
-        )
+        # No row is emitted for resolving the target. It is a precondition, not a
+        # check: it passed unconditionally once the path resolved to a Pour, which
+        # inflated the passing count with a row that tested nothing. What the caller
+        # actually wants proved about a board-wide pour is its edge spacing, which
+        # check_board_edge does below and which now carries the target's name.
+        board_wide_labels[sample.label] = label
     if pours:
         board_geometry, empty = _geometry(rd.root.board.shape, IDENTITY)
         if empty or board_geometry is None:
             raise ValueError("captured board profile is empty")
         minimum = float(rd.root.substrate.constraints.min_copper_edge_space)
-        checks.extend(check_board_edge(board_geometry, pours, minimum))
+        checks.extend(
+            check_board_edge(board_geometry, pours, minimum, board_wide_labels)
+        )
     return checks
 
 
