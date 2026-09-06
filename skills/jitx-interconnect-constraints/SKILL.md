@@ -411,7 +411,7 @@ present. The presence of the context manager alone is not evidence.
 
 ## Tag-based routing structures (alternative to Constrain)
 
-Since 4.2, a routing structure can also be applied through the **design-rule
+A routing structure can also be applied through the **design-rule
 system**: tag the nets/routes, then attach the structure as a rule effect.
 
 ```python
