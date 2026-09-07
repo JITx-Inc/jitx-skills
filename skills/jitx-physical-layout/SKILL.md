@@ -242,28 +242,20 @@ region with this rule, the circuit creates a `Pour` from the landpattern thermal
 pad's shape, joins it to the net, and tags that pour. A pad-specific explicit via
 field remains a separate physical-layout pattern.
 
-**`SquareViaStitchGrid.inset` is documented as boundary-to-via-*center*.** The
-installed docstring is explicit: "Minimum distance from the stitched region's
-boundary to the outermost via centers in millimetres". Take that as the semantics.
+**`SquareViaStitchGrid.inset` is measured to the via pad edge on the 4.4 runtime, not
+to the via centre as the docstring says.** The docstring reads "Minimum distance from
+the stitched region's boundary to the outermost via centers". A discriminating probe
+on jitx 4.4.0 (8 mm square pour, `pitch=2.0`, `StdViaPreferred` pad 0.45 mm) gave 9
+stitch vias at `inset=1.5` and `1.75` and 1 via at `1.8`, `1.9` and `2.1`. The centre
+reading predicts 9 up to `inset=2.0`; the pad-edge reading predicts the drop at
+`2.0 - 0.225 = 1.775`; a hole-edge reading would drop at `1.85`. Plan with the
+pad-edge count, `2 * floor((size / 2 - inset - pad_diameter / 2) / pitch) + 1` per
+axis, and treat the docstring as a library defect until it changes.
 
-A probe on the 4.4 line appeared to measure to the via *pad edge* instead, and
-the count it observed away from an exact boundary fitted
-`2 * floor((size / 2 - inset - via_pad_diameter / 2) / pitch) + 1`, which carries
-a pad-radius term the documented reading would not need. That probe also produced
-one via on a 3.10 mm axis at `pitch=1.2, inset=0.125` where both candidate
-formulas predicted three, so it did not cleanly establish either reading. The
-discrepancy is unresolved: the documented datum is centers, one measurement
-suggests otherwise, and a board whose grid fits both readings cannot arbitrate.
-Design to the documented semantics, and if a specific board's margin depends on
-which reading holds, measure that board rather than trusting either formula.
-
-**The inset is measurable from a capture, so do not report it as unwitnessable.**
-Realized via centers and the pour boundary are both available, and the via pad
-diameter is reachable from the via definition, so the achieved margin can be
-computed and compared against the requested inset. What capture does not give is
-a binding from a stitch group back to the rule that produced it, or a direct
-"requested inset satisfied" flag; neither prevents measuring the margin. A count
-formula stays a planning estimate.
+The achieved inset is measurable from a capture: realized via centres, the pour
+boundary and the via pad diameter are all available, so compute the margin and
+compare it with the request. Capture gives no binding from a stitch group back to
+its rule and no "inset satisfied" flag; neither prevents the measurement.
 
 ### Captured pour geometry
 
