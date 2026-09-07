@@ -85,7 +85,12 @@ def is_import_error(output):
         r"(?m)^(ImportError|ModuleNotFoundError):", output
     )
     missing_module = re.search(r"(?m)^.*python.*: No module named ", output)
-    return bool(traceback_import or missing_module)
+    # pyright reports a missing package as a diagnostic, not a traceback. In this
+    # bundle that is the wrong-interpreter case (see SKILL.md, "Run pyright in the
+    # environment the project's dependencies are installed in"), so it is ERROR,
+    # not a FAIL to "fix" by editing correct imports.
+    pyright_unresolved = re.search(r'Import "[^"]+" could not be resolved', output)
+    return bool(traceback_import or missing_module or pyright_unresolved)
 
 
 def run_grep_gates(src_dir):
@@ -168,7 +173,13 @@ def print_result(result, verbose):
     # The build always prints. Later gate rows ask for build warnings (for example
     # "Reference to structural object ... lost during instantiation"), which a
     # passing build emits and a suppressed PASS would hide.
-    always = result.label == "build"
+    # A grep-gates PASS with review-required hits also prints, because each hit
+    # needs a per-line disposition in the acceptance block and --quiet keeps the
+    # hit lines while dropping the per-pattern "ok" lines.
+    review_hits = result.label == "grep gates" and not re.search(
+        r"\b0 review-required$", result.detail or ""
+    )
+    always = result.label == "build" or review_hits
     if result.output and (verbose or always or result.status != "PASS"):
         sys.stdout.write(result.output)
         if not result.output.endswith(("\n", "\r")):

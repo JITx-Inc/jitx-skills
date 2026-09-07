@@ -239,7 +239,7 @@ The criteria mirror the exit-gate bullet lists in `references/project-builder-fl
 | Requirements lock complete | <result; assumptions> |
 | PLAN.md exists | <path> |
 | ARCHITECTURE.md exists | <path; sections> |
-| No fact copied between documents | <N checked; name the specific pairs compared; clean, or each copy and its owner> |
+| No fact copied between documents | <N checked; name the specific pairs compared; duplication counts at the sentence level, not the section level; clean, or each copy and its owner> |
 | Support circuitry owned | <part -> task, per powered part, from each application circuit; or "none needed, per <datasheet section>"> |
 | Task status reconciles with open questions | <N blocking relationships walked from the Blocks column; all reconcile, or each disagreeing task> |
 | Planning docs within budget | <line counts; result> |
@@ -259,9 +259,11 @@ The `jitxlib` namespace is split across distributions and installing `jitx` brin
 ```markdown
 ## Gate: Phase 1 → Phase 2
 
-**Dispatch:** <N> Phase 1 tasks in <B> spawn batches, max <C> concurrent
-(for `N >= 3`: `B == N` fails, and so does `C < 3`; recording two batches that each
-run one task at a time is serial work with a batch count on it)
+**Dispatch:** <N> Phase 1 tasks in <B> spawn batches, max <C> concurrent (C is the
+number of sub-agents running at the same time in the widest batch). For `N >= 3`,
+`B == N` fails and so does `C < 3`, unless each serialized task names the dependency
+that forced it; recording two batches that each run one task at a time is serial
+work with a batch count on it.
 
 | Field | Result |
 |-------|--------|
@@ -275,8 +277,6 @@ run one task at a time is serial work with a batch count on it)
 | Open from this phase | <list/none> |
 | Verdict | <advance/block + reason> |
 ```
-
-For `N >= 3`, `B == N` fails this gate. The orchestrator re-dispatches or names, for each serialized task, the dependency that forced serialization. "It seemed simpler" is not a dependency.
 
 ### Phase 2 → Phase 3
 

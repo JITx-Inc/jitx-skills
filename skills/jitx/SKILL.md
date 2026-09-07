@@ -156,7 +156,8 @@ The runtime is a daemon (an instance of the bundled `jitx` launcher binary, run 
 # bash (macOS / Linux / WSL / Git Bash)
 # `runtime status` exits 0 even when it prints "Runtime: not running", so it is
 # not a start guard. This block installs if needed, then starts unconditionally;
-# starting an already-running project is a no-op.
+# a second start on a running project prints an error line, exits 0, and starts
+# no second daemon (measured on 4.4.0).
 if ! jitx runtime introspect >/dev/null 2>&1; then
   # Not installed. `update` is the idempotent variant of `install`; safe in setup
   # scripts. Without --version it installs the runtime matching the installed
@@ -169,7 +170,8 @@ jitx runtime start --background
 # PowerShell (Windows)
 # `runtime status` exits 0 even when it prints "Runtime: not running", so it is
 # not a start guard. This block installs if needed, then starts unconditionally;
-# starting an already-running project is a no-op.
+# a second start on a running project prints an error line, exits 0, and starts
+# no second daemon (measured on 4.4.0).
 jitx runtime introspect 2>$null | Out-Null
 if ($LASTEXITCODE -ne 0) {
   # Not installed. `update` is the idempotent variant of `install`; safe in setup
@@ -204,13 +206,13 @@ you build or capture from needs its own `jitx runtime start --background`.
 ### Step 5 — Verify
 
 ```bash
-jitx runtime status         # confirms the socket is up
+jitx runtime status         # read the text: "reachable at ws://..." is up, "not running" is not; the exit code is 0 either way
 jitx find                   # lists the designs the runtime sees in this project
 ```
 
 Also probe the target substrate package if known (e.g., `python -c "import jitxlib.jlcpcb"` when the user has chosen JLCPCB). For complete-board tier, the Phase 0 → 1 gate requires this probe.
 
-**Missing-dependency rule:** if `jitx runtime status` fails, `jitx find` errors, or a required import is missing, stop and surface it to the user as a blocker. Do NOT remove or substitute design requirements as a workaround (e.g. dropping controlled-impedance routing because `jitxlib` didn't import). See `references/project-builder-flow.md` Recovery Procedures → "Missing dependency escalation".
+**Missing-dependency rule:** if `jitx runtime status` prints "not running" after the start, `jitx find` errors, or a required import is missing, stop and surface it to the user as a blocker. Do NOT remove or substitute design requirements as a workaround (e.g. dropping controlled-impedance routing because `jitxlib` didn't import). See `references/project-builder-flow.md` Recovery Procedures → "Missing dependency escalation".
 
 **`--dry` is not a substitute for a build.** With no runtime reachable, `jitx build` fails with an
 error that offers `--dry` as the alternative — and `--dry` "works", which is the trap. It translates
@@ -370,17 +372,19 @@ instances or objects attached to removed components. The CLI has no documented
 non-interactive flag, so a headless bash build feeds assent with
 `yes | jitx build <design>`. For the consolidated workflow command, it uses
 `yes | python scripts/check.py <ns>/ --build <design>`; `check.py` passes its stdin
-to the build. The command does not append `| tail`: that pipeline can buffer all
-build output until the process exits, making a stalled build look slow. A
-headless native PowerShell run has no verified equivalent in this bundle, so the
+to the build. A headless native PowerShell run has no verified equivalent in this bundle, so the
 build step stops for an interactive TTY instead of accepting an
 `EOF when reading a line` failure.
 
-If a build produces no further output and consumes little CPU, the build step
-pauses before retrying and counts running `jitx interactive-client` processes.
-Accumulated viewer clients can hold the runtime. It does not kill them
-automatically because a viewer may own placement state that has not been
-persisted. It reports the count and asks before terminating clients.
+**Stalled build.** Run long builds and capture scripts with `PYTHONUNBUFFERED=1`:
+a script whose stdout is not a terminal buffers it, so a hung run looks like an
+empty log. If a build produces no output and little CPU for a minute, run
+`jitx runtime status` in every other open JITX project, because a second live
+runtime is the first thing to rule out, and count viewer clients with
+`pgrep -fl interactive-client`; report both and ask before stopping anything,
+since a viewer may hold unpersisted placement state. A `Failed to parse installer
+report` / `Failed to check dependencies` pair from the CLI in a scratch project is
+a benign dependency probe, not the stall.
 
 **Output files** (in `designs/<design_name>/`):
 - `cache/netlist.json` - JSON netlist for verification
@@ -423,7 +427,7 @@ jitx design export <plugin> <module.path.DesignClass> [plugin options]
 ```
 
 `legacy-kicad` / `legacy-altium` / `legacy-edx` / `legacy-odb++` / `legacy-step`
-run through the runtime (useful as a runtime-side cross-check of realized copper);
+run through the runtime and produce what a fab needs (ODB++ `features` files are plain text, `UNITS=MM`); they are a handoff, not a verification surface (see `jitx-physical-layout`);
 new-style plugins (e.g. `hfss` from `jitxlib-ansys`) consume the captured
 `RuntimeDesign` in python.
 

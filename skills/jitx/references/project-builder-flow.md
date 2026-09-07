@@ -146,7 +146,7 @@ Phase 1 tasks are independent at the *design* level. Each sub-agent writes its o
 ### Exit Gate: Phase 1 → Phase 2
 
 ALL of the following must be true:
-- [ ] Dispatch record names `N` Phase 1 tasks, `B` spawn batches, and maximum concurrency `C`; for `N >= 3`, `B == N` blocks unless each serialized task names the dependency that forced it
+- [ ] Dispatch record names `N` Phase 1 tasks, `B` spawn batches, and maximum concurrency `C`; for `N >= 3`, `B == N` or `C < 3` blocks unless each serialized task names the dependency that forced it
 - [ ] Every Phase 1 task has status `accepted`
 - [ ] Every component builds with `status: ok` in its test harness
 - [ ] Substrate builds with all routing structures and via definitions
