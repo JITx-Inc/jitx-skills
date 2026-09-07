@@ -21,14 +21,14 @@ The agent evaluates the conditions before writing code. It opens every matching 
 
 | Condition the agent can evaluate now | Open |
 |---|---|
-| The task starts from a datasheet, package drawing, URL, sourcing-channel record, KiCad footprint, or user specification, or the package generator has not been selected yet. | [references/source-and-package-selection.md](references/source-and-package-selection.md) |
+| The evidence source (datasheet, package drawing, URL, sourcing-channel record, KiCad footprint, user artifact) or the package generator is not yet settled. | [references/source-and-package-selection.md](references/source-and-package-selection.md) |
 | The source and package are known, and the agent is about to write the component class, symbol, generator call, multi-unit partition, or explicit `PadMapping`. | [references/component-code-patterns.md](references/component-code-patterns.md) |
 | The body is a rectangular two-terminal chip, or one class must represent a manufacturer's catalog family and compute the MPN per instance. | [references/parameterized-families.md](references/parameterized-families.md) |
 | The vendor supplied a machine-readable pinout or ball-map file rather than a drawing to transcribe. | [references/pin-file-generation.md](references/pin-file-generation.md) |
-| The selected package uses a standard JITX landpattern generator whose construction, pad numbering, mapping, or thermal-pad behavior needs a worked pattern from this reference.<br>Examples, not a membership list: SOIC, SOT23, SON, QFN, QFP, BGA, TSSOP, SSOP, LGA, WLCSP, and DIP. Any BGA also needs the BGA-specific notes. | [references/package-examples.md](references/package-examples.md) |
-| A test constructs a component directly or uses parametrization, `jitx find` does not discover the harness, the build environment appears unavailable, or a typical application circuit must pass to `jitx-circuit-builder`. | [references/verification-and-application.md](references/verification-and-application.md) |
+| The selected package is a SOIC, SOT23, SON, QFN, QFP or BGA, or another standard-generator package whose pad numbering, mapping or thermal pad the agent has not built before. The file works those six; any BGA also needs its BGA-specific notes. | [references/package-examples.md](references/package-examples.md) |
+| Code exists and the component still has to be tested, built and reported, or a typical application circuit must be captured. This row matches every task that reaches verification. | [references/verification-and-application.md](references/verification-and-application.md) |
 
-The routing gate halts until every matched reference opens. The agent reports a missing reference as a blocker instead of substituting remembered API details.
+The agent reads every matched reference before writing code and records the rows matched and the files read in the `References opened` row of the Component check. A reference file absent from disk is reported as a blocker, never replaced by remembered API details.
 
 ## Universal source gate
 
@@ -65,7 +65,7 @@ When no document states an orderable MPN, the identity gate asks the user while 
 
 The agent never reads a full datasheet PDF. It saves the PDF locally or in the project's gitignored source scratch area, verifies that its bytes begin `%PDF-`, locates relevant pages with `scripts/extract_pages.py`, and reads only the extract. A manufacturer URL that times out is not silently replaced with an aggregator copy. Citations use the figure or table caption as the primary key, then figure number, edition, and page.
 
-A `Component check` whose `Source reached by` row is unset, or whose `Probes` row is `n/a` while no source was reached, is not a completed check: the component returns for rework rather than being accepted. A recorded disagreement between a user-typed fact and the document blocks acceptance until the user rules on it, because implementing either reading silently is how the wrong part ships looking finished.
+A `Component check` whose `Source reached by` or `References opened` row is unset, or whose `Probes` row is `n/a` while no source was reached, is not a completed check: the component returns for rework rather than being accepted. A recorded disagreement between a user-typed fact and the document blocks acceptance until the user rules on it, because implementing either reading silently is how the wrong part ships looking finished.
 
 If `extract_pages.py` exits non-zero or no relevant pages are found, the source gate remains closed and component code does not start. The agent reports the failed extraction or asks for the required pages.
 
@@ -94,31 +94,17 @@ For a machine-readable pin file, no component code is emitted until the parsed r
 
 After code exists, the agent performs these steps in order:
 
-1. Tests that construct components subclass `jitx.test.TestCase`; pure helper tests may use `unittest.TestCase`. Every package variant, and every family case size, gets a pad-count check. For a land pattern `lp`, the documented count is:
+1. Tests that construct components subclass `jitx.test.TestCase`; pure helper tests may use `unittest.TestCase`. Every package variant, and every family case size, gets a pad-count check. For a land pattern `lp`, count pads with the framework's structural traversal, which does not depend on the numbering scheme:
 
    ```python
-   # Linear numbering (SOIC, SOT, QFN, QFP, SON, chip): pads live in lp.p.
-   pad_count = len(lp.p) + (len(lp.thermal_pads) if hasattr(lp, "thermal_pads") else 0)
+   from jitx.inspect import visit
+   from jitx.landpattern import Pad
+
+   pad_count = sum(1 for _ in visit(lp, Pad))  # every pad the landpattern owns, thermal pads included
    ```
 
-   `lp.p` is a dictionary keyed by pad number, and it exists only for the linearly
-   numbered generators. A BGA numbers alpha-numerically: its generator mixes in
-   `AlphaDictNumbering`, which stores one `dict[int, Pad]` per row letter as an
-   attribute (`lp.A`, `lp.B`, ...) and defines no `lp.p`, so the formula above
-   raises there. Count a BGA over its declared row attributes instead:
+   Verified on jitx 4.4.0 inside a `SubstrateContext`: 8 for a generated SOIC-8, equal to `len(lp.p)`, and 441 for a generated 21 by 21 BGA, where `lp.p` does not exist. Do not count by enumerating attributes: `lp.p` exists only on the linearly numbered generators, a BGA's `AlphaDictNumbering` keeps its row dictionaries outside the instance namespace, and an attribute walk over one-letter row names returned 0 for that BGA. `lp.pads` is not an accessor either. Compare `pad_count` with the datasheet's pin count plus its thermal pads. If the count cannot be established for the package at hand, the pad-count row remains open and verification stops rather than recording an unchecked number.
 
-   ```python
-   # Alpha-dict numbering (BGA): one dict per row letter, no lp.p.
-   rows = [getattr(lp, r) for r in dir(lp) if len(r) == 1 and r.isalpha() and r.isupper()]
-   pad_count = sum(len(d) for d in rows if isinstance(d, dict))
-   pad_count += len(lp.thermal_pads) if hasattr(lp, "thermal_pads") else 0
-   ```
-
-   `thermal_pads` is absent, not empty, when no thermal pad was declared, which is why
-   the `hasattr` guard is required and why the library's own code guards it the same
-   way. `lp.pads` is not an accessor on either scheme. If the count cannot be
-   established for the package at hand, the pad-count row remains open and
-   verification stops rather than recording an unchecked number.
 2. Run the generated test suite and `pyright`. Tests also assert metadata, pin and pad counts, any ordering example or value encoder, the rendered `.value` or its deliberate absence, validation failures, and every relied-on library default.
 3. Run `jitx find`, take its printed build target verbatim, then build in the available virtual environment. If no environment is present, stop and ask. JITX builds run sequentially, never in parallel against one project.
 4. Write the task acceptance block from the base skill, with the complete `Component check` below embedded under `Checks run`, into `COMPLETION.md` or the project's existing equivalent.
@@ -140,6 +126,7 @@ Source: <manufacturer + document number + revision/date>; page/figure cited per 
         and whether the document confirms it> | none (the user typed no part facts)
         Disagreements found: NONE | <each, with the document's value, and confirmation that
         it went back to the user>
+References opened: <routing rows matched -> reference files read | none matched>
 Identity: <class name> — mpn <literal | computed from <scheme>, cross-checked against
         <the datasheet's ordering example or a real catalog part>>; manufacturer,
         refdes prefix and datasheet URL set on the class
@@ -188,10 +175,10 @@ Row-by-row intent — the *why*, so the block stays evidence rather than ceremon
 
 ## Output Format
 
-When generating a component, provide:
+A component task delivers files, not chat output:
 
-1. Complete Python source code in a code block
-2. Verification report (using format above)
-3. Any assumptions or decisions made
-4. Known limitations or items requiring manual review
-5. **Offer to capture application circuit** if datasheet includes one
+1. The component module under `components/`, per the Output Location rule
+2. Its test module, and the `jitx build` result
+3. The `Component check` block, written alongside the code as the completion artifact
+4. Assumptions, decisions, and items needing manual review, in that block's rows
+5. An offer to capture the application circuit when the datasheet includes one
