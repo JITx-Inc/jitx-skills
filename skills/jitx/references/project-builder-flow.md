@@ -283,7 +283,7 @@ class Design(...):
 
 ```python
 with CapacitorQuery.refine(type="tantalum", case="1210"):
-    self.c_bulk = Capacitor(capacitance=22e-6, rated_voltage=10.0)
+    self.c_bulk = Capacitor(capacitance=22e-6, rated_voltage=AtLeast(10.0))
 ```
 
 **The point:** every design has a default that matches its manufacturing path, plus per-circuit overrides where the role demands them. The Phase 3 exit gate confirms defaults exist and overrides are documented — not that any specific filter is set.

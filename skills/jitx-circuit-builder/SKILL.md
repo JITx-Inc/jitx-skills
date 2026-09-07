@@ -21,6 +21,7 @@ JITX uses two packages — know which one to import from:
   - `jitx.layerindex`: `Side`
 - **`jitxlib`** — Parts library. Components, queries, protocols, symbols, solvers.
   - `jitxlib.parts`: `Resistor`, `Capacitor`, `Inductor`, `ResistorQuery`, `CapacitorQuery`, `InductorQuery`
+  - `jitxlib.voltage_divider` (its own distribution, `jitxlib-voltage-divider`; the base skill's Step 2 installs it): `VoltageDividerConstraints`, `voltage_divider_from_constraints`
   - `jitxlib.protocols.serial`: protocol bundles including `I2C`, `I2S`, `SPI`, and `UART`; inspect the module for the current full export list
   - `jitxlib.symbols.net_symbols`: `GroundSymbol`, `PowerSymbol`
 
@@ -205,12 +206,12 @@ Calculated passive values must land on a real series value. The `eseries` packag
 
 A `Capacitor(...)` / `Resistor(...)` query returns *some* part matching what you stated, so every axis you leave open is an axis the database decides. Two are routinely forgotten and both change the circuit:
 
-- **`tolerance=`** — every passive takes it, and unstated, a ±20 % part satisfies a query written for a ±1 % job.
+- **`tolerance=`** — every passive takes it as a scalar that selects one tolerance grade exactly (`tolerance=0.01` is the ±1 % grade); unstated, a ±20 % part satisfies a query written for a ±1 % job. For "this tolerance or better" use the two bounds `tolerance_min=AtLeast(-x)`, `tolerance_max=AtMost(x)` (below).
 - **`temperature_coefficient_code=`** (`"X7R"`, `"X5R"`, `"C0G"`) — **capacitors only**; unstated, a decoupling query can return **Y5V or Z5U**, which lose most of their capacitance across temperature and DC bias. A 100 nF Y5V at half its rated voltage is not a 100 nF cap.
 
 The temperature axis is not one field across the passives — it is named per part type, so the second bullet does not transfer. On 4.4.0, `tolerance` sits on the shared passive query; `temperature_coefficient_code` sits on the capacitor query alone, and a resistor's temperature behaviour is `tcr_pos` / `tcr_neg` in ppm/°C. Inductors have neither. Passing a capacitor's field to a resistor query states nothing and constrains nothing.
 
-So: state `tolerance=` on every passive whose value matters, add `temperature_coefficient_code=` to every ceramic, and add `tcr_pos=` / `tcr_neg=` to a resistor whose drift is part of the design (a divider setting a regulator's feedback, a current-sense shunt). Rate ceramics with derating in mind — a 6.3 V X7R on a 3.3 V rail has already lost a third of its capacitance to DC bias, so 10 V or 16 V is the honest choice.
+So: state a tolerance on every passive whose value matters (a grade with `tolerance=`, or bounds with `tolerance_min`/`tolerance_max`), add `temperature_coefficient_code=` to every ceramic, and add `tcr_pos=` / `tcr_neg=` to a resistor whose drift is part of the design (a divider setting a regulator's feedback, a current-sense shunt). Rate ceramics with derating in mind — a 6.3 V X7R on a 3.3 V rail has already lost a third of its capacitance to DC bias, so 10 V or 16 V is the honest choice.
 
 ### Decouple against the pins, and scale with the pin count
 
@@ -220,7 +221,7 @@ Loop over the ball list and insert against the balls — storing each cap, becau
 
 ```python
 self.c_vccint = [
-    Capacitor(capacitance=100e-9, rated_voltage=10.0,
+    Capacitor(capacitance=100e-9, rated_voltage=AtLeast(10.0),
               temperature_coefficient_code="X7R")
     for _ in fpga.VCCINT
 ]
@@ -263,7 +264,7 @@ being ignored. Express the requirement in the query anyway, and additionally ver
 dissipation and saturation against the resolved MPN's datasheet: the query is a filter
 over catalogue scalars with no min/typ/max provenance, not a substitute for reading the
 part's rating. `case` and `mounting` filter reliably. A maximum magnitude tolerance does not use `tolerance=AtMost(...)`
-or `precision=...`; those fields do not express that interval. It uses both bounds:
+or `precision=...`; on 4.4.0 those fields take only a scalar and select one grade exactly. It uses both bounds:
 
 ```python
 from jitx.interval import AtLeast, AtMost
@@ -356,22 +357,19 @@ Pours / Copper Geometry / Placement sections below are the basics.
 like 8 kΩ or 25 kΩ that no series stocks, and the query then fails with "No components
 meeting requirements".
 
-**Check what the install actually provides before reaching for a solver.** `jitxlib` has
-carried a `voltage_divider` module with `VoltageDividerConstraints` and
-`voltage_divider_from_constraints`, and it is **not present in every install** — it is
-absent from jitxlib as shipped alongside jitx 4.4.0rc5, where `jitxlib` exposes bundles,
-circuits, geometry, jlcpcb, landpatterns, parts, physics, protocols, symbols and
-via_structures, and no divider helper anywhere. Import it and see, in the environment you
-are building in. If it is there, the pattern below is the one to use. If it is not, say so
-and pick standard values from the series explicitly, stating the series and the resulting
-ratio error, rather than reporting a solver you could not run.
+**The divider solver is its own distribution.** `jitxlib.voltage_divider`
+(`VoltageDividerConstraints`, `voltage_divider_from_constraints`) ships as
+`jitxlib-voltage-divider` on public PyPI, not inside `jitxlib-standard`, and nothing
+depends on it; the base skill's Step 2 installs it with the other `jitxlib`
+distributions. If the import fails, the fix is `pip install jitxlib-voltage-divider`,
+not hand-picked values: the solver is required for every divider
+(`jitx/references/domains/power-circuits.md`).
 
-The same caution applies to the `eseries` package: it is a third-party dependency, it is
-not pulled in by jitxlib, and on this install it is absent. If a task needs series snapping
-and the package is missing, that is a dependency to add deliberately or a table to write
-out, not an import to assume.
+`eseries` is a third-party package that nothing in this stack depends on. Series
+snapping for a value the solver does not produce is a table you write out and cite,
+not an import to assume.
 
-When the helper is present:
+The pattern:
 
 ```python
 # WRONG — manual resistor values, 8k is not a standard E-series value

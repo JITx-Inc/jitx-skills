@@ -147,11 +147,11 @@ from jitx import Circuit, Net
 from jitx.toleranced import Toleranced
 from jitx.common import Power
 from jitxlib.parts import Capacitor, CapacitorQuery, Resistor, Inductor, ResistorQuery
-# jitxlib.voltage_divider is absent from some installs (including jitxlib
-# shipped with jitx 4.4.0rc5) — import it and check before relying on it.
+# jitxlib.voltage_divider ships as the jitxlib-voltage-divider distribution; the base skill's Step 2 installs it.
 from jitxlib.voltage_divider import VoltageDividerConstraints, voltage_divider_from_constraints
 
 from .texas_instruments_TPS62933DRLR import TPS62933DRLR
+from jitx.interval import AtLeast
 
 
 class TPS62933DRLRCircuit(Circuit):
@@ -174,10 +174,10 @@ class TPS62933DRLRCircuit(Circuit):
 
         # Input capacitors (C1, C2 - 10µF each per schematic)
         with CapacitorQuery.refine(type="ceramic", case="0805"):
-            self.c_in1 = Capacitor(capacitance=10e-6, rated_voltage=50.0)
+            self.c_in1 = Capacitor(capacitance=10e-6, rated_voltage=AtLeast(50.0))
             self.c_in1.insert(self.buck.VIN, self.GND, short_trace=True)
 
-            self.c_in2 = Capacitor(capacitance=10e-6, rated_voltage=50.0)
+            self.c_in2 = Capacitor(capacitance=10e-6, rated_voltage=AtLeast(50.0))
             self.c_in2.insert(self.buck.VIN, self.GND, short_trace=True)
 
         # Feedback voltage divider
@@ -194,7 +194,7 @@ class TPS62933DRLRCircuit(Circuit):
         self.nets = [self.fb_div.out + self.buck.FB]
 
         # Output inductor and capacitors
-        self.L = Inductor(inductance=4.7e-6, current_rating=3.9)
+        self.L = Inductor(inductance=4.7e-6, current_rating=AtLeast(3.9))
         # ... complete circuit per datasheet
 ```
 
