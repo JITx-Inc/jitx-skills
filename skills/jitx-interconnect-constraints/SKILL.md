@@ -263,10 +263,14 @@ This pattern is used for:
 
 ## Pin Models
 
-Pin-model declarations participate in construction of the signal path across
-components. In particular, a `BridgingPinModel` joins the topology between its
-two ports. Without that edge, stored `>>` chains on the two sides of a passive
-remain disconnected, and the build can still report `status: ok`.
+A `BridgingPinModel` declares the propagation delay and insertion loss a signal
+incurs crossing a component. The library documents it as describing "the signal
+propagation through a component from one port to another at the frequency of
+interest" (`jitx.si`), and the translate layer transmits both values with the pin
+model, so they are SI inputs and come from the datasheet or vendor model, never
+placeholders. It also joins the topology between its two ports: without that
+edge, stored `>>` chains on the two sides of a passive remain disconnected, and
+the build can still report `status: ok`.
 
 ### TerminatingPinModel — IC endpoints
 
@@ -291,7 +295,7 @@ class BlockingCapacitor(jitx.Component):
     p1 = Port()
     p2 = Port()
 
-    # This declaration joins the signal path across the two component ports.
+    # Delay and loss across the part, and the signal-path edge between its ports.
     pin_model = BridgingPinModel(p1, p2, delay=6e-12, loss=0.5)
 ```
 
@@ -360,7 +364,8 @@ When a topology passes through a component that does **not** have an embedded Br
 self += self.driver.out >> self.cap.p1
 self += self.cap.p2 >> self.receiver.inp
 
-# Add BridgingPinModel so the emitted topology has a path across the cap.
+# Add BridgingPinModel so the emitted topology has a path across the cap that
+# carries the cap's delay and loss.
 self.bridge = BridgingPinModel(self.cap.p1, self.cap.p2, delay=6e-12, loss=0.5)
 
 # The post-build span check must now walk from driver to receiver.
@@ -368,8 +373,7 @@ topo = Topology(self.driver.out, self.receiver.inp)
 self.cst = Constrain(topo).insertion_loss(3.0)
 ```
 
-The constructor accepts delay and loss values, but this skill does not treat
-their presence as binding evidence. `references/verification.md` proves the
+Declaring the model does not prove the constraint bound. `references/verification.md` proves the
 path edge from the emitted `pinModels` record; numeric loss satisfaction needs
 its own SI evidence.
 
