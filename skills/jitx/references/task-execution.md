@@ -161,7 +161,7 @@ Rules (full set in `completion-blocks.md`):
 
 #### Step 7: Return
 
-For complete-board work, the sub-agent returns the task acceptance block and nothing else, at most 350 words. It names written files by path in the block and does not return a transcript, narration, or restated file contents. Every tier still completes Steps 4-6 before returning.
+For complete-board work, the sub-agent returns the task acceptance block and nothing else. It names written files by path in the block and does not return a transcript, narration, or restated file contents. Every tier still completes Steps 4-6 before returning.
 
 ---
 

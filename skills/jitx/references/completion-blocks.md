@@ -419,7 +419,7 @@ Final verification before declaring the project done.
 
 **Verification command:** `python scripts/check.py <ns>/ --build <ns>.designs.Design`
 
-**Check summary:** <the five exact summary lines from the verification command>
+**Check summary:** <the four check summary lines from `python scripts/check.py` (ruff check, ruff format, pyright, grep gates)>
 
 **Final build:** <exact `build` summary line>
 
