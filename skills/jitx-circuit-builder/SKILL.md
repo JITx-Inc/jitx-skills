@@ -239,22 +239,18 @@ Three regulator stages that differ only in output voltage are one `Circuit` subc
 
 An unconstrained passive query selects the smallest matching physical part. A clean
 build can therefore contain 009005, 01005, or signal-grade 0201 parts that the target
-assembly process cannot place. Put the query on the design as a class attribute. The framework activates any class
-attribute holding a query object; it does not inspect the attribute's name, so the
-singular `resistor_query`, `capacitor_query` and `inductor_query` are a naming
-convention that keeps one obvious home per passive type, not a magic spelling. Use them
-so a reader can find the design's selection policy in one place. Resistor and capacitor defaults constrain `mounting` and
+assembly process cannot place. Put the query on the design as a class attribute named `resistor_query`,
+`capacitor_query` or `inductor_query`: the framework activates any class attribute
+holding a query object regardless of its name, so the names are a convention that
+gives the selection policy one obvious home. Resistor and capacitor defaults constrain `mounting` and
 `case` to the declared assembly capability. An inductor query does not use the same
 chip-size ceiling because power inductors can be larger; each inductor instead carries
 the applicable current and saturation requirements from its datasheet. Step 2 refuses
 to proceed until the resolved package and electrical ratings satisfy those constraints.
 
-A scalar on a numeric query field is an exact match, not a floor. Minimum ratings use
-`AtLeast(value)`.
-
-An interval is transmitted: the query serializer emits `min-<field>` and `max-<field>`
-database parameters for any interval value, and a bare value as an exact match. So
-`AtLeast` is the difference between a floor and an equality test, and it is worth using.
+A scalar on a numeric query field is an exact match, not a floor: the serializer sends
+a bare value as an equality test and an interval as `min-<field>`/`max-<field>`.
+Minimum ratings use `AtLeast(value)`.
 
 What a bound cannot do is filter on a rating the catalogue does not record. Resistor rows
 have been observed carrying `rated_power: None`, and an inductor `saturation_current`
@@ -287,9 +283,7 @@ made to reject all candidates has not been shown to bind.
 ### `short_trace=True` is the default for power-rail capacitors
 
 Every capacitor `.insert(...)` call on a power rail, including decoupling, bypass,
-bulk, and output filter capacitors, **must** pass `short_trace=True`. The first
-argument must be a `Port`, not a `Net`; otherwise the Step 2 build stops with
-`Cannot make a shortrace with a net`. The router uses this to minimize the trace
+bulk, and output filter capacitors, **must** pass `short_trace=True`. The router uses this to minimize the trace
 length between the cap and its connected ports, which is what makes the cap actually
 decouple. Without it, the router may place a 0402 100 nF cap 20 mm from the IC and
 route through vias, defeating the purpose.

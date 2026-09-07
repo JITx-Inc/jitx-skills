@@ -7,12 +7,6 @@ description: "Create JITX Python component code from datasheets, KiCad footprint
 
 A JITX component binds five claims into one class: BOM identity, one `Port` per physical pin, a source-derived land pattern, a readable symbol, and any explicit port-to-pad mapping. The modeling job is to turn manufacturer evidence into those claims without adding a plausible number or name that the evidence never states.
 
-Three ideas govern every path:
-
-1. **Sources have separate authority.** The datasheet or packaging drawing owns geometry; the pin table or machine-readable pin file owns pin names, balls, and banks; the user owns any deliberate generic placeholder. One source does not substitute for another.
-2. **A build proves translation, not truth.** Pin counts, pad counts, ordering codes, library defaults, rendered BOM values, and source citations need explicit checks.
-3. **Completion is an evidence artifact.**
-
 A component task is **not complete** until the **Component completeness check** block (near the end of this skill) is filled out, row by row, **as a written artifact alongside the code** — a `COMPLETION.md` next to the components, or the equivalent your project already uses. Prose that paraphrases some of its rows is not the block, and neither is a filled block that exists only in the chat you are having: the next person to open the directory, human or agent, sees the files. A block nobody can find later did not happen. It is the component-specific expansion of the base `jitx` skill's task-acceptance block, not a rival to it — embed it under that block's `Checks run` field rather than producing two competing completion artifacts. No filled block, no "done".
 
 ## Route before reading detail
@@ -38,26 +32,17 @@ The base `jitx` skill handles environment setup and runs first.
 
 **A user's typed description is a claim, not a source.** A datasheet PDF, a package
 drawing, a vendor pin file or a `.kicad_mod` the user hands over is evidence. A pin list,
-a package name or a pin count the user types into the request is a transcription, and
-transcriptions of real parts are wrong often enough that treating one as authoritative is
-how a component ends up confidently describing a device that does not exist. For a named
-MPN, the typed description is what the agent verifies against the manufacturer document,
-not what it implements. Where the two disagree, the document wins and the disagreement is
-reported to the user rather than silently resolved: they may have named the wrong part,
-the wrong package variant, or be reading an older revision, and which of those it is
-changes what they want built. Nothing here weakens a user's authority over what to build,
-which package to use, or which trade-off to accept; it applies only to facts about a real
-part that a document already settles.
+a package name or a pin count typed into the request is a transcription to verify against
+the manufacturer document, not to implement. Where they disagree, the document wins and
+the disagreement goes back to the user before anything is built: they may have named the
+wrong part, package variant or revision, and which it is changes what they want.
 
 **"The source is unavailable" is a conclusion that needs evidence.** Before recording a
-source as unreachable, the agent tries to reach it: the manufacturer URL, the named
-sourcing channel, the local project directories. A statement in the request that no
-datasheet is available is the user's belief about their situation, not a verified fact
-about the environment, and a fetch that would have succeeded is the cheapest defect in
-this whole skill to prevent. If a probe succeeds, the source is available and the source
-gate applies normally, whatever the request said. If every probe fails, the completion
-artifact records what was tried and what each attempt returned, so a reader can tell an
-unreachable source from an unattempted one.
+source as unreachable, try the manufacturer URL, the named sourcing channel and the local
+project directories; a statement in the request that no datasheet exists is a belief about
+the environment, not a fact about it. If a probe succeeds, the source gate applies as
+normal. If every probe fails, the completion artifact records what was tried and what each
+attempt returned, so a reader can tell an unreachable source from an unattempted one.
 
 A real component with no source is blocked before land-pattern or pin code is written. The only exception is an explicitly authorized non-MPN generic placeholder; the completion artifact records that authorization under `Notes`. A parameterized family may compute its MPN from the source's ordering grammar, but every table and range still traces to that source and a generated MPN reproduces its worked example.
 
@@ -165,7 +150,7 @@ Row-by-row intent — the *why*, so the block stays evidence rather than ceremon
 - **Landpattern** — dimensions come from the mechanical drawing, not the overview page or the ordering table, and carry the drawing's tolerances. Where the generator could not express the package, the fallback and its reason belong here.
 - **Library defaults** — a generator default is a convenience, not an authority. Wherever the datasheet publishes the same dimension, transcribe it anyway and check the two against each other; where they disagree, override from the datasheet and say so. The whole risk of taking a default is that nobody transcribed the number that would have caught a bad one. A default you took without checking is indistinguishable, in the output, from one you verified.
 
-  **Defaults are not only dimensions.** The one that gets missed is **density level**, because it never appears as a number in your code. The levels are IPC-7351's land-protrusion goals — `A` most, `B` median/nominal, `C` least — and the choice moves real copper: on `BigRectangularLeads`, a 0.55 mm toe fillet at `A`, 0.35 at `B`, 0.15 with a **negative** 0.05 mm side fillet at `C`. On 4.4.0 the installed default is **`B`** (`jitxlib/landpatterns/ipc.py` sets `DensityLevelContext._global_default = DensityLevelContext(DensityLevel.B)`); earlier lines defaulted to `C`. Do not carry either as an assumption: read what the source asks for, check what your installed `DensityLevelContext` defaults to, and either set the level explicitly (`DensityLevel` from `jitxlib.landpatterns.ipc`, on the generator or via the surrounding context) or record in this row that the default already matches.
+  **Defaults are not only dimensions.** The one that gets missed is **density level**, because it never appears as a number in your code; on 4.4.0 the installed default is `B` (`jitxlib/landpatterns/ipc.py`), earlier lines defaulted to `C`, and the choice moves real copper. Read what the source asks for, check what your installed `DensityLevelContext` defaults to, and either set the level explicitly (`DensityLevel` from `jitxlib.landpatterns.ipc`) or record in this row that the default already matches. The IPC-7351 levels and their fillets are in `references/parameterized-families.md`.
 - **Value / BOM** — no build, type check or land-pattern test looks at the rendered value string. If this row says anything other than an asserted literal, nothing is checking what the BOM will print.
 
   **`n/a` is a claim, and it needs a test like any other.** For an IC there is often no value in the passive sense, and leaving `.value` unset is right — but "right" and "checked" are different, and an unpinned `n/a` is indistinguishable from having forgotten the field. Treat it exactly as you would any other deliberate absence: a component that deliberately ships without a land pattern gets a test asserting no land pattern is present, so a component that deliberately ships without a value gets a test asserting `value is None`. Then the decision cannot silently rot when someone later sets it.

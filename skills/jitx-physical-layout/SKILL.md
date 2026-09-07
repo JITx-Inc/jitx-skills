@@ -165,16 +165,12 @@ check plain-data helpers and outline factories outside the runtime, but they are
 not structural realization evidence. `check_realization.py` performs submit and
 capture before reading those fields.
 
-Placement is also a realization prerequisite. Top-level subsystem circuits use
-`.at(floating=True)` when a person will place them interactively; otherwise they
-pile up at the parent origin. A headless geometry harness gives them explicit
-positions. A floating circuit with no stored interactive placement is parked off
-the board, which leaves routes unrealized and board-wide pours `Empty()` while the
-build still reports `status: ok`. Record either explicit positions or completed
-interactive placements stored in `design-info/` before interpreting a realization
-failure. Capture cannot report which objects lacked authored placement because
-auto-placement and stored state give every captured component a position; this is
-a stated limitation, not a placement gate the shipped checker claims to enforce.
+Placement is also a realization prerequisite: a floating circuit with no stored
+interactive placement is parked off the board, leaving routes unrealized and
+board-wide pours `Empty()` while the build reports `status: ok`. Record explicit
+positions or completed interactive placements in `design-info/` before
+interpreting a realization failure; capture cannot report which objects lacked
+authored placement (`references/geometry-verification.md`).
 
 ### Conditions for realized copper
 
@@ -183,18 +179,16 @@ nothing on the net reaches that layer, the runtime silently deletes the pour and
 capture returns `Empty()`.
 
 **Solver-emitted stitch vias do not satisfy that precondition, and neither do
-top-side pads.** This is the trap, because it looks solved: a stitch rule can
-emit hundreds of vias, the build reports `status: ok`, and the inner and bottom
-pours still capture back `Empty()`. Measured on 4.4.0rc5: 519 emitted stitch
-vias, pours on layers 1 and 3 both empty. What holds a pour alive is copper the
-design placed on that net and layer itself, an explicitly placed through via or a
-pad; a control with anchor vias and no stitch rule at all realized 2222.04 mm²
-per pour. Place the anchors first and treat stitching as what thins the return
-path, not what creates it. The order matters: a stitch rule added to a pour with
-no anchor produces a large via count and no copper.
+top-side pads.** A stitch rule can emit hundreds of vias, the build reports
+`status: ok`, and the inner and bottom pours still capture `Empty()`. Measured
+on the 4.4.0 runtime: an inner pour with a stitch rule and nothing else on its
+net emitted 9 vias and captured `Empty()`; the same pour with one placed through
+via realized. What holds a pour alive is copper the design placed on that net
+and layer, an explicitly placed via or a pad. Place the anchors first; stitching
+thins the return path, it does not create it.
 
-This is also why an emitted-via count is not evidence of realization. Count
-realized pour area, per layer, and let the via count be a secondary reading. Calling `.to_shapely()` on that value raises
+An emitted-via count is therefore not evidence of realization; count realized
+pour area per layer. Calling `.to_shapely()` on an `Empty()` pour raises
 `ValueError: Unhandled primitive geometry type: Empty()`. The realization command
 checks for `Empty()` before conversion, reports the pour's net and layer, and exits
 1 on every required empty pour. The
@@ -235,9 +229,9 @@ profile unchanged therefore cannot pass.
 ### Stitch-via realization
 
 `design_constraint(...).stitch_via(...)` materializes vias only when its selected
-object is a `Pour`. In a controlled test, the same 3.10 by 4.05 mm shape produced
-9 vias as a `Pour` and zero as a `Pad`, as `Copper`, and through a board-wide
-`IsPad` rule. Every zero-via case reported `status: ok`. To stitch a thermal-pad
+object is a `Pour`: the same shape as a `Pad`, as `Copper` (re-measured on 4.4.0),
+or through a board-wide `IsPad` rule produced zero stitch vias, each with
+`status: ok`. To stitch a thermal-pad
 region with this rule, the circuit creates a `Pour` from the landpattern thermal
 pad's shape, joins it to the net, and tags that pour. A pad-specific explicit via
 field remains a separate physical-layout pattern.
@@ -282,20 +276,14 @@ linker assigns the runtime's output back onto the objects the design authored:
 registered transformers) onto the copper their rules produced. Read realization
 there.
 
-It is the better surface, not merely the cheaper one. A fabrication export
-carries geometry stripped of meaning: features on a layer, with no net and no
-owning instance, so proving a pour reached the right net means reconstructing
-connectivity the design already knows. Reverse flow carries the realized shape
-together with its net and its owner, which is what a question like "did this
-pour connect to the rail it was drawn for" actually needs. The export can only
-answer a shape question; reverse flow answers the electrical one.
+Reverse flow carries the realized shape with its net and owner; an export carries
+features on a layer with neither, so only reverse flow answers whether a pour
+reached the rail it was drawn for.
 
-What it does not witness on the 4.4 line: trace-to-pour clearance, thermal
-relief spoke geometry, and sliver removal. Those are reported unwitnessed, with
-one line each. Do not open an export to chase them. The export is a handoff
-artifact for a fab, not a verification loop for an agent: an agent that starts
-parsing exported geometry to confirm its own rules spends heavily and learns
-little that the runtime could not have told it.
+What it does not witness: trace-to-pour clearance, thermal relief spoke geometry,
+and sliver removal. Report those unwitnessed, one line each. The fabrication
+export is a handoff artifact for a fab, not a verification surface for an agent;
+do not open one to close a rule.
 
 **OverlappableCopper is netless.** Its electrical connection comes from the **pads it
 overlaps**, not from the copper itself. A net-tie is the minimal case: the bridging

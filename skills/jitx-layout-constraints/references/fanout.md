@@ -267,8 +267,7 @@ The adjacent-gap guard proves that the selected process can separate the QFN
 pads. It does not narrow the trace after that guard, so this helper makes no
 centered-channel claim. The width comes from the narrowest pad selected by the
 rule, rounded to a fixed `1 nm` precision, then reduced by one `1 nm` quantum.
-The subtraction is unconditional. A floor operation can return a float above
-its input and can amplify measurement noise, so it is not used. The helper
+The subtraction is unconditional. The helper
 checks the strict-inside postcondition and stops if the result falls below
 `min_copper_width`; it never types a narrower replacement.
 

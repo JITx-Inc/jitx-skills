@@ -230,12 +230,9 @@ provenance limitation above.
   entering a plugin context without an active frame raises "Structure not active"
   (see `jitx/_cli/design/export.py::_run_export` for the canonical sequence).
 - Legacy exporters (`legacy-odb++` etc.) exist and produce the artifacts a fab
-  needs. They are not a verification surface for this workflow. Confirming a
-  rule through one costs an export, a directory walk and a per-layer feature
-  parse, to reach a fact the captured design already carries, and the habit is
-  self-sustaining: an agent that inspects exported geometry once tends to keep
-  doing it for every effect the capture cannot see. Where a capture cannot
-  witness an effect, name it as unwitnessed and move on.
+  needs. They are not a verification surface for this workflow; where a capture
+  cannot witness an effect, name it unwitnessed and move on (`SKILL.md`, "Pour
+  realization semantics").
 - `design-info/` state is **encoding-versioned**: state written by one
   py-jitx/runtime pairing can be unreadable by another, failing builds/submits with
   a cryptic `No field with key '$_...' under O.../C...`. Remedy: restore

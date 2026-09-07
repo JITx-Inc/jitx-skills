@@ -715,27 +715,16 @@ JITX builds against the same project run in sequence. See `jitx/SKILL.md`
 
 ### Step 3: Prove emitted binding
 
-The project copies `scripts/check_si_spans.py` and runs it against the built
-design's `cache/load-cache.json`:
-
 ```bash
 python scripts/check_si_spans.py path/to/Design/cache/load-cache.json
 ```
 
-The task completion block is refused unless the command exits 0 and names the
-expected routing, insertion-loss, timing, and timing-difference spans. An
-intentional partial linear span uses repeatable
-`--allow-partial "<exact printed span label>"`; there is no bare global form,
-because allowing one span must not disable coverage for another. `status: ok`,
-a zero-exit type check, or the
-existence of a test harness cannot replace this result. An unavailable artifact
-or exit 2 records binding as an open item, and the task may claim only that the
-constraint translated.
-
-When both a module harness and an assembly integration apply the constraint,
-this step runs the checker on both artifacts and records the begin endpoint,
-end endpoint, and intended path from each. The completion block is refused if
-they differ without a named, intentional reason.
+Exit 0 with the expected routing, insertion-loss, timing and timing-difference
+spans named is the only evidence that a constraint bound; `status: ok`, a clean
+type check, or an existing harness is not. Exit 2 or a missing artifact records
+binding as an open item, and the task may claim only that the constraint
+translated. Allowed partial spans, the harness-versus-assembly parity check, and
+the negative controls are in `references/verification.md`.
 
 ### Step 4: Record numeric SI evidence
 
