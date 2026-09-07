@@ -345,7 +345,7 @@ work with a batch count on it.
 
 ## Phase 3b Design Audit Block (complete-board only)
 
-The audit happens in Phase 3b. A read-only audit agent (no design-code edits) reviews the assembled design across four passes and emits this block. It reads the datasheet PDFs rather than the spec notes, because the notes are the building chain's own output and an audit anchored to them cannot catch an extraction error. The orchestrator decides which findings to fix; fix sub-agents handle the loopback. After fixes, the audit re-runs and the block is updated (or a new block is emitted alongside the first).
+The audit happens in Phase 3b. A read-only audit agent (no design-code edits) reviews the assembled design across four passes and emits this block. It reads the datasheet PDFs, not the spec notes (CD-1). The orchestrator decides which findings to fix; fix sub-agents handle the loopback. After fixes, the audit re-runs and the block is updated (or a new block is emitted alongside the first).
 
 The four pass scopes remain those in `references/project-builder-flow.md`: application-circuit external parts and values; every circuit assumption against the system; every interface path including power; and every regulator's load margin, thermal/package limit, and hot-plug behavior.
 
@@ -404,7 +404,7 @@ Severity definitions:
 
 Rules:
 
-- Audit agent edits nothing, including the datasheet spec notes. A note that disagrees with the datasheet is a finding like any other. Letting the auditor correct it would have the independent verifier rewrite the artifact it is auditing, which erases the discrepancy before the builder ever sees it and leaves no record that the extraction was wrong. Findings → orchestrator → fix agents → re-audit.
+- Audit agent edits nothing, including the datasheet spec notes. A note that disagrees with the datasheet is a finding like any other. Findings → orchestrator → fix agents → re-audit.
 - "Noted for future refactoring" is not a valid disposition for CRITICAL or WARNING.
 - After any fix lands, re-audit. The re-audit does not need to repeat passes that didn't touch the changed code, but must re-verify the original findings are resolved.
 

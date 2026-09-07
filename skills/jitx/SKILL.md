@@ -650,7 +650,7 @@ For details: read `references/parts-sourcing.md`
 
 The orchestrator creates and maintains these in the project root. Give every fact one owner and refer to the owning document by section name instead of copying it:
 
-- **PLAN.md** — Owns the requirements lock, approved data sources, task graph and statuses, gate outcomes with deferred/blocking items, and one-line modification history. It is the resumable source of truth for the work. Copy this skill's `scripts/plan_status.py` into the project `scripts/` directory. Change a task status only with `python scripts/plan_status.py <task-id> <status> [--note "<short note>"]`; inspect statuses with `python scripts/plan_status.py --show [<task-id>]`. Rewriting PLAN.md wholesale to change a status is not allowed. Prose edits that add tasks, gate outcomes, or modification history are unaffected.
+- **PLAN.md** — Owns the requirements lock, approved data sources, task graph and statuses, gate outcomes with deferred/blocking items, and one-line modification history. It is the resumable source of truth for the work. Copy this skill's `scripts/plan_status.py` into the project `scripts/` directory. Change a task status only with `python scripts/plan_status.py <task-id> <status> [--note "<short note>"]`; inspect statuses with `python scripts/plan_status.py --show [<task-id>]`. (`plan-template.md` owns the status rule.) Prose edits that add tasks, gate outcomes, or modification history are unaffected.
 - **ARCHITECTURE.md** — Owns the power tree, interface map, board and mechanical constraints, parametric object-hierarchy commitments, and non-derivable design notes. It is the source of design context for sub-agents.
 
 ## Subskills

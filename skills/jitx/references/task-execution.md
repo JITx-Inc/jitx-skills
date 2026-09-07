@@ -196,7 +196,7 @@ Do not re-run the entire checklist. Focus on the items most commonly missed for 
 
 | Task Type | High-Risk Items to Verify |
 |-----------|--------------------------|
-| Component | Power/ground pin count matches the datasheet pages the spec note cites, thermal pad present, pin naming. Check against the PDF, not the note: the note and the model share an author. |
+| Component | Power/ground pin count matches the datasheet pages the spec note cites, thermal pad present, pin naming. Check against the PDF, not the note (CD-1). |
 | Component (footprint) | Pad positions plausible for package size, row spacing correct, pad dimensions match the datasheet mechanical drawing on the page the note cites, not the note's transcription of it and not memory |
 | MCU/FPGA | All power domains present, programming interface complete, reset pin present |
 | Power circuit | Enable pin handling, PGOOD output type + pull-up, **feedback divider uses solver not manual values**, bootstrap cap present |
@@ -259,7 +259,7 @@ Action required:
 - Return an updated task acceptance block
 ```
 
-The sub-agent fixes only the identified issues, re-checks, rebuilds, and returns an updated task acceptance block. The orchestrator reviews again. Maximum 2 rework cycles before escalating to reject. Status changes use `scripts/plan_status.py`; rewriting PLAN.md wholesale to change a status is not allowed.
+The sub-agent fixes only the identified issues, re-checks, rebuilds, and returns an updated task acceptance block. The orchestrator reviews again. Maximum 2 rework cycles before escalating to reject. Status changes use `scripts/plan_status.py` (`plan-template.md` owns the status rule).
 
 ---
 

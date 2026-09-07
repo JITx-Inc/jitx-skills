@@ -59,7 +59,7 @@ For other task classes (passive circuit, low-speed interface like I2C/SPI/UART, 
 
 ## What outside-voice reviews — prompt shape
 
-Prompts are **narrow and evidence-anchored**, not "review everything". The prompt names: the target directory codex can read, the exact files and datasheets that constitute the evidence packet, the specific failure modes to look for, and the output format the orchestrator can fold back into the block. Codex reads the datasheet PDFs, not the spec notes. It is the reviewer of last resort, and a spec note is the building chain's own output, so a review anchored to it cannot catch an extraction error. Codex runs in its own context, so the pages cost the orchestrator nothing.
+Prompts are **narrow and evidence-anchored**, not "review everything". The prompt names: the target directory codex can read, the exact files and datasheets that constitute the evidence packet, the specific failure modes to look for, and the output format the orchestrator can fold back into the block. Codex reads the datasheet PDFs, not the spec notes.
 
 | Trigger | Target dir | Evidence packet | Prompt focus |
 |---------|------------|-----------------|---------------|

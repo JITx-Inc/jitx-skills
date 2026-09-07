@@ -18,7 +18,7 @@ Everything above that block is guidance for filling it, and none of it belongs i
 - `Data` names the rows and sections a task reads. It does not reproduce their contents.
 - **A task body carries no execution policy.** Generator escalation rules, audit-pass ceremony, solver instructions, modeling conventions and anything else that would read identically on a different board belong to the skill and its references, which every sub-agent already reads. A sentence in a task body that would survive unchanged on another project is one that should not be there.
 - **A concern gets exactly one home.** A risk, a boundary or a worry is either settled, in which case ARCHITECTURE.md owns it as a design note, or unsettled, in which case PLAN.md `Open Questions` owns it with an owner and the tasks it gates. Never both. Two homes is how the two documents come to disagree, and the copy nobody updates is the one a resumed session believes.
-- `Specifics` carries only what no table owns and no task of the same type shares: the one gotcha, the topology choice, the exception. **One line, roughly 25 words.** It is the field that silently absorbs a plan: given a paragraph, it fills with design reasoning that ARCHITECTURE.md owns and with rules the skill already states, and neither belongs in a task body. If the note needs a second line, the fact belongs in ARCHITECTURE.md and the task should name the section instead. If it needs a caveat a sub-agent must not miss, that is an engineering question or an open question, not a `Specifics` sentence.
+- `Specifics` carries only what no table owns and no task of the same type shares: the one gotcha, the topology choice, the exception. **One line, roughly 25 words.** If the note needs a second line, the fact belongs in ARCHITECTURE.md and the task should name the section instead. If it needs a caveat a sub-agent must not miss, that is an engineering question or an open question, not a `Specifics` sentence.
 - The `Verify` module path is where the task's file lives: `python scripts/check.py <ns>/ --build <ns>.circuits.usb.TestDesign` commits the task to `<ns>/circuits/usb.py`. That gives the path one owner, so no task restates it and no two sub-agents place the same module differently. `jitx/SKILL.md` "Project Structure" gives the directory shape.
 
 **Support circuitry is visible in the graph, not only at the gate**
@@ -45,8 +45,7 @@ Everything above that block is guidance for filling it, and none of it belongs i
 - Approval is a per-row state in this table and is recorded nowhere else. Do not title the
   section as approved and do not restate an approval in prose: a heading or a sentence
   saying the sources are approved becomes a second owner, and it is the copy that stays
-  stale after the gate blocks. A gate block recording that no user approval exists, above
-  a table presenting itself as approved, is the contradiction this rule prevents.
+  stale after the gate blocks.
 - Every row's `Source status` reads `source approved` before the Phase 0 gate opens. A `needs input` row is a blocker and gets an Open Questions row. The column says only whether *the data source* is settled — never whether a task can start, which is the per-task `Status` field's job alone.
 - `Chosen over` is the surviving record of the component-choice rationale: one rejected part and why, in a few words. The full rationale table in `parts-sourcing.md` is presented to the user in chat at the data source audit, not filed here.
 

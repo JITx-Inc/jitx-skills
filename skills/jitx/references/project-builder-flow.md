@@ -46,7 +46,7 @@ blocked: OQ-n             ├→ rework → review → accepted (max 2 cycles)
 - `rework`: orchestrator found issues, sent back with specific feedback
 - `rejected`: fundamental problem, task needs replanning
 
-Every transition above runs through `python scripts/plan_status.py <task-id> <status> [--note "<short note>"]`. Rewriting PLAN.md wholesale to change a status is not allowed.
+Every transition above runs through `python scripts/plan_status.py <task-id> <status> [--note "<short note>"]`. (`plan-template.md` owns the status rule.)
 
 ---
 
@@ -468,7 +468,7 @@ Each subcircuit was designed in isolation. Now review the assembled design as a 
 
 ### Audit Structure
 
-Spawn a sub-agent to perform the design-level audit. The audit agent reads code and the datasheet PDFs and **edits nothing**. It reads the PDFs and not the spec notes: its job is to catch what the building chain missed, and the spec notes are that chain's own output. Where a note and the datasheet disagree, the note is the defect. It runs in its own context, so the pages cost the orchestrator nothing. It produces a **Phase 3b Audit Block** with issues classified as CRITICAL / WARNING / NOTE; see the template in `references/completion-blocks.md` "Phase 3b Design Audit Block".
+Spawn a sub-agent to perform the design-level audit. The audit agent reads code and the datasheet PDFs and **edits nothing**. It reads the PDFs and not the spec notes (CD-1). Where a note and the datasheet disagree, the note is the defect. It runs in its own context, so the pages cost the orchestrator nothing. It produces a **Phase 3b Audit Block** with issues classified as CRITICAL / WARNING / NOTE; see the template in `references/completion-blocks.md` "Phase 3b Design Audit Block".
 
 **After the same-model audit, attempt the bounded outside-voice fan-out (codex by default)
 defined in `references/outside-voice-review.md`.** The attempt is mandatory for
