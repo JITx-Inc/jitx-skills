@@ -157,6 +157,7 @@ A hard-fail hit blocks task acceptance. Fix the underlying code; do not whitelis
 
 | # | Rule | Pattern (Python `re`-style) | Where checked |
 |---|------|------|----|
+| 1 | SI application outside the conventional top-level directory. The search skips the paths where such a call is a definition or a harness rather than a misplaced application: any `constraints/` directory, `main.py`, and test modules. What remains is an SI constraint applied inside an ordinary subcircuit, which is the failure the rule names. A comment or docstring that spells out the call form in a non-skipped path still trips the regex; reword the prose, since a hard-fail takes no disposition. | `\b(ReferencePlanes\|Constrain\|ConstrainDiffPair\|ConstrainReferenceDifference)\s*\(` | `<ns>/` excluding `<ns>/designs/`, `constraints/`, `main.py`, tests |
 | 2 | Net symbols outside top-level designs (`GroundSymbol` / `PowerSymbol` are top-level only) | `\b(GroundSymbol\|PowerSymbol)\s*\(` | `<ns>/` excluding `<ns>/designs/` |
 | 3 | `setattr(self, ...)` / `getattr(self, ...)` — JITX convention violation (see `jitx/SKILL.md` Don'ts) | `\b(setattr\|getattr)\s*\(\s*self\b` | anywhere in `<ns>/` |
 | 4 | Anonymous structural `.insert(...)` (silent-drop pattern 1 — `Resistor(...).insert(...)` instead of `self.r = Resistor(...); self.r.insert(...)`) | `\b(Capacitor\|Resistor\|Inductor)\s*\([^)]*\)\s*\.insert\s*\(` | anywhere in `<ns>/` |
@@ -169,7 +170,6 @@ A review-required hit does not block, but each hit must appear in the task accep
 
 | # | Rule | Pattern | Where checked |
 |---|------|---------|----|
-| 1 | SI application outside the conventional top-level directory. The search skips the paths where such a call is a definition or a harness rather than a misplaced application: any `constraints/` directory, `main.py`, and test modules. What remains is an SI constraint applied inside an ordinary subcircuit, which is the failure the rule names. Prose in a comment or docstring inside a non-skipped path is the one false positive left; disposition `accept (comment/docstring)`. | `\b(ReferencePlanes\|Constrain\|ConstrainDiffPair\|ConstrainReferenceDifference)\s*\(` | `<ns>/` excluding `<ns>/designs/`, `constraints/`, `main.py`, tests |
 | 5 | Module-scope `for` loop — anti-string-hacking theme 9. Module-import-time logic that *might* populate a global table; legitimate uses (dispatch registration, static data generation) exist. Disposition: `fix (move into function)` or `accept (legitimate import-time logic: <reason>)`. See `jitx/SKILL.md` Don'ts and `references/architectural-patterns.md` § "No code at module-import time". | `^for\s+\w+\s+in\s+` | anywhere in `<ns>/` |
 | 6 | `Pour(..., isolate=...)` — legacy parameter (Pass 3 deprecates in favor of `design_constraint(...)` with Tags) | `\bPour\s*\([^)]*\bisolate\s*=` | anywhere in `<ns>/` |
 | 7 | Bare net/topology expression (silent-drop pattern 2 — `self.a + self.b` or `self.a >> self.b` with no LHS assignment) | `^\s*self\.\w+(\.\w+\|\[[^]]+\])*\s*(\+\|>>)\s*self\.\w+(\.\w+\|\[[^]]+\])*(\s*#.*)?$` | anywhere in `<ns>/` |
@@ -181,11 +181,11 @@ A review-required hit does not block, but each hit must appear in the task accep
 
 Pattern 8 is intentionally broad; it will match comments and legitimate `isinstance`-adjacent uses. The disposition workflow handles this — review-required is the right severity.
 
-Pattern 1 is review-required because the prescribed project structure puts
-constraint definitions in `constraints/`, the seeded top-level design in
-`main.py`, and test harnesses beside their modules. Those are correct locations.
-The gate treats the prescription as authoritative and asks for a per-hit semantic
-disposition instead of hard-failing code it cannot classify.
+Pattern 1 skips `constraints/` directories, `main.py`, and test modules
+(`test_*.py`, `*_test.py`, `tests/`) because the prescribed layout puts SI
+constraint definitions, the seeded top-level design, and harnesses there. A hit
+anywhere else is an SI constraint applied inside an ordinary subcircuit and
+blocks acceptance.
 
 Pattern 9 catches f-strings that look like they're building tag-style identifiers (`ALL_CAPS` prefix + brace). Legitimate uses (log lines like `f"ERROR_{code}"`) need disposition with rationale. The disposition workflow keeps this from becoming compliance theater.
 
