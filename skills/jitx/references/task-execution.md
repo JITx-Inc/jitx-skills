@@ -217,7 +217,7 @@ Verify that the task output is compatible with downstream tasks:
 
 #### 5. Issue Verdict
 
-For **complete-board** tasks in the outside-voice trigger list (MCU/FPGA, RF, power converter, safety-critical, high-speed digital / controlled-impedance, battery charging / protection), **attempt an outside-voice (codex) pass before issuing `accept`**. The trigger list does not apply to single-task tier; for single-task, the block's `Outside-voice review` field is `not applicable: single-task tier`. See `references/outside-voice-review.md` for trigger rules, prompt shape, invocation, and the combined-verdict rule. The task block records a no-output attempt as `skipped: <reason>` rather than as a failed gate. CRITICAL/WARNING findings from completed passes block `accept` until fixed, downgraded with rationale, or user-approved.
+For **complete-board** tasks in the outside-voice trigger list (MCU/FPGA, RF, power converter, safety-critical, high-speed digital / controlled-impedance, battery charging / protection), **attempt an outside-voice pass (codex by default) before issuing `accept`**. The trigger list does not apply to single-task tier; for single-task, the block's `Outside-voice review` field is `not applicable: single-task tier`. See `references/outside-voice-review.md` for trigger rules, prompt shape, invocation, and the combined-verdict rule. The task block records a no-output attempt as `skipped: <reason>`; it carries no findings, and the Phase 3b → 4 gate blocks until the user explicitly approves proceeding without it. CRITICAL/WARNING findings from completed passes block `accept` until fixed, downgraded with rationale, or user-approved.
 
 Append the acceptance verdict to the same task acceptance block the sub-agent emitted:
 

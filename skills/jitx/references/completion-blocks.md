@@ -52,7 +52,7 @@ Copy this template verbatim. Fill every field. Every `N/A` requires a reason.
 
 `Primary source` names the ground-truth source and exact pages or sections. In complete-board work, cite `datasheets/<MPN>.spec.md` and the PDF pages recorded there. In single-task work, cite the PDF directly. When the user named a sourcing channel for an IC, connector, or other non-passive part, include the saved channel-evidence path required by `parts-sourcing.md`. Prior projects belong under `Secondary references`, never `Primary source`. Bare "datasheet (from memory)" or "typical dimensions" is invalid for a real MPN.
 
-The two review fields are always present. `JITX code review (self)` is mandatory for complete-board tasks, except verify-only tasks with no JITX Python change; see `jitx-code-review/SKILL.md`. For single-task work it is `not applicable: single-task tier` unless the user invoked the review. `Outside-voice review (codex)` follows `references/outside-voice-review.md`; its complete-board trigger list does not apply to single-task work. A required outside-voice attempt that produces no output is recorded as `skipped: <reason>` and is not a failed gate. CRITICAL or WARNING findings from completed reviews produce `issues-pending` until fixed, downgraded with rationale, or user-approved.
+The two review fields are always present. `JITX code review (self)` is mandatory for complete-board tasks, except verify-only tasks with no JITX Python change; see `jitx-code-review/SKILL.md`. For single-task work it is `not applicable: single-task tier` unless the user invoked the review. `Outside-voice review` follows `references/outside-voice-review.md`; its complete-board trigger list does not apply to single-task work. A required outside-voice attempt that produces no output is recorded as `skipped: <reason>`; it carries no findings, and the Phase 3b → 4 gate blocks until the user explicitly approves proceeding without it. CRITICAL or WARNING findings from completed reviews produce `issues-pending` until fixed, downgraded with rationale, or user-approved.
 
 Run `python scripts/check.py <ns>/ --build <module.path.DesignClass>` once from the project root. The `Build` field and the four verification rows report the corresponding summary lines from that invocation. Review-required grep hits retain their per-hit dispositions in the `Grep gates` row.
 
@@ -98,7 +98,7 @@ Run `python scripts/check.py <ns>/ --build <module.path.DesignClass>` once from 
 | JITX CRITICAL | <file:line; rule; disposition / none> |
 | JITX WARNING | <file:line; rule; disposition / none> |
 | JITX NOTE | <file:line; rule / none> |
-| Outside-voice review (codex) | <result/reason> |
+| Outside-voice review | <reviewer; result/reason> |
 | Outside-voice CRITICAL | <file:line; cite/inference; disposition / none> |
 | Outside-voice WARNING | <file:line; cite/inference; disposition / none> |
 | Outside-voice NOTE | <file:line; cite/inference / none> |
@@ -331,7 +331,7 @@ For `N >= 3`, `B == N` fails this gate. The orchestrator re-dispatches or names,
 | Field | Result |
 |-------|--------|
 | Phase 3b audit block emitted | <block/link> |
-| Outside-voice review | <N attempted; M completed; K skipped + reasons> |
+| Outside-voice review | <reviewer; N attempted; M completed; K skipped + reasons; if K > 0, the user's approval to proceed quoted, else Verdict is block> |
 | CRITICAL findings | <count; result> |
 | WARNING findings | <count; dispositions> |
 | NOTE findings | <count> |
@@ -349,7 +349,7 @@ The audit happens in Phase 3b. A read-only audit agent (no design-code edits) re
 
 The four pass scopes remain those in `references/project-builder-flow.md`: application-circuit external parts and values; every circuit assumption against the system; every interface path including power; and every regulator's load margin, thermal/package limit, and hot-plug behavior.
 
-The bounded outside-voice fan-out is a required attempt for complete-board work and follows `references/outside-voice-review.md`. Any CRITICAL or WARNING finding from a completed outside-voice pass makes the combined verdict `issues-pending`, even when the four passes are clean. A pass with no output is recorded as skipped and does not turn the audit into a failed gate.
+The bounded outside-voice fan-out is a required attempt for complete-board work and follows `references/outside-voice-review.md`. Any CRITICAL or WARNING finding from a completed outside-voice pass makes the combined verdict `issues-pending`, even when the four passes are clean. A pass with no output is recorded as `skipped: <reason>`; it carries no findings, and the Phase 3b → 4 gate blocks until the user explicitly approves proceeding without it.
 
 ```markdown
 ## Phase 3b Audit: <project-name>
@@ -381,9 +381,9 @@ The bounded outside-voice fan-out is a required attempt for complete-board work 
 |------|-----------|----------|--------|--------|-----------------|----------|------------|
 | <rail> | <part> | <load> | <rating> | <margin> | <result> | <result> | <ID/none> |
 
-### Outside-Voice Review (codex)
+### Outside-Voice Review
 
-**Outside-voice review (codex):** <N attempted; M completed; K skipped + reasons; completed-pass result>
+**Outside-voice review:** <reviewer; N attempted; M completed; K skipped + reasons; completed-pass result>
 
 ### Findings and Loopback Decisions
 

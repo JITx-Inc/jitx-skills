@@ -95,8 +95,8 @@ Skills available in the current session appear in the agent skill list at startu
 - **Shell-side cross-check:** `command -v codex` (PowerShell: `Get-Command codex`) returns non-empty if the codex CLI is on the `PATH`. Useful for scripted flows but does not guarantee the wrapping skill is loaded.
 
 If neither check passes, the relevant block records
-`Outside-voice review: skipped: codex skill not available`. The skipped attempt is
-visible but is not a failed gate.
+`Outside-voice review: skipped: codex skill not available — blocking unless user approves`.
+The skipped attempt is visible; it carries no findings, and the Phase 3b → 4 gate blocks until the user explicitly approves proceeding without it.
 
 ### Invocation pattern
 
@@ -117,7 +117,7 @@ configured reviewer when it is not codex.
 
 ## Integrating findings — combined verdict rule
 
-Codex findings fill the `Outside-voice review (codex)`, `Outside-voice CRITICAL`, `Outside-voice WARNING`, and `Outside-voice NOTE` rows in the task acceptance block. Phase 3b records the overall result in its outside-voice field and puts each finding in `Findings and Loopback Decisions`. The canonical compact shapes live in `references/completion-blocks.md`.
+Reviewer findings fill the `Outside-voice review`, `Outside-voice CRITICAL`, `Outside-voice WARNING`, and `Outside-voice NOTE` rows in the task acceptance block. Phase 3b records the overall result in its outside-voice field and puts each finding in `Findings and Loopback Decisions`. The canonical compact shapes live in `references/completion-blocks.md`.
 
 The field is **always present** in the task acceptance block and the Phase 3b audit block. Valid values: `clean`, `<N> findings`, `not applicable: <reason>`, `skipped: <reason>`. A missing field fails review.
 
@@ -132,7 +132,7 @@ The field is **always present** in the task acceptance block and the Phase 3b au
 NOTE findings document only; they don't block.
 
 A skipped outside-voice pass contributes no findings and does not change the
-combined verdict. It remains recorded with its reason. A later produced finding
+combined verdict, but it carries no findings, and the Phase 3b → 4 gate blocks until the user explicitly approves proceeding without it. It remains recorded with its reason. A later produced finding
 still takes precedence under the rules above.
 
 This precedence rule prevents either pass from being decorative — both reviewers' findings carry equal weight.
@@ -143,8 +143,8 @@ The mandatory invocation sites:
 
 - `references/project-builder-flow.md` — Phase 3b section: after the same-model audit block, run outside-voice pass per this file. Result is required in the Phase 3b audit block and the Phase 3b → 4 gate.
 - `references/task-execution.md` Part A Step 4 — same-model `jitx-code-review` runs after grep gates and before emitting the task acceptance block, mandatory for every complete-board sub-agent task.
-- `references/task-execution.md` Part B Step 5 (Issue Verdict): for trigger-list task classes, run outside-voice (codex) before issuing `accept`. Result is required in the task acceptance block.
-- `references/completion-blocks.md` — task acceptance block carries both the `JITX code review (self)` and `Outside-voice review (codex)` fields (both always present). Phase 3b audit block carries only the `Outside-voice review (codex)` field (Phase 3b's same-model pre-pass is the four-pass audit recorded in the block body itself, not the per-task `jitx-code-review`).
+- `references/task-execution.md` Part B Step 5 (Issue Verdict): for trigger-list task classes, run the outside-voice pass before issuing `accept`. Result is required in the task acceptance block.
+- `references/completion-blocks.md` — task acceptance block carries both the `JITX code review (self)` and `Outside-voice review` fields (both always present). Phase 3b audit block carries only the `Outside-voice review` field (Phase 3b's same-model pre-pass is the four-pass audit recorded in the block body itself, not the per-task `jitx-code-review`).
 
 ## Compliance-theater watch list
 
