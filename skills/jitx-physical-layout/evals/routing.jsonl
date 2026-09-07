@@ -8,7 +8,7 @@
 {"intent":"Build a runtime probe for four Pour layers without reading Instantiable proxy attributes at module scope.","expected_skill":"jitx-physical-layout"}
 {"intent":"Draw a netless copper antenna that overlaps its feed and short pads without triggering copper overlap checks.","expected_skill":"jitx-physical-layout"}
 {"intent":"Create a custom polygonal copper shape with shapely and prove its realized bounds after capture.","expected_skill":"jitx-physical-layout"}
-{"intent":"Place these thermal vias in code, retain them structurally, and verify they survive the EDB export.","expected_skill":"jitx-physical-layout","ambiguous_with":["jitx-substrate-modeler"]}
+{"intent":"Place these thermal vias in code, retain them structurally, and verify they realize in the capture.","expected_skill":"jitx-physical-layout","ambiguous_with":["jitx-substrate-modeler"]}
 {"intent":"Author a code Route through control points and assert that every trace actually realized.","expected_skill":"jitx-physical-layout","ambiguous_with":["jitx-layout-constraints"]}
 {"intent":"Add soldermask and paste openings to this custom thermal pad and validate the generated polygons.","expected_skill":"jitx-physical-layout","ambiguous_with":["jitx-component-modeler"]}
 {"intent":"Compute board-global pad positions for a composite landpattern so I can place escape vias correctly.","expected_skill":"jitx-physical-layout"}

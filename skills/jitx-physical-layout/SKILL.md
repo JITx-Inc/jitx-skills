@@ -128,7 +128,7 @@ copper is allowed to **overlap** other copper:
 
 | Construct | On a net? | Overlap-exempt? | Use for |
 |---|---|---|---|
-| `Pour(shape, layer, *, rank=0)` | yes (`net += Pour(...)`) | no | filled planes / shaped fills |
+| `Pour(shape, layer, *, rank=0, orphans=True)`; `orphans` is documented as not respected | yes (`net += Pour(...)`) | no | filled planes / shaped fills |
 | `Copper(shape, layer)` | yes (`net += Copper(...)` or `a + Copper(...)`) | no | an explicit copper shape on one net |
 | `OverlappableCopper(shape, layer)` | **no** (netless) | **yes** | net-tie copper bridging two nets' pads, antenna radiators, filter copper — ignored by the router and overlap checks |
 

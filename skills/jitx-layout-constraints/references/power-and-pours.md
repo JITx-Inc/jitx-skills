@@ -347,8 +347,8 @@ Read these fields from the selected substrate. The class values are examples, no
 
 Result, observed on 4.4.0rc5.dev2 on one pad shape (a 1.6 mm round pad):
 candidate 2 below produces a direct connect and candidate 1 does not. Before
-reusing the pattern on another pad shape, size or runtime, treat it as
-unconfirmed for that case and say so. A higher-priority `thermal_relief` whose spoke width
+reusing the pattern on another pad shape, size or runtime, confirm it on that
+pad's captured `computed_shape` before relying on it. A higher-priority `thermal_relief` whose spoke width
 equals the pad diameter leaves the runtime's computed pour copper with no gap
 and no spokes at the tagged pad, while a default-relief pad on the same net
 keeps its four 0.2 mm spokes; the higher-priority rule carrying no effect leaves
@@ -397,11 +397,9 @@ Surface 2 shows the voided pour; surfaces 1 and 3 do not on the 4.4 line, so it
 is the one to read. A successful build alone is not evidence of direct
 connection.
 
-The fabrication export also shows it, and is deliberately not listed as a
-surface here. It is a handoff artifact for a fab, not a verification loop: an
-export, a directory walk and a feature-file parse per rule is a large amount of
-work to reach a fact `computed_shape` already carries, and an agent that starts
-inspecting exported geometry to confirm its own rules tends to keep doing it.
+The fabrication export is not a verification surface here; `computed_shape`
+already carries the fact (rule and reason: `jitx-physical-layout`, "Pour
+realization semantics").
 
 ## 9. Power puddle from a pad list
 

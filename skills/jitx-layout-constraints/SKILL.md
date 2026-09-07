@@ -357,9 +357,11 @@ realization, edge pullback, and captured-shape semantics are owned by
   so a quoted 2 oz layer that is not in the stackup is a substrate task first
   (`jitx-substrate-modeler`, from the fab's report), and until then the
   heavy-copper rule is an open item, not a guess at a layer index.
-- An inner-layer pour with no via tying it to copper that carries its net is
-  orphan copper, and the engine drops it silently; give inner pours stitch vias
-  or anchor vias.
+- An inner-layer pour with no via or pad on its net reaching that layer is
+  orphan copper, and the engine drops it silently; give inner pours an anchor,
+  a placed via or a pad on the net on that layer. A stitch rule does not create
+  the anchor: solver-emitted stitch vias leave the pour `Empty()` (see
+  [Pour realization semantics](../jitx-physical-layout/SKILL.md#pour-realization-semantics)).
 - Sliver removal: `design_constraint(IsPour).pour_feature_size(min_width)`.
 - Stitching a pour: `design_constraint(GndPourTag()).stitch_via(ViaClass,
   SquareViaStitchGrid(pitch=, inset=))`; the via class may be reached
@@ -515,12 +517,10 @@ points, floating circuits) are owned by `jitx-physical-layout`
 `references/geometry-verification.md` and its
 [Pour realization semantics](../jitx-physical-layout/SKILL.md#pour-realization-semantics).
 The consequence for rules: trace-to-pour clearance, thermal relief and sliver
-removal are not measurable from `rd.query`. Report those rules
-as not verified from capture and move on. Do not reach for the fabrication
-export to close them: parsing an ODB++ tree to confirm a rule costs an export,
-a directory walk and a feature-file parse per rule, and it answers a question
-the design already knows the answer to. An unverifiable rule is an open item
-with one line against it, not a research project.
+removal are not measurable from `rd.query`. Report those rules as not
+verified from capture, one line each, and do not use the fabrication export to
+close them (rule and reason: `jitx-physical-layout`, "Pour realization
+semantics").
 
 A measured width below the winning rule is a failure, never a note: a route
 that realizes at the via pad diameter because it runs via to via has not met
