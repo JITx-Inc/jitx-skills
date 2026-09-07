@@ -1,6 +1,6 @@
 ---
 name: jitx-layout-constraints
-description: "Use when the user asks to set default trace width or clearance, write design rules, set net-to-net, trace-to-pour, trace-to-hole, or per-layer clearance, size power trace width by net class or current, keep one net's copper away from another, tag nets into classes with their own width and spacing, place and route decoupling capacitors, set pour rules (inner or outer layer, heavy copper, sliver removal, thermal relief, direct connect), express pour stitching as a rule or build an explicit thermal-pad via field, step a wide power trace down to fit a QFN, BGA, or passive pad (fanout or escape width), verify widths and clearances after build, or find out why a design rule did not apply. Covers Tag, design_constraint, UnaryDesignConstraint, BinaryDesignConstraint, builtin tags, OnLayer, AnyObject, priority, all rule effects, FabricationConstraints floors, the Bogatin power and decoupling habits, and after-build checks. Fab minimums, stackups, vias, and routing-structure definitions belong to jitx-substrate-modeler ('set fabrication rules' means the fab floor; design rules above the floor live here). Drawing copper, diagnosing realized pours or stitch vias, control-point mechanics, and the geometry-verification loop belong to jitx-physical-layout. Topology and timing constraints belong to jitx-interconnect-constraints."
+description: "Use when the user asks to set default trace width or clearance, write design rules, set net-to-net, trace-to-pour, trace-to-hole, or per-layer clearance, size power trace width by net class or current, keep one net's copper away from another, tag nets into classes with their own width and spacing, place and route decoupling capacitors, set pour rules (inner or outer layer, heavy copper, sliver removal, thermal relief, direct connect), express pour stitching as a rule, step a wide power trace down to fit a QFN, BGA, or passive pad (fanout or escape width), verify widths and clearances after build, or find out why a design rule did not apply. Covers Tag, design_constraint, UnaryDesignConstraint, BinaryDesignConstraint, builtin tags, OnLayer, AnyObject, priority, all rule effects, FabricationConstraints floors, the Bogatin power and decoupling habits, and after-build checks. Fab minimums, stackups, vias, and routing-structure definitions belong to jitx-substrate-modeler ('set fabrication rules' means the fab floor; design rules above the floor live here). Drawing copper, diagnosing realized pours or stitch vias, control-point mechanics, and the geometry-verification loop belong to jitx-physical-layout. Topology and timing constraints belong to jitx-interconnect-constraints."
 ---
 
 # JITX Layout Constraints
@@ -368,14 +368,9 @@ realization, edge pullback, and captured-shape semantics are owned by
   through the substrate's mixin, re-declared on the substrate, or declared at
   module scope (verified). The target and inset realization semantics are in
   [Pour realization semantics](../jitx-physical-layout/SKILL.md#pour-realization-semantics).
-  For an exposed thermal pad, the soldermask-defined
-  via field with its mask dams is `scripts/thermal_via_stitch.py`, which reads
-  its constants from `FabricationConstraints` and the via class and raises
-  `ValueError` on a pad too small for the grid or an opening that is not a
-  polygon (a raise means stop and change the grid, never bypass it); usage is
-  in `jitx-physical-layout` `references/layout-examples.md`. The module is
-  unit-tested; no reference design has built a pad with it yet, so verify the
-  mask and paste openings in the fab output the first time.
+  For an exposed thermal pad, the explicit via field with its mask dams is
+  `jitx-physical-layout`'s `thermal_via_stitch.py` (its "Pad features" section);
+  this skill owns only the rules that act on that pad.
 - Thermal relief is the `IsPad` default above. A solid connection for a
   high-current pad (direct connect) has no dedicated effect; the verified
   pattern is a higher-priority `thermal_relief` on the tagged pads with

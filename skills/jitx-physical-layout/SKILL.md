@@ -401,8 +401,15 @@ landpattern.thermal_pad(shape=rectangle(3.45, 3.45), config=config)
 
 A **soldermask-defined thermal pad** (shapely CSG webs + via dams, a cheap-fab
 alternative to filled via-in-pad) is a complete worked example in
-`references/layout-examples.md`. Authoring the package/landpattern itself from a
-datasheet belongs to `jitx-component-modeler`; this skill is the feature mechanics.
+`references/layout-examples.md`. Its explicit via field and mask dams are built by
+this skill's `scripts/thermal_via_stitch.py`: copy it into the project; it reads
+`FabricationConstraints` and the via class, and raises `ValueError` on a pad too
+small for the grid or a non-polygon opening, which means change the grid, not
+bypass the check. No reference design has built a pad with it yet, so verify the
+mask and paste openings in the fab output the first time. Authoring the
+package/landpattern itself from a datasheet belongs to `jitx-component-modeler`;
+the rules that act on the pad (thermal relief, direct connect) belong to
+`jitx-layout-constraints`; this skill is the feature mechanics.
 
 ## Explicit placement & via attachment
 

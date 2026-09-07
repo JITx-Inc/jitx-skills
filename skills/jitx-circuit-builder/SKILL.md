@@ -1,6 +1,6 @@
 ---
 name: jitx-circuit-builder
-description: "This skill should be used when the user asks to \"wire up\", \"connect\", \"build a circuit\", create an \"application circuit\", work with passives (resistors, capacitors), set up power connections, \"add pours\", or \"place components\". Covers the Circuit class, net operators, passive queries, voltage dividers, and copper geometry. For provide/require pin assignment patterns, use jitx-pin-assignment instead."
+description: "This skill should be used when the user asks to \"wire up\", \"connect\", \"build a circuit\", create an \"application circuit\", work with passives (resistors, capacitors), set up power connections, \"add pours\", or \"place components\". Covers the Circuit class, net operators, passive queries, the voltage-divider solver, and basic pours; custom copper geometry is jitx-physical-layout. For provide/require pin assignment patterns, use jitx-pin-assignment instead."
 ---
 
 # JITX Circuit Builder

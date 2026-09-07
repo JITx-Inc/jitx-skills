@@ -573,13 +573,13 @@ For ad-hoc work outside the project-builder flow: just don't run two `jitx build
 
 ### Grep Gate Enforcement
 
-Copy `scripts/grep_gates.py` from this skill into the project's `scripts/`
-directory. Copy `scripts/check.py` alongside it, copy
-`jitx-interconnect-constraints/scripts/check_si_spans.py` as
-`scripts/check_si_spans.py`, and copy
-`jitx-physical-layout/scripts/check_realization.py` as
-`scripts/check_realization.py`. The base skill's `scripts/plan_status.py` is
-copied when PLAN.md is created as described below. Sub-agents and the
+Copy `scripts/grep_gates.py` and `scripts/check.py` from this skill into the
+project's `scripts/` directory. Copy `jitx-interconnect-constraints/scripts/check_si_spans.py`
+to `<project>/scripts/check_si_spans.py` and
+`jitx-physical-layout/scripts/check_realization.py` to
+`<project>/scripts/check_realization.py`; each is owned and tested by its skill.
+The base skill's `scripts/plan_status.py` is copied when PLAN.md is created as
+described below. Sub-agents and the
 orchestrator at every phase exit gate run the single static-check entry point
 against the project's Python package (e.g. `<ns>/`) to enforce lint, formatting,
 type, and JITX grep-gate checks:
@@ -726,6 +726,7 @@ Covers:
 - Place vias or components from code — stitching/thermal vias join nets directly; `PortAttachment` binds signal vias / control points (signal topologies only)
 - Apply layout-intent tags (fanout/escape, direct-connect / thermal-relief) to layout objects
 - Author code-based routes or control points for escape routing / deskew (advanced)
+- Diagnose or verify realized geometry: a pour that captured `Empty()`, missing stitch vias, keepout voiding, board-edge pullback (`check_realization.py`)
 
 **How to invoke:** Use the `jitx-physical-layout` skill
 
@@ -778,6 +779,7 @@ the rules act on.
 - Set up protocol-specific constraints (PCIe, USB, DisplayPort, RGMII, Ethernet, DDR)
 - Use ReferencePlanes for routing structure constraints
 - Build custom SignalConstraint subclasses
+- Prove after build that each SI constraint bound to its intended end-to-end path (`check_si_spans.py`)
 
 **How to invoke:** Use the `jitx-interconnect-constraints` skill
 

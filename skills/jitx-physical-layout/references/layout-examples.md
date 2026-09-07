@@ -18,7 +18,7 @@ computed with shapely CSG: the exposed-pad rectangle minus a perimeter frame,
 linear webs, and circular via dams. The vias use the same coordinates as the
 CSG, so every via sits under a dam and every paste cell is enclosed by mask.
 
-Copy `jitx-layout-constraints/scripts/thermal_via_stitch.py` into the project,
+Copy this skill's `scripts/thermal_via_stitch.py` into the project,
 then use it at the landpattern and circuit call sites. It raises `ValueError`
 when the exposed pad cannot hold the grid or the opening is not a polygon; a
 raise means change the grid, not skip the check. The substrate supplies
@@ -100,7 +100,6 @@ inside the circuit so it tracks the antenna wherever it is placed.
 import jitx
 from jitx import Board, Design, OverlappableCopper, PadMapping, Pour, Tag
 from jitx.circuit import Circuit
-from jitx.constraints import ViaFencePattern, design_constraint
 from jitx.feature import KeepOut
 from jitx.landpattern import Landpattern, Pad
 from jitx.layerindex import LayerSet
@@ -111,7 +110,7 @@ from jitxlib.symbols.box import BoxSymbol
 
 
 class AntennaGroundTag(Tag):
-    """Marks the local RF ground island for the design's fence-via rule."""
+    """Marks the local RF ground island for the substrate-side fence-via rule."""
 
 
 class _AnchorPad(Pad):
@@ -201,10 +200,8 @@ class AntennaDesign(Design):
     board = AntennaBoard()
     substrate = JLC04161H_7628()
     circuit = AntennaMatching()
-    antenna_ground_fence = design_constraint(AntennaGroundTag()).fence_via(
-        JLC04161H_7628.StdViaPreferred,
-        ViaFencePattern(pitch=1.0, offset=0.5, num_rows=1),
-    )
+    # The fence-via rule that consumes AntennaGroundTag is declared with the
+    # substrate; see jitx-substrate-modeler, "Fenced Pour Outlines".
 ```
 
 > The original project file commented `route=False` as "so signal traces can't cross
@@ -215,10 +212,13 @@ class AntennaDesign(Design):
 `KeepOut(pour=True)` excludes pours at every rank. It does not provide a local
 ground-island exception. The replacement above uses disjoint geometry: the moat
 keepout surrounds but does not overlap `gnd_island`, the short pad anchors that
-island to GND, and `AntennaGroundTag` feeds the top-level `fence_via(...)` rule a
-concrete `Pour` target. The realization command names `circuit.gnd_island` when a
-stitch rule also selects it; a fence-via project check queries the computed
-fence-via group separately. See the main skill's
+island to GND, and `AntennaGroundTag` gives the fence-via rule a concrete `Pour`
+target. That rule, `design_constraint(AntennaGroundTag()).fence_via(<substrate via
+class>, ViaFencePattern(...))`, lives with the substrate because its via class and
+fence pattern do; this example owns only the tagged-pour geometry. See
+`jitx-substrate-modeler`, "Fenced Pour Outlines". The realization command names
+`circuit.gnd_island` when a stitch rule also selects it; a fence-via project check
+queries the computed fence-via group separately. See the main skill's
 [Pour realization semantics](../SKILL.md#pour-realization-semantics).
 
 ## Custom-pad soldermask / paste helpers
