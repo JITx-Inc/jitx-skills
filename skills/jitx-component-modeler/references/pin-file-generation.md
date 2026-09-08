@@ -24,8 +24,9 @@ Geometry still comes from the packaging document, and the two are separate autho
 knows nothing about body size, pitch or land diameter; the packaging manual knows nothing about which
 ball carries which signal. Do not let one stand in for the other.
 
-When the vendor publishes no machine-readable map, the ordinary datasheet path applies — see the main
-skill's Step 1 and `package-examples.md`.
+When the vendor publishes no machine-readable map, the ordinary datasheet path applies — see
+[source-and-package-selection.md](source-and-package-selection.md#step-1-extract-key-information)
+and [package-examples.md](package-examples.md).
 
 **The file's schema is per-source.** Vendors publish these as whitespace-aligned columns, CSV, or
 tab-separated, with different column sets and different header and footer conventions. Write the
@@ -145,7 +146,7 @@ in the generator's input and in trailing comments for human readers.
 
 This is the difference between a structural model and a string-keyed one. A downstream consumer that
 has to parse `"AB34"` to find a neighbour has inherited the vendor's serialization format as its
-data model. See the main skill's "Anti-string-hacking" rule, which this is a special case of.
+data model. See [component-code-patterns.md](component-code-patterns.md#anti-string-hacking--read-before-building-arrays-of-pins--lanes--bundles), which this is a special case of.
 
 **No runtime ball-reference table**, even a private one — not `_BALL_REF_BY_COORD`, not a
 `# fmt: off` block of them. A ball reference is *derivable* from `(row, col)` by the same encoder the
@@ -191,8 +192,8 @@ the `(row, col)` data itself, not a parallel table of the strings those coordina
 
 - Coordinate tables under a formatter-off guard, so the grid stays readable.
 - An iterator yielding every (port, coordinate) pair.
-- **Structural groupings as methods returning fresh records** — never as stored attributes. See the
-  main skill's "A `Port` has exactly one home".
+- **Structural groupings as methods returning fresh records** — never as stored attributes. See
+  [component-code-patterns.md](component-code-patterns.md#a-port-has-exactly-one-home).
 - No-connects declared per the **BGA-Specific Notes** in `package-examples.md`.
 
 **Declaration order is not pad order, and this bites later.** A generated module declares in whatever
@@ -202,8 +203,8 @@ added that default is silently wrong: ports land on the wrong pads, the build st
 nothing in the emitted module says otherwise.
 
 So the emitted module owes an **explicit `PadMapping`** built from the coordinate table rather than
-left to declaration order — see the main skill's "PadMapping Requirements", whose "ports declared out
-of pin order" case this always is.
+left to declaration order — see [component-code-patterns.md](component-code-patterns.md#padmapping-requirements),
+whose "ports declared out of pin order" case this always is.
 
 Where geometry is not yet available and the module ships without a land pattern, put that warning
 **in the module**, next to the blocked-geometry note. Whoever adds the land pattern later is the
@@ -229,7 +230,7 @@ If the user has not answered, the correct state is stopped, not "proceeded with 
 
 ## Testing a generated component
 
-Everything in "Verifying a component with tests" applies. Additionally:
+Everything in [verification-and-application.md](verification-and-application.md#verifying-a-component-with-tests) applies. Additionally:
 
 - **Counts as literals** — total pins, and per-group counts taken from the inventory report. A
   generated module will happily produce a self-consistent wrong answer; the literal is what makes the

@@ -18,6 +18,7 @@ Verified API surfaces:
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from math import isclose
 
@@ -81,6 +82,8 @@ POWER_CLASS_WIDTH_MM = 0.5  # skill default: 0.5 mm power-class width
 ESCAPE_CLEARANCE_MARGIN_MM = 0.01  # skill default: 0.01 mm above the fab floor
 ESCAPE_RUN_MM = 1.0  # skill default: 1.0 mm from pad edge to transition
 GEOMETRY_TOLERANCE_MM = 1e-6  # skill default: 1e-6 mm geometry comparison
+WIDTH_QUANTUM_MM = 1e-6  # skill default: 1 nm fixed width quantum
+WIDTH_DECIMAL_PLACES = 6  # skill default: fixed precision matching WIDTH_QUANTUM_MM
 
 
 class PowerTag(Tag):
@@ -164,7 +167,9 @@ class PlaceholderQfn32(Component):
         ]
         entries.extend(
             (port, self.landpattern.p[pad_number])
-            for pad_number, port in enumerate(self.NC, start=3)  # skill default: pad 3 starts NC
+            for pad_number, port in enumerate(
+                self.NC, start=3
+            )  # skill default: pad 3 starts NC
         )
         self.mappings = [PadMapping(entries)]
         for port in self.NC:
@@ -178,6 +183,7 @@ class ReferenceBoard(Board):
 @dataclass(frozen=True)
 class EscapeGeometry:
     pad_width: float
+    narrowest_rule_pad_width: float
     adjacent_gap: float
     row_pitch: float
     pad_depth: float
@@ -226,6 +232,7 @@ def derive_qfn_escape_geometry(
     design: Design,
     component: PlaceholderQfn32,
     target_pad: Pad,
+    rule_pads: Sequence[Pad],
     fab: FabricationConstraints,
 ) -> EscapeGeometry:
     """Derive the QFN row gap, pad width, and legal escape width."""
@@ -274,9 +281,29 @@ def derive_qfn_escape_geometry(
 
     fab_floor = fab.min_copper_copper_space
     if adjacent_gap < fab_floor:
-        raise ValueError("adjacent QFN pads are closer than the fabrication spacing floor")
-    centered_channel_limit = pad_width + 2.0 * (adjacent_gap - fab_floor)
-    escape_width = min(pad_width, centered_channel_limit)
+        raise ValueError(
+            "adjacent QFN pads are closer than the fabrication spacing floor"
+        )
+
+    rule_pad_widths: list[float] = []
+    for pad in rule_pads:
+        geometry = pad_copper[id(pad)]
+        gx0, gy0, gx1, gy1 = geometry.bounds
+        gcx, gcy = geometry.centroid.coords[0]
+        gdelta = (
+            gcx - component_center[0],
+            gcy - component_center[1],
+        )
+        g_radial_is_x = abs(gdelta[0]) >= abs(gdelta[1])
+        rule_pad_widths.append(gy1 - gy0 if g_radial_is_x else gx1 - gx0)
+    narrowest_rule_pad_width = min(rule_pad_widths)
+    escape_width = (
+        round(narrowest_rule_pad_width, WIDTH_DECIMAL_PLACES) - WIDTH_QUANTUM_MM
+    )
+    if not escape_width < narrowest_rule_pad_width:
+        raise ValueError(
+            "quantized QFN escape is not strictly inside every selected pad"
+        )
     if escape_width < fab.min_copper_width:
         raise ValueError(
             "derived QFN escape is below the substrate minimum copper width"
@@ -292,6 +319,7 @@ def derive_qfn_escape_geometry(
 
     return EscapeGeometry(
         pad_width=pad_width,
+        narrowest_rule_pad_width=narrowest_rule_pad_width,
         adjacent_gap=adjacent_gap,
         row_pitch=row_pitch,
         pad_depth=pad_depth,
@@ -303,16 +331,24 @@ def derive_qfn_escape_geometry(
 
 
 def realized_route_widths(route: Route) -> tuple[float, ...]:
-    """Return every captured ArcPolyline or Polyline width for ``route``."""
+    """Return widths, failing if a realized shape has no polyline width."""
 
     if not route.traces:
         return ()
     widths: list[float] = []
+    wrong_primitives: list[str] = []
     for trace in route.traces:
         for shape in trace.shapes:
             primitive = shape.to_primitive().geometry
             if isinstance(primitive, ArcPolyline | Polyline):
                 widths.append(primitive.width)
+            else:
+                wrong_primitives.append(type(primitive).__name__)
+    if wrong_primitives:
+        raise AssertionError(
+            f"route realized as {wrong_primitives}, not a width-bearing polyline; "
+            "the width rule failed"
+        )
     return tuple(widths)
 
 
@@ -331,6 +367,7 @@ class FanoutCircuit(Circuit):
             initialized.design,
             self.u1,
             target_pad,
+            (target_pad,),
             initialized.design.substrate.constraints,
         )
         self.route_point = RoutePoint(layer=0).at(self.escape_geometry.transition)
@@ -347,13 +384,15 @@ class FanoutCircuit(Circuit):
             design_constraint(QfnEscapeTag(), priority=4).trace_width(
                 self.escape_geometry.escape_width
             ),
-            design_constraint(
-                QfnEscapeTag(), AnyObject, priority=4
-            ).clearance(self.escape_geometry.escape_clearance),
+            design_constraint(QfnEscapeTag(), AnyObject, priority=4).clearance(
+                self.escape_geometry.escape_clearance
+            ),
         ]
         print(
             "QFN escape geometry: "
             f"pad_width={self.escape_geometry.pad_width:.6f} mm, "
+            "narrowest_rule_pad_width="
+            f"{self.escape_geometry.narrowest_rule_pad_width:.6f} mm, "
             f"adjacent_gap={self.escape_geometry.adjacent_gap:.6f} mm, "
             f"row_pitch={self.escape_geometry.row_pitch:.6f} mm, "
             f"escape_width={self.escape_geometry.escape_width:.6f} mm, "
@@ -369,9 +408,7 @@ class QfnPowerFanoutDesign(Design):
     def __init__(self):
         fab = self.substrate.constraints
         default_width = max(fab.min_copper_width, DEFAULT_TRACE_WIDTH_MM)
-        default_clearance = max(
-            fab.min_copper_copper_space, DEFAULT_CLEARANCE_MM
-        )
+        default_clearance = max(fab.min_copper_copper_space, DEFAULT_CLEARANCE_MM)
         thermal_gap = max(fab.min_copper_copper_space, THERMAL_GAP_MM)
         thermal_spoke = max(fab.min_copper_width, THERMAL_SPOKE_WIDTH_MM)
         pour_feature = max(fab.min_copper_width, POUR_FEATURE_WIDTH_MM)
@@ -385,9 +422,7 @@ class QfnPowerFanoutDesign(Design):
                 thermal_gap, thermal_spoke, THERMAL_SPOKE_COUNT
             ),
             design_constraint(IsPour).pour_feature_size(pour_feature),
-            design_constraint(PowerTag(), priority=2).trace_width(
-                POWER_CLASS_WIDTH_MM
-            ),
+            design_constraint(PowerTag(), priority=2).trace_width(POWER_CLASS_WIDTH_MM),
         ]
 
 

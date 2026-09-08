@@ -1,0 +1,18 @@
+goal: |
+  An engineer can describe an ordered signal path, timing relationship, or SI
+  limit and receive JITX topology and constraint code whose endpoints cover the
+  intended end-to-end chain, whose primitive and routing structure match the
+  signal type, whose numeric limits have a named source, and whose emitted
+  binding is proven after build rather than inferred from status: ok.
+dimensions:
+  - "TOPOLOGY_CONTINUITY: does every constrained path use stored >> segments, expose both ends across circuit boundaries, and include the pin-model edges needed to cross pass-through components?"
+  - "ENDPOINT_AND_SPAN_FIDELITY: are both Topology endpoints actual elements of the intended chain, and does the constraint cover the intended end-to-end span rather than a reachable but shorter segment?"
+  - "CONSTRAINT_PRIMITIVE_FIT: does single-ended work use Constrain and RoutingStructure, differential work use ConstrainDiffPair or DiffPairConstraint with DifferentialRoutingStructure, and reusable SignalConstraint subclasses initialize their base state?"
+  - "TIMING_AND_SI_PROVENANCE: do timing, skew, insertion-loss, impedance, and reference-plane choices trace to the requested protocol revision, component data, substrate definition, or an explicit open item?"
+  - "EMITTED_BINDING_EVIDENCE: does a post-build check find each expected emitted SI span, walk its endpoints through topologySegments and pinModels, reject uncovered chain segments, and distinguish binding from numeric compliance?"
+hard_fails:
+  - "A constraint builds cleanly but binds to no emitted topology path, including a dangling endpoint or a missing pin-model edge across a pass-through component."
+  - "The result claims a constraint applies based only on status: ok, type checking, a clean build, or the existence of a harness."
+  - "A reachable endpoint stops short of the intended chain end and the uncovered span is neither rejected nor explicitly justified as intentional."
+  - "DifferentialRoutingStructure is passed through Constrain.structure instead of ConstrainDiffPair or DiffPairConstraint."
+  - "A timing, skew, insertion-loss, impedance, or reference-plane claim is invented or is presented as verified without the evidence surface needed to support it."

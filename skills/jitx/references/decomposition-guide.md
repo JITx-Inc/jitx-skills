@@ -106,7 +106,7 @@ One task per:
 - Substrate
 - Each component or component family
 
-All of these are independent and spawn as parallel sub-agents.
+All of these are independent and spawn as parallel sub-agents. The orchestrator dispatches each startable Phase 1 batch in a single message carrying multiple spawn calls, not one message per task. It records the task count, spawn-batch count, and maximum concurrency for the Phase 1 exit gate. This dispatch rule does not change the same-design build-safety rule in `jitx/SKILL.md`.
 
 ### Phase 2: Constraints + Circuits + Pin Assignment (partially parallel)
 Group into independent clusters that can run in parallel:

@@ -11,9 +11,9 @@ Capture traps and limits handled here:
   composition makes unrelated copper commonly read as 0.0000 mm apart.
 * ``PolygonSet.to_shapely()`` fills each computed-pour cutout ring. The adapter
   rebuilds polygon sets ring by ring before conversion.
-* A captured ``Pour`` on the JITX 4.4 line is its input outline before voiding.
-  Pours are excluded from capture clearance checks. Use the runtime-side
-  legacy ODB++ export for trace-to-pour measurements.
+* A captured ``Pour`` is the realized, voided copper: capture overwrites the
+  authored outline. Pours are excluded from the clearance checks here;
+  realization checks are ``jitx-physical-layout/scripts/check_realization.py``.
 
 The capture/query procedure and the reason to assert concrete geometry are in
 ``jitx-physical-layout/references/geometry-verification.md``. Installed API
@@ -227,12 +227,21 @@ def check_route_width(route: object, expected: float, tol: float) -> CheckResult
         for shape in getattr(trace, "shapes", ()):
             shapes.append(getattr(shape, "geometry", shape))
     widths = tuple(sorted(trace_widths(shapes)))
-    passed = bool(widths) and all(abs(width - expected) <= tol for width in widths)
-    detail = (
-        f"route={route!r} tol={tol:.4f} mm"
-        if widths
-        else f"route={route!r} has no realized trace width witness"
+    without_width = sum(1 for shape in shapes if getattr(shape, "width", None) is None)
+    passed = (
+        bool(widths)
+        and without_width == 0
+        and all(abs(width - expected) <= tol for width in widths)
     )
+    if without_width:
+        detail = (
+            f"route={route!r} has {without_width} realized shape(s) without "
+            "a width field; polygon realization is a width-rule failure"
+        )
+    elif widths:
+        detail = f"route={route!r} tol={tol:.4f} mm"
+    else:
+        detail = f"route={route!r} has no realized trace width witness"
     return CheckResult(
         name="route-width",
         passed=passed,

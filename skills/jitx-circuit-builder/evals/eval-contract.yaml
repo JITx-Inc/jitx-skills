@@ -26,3 +26,5 @@ hard_fails:
   - "An invented part: a passive presented as sourced without a query, or an MPN that does not resolve."
   - "The circuit is presented as complete without a build having been run, or with a failing build reported as complete."
   - "A parallel string-keyed model of the design maintained alongside the JITX objects (a dict of net names, a list of pin-name strings) where the framework's own objects carry the same facts."
+  - "A passive query resolves to a package outside the declared assembly capability while the design builds clean — an unconstrained query returns the physically smallest matching part, so 009005 and 01005 parts reach a board that passed every gate."
+  - "A numeric rating is treated as a scalar minimum. A bare value on a query field is an exact match, not a floor; a floor is AtLeast and a maximum magnitude tolerance needs both bounds, so the wrong form silently selects on equality or not at all."

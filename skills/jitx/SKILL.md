@@ -11,6 +11,14 @@ Base skill for JITX hardware design automation. JITX is a Python framework for p
 
 The `jitx` CLI owns project scaffolding, auth, runtime install/start, and design build for VSCode-free workflows. Drive everything through it.
 
+> **Supported version line — one owner for this fact.** This bundle documents and is verified
+> against **jitx 4.4.x** (`jitx >= 4.4, < 4.5`), the public PyPI line as of the 4.4.0 release.
+> Every "verified on 4.4.0" note elsewhere in the bundle is evidence for a specific claim; this
+> line is the only place the *supported range* is stated, so no sibling skill restates it.
+> Earlier lines (4.0.x, 4.2.x) are no longer described here — APIs, defaults and CLI behaviour
+> below differ from what these pages say. On an older install, either upgrade or expect the
+> pages to disagree with your package; verify every import with `pyright` either way.
+
 > **Platform note (read once).** These commands run in **your** shell on **your** OS. macOS / Linux / WSL / Git Bash use **bash**; native Windows uses **PowerShell**. Commands identical in both (all `jitx ...`, `pip ...`, `pyright`, `ruff`, every `python scripts/...`) are shown once; where they diverge, a `bash` block and a `powershell` block are given — run the one for your shell.
 >
 > Conventions used throughout this bundle:
@@ -25,13 +33,11 @@ The `jitx` CLI owns project scaffolding, auth, runtime install/start, and design
 ```bash
 # bash (macOS / Linux / WSL / Git Bash)
 if ! command -v jitx >/dev/null 2>&1; then
-  # Bootstrap venv + install jitx from PyPI + the internal index.
-  # PIP_PRE / extra-index-url cover the 4.x pre-release line.
-  # `click` is a runtime import of the `jitx` CLI but the 4.3.x wheel doesn't declare it — install it explicitly.
+  # Everything below is on public PyPI. No index flags, no pre-release flags.
   [ -d .venv ] || python3 -m venv .venv 2>/dev/null || python -m venv .venv
   # venv layout: .venv/bin on macOS/Linux/WSL, .venv/Scripts under Git Bash (Windows Python).
   source .venv/bin/activate 2>/dev/null || source .venv/Scripts/activate
-  PIP_PRE=1 pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple jitx ruff click --quiet 2>&1 | tail -1
+  pip install "jitx>=4.4,<4.5" jitxlib-standard jitxlib-parts jitxlib-voltage-divider ruff --quiet 2>&1 | tail -1
 else
   # `jitx` is on PATH — activate the project venv if one exists so build/runtime calls resolve consistently.
   [ -d .venv ] && { source .venv/bin/activate 2>/dev/null || source .venv/Scripts/activate; }
@@ -42,12 +48,10 @@ jitx --version 2>/dev/null || jitx --help >/dev/null
 ```powershell
 # PowerShell (Windows)
 if (-not (Get-Command jitx -ErrorAction SilentlyContinue)) {
-  # Bootstrap venv + install jitx from PyPI + the internal index.
-  # PIP_PRE / extra-index-url cover the 4.x pre-release line.
-  # `click` is a runtime import of the `jitx` CLI but the 4.3.x wheel doesn't declare it — install it explicitly.
+  # Everything below is on public PyPI. No index flags, no pre-release flags.
   if (-not (Test-Path .venv)) { python -m venv .venv }
   .\.venv\Scripts\Activate.ps1
-  $env:PIP_PRE=1; pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple jitx ruff click --quiet 2>&1 | Select-Object -Last 1; Remove-Item Env:PIP_PRE
+  pip install "jitx>=4.4,<4.5" jitxlib-standard jitxlib-parts jitxlib-voltage-divider ruff --quiet 2>&1 | Select-Object -Last 1
 } else {
   # `jitx` is on PATH — activate the project venv if one exists so build/runtime calls resolve consistently.
   if (Test-Path .venv) { .\.venv\Scripts\Activate.ps1 }
@@ -56,7 +60,22 @@ if (-not (Get-Command jitx -ErrorAction SilentlyContinue)) {
 jitx --version 2>$null; if ($LASTEXITCODE -ne 0) { jitx --help | Out-Null }
 ```
 
-If `jitx --version` raises `ModuleNotFoundError: No module named 'click'`, the wheel's missing-dep gap bit you — `pip install click` resolves it.
+**Why those four packages.** `jitx` brings the framework and the CLI (and declares its own
+dependencies, `click` among them — nothing extra to install). The `jitxlib` namespace is split
+across distributions, and installing `jitx` alone gets you **none** of them:
+
+| Package | Gives you |
+|---|---|
+| `jitxlib-standard` | `jitxlib.landpatterns`, `.symbols`, `.protocols`, `.bundles`, `.via_structures`, `.physics` |
+| `jitxlib-parts` | `jitxlib.parts` — the `Resistor` / `Capacitor` / `Inductor` queries |
+| `jitxlib-voltage-divider` | `jitxlib.voltage_divider` — the solver this bundle **requires** for every divider |
+| `jitxlib-jlcpcb` | `jitxlib.jlcpcb` — add it only when JLCPCB is the confirmed fab house |
+
+`jitxlib-voltage-divider` is the one that gets missed, because nothing depends on it and the failure
+arrives late — the Phase 0 environment probe, or the first divider. Install it up front.
+
+**Pre-release builds** live on the internal index and are not needed for any of the above:
+`PIP_PRE=1 pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple ...`.
 
 ### Step 2 — Project layout (scaffold if missing)
 
@@ -66,13 +85,13 @@ if [ ! -f pyproject.toml ] || ! grep -q "jitx" pyproject.toml; then
   # No JITX project here — scaffold the canonical layout.
   # CONFIRM WITH THE USER BEFORE RUNNING in a non-empty directory.
   jitx project layout init
-  # Sync project deps. PIP_PRE + extra-index-url are required for `jitxlib-*` to resolve.
-  # Note: pip's resolver may re-pin `jitx` to an older 4.x that satisfies the project's `<5` constraint.
-  # This skills bundle documents the 4.2 API surface (RoutePoint/PairInsertion/PairPoint, runtime
-  # auto-resolution, etc. do not exist below 4.2) — if the resolver lands below 4.2, pin it:
-  #   PIP_PRE=1 pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple "jitx==4.2.*"
-  PIP_PRE=1 pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple -e . --quiet 2>&1 | tail -1
 fi
+# Sync project deps from public PyPI. The `jitxlib` namespace is split across
+# distributions and installing `jitx` alone brings none of them (Step 1 table).
+# The scaffold pins `jitx<5`, so pip may resolve an older 4.x that still satisfies
+# it; the explicit range below re-pins to the line this bundle documents.
+pip install -e . "jitx>=4.4,<4.5" jitxlib-standard jitxlib-parts jitxlib-voltage-divider --quiet 2>&1 | tail -1
+jitx --version
 ```
 ```powershell
 # PowerShell (Windows)
@@ -80,14 +99,22 @@ if ((-not (Test-Path pyproject.toml)) -or (-not (Select-String -Quiet -Pattern "
   # No JITX project here — scaffold the canonical layout.
   # CONFIRM WITH THE USER BEFORE RUNNING in a non-empty directory.
   jitx project layout init
-  # Sync project deps. PIP_PRE + extra-index-url are required for `jitxlib-*` to resolve.
-  # Note: pip's resolver may re-pin `jitx` to an older 4.x that satisfies the project's `<5` constraint.
-  # This skills bundle documents the 4.2 API surface (RoutePoint/PairInsertion/PairPoint, runtime
-  # auto-resolution, etc. do not exist below 4.2) — if the resolver lands below 4.2, pin it:
-  #   $env:PIP_PRE=1; pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple "jitx==4.2.*"; Remove-Item Env:PIP_PRE
-  $env:PIP_PRE=1; pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple -e . --quiet 2>&1 | Select-Object -Last 1; Remove-Item Env:PIP_PRE
 }
+# Sync project deps from public PyPI. The `jitxlib` namespace is split across
+# distributions and installing `jitx` alone brings none of them (Step 1 table).
+# The scaffold pins `jitx<5`, so pip may resolve an older 4.x that still satisfies
+# it; the explicit range below re-pins to the line this bundle documents.
+pip install -e . "jitx>=4.4,<4.5" jitxlib-standard jitxlib-parts jitxlib-voltage-divider --quiet 2>&1 | Select-Object -Last 1
+jitx --version
 ```
+
+After the sync, add `jitxlib-standard`, `jitxlib-parts` and `jitxlib-voltage-divider`
+to the `dependencies` list in `pyproject.toml`: the explicit install above makes the
+current environment usable, and the dependency entries make the project reproducible.
+If the user approves a predefined JLCPCB substrate, add `jitxlib-jlcpcb` to the same
+list and repeat the sync. Step 2 does not finish until
+`python -c "import jitxlib.landpatterns, jitxlib.parts, jitxlib.voltage_divider"`
+succeeds and, for that JLCPCB path, `python -c "import jitxlib.jlcpcb"` succeeds.
 
 `jitx project layout init` writes the canonical project skeleton: `pyproject.toml`, a flat `<ns>/` package (NOT `src/<ns>/`) containing `__init__.py` + a `main.py` that already defines a working two-resistor `SampleDesign`, plus `.gitignore` and `.vscode/`. That seeded design is buildable as-is once auth and runtime are up — a useful smoke test before writing real design code, and no evidence about the code you write afterwards. Subcommands `jitx project layout {pyproject,gitignore,settings,vscode}` refresh individual pieces of an existing project.
 
@@ -127,54 +154,51 @@ The runtime is a daemon (an instance of the bundled `jitx` launcher binary, run 
 
 ```bash
 # bash (macOS / Linux / WSL / Git Bash)
-# If a runtime is already running, do nothing.
-if jitx runtime status >/dev/null 2>&1; then
-  :
-elif jitx runtime introspect >/dev/null 2>&1; then
-  # Installed but not running — start it.
-  jitx runtime start --background
-else
+# `runtime status` exits 0 even when it prints "Runtime: not running", so it is
+# not a start guard. This block installs if needed, then starts unconditionally;
+# a second start on a running project prints an error line, exits 0, and starts
+# no second daemon (measured on 4.4.0).
+if ! jitx runtime introspect >/dev/null 2>&1; then
   # Not installed. `update` is the idempotent variant of `install`; safe in setup
   # scripts. Without --version it installs the runtime matching the installed
   # py-jitx version; pass --version only to honor an explicit pin.
   jitx runtime update
-  jitx runtime start --background
 fi
+jitx runtime start --background
 ```
 ```powershell
 # PowerShell (Windows)
-# If a runtime is already running, do nothing.
-jitx runtime status 2>$null | Out-Null
-if ($LASTEXITCODE -eq 0) {
-  # already running
-} else {
-  jitx runtime introspect 2>$null | Out-Null
-  if ($LASTEXITCODE -eq 0) {
-    # Installed but not running — start it.
-    jitx runtime start --background
-  } else {
-    # Not installed. `update` is the idempotent variant of `install`; safe in setup
-    # scripts. Without --version it installs the runtime matching the installed
-    # py-jitx version; pass --version only to honor an explicit pin.
-    jitx runtime update
-    jitx runtime start --background
-  }
+# `runtime status` exits 0 even when it prints "Runtime: not running", so it is
+# not a start guard. This block installs if needed, then starts unconditionally;
+# a second start on a running project prints an error line, exits 0, and starts
+# no second daemon (measured on 4.4.0).
+jitx runtime introspect 2>$null | Out-Null
+if ($LASTEXITCODE -ne 0) {
+  # Not installed. `update` is the idempotent variant of `install`; safe in setup
+  # scripts. Without --version it installs the runtime matching the installed
+  # py-jitx version; pass --version only to honor an explicit pin.
+  jitx runtime update
 }
+jitx runtime start --background
 ```
 
-**Runtime version.** Since 4.2, `jitx runtime install/update` with `--version`
-omitted asks the backend for the runtime build **matching the installed py-jitx
+**Runtime version.** `jitx runtime install/update` with `--version` omitted asks
+the backend for the runtime build **matching the installed py-jitx
 version** — that's the right default. (`--progress` follows the download on
 stderr.) Pass `--version` only when the project pins one explicitly:
 1. `$JITX_RUNTIME_VERSION` env var, or a `jitx.version` file in the project root.
 2. A `jitx` runtime version pinned in the project's `mise.toml` or equivalent.
 
 Honor an existing pin; otherwise omit `--version` and let the backend resolve.
-(Pre-4.2 CLIs require `--version` — if `jitx runtime update` errors asking for
-one, resolve it from (1)–(2) or ask the user.)
 
-**Channels:** development-channel runtime builds (versions like
-`4.3.0-develop.N`) are served by the testing backend — install them with
+**Keep the CLI and the runtime on the same line.** `jitx runtime introspect`
+prints the runtime's `version` and `installation_type`; `jitx --version` prints
+the package's. A 4.4 runtime under a 4.3 package (or the reverse) is the
+version-mismatch failure mode that surfaces as ambiguous errors much later —
+check both before deciding a build failure is your code.
+
+**Channels:** development-channel runtime builds (versions tagged
+`<major>.<minor>.<patch>-develop.N`, e.g. `4.4.0-develop.12`) are served by the testing backend — install them with
 `jitx runtime install --version <v> --testing` (the prod backend 404s on them).
 The runtime is **per-project** (discovered by walking up from CWD); each project
 you build or capture from needs its own `jitx runtime start --background`.
@@ -182,13 +206,13 @@ you build or capture from needs its own `jitx runtime start --background`.
 ### Step 5 — Verify
 
 ```bash
-jitx runtime status         # confirms the socket is up
+jitx runtime status         # read the text: "reachable at ws://..." is up, "not running" is not; the exit code is 0 either way
 jitx find                   # lists the designs the runtime sees in this project
 ```
 
 Also probe the target substrate package if known (e.g., `python -c "import jitxlib.jlcpcb"` when the user has chosen JLCPCB). For complete-board tier, the Phase 0 → 1 gate requires this probe.
 
-**Missing-dependency rule:** if `jitx runtime status` fails, `jitx find` errors, or a required import is missing, stop and surface it to the user as a blocker. Do NOT remove or substitute design requirements as a workaround (e.g. dropping controlled-impedance routing because `jitxlib` didn't import). See `references/project-builder-flow.md` Recovery Procedures → "Missing dependency escalation".
+**Missing-dependency rule:** if `jitx runtime status` prints "not running" after the start, `jitx find` errors, or a required import is missing, stop and surface it to the user as a blocker. Do NOT remove or substitute design requirements as a workaround (e.g. dropping controlled-impedance routing because `jitxlib` didn't import). See `references/project-builder-flow.md` Recovery Procedures → "Missing dependency escalation".
 
 **`--dry` is not a substitute for a build.** With no runtime reachable, `jitx build` fails with an
 error that offers `--dry` as the alternative — and `--dry` "works", which is the trap. It translates
@@ -218,8 +242,9 @@ or
 npm install -g pyright
 ```
 
-**Verify:** Ask the agent to "check for type errors" or run manually, **from inside the project's
-virtual environment**:
+**Verify:** Ask the agent to "check for type errors" or run pyright manually, **from inside the project's
+virtual environment**. This step confirms the pyright install itself, before `scripts/check.py` is
+copied into the project:
 ```bash
 source .venv/bin/activate      # or: hatch run types:check, uv run pyright, etc.
 pyright <ns>/
@@ -281,8 +306,8 @@ Durable rules for JITX Python user code. The architectural rules below protect a
 
 ### Dos
 
-- **Run pyright** for type checking and language-server diagnostics.
-- **Run `ruff check`** for common-mistake analysis (the `ruff` package is already installed by the environment-setup step).
+- **Run `python scripts/check.py <ns>/`** for common-mistake analysis, formatting verification, type checking, and grep-gate enforcement. The command runs `ruff check`, `ruff format --check`, pyright, and the grep gates in that order.
+  - **The `ruff` package is already installed by the environment-setup step.**
   - **`RUF012` is a false positive against JITX's port-array declaration — ignore it, don't "fix" it.**
     `GND = [Port() for _ in range(689)]` in a class body is flagged as `Mutable default value for
     class attribute`, and on a large component that is one finding per rail. It is the exact form the
@@ -292,11 +317,11 @@ Durable rules for JITX Python user code. The architectural rules below protect a
     model** and is the dangerous one — an agent that takes it converts a working component into a
     broken one, and the breakage surfaces far away, at translation. Annotating `typing.ClassVar` is
     **runtime-neutral** — the component still instantiates and its ports are still found (verified on
-    4.4.0rc3) — but it misdescribes what the attribute is, since these are the object model rather
+    4.4.0) — but it misdescribes what the attribute is, since these are the object model rather
     than shared class state, so it buys silence at the cost of a false statement in the source.
     Prefer neither: silence the rule per-file in `[tool.ruff.lint.per-file-ignores]` for the design
     package, with a comment saying why.
-- **Run `ruff format`** for style consistency.
+- **Use `ruff format`** to apply style consistency. `check.py` verifies the result with `ruff format --check`.
   - **Commit a ruff config, and run ruff from the project directory.** Config discovery walks up
     from the working directory, so a check run from somewhere else silently resolves *that* tree's
     settings. An agent working in a scratch directory under a repo has had `ruff check` report clean
@@ -330,7 +355,10 @@ jitx build-all
 subclasses whose `__init__` has required parameters, and building one directly
 fails with `Design is parameterized but no parameters were provided`. To build a
 parameterized design, add a thin module-scope subclass that fills in the
-arguments with concrete values.
+arguments with concrete values. A `Design` subclass created inside a factory
+function, including an A/B geometry harness, has `<locals>` in its qualified name
+and the runtime rejects it as a design filename. The build step refuses a
+factory-created design and requires every concrete harness class at module scope.
 
 **Don't run parallel builds on the same design.** Concurrent JITX builds against the *same design* aren't reliable — cache state, build artifacts, and design-explorer output overlap. Sequence those. Parallel builds of *different designs* in the same project (different test designs, different module paths) share the WebSocket session but are generally safe — the JITX backend serializes internally, possibly with a wait. The skill orchestrator's Phase 1 runs sub-agents in parallel on different test designs; the parallelism is at the design-work level, and concurrent builds on distinct designs are an acceptable consequence.
 
@@ -339,9 +367,24 @@ arguments with concrete values.
 
 **Structured output:** pass `--format json` on any subcommand for machine-readable output (the JSON shape is part of the public contract — what VSCode reads).
 
-**Non-interactive shells:** some rebuilds ask `[Y/n]` (stale-instance /
-component-removal confirmation) and die with `EOF when reading a line` without a
-TTY — pipe assent: `yes | jitx build <design>`.
+**Non-interactive shells:** some rebuilds ask `[Y/n]` before deleting stale
+instances or objects attached to removed components. The CLI has no documented
+non-interactive flag, so a headless bash build feeds assent with
+`yes | jitx build <design>`. For the consolidated workflow command, it uses
+`yes | python scripts/check.py <ns>/ --build <design>`; `check.py` passes its stdin
+to the build. A headless native PowerShell run has no verified equivalent in this bundle, so the
+build step stops for an interactive TTY instead of accepting an
+`EOF when reading a line` failure.
+
+**Stalled build.** Run long builds and capture scripts with `PYTHONUNBUFFERED=1`:
+a script whose stdout is not a terminal buffers it, so a hung run looks like an
+empty log. If a build produces no output and little CPU for a minute, run
+`jitx runtime status` in every other open JITX project, because a second live
+runtime is the first thing to rule out, and count viewer clients with
+`pgrep -fl interactive-client`; report both and ask before stopping anything,
+since a viewer may hold unpersisted placement state. A `Failed to parse installer
+report` / `Failed to check dependencies` pair from the CLI in a scratch project is
+a benign dependency probe, not the stall.
 
 **Output files** (in `designs/<design_name>/`):
 - `cache/netlist.json` - JSON netlist for verification
@@ -356,17 +399,24 @@ the new pairing — restore `design-info/` from git and restart the project runt
 Never `rm -rf designs/<design>` casually (placements live there).
 
 **`status: ok` does not mean code routes realized copper.** Route realization is
-silent; verify it programmatically via the 4.3 reverse flow (submit + `capture()` +
+silent; verify it programmatically via the reverse flow (submit + `capture()` +
 assert `route.traces`) — see `jitx-physical-layout`
 `references/geometry-verification.md`.
 
-### Programmatic iteration & exports (4.3 reverse flow)
+### Programmatic iteration & exports (the reverse flow)
 
 For geometry-heavy iteration, skip the build CLI entirely: `with jitx.runtime as
 r: rd = r.submit(DesignClass); rd.capture()` gives python the *realized* design
 (route copper, computed pours, placements, nets) for direct assertion — the loop
 is ~10–15 s per design and needs no TTY. Details:
 `jitx-physical-layout/references/geometry-verification.md`.
+
+Constructing a JITX object outside a design context returns a deferred
+`Instantiable` proxy. Its attributes are accessors, not the constructor values.
+Unit tests therefore cover plain-data helpers and arithmetic only; structural
+facts such as layer, rank, shape, and connection membership require assertions on
+a submitted and captured design. The verification step rejects proxy-attribute
+assertions as evidence.
 
 Exports are **plugins** (entry-point group `jitx-plugin`), invoked as:
 
@@ -377,7 +427,7 @@ jitx design export <plugin> <module.path.DesignClass> [plugin options]
 ```
 
 `legacy-kicad` / `legacy-altium` / `legacy-edx` / `legacy-odb++` / `legacy-step`
-run through the runtime (useful as a runtime-side cross-check of realized copper);
+run through the runtime and produce what a fab needs (ODB++ `features` files are plain text, `UNITS=MM`); they are a handoff, not a verification surface (see `jitx-physical-layout`);
 new-style plugins (e.g. `hfss` from `jitxlib-ansys`) consume the captured
 `RuntimeDesign` in python.
 
@@ -494,6 +544,25 @@ For how to decompose requirements into tasks: read `references/decomposition-gui
 For PLAN.md format: read `references/plan-template.md`
 For ARCHITECTURE.md format: read `references/architecture-template.md`
 
+### Context Discipline
+
+This section applies only to the `complete-board` tier. `single-task` work is exempt.
+
+**CD-1: Datasheets are read where the reading is cheap and verified where the reader is independent.**
+
+| Reader | Reads | Writes |
+|---|---|---|
+| Extraction sub-agent (usually the component-modeling sub-agent) | the datasheet PDF | `datasheets/<MPN>.spec.md`, at most 400 words, per `references/datasheet-spec-template.md`, citing the pages it used |
+| Building sub-agents (circuit, assembly, pin-assignment, constraints) | the spec note; the PDF only to resolve an item under `Open questions`, then it updates the note | design code |
+| Orchestrator, acceptance review | the PDF pages the note cites for the items being checked; never the note as the evidence, never the whole PDF | nothing under `<ns>/` |
+| Phase 3b audit agent, outside-voice reviewer | the PDF | findings only; the audit agent edits nothing |
+
+Where a note and the datasheet disagree, the note is the defect: a fix sub-agent corrects the note, a re-audit confirms it, and only then is a fix dispatched against the code. The orchestrator sends an unresolved item back to a sub-agent rather than opening the PDF itself. "Re-examine the datasheet" in `references/task-execution.md` means re-examine the cited spec note for complete-board building work.
+
+**CD-2: The orchestrator does not author design code.** It creates and edits only `PLAN.md`, `ARCHITECTURE.md`, and files under `scripts/`. A sub-agent writes every file under the project namespace `<ns>/`, including one-line fixes. The orchestrator reads code during acceptance review but does not write it. If spawning feels heavy for a fix, batch the fix into the next sub-agent rework cycle.
+
+**CD-3: A sub-agent returns its acceptance block and nothing else.** No transcript, narration, or restated file contents. It names each written file by path in the block; the orchestrator reads it from disk if needed.
+
 ### Build Safety — Don't Parallelize Same-Design Work
 
 Concurrent builds of the *same JITX design* share cache state, build artifacts, and design-explorer output. Sequence them. Concurrent builds of *different designs* in the same project — for example, parallel sub-agents each building their own component test design — share the WebSocket session but are generally safe: the JITX backend serializes the work internally, possibly with a wait.
@@ -504,13 +573,22 @@ For ad-hoc work outside the project-builder flow: just don't run two `jitx build
 
 ### Grep Gate Enforcement
 
-Copy `scripts/grep_gates.py` from this skill into the project's `scripts/` directory. Sub-agents (and the orchestrator at every phase exit gate) run it against the project's Python package (e.g. `<ns>/`) to enforce JITX code conventions and top-level-only rules:
+Copy `scripts/grep_gates.py` and `scripts/check.py` from this skill into the
+project's `scripts/` directory. Copy `jitx-interconnect-constraints/scripts/check_si_spans.py`
+to `<project>/scripts/check_si_spans.py` and
+`jitx-physical-layout/scripts/check_realization.py` to
+`<project>/scripts/check_realization.py`; each is owned and tested by its skill.
+The base skill's `scripts/plan_status.py` is copied when PLAN.md is created as
+described below. Sub-agents and the
+orchestrator at every phase exit gate run the single static-check entry point
+against the project's Python package (e.g. `<ns>/`) to enforce lint, formatting,
+type, and JITX grep-gate checks:
 
 ```bash
-python scripts/grep_gates.py <ns>/
+python scripts/check.py <ns>/
 ```
 
-The script reports hard-fail hits (which block task acceptance and gate transitions) and review-required hits (which need a disposition in the task acceptance block). Pattern set and disposition rules: `references/completion-blocks.md` "Grep Gate Patterns".
+Use `--build <module.path.DesignClass>` when the verification also requires a build. The command prints one summary line per check. Those exact lines populate the matching acceptance-block fields. The `grep gates` line reports hard-fail hits, which block task acceptance and gate transitions, and review-required hits, which need a disposition in the task acceptance block. Pattern set and disposition rules: `references/completion-blocks.md` "Grep Gate Patterns".
 
 ### Two-Tier Quality System
 
@@ -518,14 +596,14 @@ Sub-agent work goes through TWO quality checks before being accepted:
 
 **1. Sub-Agent Self-Validation ("Think Twice")**
 
-After initial implementation, sub-agents MUST stop and run the domain-specific checklist against the datasheet before returning. This forced second pass typically catches 3-5 missed details (floating enable pins, missing thermal pads, wrong output types, forgotten decoupling). Sub-agents return a **task acceptance block** documenting what they checked and fixed — the block is mandatory; "build clean" is not a substitute. See `references/completion-blocks.md` for the template.
+After initial implementation, sub-agents MUST stop and run the domain-specific checklist against the cited datasheet spec note for complete-board work or the datasheet for single-task work. This forced second pass typically catches 3-5 missed details (floating enable pins, missing thermal pads, wrong output types, forgotten decoupling). Sub-agents return a **task acceptance block** documenting what they checked and fixed. The block is mandatory; "build clean" is not a substitute. See `references/completion-blocks.md` for the template.
 
 **2. Orchestrator Acceptance Review**
 
 The orchestrator does NOT blindly trust the self-validation block. For each returned task:
 - Read the generated code for obvious issues
-- Verify the build claim (re-run `jitx build` for critical tasks)
-- Spot-check high-risk checklist items independently
+- Verify the build claim (re-run `python scripts/check.py <ns>/ --build <module.path.DesignClass>` for critical tasks)
+- Spot-check high-risk checklist items independently against the cited datasheet spec note for complete-board work or the datasheet for single-task work
 - Verify interface compatibility with downstream tasks
 - Append the acceptance verdict to the same block: **accept** / **rework** (send back with specific issues) / **reject** (replan)
 
@@ -540,7 +618,7 @@ For domain checklists: read `references/domain-checklists.md`, then open every l
 | Gate | Key Criteria |
 |------|-------------|
 | 0 → 1 | PLAN.md created with all tasks, data source audit approved, user approved plan |
-| 1 → 2 | All components + substrate build individually, acceptance reviews passed |
+| 1 → 2 | All components + substrate build individually, acceptance reviews passed; **Dispatch:** `N`, `B`, `C` recorded; for `N >= 3`, both `B == N` and `C < 3` fail unless each serialized task names the dependency that forced it |
 | 2 → 3 | All circuits build, constraint classes valid, provide/require interfaces consistent |
 | 3 → 3b | Top-level assembles, all nets connected, power tree complete |
 | 3b → 4 | **Design-level analysis passed**: voltage domains correct, no bus contention, no missing components, SI constraints functional. All blocking issues fixed via loopback. |
@@ -572,7 +650,7 @@ For details: read `references/parts-sourcing.md`
 
 The orchestrator creates and maintains these in the project root. Give every fact one owner and refer to the owning document by section name instead of copying it:
 
-- **PLAN.md** — Owns the requirements lock, approved data sources, task graph and statuses, gate outcomes with deferred/blocking items, and one-line modification history. It is the resumable source of truth for the work.
+- **PLAN.md** — Owns the requirements lock, approved data sources, task graph and statuses, gate outcomes with deferred/blocking items, and one-line modification history. It is the resumable source of truth for the work. Copy this skill's `scripts/plan_status.py` into the project `scripts/` directory. Change a task status only with `python scripts/plan_status.py <task-id> <status> [--note "<short note>"]`; inspect statuses with `python scripts/plan_status.py --show [<task-id>]`. (`plan-template.md` owns the status rule.) Prose edits that add tasks, gate outcomes, or modification history are unaffected.
 - **ARCHITECTURE.md** — Owns the power tree, interface map, board and mechanical constraints, parametric object-hierarchy commitments, and non-derivable design notes. It is the source of design context for sub-agents.
 
 ## Subskills
@@ -648,6 +726,7 @@ Covers:
 - Place vias or components from code — stitching/thermal vias join nets directly; `PortAttachment` binds signal vias / control points (signal topologies only)
 - Apply layout-intent tags (fanout/escape, direct-connect / thermal-relief) to layout objects
 - Author code-based routes or control points for escape routing / deskew (advanced)
+- Diagnose or verify realized geometry: a pour that captured `Empty()`, missing stitch vias, keepout voiding, board-edge pullback (`check_realization.py`)
 
 **How to invoke:** Use the `jitx-physical-layout` skill
 
@@ -658,8 +737,8 @@ Covers:
 - `PortAttachment` + explicit placement — `.at()` (default), `Circuit.place` (deferred/relative), local frames
 - Keepouts that shape pours; local-vs-global pour placement
 - Layout-intent tags for object selection (rule mechanics in jitx-layout-constraints)
-- `Route`, `RoutePoint`, `PairInsertion`, `PairPoint` (advanced; surface reshaped in
-  JITX 4.3.0-rc.3+ — netting/routing split, `PairPoint.pair` removed, `invert=` chirality)
+- `Route`, `RoutePoint`, `PairInsertion`, `PairPoint` (advanced; the netting/routing
+  split, `.front`/`.back` in place of `PairPoint.pair`, and `invert=` chirality)
 
 This skill owns design-side geometry and placement; the substrate owns the via and
 routing-structure *definitions*; `jitx-layout-constraints` owns the `design_constraint(...)`
@@ -700,6 +779,7 @@ the rules act on.
 - Set up protocol-specific constraints (PCIe, USB, DisplayPort, RGMII, Ethernet, DDR)
 - Use ReferencePlanes for routing structure constraints
 - Build custom SignalConstraint subclasses
+- Prove after build that each SI constraint bound to its intended end-to-end path (`check_si_spans.py`)
 
 **How to invoke:** Use the `jitx-interconnect-constraints` skill
 
@@ -830,4 +910,5 @@ ruff format path/to/file.py
 | Open board viewer | `jitx ui open --board --design module.Design` |
 | Open schematic viewer | `jitx ui open --schematic --design module.Design` |
 | Submit support bundle | `jitx support request` |
+| Verify project | `python scripts/check.py <ns>/ [--build module.Design]` |
 | Format code | `ruff format path/to/file.py` |

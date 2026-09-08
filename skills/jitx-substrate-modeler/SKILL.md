@@ -516,7 +516,7 @@ RoutingStructure.Layer(
 .reference({1: 3 * 0.100, 3: 3 * 0.100})  # skill default: 3× dielectric height, not a source value
 ```
 
-Do **not** pass `None` widths (`.reference(dict.fromkeys(...))`): construction accepts the mapping, but translation assigns `desired_width` straight into a protobuf float and **fails at build time** — a trap, not a fallback (verified against jitx 4.2.2 `_translate/routing.py`). If the user insists on strict source-only transcription with no defaults, record the `Ref_layers` identities in the docstring, omit `.reference()`, and name the omission as an open item in the completeness check. The scalar form `reference(layer)` without a width raises `TypeError: Must specify desired_width if layer is not a mapping`. Either way, never silently fill in a width nothing backs — the unlabeled invented number is exactly the failure the completeness check exists to catch.
+Do **not** pass `None` widths (`.reference(dict.fromkeys(...))`): construction accepts the mapping, but translation assigns `desired_width` straight into a protobuf float and **fails at build time** — a trap, not a fallback (verified on jitx 4.4.0: `_translate/routing.py` assigns `desired_width` straight into a protobuf float, unguarded). If the user insists on strict source-only transcription with no defaults, record the `Ref_layers` identities in the docstring, omit `.reference()`, and name the omission as an open item in the completeness check. The scalar form `reference(layer)` without a width raises `TypeError: Must specify desired_width if layer is not a mapping`. Either way, never silently fill in a width nothing backs — the unlabeled invented number is exactly the failure the completeness check exists to catch.
 
 ### Differential Routing Structure
 
@@ -659,10 +659,12 @@ because its via class and fence pattern live on the substrate.
 
 ### Substrate sharp edges (verified on real boards)
 
-- **Fenced differential structures can't use `symmetric_routing_layers`** (seen on
-  4.2: the fence via's layer endpoints can't be mirrored, layers stay a lazy
-  attribute, and applying the DRS via a rule dies with `DesignTranslationContext
-  is not active`). Enumerate the fenced coupled layers explicitly
+- **Fenced differential structures can't use `symmetric_routing_layers`** (the
+  fence via's layer endpoints can't be mirrored, layers stay a lazy attribute,
+  and applying the DRS via a rule dies with `DesignTranslationContext is not
+  active`. Last measured on the 4.2 line and **not re-measured on 4.4.0** — the
+  workaround below is cheap and correct either way, so it stands; if you have a
+  fenced DRS on 4.4, try `symmetric_routing_layers` once and tell us). Enumerate the fenced coupled layers explicitly
   (`layers={0: ..., -1: ..., 1: ..., -2: ...}`); keep `symmetric_routing_layers`
   for fence-less structures. A module-scope `RoutingStructure` (not an attribute
   of a Substrate class) hits the same lazy-layers error.
@@ -795,7 +797,7 @@ class MyDesign(Design):
 
 For a report-driven substrate, back the completeness check with tests that **parse the source at test time and compare it to the built design**. Re-typing the report's numbers into `EXPECTED_*` constants beside the test is not this: it compares one transcription against another, so a re-issued report needs *both* files edited and the suite goes green either way. The entire value is that the source moves and the suite notices; read the file. Cover layer order and names, thicknesses, Dk/Df, via spans and geometry, every `FabricationConstraints` field, per-layer widths and reference planes, so a re-issued report fails the suite instead of drifting past it. Compare reference-plane *identities* against the source; assert any skill-default widths against the default's own formula (3× dielectric height) — the source never stated them, so testing them against the source would be circular.
 
-**Tests must subclass `jitx.test.TestCase`, never plain `unittest.TestCase`** (verified on jitx 4.2.2–4.4.0rc1). It activates the JITX instantiation context, and needs no runtime — instantiating a design works offline. Without the context the design does not error, it **reads as empty**: `decompose(stackup, Material)` returns zero layers and raises nothing, and iterating `stackup.conductors` hangs. Defend in depth:
+**Tests must subclass `jitx.test.TestCase`, never plain `unittest.TestCase`** (verified on jitx 4.4.0). It activates the JITX instantiation context, and needs no runtime — instantiating a design works offline. Without the context the design does not error, it **reads as empty**: `decompose(stackup, Material)` returns zero layers and raises nothing, and iterating `stackup.conductors` hangs. Defend in depth:
 
 - assert the layer count against the source's row count **before** any per-row comparison, and
 - pass `strict=True` to every `zip` of source rows against design elements.
@@ -854,6 +856,13 @@ Verdict: complete | open items: <list>
 
 Row-by-row intent — the *why*, so the block stays evidence rather than ceremony:
 
+- **A total you solved for is not a total you checked.** Where a dielectric thickness is
+  unstated and the finished thickness is known, it is arithmetically tempting to solve the
+  unknown as the balancing term. Do that and the reconciliation becomes tautological: the
+  total agrees because it was constructed to agree, and the check that would have caught a
+  transcription slip can no longer fail. If a thickness is unstated, it is an open question
+  with the fab, and the reconciliation is reported as not performed rather than performed
+  and passed.
 - **Stackup** — the summed thickness must reconcile with the source's stated totals under the document's own stated inclusions and precision (which layers each total includes, how many digits it prints); an unexplained residual is a transcription slip to chase, not rounding to wave off. Name copper layers for their source id and function.
 - **Materials** — one class per distinct material/property set: never collapse two source rows that differ in any modeled property (Dk, Df, roughness, thickness); the collapsed row is untraceable. What the source states but JITX has no field for survives in docstrings, not by being dropped — and the walk covers *every* section of the document (tolerances, surface finish, plating class), not just the material tables.
 - **Vias** — every `Via` class on a substrate registers on the board automatically, so define exactly the source's inventory and nothing speculative. Fab reports state drill depth on different bases for laser vs mechanical drills — check each aspect ratio on the basis that matches its drill, not one convention for all.
