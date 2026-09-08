@@ -393,7 +393,7 @@ Each is a small helper once you know — write both; they narrow different union
 
 ```python
 from jitx.landpattern import Pad, PadMapping
-from jitx.transform import Placement
+from jitx.placement import Placement
 
 
 def one_pad(mapping: PadMapping, port: Port) -> Pad:

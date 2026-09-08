@@ -32,8 +32,8 @@ Read your task definition from PLAN.md. Note:
 
 | Task type | Skill / source | Standing instructions |
 |-----------|----------------|-----------------------|
-| `component` | `jitx-component-modeler`; approved datasheet evidence | Checklists: Component Modeling, plus MCU/FPGA where the part is one. Invoke the skill. For complete-board work, use its `extract_pages.py` to read the real pinout, mechanical, and application pages, write `datasheets/<MPN>.spec.md`, then model from the note. For single-task work, model from the datasheet. When the application-circuit routing condition matches, follow `jitx-component-modeler/references/verification-and-application.md`; the component-modeler verification sequence ends at Step 4. |
-| `circuit` | `jitx-circuit-builder` + `jitx-component-modeler`; every IC's datasheet evidence | Checklists: Power Circuit or Interface Circuit as applicable, Datasheet Compliance, General Gotcha Scrub. Answer every engineering question with cited evidence from the spec note for complete-board work or the datasheet for single-task work. The English datasheet for every IC remains at `datasheets/<mpn>.pdf`; the sub-agent counts and implements every required external component without simplification and follows the component-modeler's application-circuit handoff in `jitx-component-modeler/references/verification-and-application.md` before wiring whenever that routing condition matches. Expose bundle-typed ports, use `>>` through paths constrained at top level, and place shared-bus pull-ups or termination only at the bus-aggregation level. |
+| `component` | `jitx-component-modeler`; approved datasheet evidence | Checklists: Component Modeling, plus MCU/FPGA where the part is one. Invoke the skill. For complete-board work, use its `extract_pages.py` to read the real pinout, mechanical, and application pages, write `datasheets/<MPN>.spec.md`, then model from the note. For single-task work, model from the datasheet. Follow `jitx-component-modeler/references/verification-and-application.md` through Step 5: the application-circuit capture is mandatory in complete-board work. |
+| `circuit` | `jitx-circuit-builder` + `jitx-component-modeler`; every IC's datasheet evidence | Checklists: Power Circuit or Interface Circuit as applicable, Datasheet Compliance, General Gotcha Scrub. Answer every engineering question with cited evidence from the spec note for complete-board work or the datasheet for single-task work. The English datasheet for every IC is saved to `datasheets/<mpn>.pdf` from the manufacturer's site, not from a sourcing channel whose copy may be another language or revision; the sub-agent counts and implements every required external component without simplification and follows the component-modeler's application-circuit handoff in `jitx-component-modeler/references/verification-and-application.md` before wiring whenever that routing condition matches. Expose bundle-typed ports, use `>>` through paths constrained at top level, and place shared-bus pull-ups or termination only at the bus-aggregation level. |
 | `assembly` | `jitx-circuit-builder` + `jitx-interconnect-constraints` + `jitx-layout-constraints`; accepted subcircuits and ARCHITECTURE.md | Checklists: General Gotcha Scrub. Instantiate every subcircuit; connect power and ground with `PowerSymbol` / `GroundSymbol`; tag those nets with `PowerTag` / `GroundTag`; wire bundles with `require()`; add shared-bus parts at the aggregation level; apply every SI constraint inside `ReferencePlanes(...)`; compare each constrained span with the accepted harness that exercised it; define board geometry; set manufacturing-appropriate `capacitor_query` / `resistor_query` / `inductor_query` and document specialty refinements; set the rule set by invoking `jitx-layout-constraints` (the four defaults, the net-class rules, any escape rules; its Layout Constraints checklist applies, and its check script's command and exit code go in the acceptance block). A missing or mismatched harness/assembly span blocks Step 6. See `project-builder-flow.md` Phase 3. |
 | `substrate` | `jitx-substrate-modeler` when custom; board specification | Checklists: Substrate. If JLCPCB is approved, check `JLC04161H_1080` (4L/1080, RS_50/DRS_90/DRS_100), `JLC04161H_7628` (4L/7628, RS_50/DRS_90/DRS_100), and `JLC06161H_7628` (6L/7628, RS_50/DRS_100); each includes its stackup, fab rules, and vias. Import the suitable class directly. Otherwise invoke the skill. Ensure the layer count, routing structures, and vias fit the interface speeds and component packages. |
 | `constraint` | `jitx-interconnect-constraints`; protocol spec and substrate | Checklists: Substrate, General Gotcha Scrub. Define the protocol constraint classes from the timing/impedance limits; use `ConstrainDiffPair` for differential pairs and the substrate's routing structure. Define here, but apply constraints only in top-level assembly. |
@@ -161,7 +161,7 @@ Rules (full set in `completion-blocks.md`):
 
 #### Step 7: Return
 
-For complete-board work, the sub-agent returns the task acceptance block and nothing else, at most 350 words. It names written files by path in the block and does not return a transcript, narration, or restated file contents. Every tier still completes Steps 4-6 before returning.
+For complete-board work, the sub-agent returns the task acceptance block and nothing else. It names written files by path in the block and does not return a transcript, narration, or restated file contents. Every tier still completes Steps 4-6 before returning.
 
 ---
 
@@ -196,7 +196,7 @@ Do not re-run the entire checklist. Focus on the items most commonly missed for 
 
 | Task Type | High-Risk Items to Verify |
 |-----------|--------------------------|
-| Component | Power/ground pin count matches the datasheet pages the spec note cites, thermal pad present, pin naming. Check against the PDF, not the note: the note and the model share an author. |
+| Component | Power/ground pin count matches the datasheet pages the spec note cites, thermal pad present, pin naming. Check against the PDF, not the note (CD-1). |
 | Component (footprint) | Pad positions plausible for package size, row spacing correct, pad dimensions match the datasheet mechanical drawing on the page the note cites, not the note's transcription of it and not memory |
 | MCU/FPGA | All power domains present, programming interface complete, reset pin present |
 | Power circuit | Enable pin handling, PGOOD output type + pull-up, **feedback divider uses solver not manual values**, bootstrap cap present |
@@ -217,7 +217,7 @@ Verify that the task output is compatible with downstream tasks:
 
 #### 5. Issue Verdict
 
-For **complete-board** tasks in the outside-voice trigger list (MCU/FPGA, RF, power converter, safety-critical, high-speed digital / controlled-impedance, battery charging / protection), **attempt an outside-voice (codex) pass before issuing `accept`**. The trigger list does not apply to single-task tier; for single-task, the block's `Outside-voice review` field is `not applicable: single-task tier`. See `references/outside-voice-review.md` for trigger rules, prompt shape, invocation, and the combined-verdict rule. The task block records a no-output attempt as `skipped: <reason>` rather than as a failed gate. CRITICAL/WARNING findings from completed passes block `accept` until fixed, downgraded with rationale, or user-approved.
+For **complete-board** tasks in the outside-voice trigger list (MCU/FPGA, RF, power converter, safety-critical, high-speed digital / controlled-impedance, battery charging / protection), **attempt an outside-voice pass (codex by default) before issuing `accept`**. The trigger list does not apply to single-task tier; for single-task, the block's `Outside-voice review` field is `not applicable: single-task tier`. See `references/outside-voice-review.md` for trigger rules, prompt shape, invocation, and the combined-verdict rule. The task block records a no-output attempt as `skipped: <reason>`; it carries no findings, and the Phase 3b → 4 gate blocks until the user explicitly approves proceeding without it. CRITICAL/WARNING findings from completed passes block `accept` until fixed, downgraded with rationale, or user-approved.
 
 Append the acceptance verdict to the same task acceptance block the sub-agent emitted:
 
@@ -259,7 +259,7 @@ Action required:
 - Return an updated task acceptance block
 ```
 
-The sub-agent fixes only the identified issues, re-checks, rebuilds, and returns an updated task acceptance block. The orchestrator reviews again. Maximum 2 rework cycles before escalating to reject. Status changes use `scripts/plan_status.py`; rewriting PLAN.md wholesale to change a status is not allowed.
+The sub-agent fixes only the identified issues, re-checks, rebuilds, and returns an updated task acceptance block. The orchestrator reviews again. Maximum 2 rework cycles before escalating to reject. Status changes use `scripts/plan_status.py` (`plan-template.md` owns the status rule).
 
 ---
 

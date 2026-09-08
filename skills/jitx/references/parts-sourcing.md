@@ -55,7 +55,7 @@ There are **two distinct uses** of parts2jitx; each has its own consent rule. Th
 | **Lookup / evidence** | `parts2jitx-lcsc <C-number>` (stock, lifecycle, datasheet URL) and `parts2jitx-lcsc <C-number> --pinout` (pin labels). Cross-checks the datasheet and confirms the part is buyable. | **Implied** when the user names LCSC / JLCPCB / a specific LCSC C-number as the sourcing channel. The orchestrator may `pip install parts2jitx` automatically — naming the channel implies consent for the lookup tool. |
 | **Footprint data ingestion** | `parts2jitx-lcsc --footprint` downloads the EasyEDA-sourced `.kicad_mod`; `parts2jitx-kicad` converts it into JITX landpattern code. Uses the EasyEDA component database as the *primary geometric source*. | **Explicit per-project approval required.** EasyEDA component data has its own terms of use; commercial users in particular may not want EasyEDA-sourced footprint provenance in their project. Always ask before using the footprint download path. |
 
-For standard packages (QFN, SON, DFN, SOIC, SOT, QFP, BGA), the default landpattern source is the **JITX generator** with dimensions from the datasheet mechanical drawing — not the LCSC KiCad footprint. Fall back to KiCad import only when the generator can't represent specialty paddle geometry (split paddles, non-standard thermal pads, asymmetric layouts). See `jitx-component-modeler/SKILL.md` "Standard-Package Decision Rule".
+For standard packages (QFN, SON, DFN, SOIC, SOT, QFP, BGA), the default landpattern source is the **JITX generator** with dimensions from the datasheet mechanical drawing — not the LCSC KiCad footprint. Fall back to KiCad import only when the generator can't represent specialty paddle geometry (split paddles, non-standard thermal pads, asymmetric layouts). See `jitx-component-modeler/references/source-and-package-selection.md` "Standard-Package Decision Rule".
 
 For non-standard packages (connectors, RF modules, unusual mechanical), the workflow is:
 
@@ -117,7 +117,7 @@ pip install parts2jitx
 
 The datasheet remains the higher authority for dimensions, pin labels, and pad assignments. Sourcing-channel pinout (e.g., `parts2jitx-lcsc --pinout`) is a useful cross-check but does not replace the datasheet's mechanical drawing and pinout table. When the two disagree, the datasheet wins and the conflict is documented in the task acceptance block under `Secondary references`.
 
-**Standard packages (QFN, SON, DFN, SOIC, SOT, QFP, BGA):** parts2jitx-lcsc gives you stock + pinout. Use the **JITX generator** for the landpattern, with dimensions from the datasheet mechanical drawing. Do not import the LCSC KiCad footprint as the landpattern for standard packages — see `jitx-component-modeler/SKILL.md` "Standard-Package Decision Rule".
+**Standard packages (QFN, SON, DFN, SOIC, SOT, QFP, BGA):** parts2jitx-lcsc gives you stock + pinout. Use the **JITX generator** for the landpattern, with dimensions from the datasheet mechanical drawing. Do not import the LCSC KiCad footprint as the landpattern for standard packages — see `jitx-component-modeler/references/source-and-package-selection.md` "Standard-Package Decision Rule".
 
 **Mechanical / pad-only footprints (Tag-Connect TC2050, fiducials, castellations, pogo pads):** these have no purchasable component — no stock/lifecycle to check. Channel evidence does not apply; the vendor mechanical drawing is the source. See "Mechanical / Vendor-Defined Footprints" above.
 

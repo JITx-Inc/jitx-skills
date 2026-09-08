@@ -26,7 +26,7 @@ class TestDesign(SampleDesign):
 
 A build proves the component translates. It does not prove the pin count matches the datasheet, that the part number the class computes is one the manufacturer sells, or that the value the BOM prints is the value the user asked for. Those need tests.
 
-**Tests that construct a component must subclass `jitx.test.TestCase`, never plain `unittest.TestCase`** (verified on jitx 4.2.2–4.4.0rc3). It activates the JITX instantiation context, and needs no runtime — instantiating a component works offline. Outside that context a constructor does not run: `MyPart(size="0505")` returns a deferred `Instantiable` proxy and **`__init__` is never called**, so every fail-fast check in the class silently passes. A negative test written on a plain `unittest.TestCase` then fails for the wrong reason — not because the validation is missing but because nothing ran — and a demo script that constructs a deliberately invalid part raises nothing at all.
+**Tests that construct a component must subclass `jitx.test.TestCase`, never plain `unittest.TestCase`** (verified on jitx 4.4.0). It activates the JITX instantiation context, and needs no runtime — instantiating a component works offline. Outside that context a constructor does not run: `MyPart(size="0505")` returns a deferred `Instantiable` proxy and **`__init__` is never called**, so every fail-fast check in the class silently passes. A negative test written on a plain `unittest.TestCase` then fails for the wrong reason — not because the validation is missing but because nothing ran — and a demo script that constructs a deliberately invalid part raises nothing at all.
 
 This is about *construction*, not about the base class on its own: a plain `unittest.TestCase` exercising a pure function — a value-code encoder, a table cross-check, a classmethod that validates arguments without instantiating — is fine, and is a good reason to put validation in such a classmethod in the first place.
 
@@ -41,7 +41,7 @@ with SubstrateContext(SampleSubstrate()):
 ```
 
 **Declare every JITX class at module scope, never inside a test method.** Defining one while an
-instantiation context is active raises (verified on 4.4.0rc3):
+instantiation context is active raises (verified on 4.4.0):
 
 ```
 TypeError: Creating new JITX classes dynamically during instantiation is not supported,
@@ -58,7 +58,7 @@ Direct construction is what `@pytest.mark.parametrize` forces, since a parametri
 **What a component test asserts,** beyond `status: ok` from the build:
 
 - **It builds in a `SampleDesign`** and its metadata reads back — manufacturer, reference-designator prefix, ratings.
-- **Pad count equals pin count**, once per package variant, and for a family once per case size, so every land pattern is exercised at least once. The accessor depends on the numbering scheme: linearly numbered generators keep pads in `lp.p`, while a BGA mixes in `AlphaDictNumbering` and keeps one `dict[int, Pad]` per row letter with no `lp.p` at all. Both forms, and the `hasattr` guard `thermal_pads` needs because it is absent rather than empty, are in the base skill's verification step. `lp.pads` is not an accessor on either scheme. The pad-count check stays open, and verification stops, until this count runs.
+- **Pad count equals pin count**, once per package variant, and for a family once per case size, so every land pattern is exercised at least once. Count with `jitx.inspect.visit(lp, Pad)`, which does not depend on the numbering scheme; the snippet, and why attribute enumeration undercounts a BGA, are in this skill's `SKILL.md` verification steps. `lp.pads` is not an accessor. The pad-count check stays open, and verification stops, until this count runs.
 - **The generated part number against the datasheet's own ordering example** — the worked example in the ordering-information section, or a real catalog part. This is the one assertion that proves the numbering scheme was read rather than inferred; one per scheme is enough.
 - **The human-readable value label**, not just the part number — see below.
 - **The value encoder as a unit test, with decade-carry cases** alongside the ordinary ones.
@@ -71,9 +71,9 @@ Where a test is skipped unless a source file is present — the idempotency chec
 
 **"The environment can't run this" is a claim to test, not to assert.** Before recording a check as unavailable, try it. The completion block's hard-fail is on an *undeclared* unavailable environment, which makes declaring feel like the safe move — but a declaration that turns out to be wrong is worse than a failing check, because it reads as diligence while hiding the result.
 
-The specific trap: a missing `pyproject.toml` looks like "no project, so no build," and it is four lines away from being a project. An agent that declares `jitx build` unrunnable for that reason skips the check entirely. Adding a minimal `pyproject.toml` lets `jitx build --dry` run, and it can report something like `translation failed: <Component> does not have a landpattern`, a fact about the delivered artifact that a completion block would otherwise never state. Cheap to check, and `--dry` needs no runtime. If the check then fails for a reason you already know and accepted (geometry deliberately absent, say), record the actual message; "cannot be placed on a board" and "cannot be translated into any design" are different claims, and the second is the one the reader needs.
+The specific trap: a missing `pyproject.toml` looks like "no project, so no build," and it is four lines away from being a project. In one run an agent declared `jitx build` unrunnable for exactly that reason; adding a minimal `pyproject.toml` made `jitx build --dry` run, and it reported `translation failed: <Component> does not have a landpattern`, a fact about the delivered artifact that a completion block would otherwise never state. Cheap to check, and `--dry` needs no runtime. If the check then fails for a reason you already know and accepted (geometry deliberately absent, say), record the actual message; "cannot be placed on a board" and "cannot be translated into any design" are different claims, and the second is the one the reader needs.
 
-**Assert the value label — scaling to an SI prefix reintroduces float noise on exactly the values a passive library uses most.** `PlainQuantity.to_compact()` divides by a power of ten, so an exactly specified `100e-9 F` comes back as `99.99999999999999 nanofarad`, and `2.2e6 Ω` as `2.1999999999999997 megaohm` (verified on jitx 4.2.2). Nothing else catches it: `pyright` sees a well-typed quantity, `pytest` never touches `.value` unless you tell it to, `jitx build` reports `status: ok` — and the string goes to the BOM. Round the scaled magnitude back to significant figures before assigning `.value`, and assert the rendered string. Assert it the way the translator renders it (`f"{value:g~P}"`), not through a bespoke format spec — a spec of your own can hide the noise it is supposed to catch.
+**Assert the value label — scaling to an SI prefix reintroduces float noise on exactly the values a passive library uses most.** `PlainQuantity.to_compact()` divides by a power of ten, so an exactly specified `100e-9 F` comes back as `99.99999999999999 nanofarad`, and `2.2e6 Ω` as `2.1999999999999997 megaohm` (verified on jitx 4.4.0). Nothing else catches it: `pyright` sees a well-typed quantity, `pytest` never touches `.value` unless you tell it to, `jitx build` reports `status: ok` — and the string goes to the BOM. Round the scaled magnitude back to significant figures before assigning `.value`, and assert the rendered string. Assert it the way the translator renders it (`f"{value:g~P}"`), not through a bespoke format spec — a spec of your own can hide the noise it is supposed to catch.
 
 ### Build Command
 
@@ -147,11 +147,11 @@ from jitx import Circuit, Net
 from jitx.toleranced import Toleranced
 from jitx.common import Power
 from jitxlib.parts import Capacitor, CapacitorQuery, Resistor, Inductor, ResistorQuery
-# jitxlib.voltage_divider is absent from some installs (including jitxlib
-# shipped with jitx 4.4.0rc5) — import it and check before relying on it.
+# jitxlib.voltage_divider ships as the jitxlib-voltage-divider distribution; the base skill's Step 2 installs it.
 from jitxlib.voltage_divider import VoltageDividerConstraints, voltage_divider_from_constraints
 
 from .texas_instruments_TPS62933DRLR import TPS62933DRLR
+from jitx.interval import AtLeast
 
 
 class TPS62933DRLRCircuit(Circuit):
@@ -174,10 +174,10 @@ class TPS62933DRLRCircuit(Circuit):
 
         # Input capacitors (C1, C2 - 10µF each per schematic)
         with CapacitorQuery.refine(type="ceramic", case="0805"):
-            self.c_in1 = Capacitor(capacitance=10e-6, rated_voltage=50.0)
+            self.c_in1 = Capacitor(capacitance=10e-6, rated_voltage=AtLeast(50.0))
             self.c_in1.insert(self.buck.VIN, self.GND, short_trace=True)
 
-            self.c_in2 = Capacitor(capacitance=10e-6, rated_voltage=50.0)
+            self.c_in2 = Capacitor(capacitance=10e-6, rated_voltage=AtLeast(50.0))
             self.c_in2.insert(self.buck.VIN, self.GND, short_trace=True)
 
         # Feedback voltage divider
@@ -194,7 +194,7 @@ class TPS62933DRLRCircuit(Circuit):
         self.nets = [self.fb_div.out + self.buck.FB]
 
         # Output inductor and capacitors
-        self.L = Inductor(inductance=4.7e-6, current_rating=3.9)
+        self.L = Inductor(inductance=4.7e-6, current_rating=AtLeast(3.9))
         # ... complete circuit per datasheet
 ```
 

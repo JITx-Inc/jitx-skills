@@ -46,7 +46,7 @@ blocked: OQ-n             ├→ rework → review → accepted (max 2 cycles)
 - `rework`: orchestrator found issues, sent back with specific feedback
 - `rejected`: fundamental problem, task needs replanning
 
-Every transition above runs through `python scripts/plan_status.py <task-id> <status> [--note "<short note>"]`. Rewriting PLAN.md wholesale to change a status is not allowed.
+Every transition above runs through `python scripts/plan_status.py <task-id> <status> [--note "<short note>"]`. (`plan-template.md` owns the status rule.)
 
 ---
 
@@ -146,7 +146,7 @@ Phase 1 tasks are independent at the *design* level. Each sub-agent writes its o
 ### Exit Gate: Phase 1 → Phase 2
 
 ALL of the following must be true:
-- [ ] Dispatch record names `N` Phase 1 tasks, `B` spawn batches, and maximum concurrency `C`; for `N >= 3`, `B == N` blocks unless each serialized task names the dependency that forced it
+- [ ] Dispatch record names `N` Phase 1 tasks, `B` spawn batches, and maximum concurrency `C`; for `N >= 3`, `B == N` or `C < 3` blocks unless each serialized task names the dependency that forced it
 - [ ] Every Phase 1 task has status `accepted`
 - [ ] Every component builds with `status: ok` in its test harness
 - [ ] Substrate builds with all routing structures and via definitions
@@ -283,7 +283,7 @@ class Design(...):
 
 ```python
 with CapacitorQuery.refine(type="tantalum", case="1210"):
-    self.c_bulk = Capacitor(capacitance=22e-6, rated_voltage=10.0)
+    self.c_bulk = Capacitor(capacitance=22e-6, rated_voltage=AtLeast(10.0))
 ```
 
 **The point:** every design has a default that matches its manufacturing path, plus per-circuit overrides where the role demands them. The Phase 3 exit gate confirms defaults exist and overrides are documented — not that any specific filter is set.
@@ -468,13 +468,13 @@ Each subcircuit was designed in isolation. Now review the assembled design as a 
 
 ### Audit Structure
 
-Spawn a sub-agent to perform the design-level audit. The audit agent reads code and the datasheet PDFs and **edits nothing**. It reads the PDFs and not the spec notes: its job is to catch what the building chain missed, and the spec notes are that chain's own output. Where a note and the datasheet disagree, the note is the defect. It runs in its own context, so the pages cost the orchestrator nothing. It produces a **Phase 3b Audit Block** with issues classified as CRITICAL / WARNING / NOTE; see the template in `references/completion-blocks.md` "Phase 3b Design Audit Block".
+Spawn a sub-agent to perform the design-level audit. The audit agent reads code and the datasheet PDFs and **edits nothing**. It reads the PDFs and not the spec notes (CD-1). Where a note and the datasheet disagree, the note is the defect. It runs in its own context, so the pages cost the orchestrator nothing. It produces a **Phase 3b Audit Block** with issues classified as CRITICAL / WARNING / NOTE; see the template in `references/completion-blocks.md` "Phase 3b Design Audit Block".
 
-**After the same-model audit, attempt the bounded outside-voice (codex) fan-out
+**After the same-model audit, attempt the bounded outside-voice fan-out (codex by default)
 defined in `references/outside-voice-review.md`.** The attempt is mandatory for
 complete-board tier. It runs one narrow pass per accepted trigger-list task plus
 one cross-cutting power/arithmetic pass, with separate outputs. A pass that
-produces no output is recorded as skipped and does not fail the gate. Any
+produces no output is recorded as `skipped: <reason>`; it carries no findings, and the Phase 3b → 4 gate blocks until the user explicitly approves proceeding without it. Any
 CRITICAL/WARNING finding from a completed pass makes the combined verdict
 `issues-pending` even if the same-model audit said `clean`.
 
@@ -534,7 +534,8 @@ Do not accept "noted for future refactoring" — if it's broken, fix it now.
 
 - [ ] Audit found no CRITICAL or WARNING issues (or all were fixed and re-audited)
 - [ ] Outside-voice attempts record completed and skipped counts; every skipped
-      pass has a reason, and every completed-pass finding has a disposition
+      pass has a reason and the user's explicit approval to proceed quoted (else the
+      verdict is block), and every completed-pass finding has a disposition
 - [ ] Every high-speed interface has SI constraints applied and functional
 - [ ] PLAN.md updated with all rework tasks completed
 

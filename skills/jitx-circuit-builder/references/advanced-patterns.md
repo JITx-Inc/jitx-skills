@@ -76,10 +76,7 @@ Two critical requirements:
 - **`prec_series` is required** — e.g., `[1.00, 0.10]`. Tells the solver which resistor precision grades to search.
 
 ```python
-# jitxlib.voltage_divider is absent from some installs (including jitxlib
-# shipped with jitx 4.4.0rc5) — import it and check before relying on it.
-# jitxlib.voltage_divider is absent from some installs (including jitxlib
-# shipped with jitx 4.4.0rc5) — import it and check before relying on it.
+# jitxlib.voltage_divider ships as the jitxlib-voltage-divider distribution; the base skill's Step 2 installs it.
 from jitxlib.voltage_divider import VoltageDividerConstraints, voltage_divider_from_constraints
 from jitxlib.parts import ResistorQuery
 from jitx.toleranced import Toleranced
@@ -223,8 +220,7 @@ from jitx.common import Power
 from jitx.constraints import Tag, design_constraint
 from jitx.interval import AtLeast
 from jitxlib.parts import Capacitor, CapacitorQuery, Resistor, Inductor, ResistorQuery
-# jitxlib.voltage_divider is absent from some installs (including jitxlib
-# shipped with jitx 4.4.0rc5) — import it and check before relying on it.
+# jitxlib.voltage_divider ships as the jitxlib-voltage-divider distribution; the base skill's Step 2 installs it.
 from jitxlib.voltage_divider import VoltageDividerConstraints, voltage_divider_from_constraints
 from jitx.toleranced import Toleranced
 

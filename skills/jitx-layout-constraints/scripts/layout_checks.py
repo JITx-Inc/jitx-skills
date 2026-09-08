@@ -11,9 +11,9 @@ Capture traps and limits handled here:
   composition makes unrelated copper commonly read as 0.0000 mm apart.
 * ``PolygonSet.to_shapely()`` fills each computed-pour cutout ring. The adapter
   rebuilds polygon sets ring by ring before conversion.
-* A captured ``Pour`` on the JITX 4.4 line is its input outline before voiding.
-  Pours are excluded from capture clearance checks. Use the runtime-side
-  legacy ODB++ export for trace-to-pour measurements.
+* A captured ``Pour`` is the realized, voided copper: capture overwrites the
+  authored outline. Pours are excluded from the clearance checks here;
+  realization checks are ``jitx-physical-layout/scripts/check_realization.py``.
 
 The capture/query procedure and the reason to assert concrete geometry are in
 ``jitx-physical-layout/references/geometry-verification.md``. Installed API

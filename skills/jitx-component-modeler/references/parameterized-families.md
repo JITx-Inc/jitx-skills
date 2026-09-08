@@ -193,9 +193,9 @@ Cross-check the answer across manufacturers before committing to it. For a given
 
 Passing the generator a bare size key and no datasheet override is the right call when a datasheet specifies its cases only by standard EIA/IEC size code. **It is not a licence to skip reading the dimension table.** The standard table is a convenience, not an authority: wherever the datasheet publishes dimensions, transcribe them anyway and add a test asserting the table against them per size. Where a size disagrees, override that one size from the datasheet and say why in a comment. The whole risk of taking the defaults is that nobody transcribed the numbers that would have caught a bad one.
 
-**The table's entries have changed between versions, so read the one you have.** `SMT_CHIP_DEFS["2512"]` carried a `lead_length` of `2.0 ± 0.5 mm` on 4.2.2 and 4.4.0rc3, against roughly `0.60 ± 0.20 mm` in manufacturers' tables — a band nearly a third of the body length, sizing the pads from a termination three times too long. Later `jitxlib` corrects it, along with several neighbouring case sizes and a metric alias. Hard-code neither value: compare the installed table against the datasheet per size, override from the datasheet where they disagree, and pin the disagreement in a test that *fails once the table is corrected*, so the workaround is removed on upgrade rather than left to rot.
+**The table's entries have changed between versions, so read the one you have.** On 4.4.0, `SMT_CHIP_DEFS["2512"].lead_length` is `0.6 ± 0.2` — which agrees with manufacturers' tables, and with its neighbours (`0402` `0.25 ± 0.15`, `0603` `0.35 ± 0.15`, `1206` `0.45 ± 0.2`). Earlier lines carried `2.0 ± 0.5 mm` for `2512`, a band nearly a third of the body length that sized the pads from a termination three times too long; that has been corrected. The rule survives the fix and is why you would have caught it: compare the installed table against the datasheet per size, override from the datasheet where they disagree, and pin any disagreement in a test that *fails once the table is corrected*, so a workaround is removed on upgrade rather than left to rot. If such a test is failing after an upgrade, that is the mechanism working — delete the override, don't loosen the test.
 
-**Density level is a default too, and it is the one that gets missed** — because it never appears as a number in your code. See the `Library defaults` row of the completeness check: read what the source asks for, check what your installed `DensityLevelContext` actually defaults to, and either set the level explicitly or record that the default already matches.
+**Density level is a default too, and it is the one that gets missed** — because it never appears as a number in your code. The levels are IPC-7351's land-protrusion goals — `A` most, `B` median/nominal, `C` least — and the choice moves real copper: on `BigRectangularLeads`, a 0.55 mm toe fillet at `A`, 0.35 at `B`, 0.15 with a **negative** 0.05 mm side fillet at `C`. On 4.4.0 the installed default is `B` (`jitxlib/landpatterns/ipc.py` sets `DensityLevelContext._global_default = DensityLevelContext(DensityLevel.B)`); earlier lines defaulted to `C`. See the `Library defaults` row of the completeness check: read what the source asks for, check what your installed `DensityLevelContext` actually defaults to, and either set the level explicitly or record that the default already matches.
 
 ## Parameterized Component Families
 
@@ -203,7 +203,6 @@ Sometimes the right model is not one part but one **catalog family**: a single `
 
 **A queried passive is still the default.** `jitxlib.parts.Resistor(resistance=10e3)` and its siblings are the normal way to place a passive, and `jitx-circuit-builder` owns that path. Build a family class when the user asks for a family, a series, or "any value in this package"; when the design must build with no parts database reachable; or when a specific series is required and the query cannot express it. Do **not** build one to model a single named part — that part gets the ordinary single-MPN treatment in [component-code-patterns.md](component-code-patterns.md#step-3-generate-component-code).
 
-The opening sections of this file carry the class shape, shared/per-family split, and worked family. The rules that decide whether the result is right follow.
 
 ### Fail-fast validation
 
@@ -216,7 +215,7 @@ if size not in DIMENSIONS:
 
 Validate the **cross-axis** rules too, not only the individual ones. The combinations a catalog does not offer — a tolerance grade available at only one temperature coefficient, a packaging code available on only two sizes, a dielectric absent from the smallest case — are where a generated part number turns into a part nobody sells, and each axis on its own looks fine.
 
-MPN construction refuses to return until every individual and cross-axis check passes. Verification stays open until tests exercise every invalid axis and excluded combination.
+MPN construction refuses to return until every individual and cross-axis check passes.
 
 **Key a coded axis on the datasheet's own code, not on a float.** A tolerance table maps `F` to ±1 %, so a `dict[float, str]` keyed on `0.01` makes the public constructor depend on float equality — `1/100` and `0.010000000000000002` are different keys, and the failure is a spurious "unsupported tolerance". Take the code as the argument, or key the dict on it, and convert to a number for display only.
 
@@ -226,7 +225,6 @@ MPN construction refuses to return until every individual and cross-axis check p
 
 **Round to significant figures first, then encode.** Manufacturer value codes are fixed-width significand-plus-multiplier fields, and encoding an unrounded value truncates instead of carrying: a value that rounds up across a decade must carry into the multiplier, never emit the un-carried significand or a malformed field. Split the *rounded* number, and unit-test the decade-carry cases explicitly — the happy-path values pass either way, which is why this ships.
 
-Verification stays open until the value-encoder unit tests include decade-carry cases and pass.
 
 **Do not force one encoder across vendors.** Value-code schemes genuinely differ, and one shared encoder with a mode flag per vendor is harder to check against a datasheet than three short functions. The encoder is the per-family part; the rounding helper is the shared part.
 
@@ -238,7 +236,7 @@ Verification stays open until the value-encoder unit tests include decade-carry 
 
 `jitx-circuit-builder` owns the rule for *choosing* a passive value — use the `eseries` package, default E96. A family class sits on the other side of that transaction: it is handed a value and must say whether the series actually makes it. **Pick the series from the part's tolerance grade, not from a global default.** A ±5 % part is built on E24, and accepting an E96 value for it produces an orderable-looking part number for a part that does not exist. Do not reach past what the datasheet says the family is built on in either direction — a tight grade a manufacturer builds on E96 does not become E192 just because the tolerance is tight. Make the check opt-in so a deliberate non-standard value stays possible, and add a series when a family that needs it lands, not in anticipation.
 
-When the opt-in check is enabled, MPN construction raises `ValueError` for a value outside the source-stated series. Verification stays open until tests pin each tolerance-to-series mapping and the deliberate bypass.
+When the opt-in check is enabled, MPN construction raises `ValueError` for a value outside the source-stated series.
 
 ### When the catalog does not publish what you need, say so
 

@@ -5,7 +5,9 @@ The witness exists because a jitx command has been observed exiting 0 while
 printing a failure, so a zero exit alone is not evidence the build succeeded.
 """
 
+import contextlib
 import importlib.util
+import io
 import pathlib
 import unittest
 
@@ -46,6 +48,31 @@ class BuildWitness(unittest.TestCase):
         r = witness("ERROR", "", None, detail="command not found: jitx")
         self.assertEqual(r.status, "ERROR")
         self.assertEqual(r.detail, "command not found: jitx")
+
+
+class ImportErrors(unittest.TestCase):
+    def test_pyright_unresolved_import_is_import_error(self):
+        out = '/p/x.py:3:6 - error: Import "jitx" could not be resolved (reportMissingImports)\n'
+        self.assertTrue(check.is_import_error(out))
+
+    def test_ordinary_pyright_type_error_is_not_import_error(self):
+        out = '/p/x.py:9:1 - error: "foo" is not a known attribute (reportAttributeAccessIssue)\n'
+        self.assertFalse(check.is_import_error(out))
+
+
+class GrepGateOutput(unittest.TestCase):
+    def _printed(self, detail):
+        r = check.Result("grep gates", "PASS", "x.py:4: hit\nreview-required hits: 2\n", detail, 0)
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            check.print_result(r, verbose=False)
+        return buf.getvalue()
+
+    def test_review_required_hits_print_on_pass(self):
+        self.assertIn("x.py:4: hit", self._printed("0 hard-fail, 2 review-required"))
+
+    def test_clean_pass_stays_one_line(self):
+        self.assertNotIn("x.py:4: hit", self._printed("0 hard-fail, 0 review-required"))
 
 
 class Placeholders(unittest.TestCase):

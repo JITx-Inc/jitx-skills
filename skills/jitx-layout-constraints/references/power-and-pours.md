@@ -5,8 +5,8 @@ This is the worked detail for `SKILL.md`, "Routed power" and "Pours". Use
 surface. Rules remain structural (`jitx/_translate/design.py:187`). Higher priorities win when several rules match (`jitx/constraints.py:802`, `jitx/constraints.py:860`).
 
 Source citations (`jitx/constraints.py:910` and the like) point into the
-installed py-jitx package, `4.4.0rc5.dev2` build; line numbers move between
-builds, so confirm on another install before relying on one.
+installed py-jitx package on a `4.4.0` install; line numbers move between
+builds, so confirm on your own install before relying on one.
 
 Engineering basis: Eric Bogatin, ["Seven Habits of Successful 2-Layer Board Designers"](https://www.signalintegrityjournal.com/blogs/12-fundamentals/post/1207-seven-habits-of-successful-2-layer-board-designers),
 Signal Integrity Journal, 2019-04-23. Only claims that article makes are attributed to it.
@@ -347,8 +347,8 @@ Read these fields from the selected substrate. The class values are examples, no
 
 Result, observed on 4.4.0rc5.dev2 on one pad shape (a 1.6 mm round pad):
 candidate 2 below produces a direct connect and candidate 1 does not. Before
-reusing the pattern on another pad shape, size or runtime, treat it as
-unconfirmed for that case and say so. A higher-priority `thermal_relief` whose spoke width
+reusing the pattern on another pad shape, size or runtime, confirm it on that
+pad's captured `computed_shape` before relying on it. A higher-priority `thermal_relief` whose spoke width
 equals the pad diameter leaves the runtime's computed pour copper with no gap
 and no spokes at the tagged pad, while a default-relief pad on the same net
 keeps its four 0.2 mm spokes; the higher-priority rule carrying no effect leaves
@@ -397,11 +397,9 @@ Surface 2 shows the voided pour; surfaces 1 and 3 do not on the 4.4 line, so it
 is the one to read. A successful build alone is not evidence of direct
 connection.
 
-The fabrication export also shows it, and is deliberately not listed as a
-surface here. It is a handoff artifact for a fab, not a verification loop: an
-export, a directory walk and a feature-file parse per rule is a large amount of
-work to reach a fact `computed_shape` already carries, and an agent that starts
-inspecting exported geometry to confirm its own rules tends to keep doing it.
+The fabrication export is not a verification surface here; `computed_shape`
+already carries the fact (rule and reason: `jitx-physical-layout`, "Pour
+realization semantics").
 
 ## 9. Power puddle from a pad list
 

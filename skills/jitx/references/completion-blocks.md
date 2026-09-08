@@ -52,7 +52,7 @@ Copy this template verbatim. Fill every field. Every `N/A` requires a reason.
 
 `Primary source` names the ground-truth source and exact pages or sections. In complete-board work, cite `datasheets/<MPN>.spec.md` and the PDF pages recorded there. In single-task work, cite the PDF directly. When the user named a sourcing channel for an IC, connector, or other non-passive part, include the saved channel-evidence path required by `parts-sourcing.md`. Prior projects belong under `Secondary references`, never `Primary source`. Bare "datasheet (from memory)" or "typical dimensions" is invalid for a real MPN.
 
-The two review fields are always present. `JITX code review (self)` is mandatory for complete-board tasks, except verify-only tasks with no JITX Python change; see `jitx-code-review/SKILL.md`. For single-task work it is `not applicable: single-task tier` unless the user invoked the review. `Outside-voice review (codex)` follows `references/outside-voice-review.md`; its complete-board trigger list does not apply to single-task work. A required outside-voice attempt that produces no output is recorded as `skipped: <reason>` and is not a failed gate. CRITICAL or WARNING findings from completed reviews produce `issues-pending` until fixed, downgraded with rationale, or user-approved.
+The two review fields are always present. `JITX code review (self)` is mandatory for complete-board tasks, except verify-only tasks with no JITX Python change; see `jitx-code-review/SKILL.md`. For single-task work it is `not applicable: single-task tier` unless the user invoked the review. `Outside-voice review` follows `references/outside-voice-review.md`; its complete-board trigger list does not apply to single-task work. A required outside-voice attempt that produces no output is recorded as `skipped: <reason>`; it carries no findings, and the Phase 3b → 4 gate blocks until the user explicitly approves proceeding without it. CRITICAL or WARNING findings from completed reviews produce `issues-pending` until fixed, downgraded with rationale, or user-approved.
 
 Run `python scripts/check.py <ns>/ --build <module.path.DesignClass>` once from the project root. The `Build` field and the four verification rows report the corresponding summary lines from that invocation. Review-required grep hits retain their per-hit dispositions in the `Grep gates` row.
 
@@ -98,7 +98,7 @@ Run `python scripts/check.py <ns>/ --build <module.path.DesignClass>` once from 
 | JITX CRITICAL | <file:line; rule; disposition / none> |
 | JITX WARNING | <file:line; rule; disposition / none> |
 | JITX NOTE | <file:line; rule / none> |
-| Outside-voice review (codex) | <result/reason> |
+| Outside-voice review | <reviewer; result/reason> |
 | Outside-voice CRITICAL | <file:line; cite/inference; disposition / none> |
 | Outside-voice WARNING | <file:line; cite/inference; disposition / none> |
 | Outside-voice NOTE | <file:line; cite/inference / none> |
@@ -157,6 +157,7 @@ A hard-fail hit blocks task acceptance. Fix the underlying code; do not whitelis
 
 | # | Rule | Pattern (Python `re`-style) | Where checked |
 |---|------|------|----|
+| 1 | SI application outside the conventional top-level directory. The search skips the paths where such a call is a definition or a harness rather than a misplaced application: any `constraints/` directory, `main.py`, and test modules. What remains is an SI constraint applied inside an ordinary subcircuit, which is the failure the rule names. A comment or docstring that spells out the call form in a non-skipped path still trips the regex; reword the prose, since a hard-fail takes no disposition. | `\b(ReferencePlanes\|Constrain\|ConstrainDiffPair\|ConstrainReferenceDifference)\s*\(` | `<ns>/` excluding `<ns>/designs/`, `constraints/`, `main.py`, tests |
 | 2 | Net symbols outside top-level designs (`GroundSymbol` / `PowerSymbol` are top-level only) | `\b(GroundSymbol\|PowerSymbol)\s*\(` | `<ns>/` excluding `<ns>/designs/` |
 | 3 | `setattr(self, ...)` / `getattr(self, ...)` — JITX convention violation (see `jitx/SKILL.md` Don'ts) | `\b(setattr\|getattr)\s*\(\s*self\b` | anywhere in `<ns>/` |
 | 4 | Anonymous structural `.insert(...)` (silent-drop pattern 1 — `Resistor(...).insert(...)` instead of `self.r = Resistor(...); self.r.insert(...)`) | `\b(Capacitor\|Resistor\|Inductor)\s*\([^)]*\)\s*\.insert\s*\(` | anywhere in `<ns>/` |
@@ -169,7 +170,6 @@ A review-required hit does not block, but each hit must appear in the task accep
 
 | # | Rule | Pattern | Where checked |
 |---|------|---------|----|
-| 1 | SI application outside the conventional top-level directory. The search skips the paths where such a call is a definition or a harness rather than a misplaced application: any `constraints/` directory, `main.py`, and test modules. What remains is an SI constraint applied inside an ordinary subcircuit, which is the failure the rule names. Prose in a comment or docstring inside a non-skipped path is the one false positive left; disposition `accept (comment/docstring)`. | `\b(ReferencePlanes\|Constrain\|ConstrainDiffPair\|ConstrainReferenceDifference)\s*\(` | `<ns>/` excluding `<ns>/designs/`, `constraints/`, `main.py`, tests |
 | 5 | Module-scope `for` loop — anti-string-hacking theme 9. Module-import-time logic that *might* populate a global table; legitimate uses (dispatch registration, static data generation) exist. Disposition: `fix (move into function)` or `accept (legitimate import-time logic: <reason>)`. See `jitx/SKILL.md` Don'ts and `references/architectural-patterns.md` § "No code at module-import time". | `^for\s+\w+\s+in\s+` | anywhere in `<ns>/` |
 | 6 | `Pour(..., isolate=...)` — legacy parameter (Pass 3 deprecates in favor of `design_constraint(...)` with Tags) | `\bPour\s*\([^)]*\bisolate\s*=` | anywhere in `<ns>/` |
 | 7 | Bare net/topology expression (silent-drop pattern 2 — `self.a + self.b` or `self.a >> self.b` with no LHS assignment) | `^\s*self\.\w+(\.\w+\|\[[^]]+\])*\s*(\+\|>>)\s*self\.\w+(\.\w+\|\[[^]]+\])*(\s*#.*)?$` | anywhere in `<ns>/` |
@@ -181,11 +181,11 @@ A review-required hit does not block, but each hit must appear in the task accep
 
 Pattern 8 is intentionally broad; it will match comments and legitimate `isinstance`-adjacent uses. The disposition workflow handles this — review-required is the right severity.
 
-Pattern 1 is review-required because the prescribed project structure puts
-constraint definitions in `constraints/`, the seeded top-level design in
-`main.py`, and test harnesses beside their modules. Those are correct locations.
-The gate treats the prescription as authoritative and asks for a per-hit semantic
-disposition instead of hard-failing code it cannot classify.
+Pattern 1 skips `constraints/` directories, `main.py`, and test modules
+(`test_*.py`, `*_test.py`, `tests/`) because the prescribed layout puts SI
+constraint definitions, the seeded top-level design, and harnesses there. A hit
+anywhere else is an SI constraint applied inside an ordinary subcircuit and
+blocks acceptance.
 
 Pattern 9 catches f-strings that look like they're building tag-style identifiers (`ALL_CAPS` prefix + brace). Legitimate uses (log lines like `f"ERROR_{code}"`) need disposition with rationale. The disposition workflow keeps this from becoming compliance theater.
 
@@ -235,11 +235,11 @@ The criteria mirror the exit-gate bullet lists in `references/project-builder-fl
 
 | Field | Result |
 |-------|--------|
-| Environment probe | <imports; result> |
+| Environment probe | <all of `jitx`, `jitxlib`, `jitxlib.parts`, `jitxlib.symbols.box`, `jitxlib.voltage_divider` import; target substrate package (e.g. `jitxlib.jlcpcb`) imports; `jitx --version` and `jitx runtime introspect` report the same major.minor; result> |
 | Requirements lock complete | <result; assumptions> |
 | PLAN.md exists | <path> |
 | ARCHITECTURE.md exists | <path; sections> |
-| No fact copied between documents | <N checked; name the specific pairs compared; clean, or each copy and its owner> |
+| No fact copied between documents | <N checked; name the specific pairs compared; duplication counts at the sentence level, not the section level; clean, or each copy and its owner> |
 | Support circuitry owned | <part -> task, per powered part, from each application circuit; or "none needed, per <datasheet section>"> |
 | Task status reconciles with open questions | <N blocking relationships walked from the Blocks column; all reconcile, or each disagreeing task> |
 | Planning docs within budget | <line counts; result> |
@@ -252,14 +252,18 @@ The criteria mirror the exit-gate bullet lists in `references/project-builder-fl
 | Verdict | <advance/block + reason> |
 ```
 
+The `jitxlib` namespace is split across distributions and installing `jitx` brings none of them; a failing environment probe is almost always a missing `jitxlib-standard` / `jitxlib-parts` / `jitxlib-voltage-divider`, which is an install to do, not a module to work around. See `jitx/SKILL.md` "Environment Setup".
+
 ### Phase 1 → Phase 2
 
 ```markdown
 ## Gate: Phase 1 → Phase 2
 
-**Dispatch:** <N> Phase 1 tasks in <B> spawn batches, max <C> concurrent
-(for `N >= 3`: `B == N` fails, and so does `C < 3`; recording two batches that each
-run one task at a time is serial work with a batch count on it)
+**Dispatch:** <N> Phase 1 tasks in <B> spawn batches, max <C> concurrent (C is the
+number of sub-agents running at the same time in the widest batch). For `N >= 3`,
+`B == N` fails and so does `C < 3`, unless each serialized task names the dependency
+that forced it; recording two batches that each run one task at a time is serial
+work with a batch count on it.
 
 | Field | Result |
 |-------|--------|
@@ -273,8 +277,6 @@ run one task at a time is serial work with a batch count on it)
 | Open from this phase | <list/none> |
 | Verdict | <advance/block + reason> |
 ```
-
-For `N >= 3`, `B == N` fails this gate. The orchestrator re-dispatches or names, for each serialized task, the dependency that forced serialization. "It seemed simpler" is not a dependency.
 
 ### Phase 2 → Phase 3
 
@@ -329,7 +331,7 @@ For `N >= 3`, `B == N` fails this gate. The orchestrator re-dispatches or names,
 | Field | Result |
 |-------|--------|
 | Phase 3b audit block emitted | <block/link> |
-| Outside-voice review | <N attempted; M completed; K skipped + reasons> |
+| Outside-voice review | <reviewer; N attempted; M completed; K skipped + reasons; if K > 0, the user's approval to proceed quoted, else Verdict is block> |
 | CRITICAL findings | <count; result> |
 | WARNING findings | <count; dispositions> |
 | NOTE findings | <count> |
@@ -343,11 +345,11 @@ For `N >= 3`, `B == N` fails this gate. The orchestrator re-dispatches or names,
 
 ## Phase 3b Design Audit Block (complete-board only)
 
-The audit happens in Phase 3b. A read-only audit agent (no design-code edits) reviews the assembled design across four passes and emits this block. It reads the datasheet PDFs rather than the spec notes, because the notes are the building chain's own output and an audit anchored to them cannot catch an extraction error. The orchestrator decides which findings to fix; fix sub-agents handle the loopback. After fixes, the audit re-runs and the block is updated (or a new block is emitted alongside the first).
+The audit happens in Phase 3b. A read-only audit agent (no design-code edits) reviews the assembled design across four passes and emits this block. It reads the datasheet PDFs, not the spec notes (CD-1). The orchestrator decides which findings to fix; fix sub-agents handle the loopback. After fixes, the audit re-runs and the block is updated (or a new block is emitted alongside the first).
 
 The four pass scopes remain those in `references/project-builder-flow.md`: application-circuit external parts and values; every circuit assumption against the system; every interface path including power; and every regulator's load margin, thermal/package limit, and hot-plug behavior.
 
-The bounded outside-voice fan-out is a required attempt for complete-board work and follows `references/outside-voice-review.md`. Any CRITICAL or WARNING finding from a completed outside-voice pass makes the combined verdict `issues-pending`, even when the four passes are clean. A pass with no output is recorded as skipped and does not turn the audit into a failed gate.
+The bounded outside-voice fan-out is a required attempt for complete-board work and follows `references/outside-voice-review.md`. Any CRITICAL or WARNING finding from a completed outside-voice pass makes the combined verdict `issues-pending`, even when the four passes are clean. A pass with no output is recorded as `skipped: <reason>`; it carries no findings, and the Phase 3b → 4 gate blocks until the user explicitly approves proceeding without it.
 
 ```markdown
 ## Phase 3b Audit: <project-name>
@@ -379,9 +381,9 @@ The bounded outside-voice fan-out is a required attempt for complete-board work 
 |------|-----------|----------|--------|--------|-----------------|----------|------------|
 | <rail> | <part> | <load> | <rating> | <margin> | <result> | <result> | <ID/none> |
 
-### Outside-Voice Review (codex)
+### Outside-Voice Review
 
-**Outside-voice review (codex):** <N attempted; M completed; K skipped + reasons; completed-pass result>
+**Outside-voice review:** <reviewer; N attempted; M completed; K skipped + reasons; completed-pass result>
 
 ### Findings and Loopback Decisions
 
@@ -402,7 +404,7 @@ Severity definitions:
 
 Rules:
 
-- Audit agent edits nothing, including the datasheet spec notes. A note that disagrees with the datasheet is a finding like any other. Letting the auditor correct it would have the independent verifier rewrite the artifact it is auditing, which erases the discrepancy before the builder ever sees it and leaves no record that the extraction was wrong. Findings → orchestrator → fix agents → re-audit.
+- Audit agent edits nothing, including the datasheet spec notes. A note that disagrees with the datasheet is a finding like any other. Findings → orchestrator → fix agents → re-audit.
 - "Noted for future refactoring" is not a valid disposition for CRITICAL or WARNING.
 - After any fix lands, re-audit. The re-audit does not need to repeat passes that didn't touch the changed code, but must re-verify the original findings are resolved.
 
@@ -417,7 +419,7 @@ Final verification before declaring the project done.
 
 **Verification command:** `python scripts/check.py <ns>/ --build <ns>.designs.Design`
 
-**Check summary:** <the five exact summary lines from the verification command>
+**Check summary:** <the four check summary lines from `python scripts/check.py` (ruff check, ruff format, pyright, grep gates)>
 
 **Final build:** <exact `build` summary line>
 

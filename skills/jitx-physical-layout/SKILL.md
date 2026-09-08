@@ -10,9 +10,9 @@ placement, code-driven vias/routes, and layout-intent tags — directly in Pytho
 This is the layer **between** schematic-level wiring (`jitx-circuit-builder`) and
 stackup/fab definition (`jitx-substrate-modeler`).
 
-JITX is a moving target — APIs on this page have been renamed across releases
-(the control-point classes in 4.2.0; the reverse-flow inspection surface is new in
-4.3). Do not rely on prior JITX knowledge — **verify every import and signature
+JITX is a moving target — the control-point classes and the reverse-flow
+inspection surface have both been reshaped across recent releases. Do not rely on
+prior JITX knowledge — **verify every import and signature
 with `pyright` against the installed package**, and verify control-point/route
 geometry by **capturing and asserting the realized copper**
 (`references/geometry-verification.md`), never by build success alone.
@@ -128,12 +128,12 @@ copper is allowed to **overlap** other copper:
 
 | Construct | On a net? | Overlap-exempt? | Use for |
 |---|---|---|---|
-| `Pour(shape, layer, *, rank=0)` | yes (`net += Pour(...)`) | no | filled planes / shaped fills |
+| `Pour(shape, layer, *, rank=0, orphans=True)`; `orphans` is documented as not respected | yes (`net += Pour(...)`) | no | filled planes / shaped fills |
 | `Copper(shape, layer)` | yes (`net += Copper(...)` or `a + Copper(...)`) | no | an explicit copper shape on one net |
 | `OverlappableCopper(shape, layer)` | **no** (netless) | **yes** | net-tie copper bridging two nets' pads, antenna radiators, filter copper — ignored by the router and overlap checks |
 
-`Copper(..., exempt=True)` was **removed in 4.2.0** — there is no on-net,
-overlap-exempt copper anymore. Overlap-tolerant copper is `OverlappableCopper`,
+`Copper(..., exempt=True)` does not exist — there is no on-net,
+overlap-exempt copper. Overlap-tolerant copper is `OverlappableCopper`,
 which is netless: its connectivity comes from the pads it overlaps.
 
 `Copper` lives in `jitx` (top-level / `jitx.copper`); `OverlappableCopper` lives in
@@ -165,16 +165,12 @@ check plain-data helpers and outline factories outside the runtime, but they are
 not structural realization evidence. `check_realization.py` performs submit and
 capture before reading those fields.
 
-Placement is also a realization prerequisite. Top-level subsystem circuits use
-`.at(floating=True)` when a person will place them interactively; otherwise they
-pile up at the parent origin. A headless geometry harness gives them explicit
-positions. A floating circuit with no stored interactive placement is parked off
-the board, which leaves routes unrealized and board-wide pours `Empty()` while the
-build still reports `status: ok`. Record either explicit positions or completed
-interactive placements stored in `design-info/` before interpreting a realization
-failure. Capture cannot report which objects lacked authored placement because
-auto-placement and stored state give every captured component a position; this is
-a stated limitation, not a placement gate the shipped checker claims to enforce.
+Placement is also a realization prerequisite: a floating circuit with no stored
+interactive placement is parked off the board, leaving routes unrealized and
+board-wide pours `Empty()` while the build reports `status: ok`. Record explicit
+positions or completed interactive placements in `design-info/` before
+interpreting a realization failure; capture cannot report which objects lacked
+authored placement (`references/geometry-verification.md`).
 
 ### Conditions for realized copper
 
@@ -183,18 +179,16 @@ nothing on the net reaches that layer, the runtime silently deletes the pour and
 capture returns `Empty()`.
 
 **Solver-emitted stitch vias do not satisfy that precondition, and neither do
-top-side pads.** This is the trap, because it looks solved: a stitch rule can
-emit hundreds of vias, the build reports `status: ok`, and the inner and bottom
-pours still capture back `Empty()`. Measured on 4.4.0rc5: 519 emitted stitch
-vias, pours on layers 1 and 3 both empty. What holds a pour alive is copper the
-design placed on that net and layer itself, an explicitly placed through via or a
-pad; a control with anchor vias and no stitch rule at all realized 2222.04 mm²
-per pour. Place the anchors first and treat stitching as what thins the return
-path, not what creates it. The order matters: a stitch rule added to a pour with
-no anchor produces a large via count and no copper.
+top-side pads.** A stitch rule can emit hundreds of vias, the build reports
+`status: ok`, and the inner and bottom pours still capture `Empty()`. Measured
+on the 4.4.0 runtime: an inner pour with a stitch rule and nothing else on its
+net emitted 9 vias and captured `Empty()`; the same pour with one placed through
+via realized. What holds a pour alive is copper the design placed on that net
+and layer, an explicitly placed via or a pad. Place the anchors first; stitching
+thins the return path, it does not create it.
 
-This is also why an emitted-via count is not evidence of realization. Count
-realized pour area, per layer, and let the via count be a secondary reading. Calling `.to_shapely()` on that value raises
+An emitted-via count is therefore not evidence of realization; count realized
+pour area per layer. Calling `.to_shapely()` on an `Empty()` pour raises
 `ValueError: Unhandled primitive geometry type: Empty()`. The realization command
 checks for `Empty()` before conversion, reports the pour's net and layer, and exits
 1 on every required empty pour. The
@@ -235,35 +229,27 @@ profile unchanged therefore cannot pass.
 ### Stitch-via realization
 
 `design_constraint(...).stitch_via(...)` materializes vias only when its selected
-object is a `Pour`. In a controlled test, the same 3.10 by 4.05 mm shape produced
-9 vias as a `Pour` and zero as a `Pad`, as `Copper`, and through a board-wide
-`IsPad` rule. Every zero-via case reported `status: ok`. To stitch a thermal-pad
+object is a `Pour`: the same shape as a `Pad`, as `Copper` (re-measured on 4.4.0),
+or through a board-wide `IsPad` rule produced zero stitch vias, each with
+`status: ok`. To stitch a thermal-pad
 region with this rule, the circuit creates a `Pour` from the landpattern thermal
 pad's shape, joins it to the net, and tags that pour. A pad-specific explicit via
 field remains a separate physical-layout pattern.
 
-**`SquareViaStitchGrid.inset` is documented as boundary-to-via-*center*.** The
-installed docstring is explicit: "Minimum distance from the stitched region's
-boundary to the outermost via centers in millimetres". Take that as the semantics.
+**`SquareViaStitchGrid.inset` is measured to the via pad edge on the 4.4 runtime, not
+to the via centre as the docstring says.** The docstring reads "Minimum distance from
+the stitched region's boundary to the outermost via centers". A discriminating probe
+on jitx 4.4.0 (8 mm square pour, `pitch=2.0`, `StdViaPreferred` pad 0.45 mm) gave 9
+stitch vias at `inset=1.5` and `1.75` and 1 via at `1.8`, `1.9` and `2.1`. The centre
+reading predicts 9 up to `inset=2.0`; the pad-edge reading predicts the drop at
+`2.0 - 0.225 = 1.775`; a hole-edge reading would drop at `1.85`. Plan with the
+pad-edge count, `2 * floor((size / 2 - inset - pad_diameter / 2) / pitch) + 1` per
+axis, and treat the docstring as a library defect until it changes.
 
-A probe on the 4.4 line appeared to measure to the via *pad edge* instead, and
-the count it observed away from an exact boundary fitted
-`2 * floor((size / 2 - inset - via_pad_diameter / 2) / pitch) + 1`, which carries
-a pad-radius term the documented reading would not need. That probe also produced
-one via on a 3.10 mm axis at `pitch=1.2, inset=0.125` where both candidate
-formulas predicted three, so it did not cleanly establish either reading. The
-discrepancy is unresolved: the documented datum is centers, one measurement
-suggests otherwise, and a board whose grid fits both readings cannot arbitrate.
-Design to the documented semantics, and if a specific board's margin depends on
-which reading holds, measure that board rather than trusting either formula.
-
-**The inset is measurable from a capture, so do not report it as unwitnessable.**
-Realized via centers and the pour boundary are both available, and the via pad
-diameter is reachable from the via definition, so the achieved margin can be
-computed and compared against the requested inset. What capture does not give is
-a binding from a stitch group back to the rule that produced it, or a direct
-"requested inset satisfied" flag; neither prevents measuring the margin. A count
-formula stays a planning estimate.
+The achieved inset is measurable from a capture: realized via centres, the pour
+boundary and the via pad diameter are all available, so compute the margin and
+compare it with the request. Capture gives no binding from a stitch group back to
+its rule and no "inset satisfied" flag; neither prevents the measurement.
 
 ### Captured pour geometry
 
@@ -290,20 +276,14 @@ linker assigns the runtime's output back onto the objects the design authored:
 registered transformers) onto the copper their rules produced. Read realization
 there.
 
-It is the better surface, not merely the cheaper one. A fabrication export
-carries geometry stripped of meaning: features on a layer, with no net and no
-owning instance, so proving a pour reached the right net means reconstructing
-connectivity the design already knows. Reverse flow carries the realized shape
-together with its net and its owner, which is what a question like "did this
-pour connect to the rail it was drawn for" actually needs. The export can only
-answer a shape question; reverse flow answers the electrical one.
+Reverse flow carries the realized shape with its net and owner; an export carries
+features on a layer with neither, so only reverse flow answers whether a pour
+reached the rail it was drawn for.
 
-What it does not witness on the 4.4 line: trace-to-pour clearance, thermal
-relief spoke geometry, and sliver removal. Those are reported unwitnessed, with
-one line each. Do not open an export to chase them. The export is a handoff
-artifact for a fab, not a verification loop for an agent: an agent that starts
-parsing exported geometry to confirm its own rules spends heavily and learns
-little that the runtime could not have told it.
+What it does not witness: trace-to-pour clearance, thermal relief spoke geometry,
+and sliver removal. Report those unwitnessed, one line each. The fabrication
+export is a handoff artifact for a fab, not a verification surface for an agent;
+do not open one to close a rule.
 
 **OverlappableCopper is netless.** Its electrical connection comes from the **pads it
 overlaps**, not from the copper itself. A net-tie is the minimal case: the bridging
@@ -409,8 +389,15 @@ landpattern.thermal_pad(shape=rectangle(3.45, 3.45), config=config)
 
 A **soldermask-defined thermal pad** (shapely CSG webs + via dams, a cheap-fab
 alternative to filled via-in-pad) is a complete worked example in
-`references/layout-examples.md`. Authoring the package/landpattern itself from a
-datasheet belongs to `jitx-component-modeler`; this skill is the feature mechanics.
+`references/layout-examples.md`. Its explicit via field and mask dams are built by
+this skill's `scripts/thermal_via_stitch.py`: copy it into the project; it reads
+`FabricationConstraints` and the via class, and raises `ValueError` on a pad too
+small for the grid or a non-polygon opening, which means change the grid, not
+bypass the check. No reference design has built a pad with it yet, so verify the
+mask and paste openings in the fab output the first time. Authoring the
+package/landpattern itself from a datasheet belongs to `jitx-component-modeler`;
+the rules that act on the pad (thermal relief, direct connect) belong to
+`jitx-layout-constraints`; this skill is the feature mechanics.
 
 ## Explicit placement & via attachment
 
@@ -566,10 +553,10 @@ Tags(PinFanoutTag()).assign(r)             # Route is a supported tag target
 
 ## Control points & code-based routes
 
-Surface reshaped in **JITX 4.3.0-rc.3+** (control points split netting from routing;
-`PairPoint.pair` removed). The module is **`jitx.controlpoint`** (the three classes
-are also re-exported from top-level `jitx`; pre-4.2 alphas used `SingleControl` /
-`InsertionControl` / `PairControl` — those names no longer import).
+Control points split netting from routing, and `PairPoint.pair` is gone in favour
+of `.front` / `.back`. The module is **`jitx.controlpoint`** (the three classes
+are also re-exported from top-level `jitx`; `SingleControl` / `InsertionControl` /
+`PairControl` are old alpha-era names and do not import).
 
 - `Route(source, destination, layer, sketch=None)` — a code-based route (not
   directional) between two endpoints, each a `Port` / `Pad` / `Via` /

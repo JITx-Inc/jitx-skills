@@ -1,13 +1,13 @@
 .socket.jitx
 SKILLS_PLAN.md
 
-# Eval run outputs. The receipts and raw judge output are bulky local forensics
-# and carry candid commentary about the skills, which a shipped bundle should not
-# distribute. What has to survive the machine is EVAL-LOG.md at the repo root:
-# the scores as they stood at PR time, generated from these receipts by
-# skillify's `receipt.py log`. Without it the no-regression baseline lives on one
-# laptop and a fresh clone has nothing to compare against.
+# Eval run outputs. The receipts, the raw judge output and the generated
+# EVAL-LOG.md are local forensics: bulky, and they carry candid commentary and
+# failing baselines that a shipped bundle should not distribute. The plugin
+# manifests ship the repo root, so none of it is safe to track. Record the scores
+# that stood at PR time in the PR description instead.
 skills/*/evals/receipts/
+EVAL-LOG.md
 .DS_Store
 __pycache__/
 .venv/
