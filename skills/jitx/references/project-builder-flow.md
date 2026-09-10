@@ -39,7 +39,7 @@ blocked: OQ-n             ├→ rework → review → accepted (max 2 cycles)
 ```
 
 - `pending`: not started, and startable
-- `blocked: OQ-n`: not startable until open question n closes. Blocking is transitive: a task whose dependency is blocked is blocked, not pending. The Status field is the first thing a resumed session reads, so blocked state belongs there and not only in the Open Questions table's Blocks column
+- `blocked: OQ-n`: not startable while an open question affects it. Blocking is transitive: a task whose dependency is blocked is blocked, not pending. Status alone records the task-to-question relationship; reconcile it against unresolved questions and task inputs and dependencies before starting work, per `plan-template.md`.
 - `in-progress`: sub-agent working
 - `review`: sub-agent returned task acceptance block, awaiting orchestrator review
 - `accepted`: orchestrator verified, ready for downstream tasks
@@ -115,6 +115,7 @@ Please confirm data sources or provide alternatives (datasheets, footprints, spe
 
 - [ ] PLAN.md exists with all tasks defined
 - [ ] ARCHITECTURE.md exists with power tree and interface map
+- [ ] No duplicated facts remain; task statuses reconcile with unresolved questions and task inputs and dependencies, including transitive blockers — either discrepancy blocks advancement per `completion-blocks.md`
 - [ ] Data source audit completed and user approved
 - [ ] All datasheets and reference materials identified and accessible (or user committed to providing them)
 - [ ] Dependencies are acyclic
