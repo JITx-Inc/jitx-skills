@@ -134,12 +134,11 @@ Provenance: values traceable to no datasheet page: NONE | <list + the labeled ru
 Checks: pyright <clean | N errors>; pytest <N passed | not run: <reason>>;
         build <status: ok via <command> | not run: <reason>>
 Verdict: complete | open items: <list>
-        Derive this line from the Checks row above, do not compose it: every check
-        there that is not clean — failed, skipped, or unavailable in this
-        environment — is copied here as an open item, and the count must match.
-        "complete" with an empty open-items list asserts every check ran clean.
-        An unavailable environment is an open item, not an exemption: "no runtime,
-        so no build" is exactly the case this line exists to record.
+        Derive this line from every row above. List each unresolved or unsupported
+        claim, mismatch, and failed, skipped, or unavailable check as an open item.
+        Any open item requires "open items"; "complete" is valid only when every
+        row is supported and resolved and every check ran clean.
+        An unavailable environment is an open item, not an exemption.
 ```
 
 Row-by-row intent — the *why*, so the block stays evidence rather than ceremony:

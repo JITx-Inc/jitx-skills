@@ -241,7 +241,7 @@ The criteria mirror the exit-gate bullet lists in `references/project-builder-fl
 | ARCHITECTURE.md exists | <path; sections> |
 | No fact copied between documents | <N checked; name the specific pairs compared; duplication counts at the sentence level, not the section level; clean, or each copy and its owner> |
 | Support circuitry owned | <part -> task, per powered part, from each application circuit; or "none needed, per <datasheet section>"> |
-| Task status reconciles with open questions | <N blocking relationships walked from the Blocks column; all reconcile, or each disagreeing task> |
+| Task status reconciles with open questions | <N questions checked against task Data, Verify, and dependencies, including transitive blockers; all statuses reconcile, or each missing, stale, or incorrect blocked status> |
 | Planning docs within budget | <line counts; result> |
 | Data source audit completed | <approval; date> |
 | Component-choice rationale documented | <result; PLAN.md location> |
@@ -251,6 +251,11 @@ The criteria mirror the exit-gate bullet lists in `references/project-builder-fl
 | User approval recorded | <evidence> |
 | Verdict | <advance/block + reason> |
 ```
+
+Any remaining duplicated fact or missing, stale, or incorrect blocked status requires
+`Verdict: block`. Listing discrepancies is not resolution; fix them and recheck before
+advancing. Derive affected tasks from the unresolved questions and task inputs and
+dependencies, not solely from existing statuses (`plan-template.md` owns the status rule).
 
 The `jitxlib` namespace is split across distributions and installing `jitx` brings none of them; a failing environment probe is almost always a missing `jitxlib-standard` / `jitxlib-parts` / `jitxlib-voltage-divider`, which is an install to do, not a module to work around. See `jitx/SKILL.md` "Environment Setup".
 

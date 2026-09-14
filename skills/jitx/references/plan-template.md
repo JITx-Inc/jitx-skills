@@ -17,7 +17,7 @@ Everything above that block is guidance for filling it, and none of it belongs i
 - **Never write a value a table already owns.** Name the row or the section instead. The generic instruction to cross-reference proved not to be enough on its own, so the list is explicit: MPN and package belong to `Data Sources`; rail voltage, load and current to ARCHITECTURE.md `Power Tree`; protocol, impedance and routing structure to `Interface Map`; board dimensions, layer count, stackup order and mechanical constraints to `Board`; parametric shape commitments to `Object-Hierarchy Decisions`. A task body that repeats any of them has created a second owner, even when the two copies agree today.
 - `Data` names the rows and sections a task reads. It does not reproduce their contents.
 - **A task body carries no execution policy.** Generator escalation rules, audit-pass ceremony, solver instructions, modeling conventions and anything else that would read identically on a different board belong to the skill and its references, which every sub-agent already reads. A sentence in a task body that would survive unchanged on another project is one that should not be there.
-- **A concern gets exactly one home.** A risk, a boundary or a worry is either settled, in which case ARCHITECTURE.md owns it as a design note, or unsettled, in which case PLAN.md `Open Questions` owns it with an owner and the tasks it gates. Never both. Two homes is how the two documents come to disagree, and the copy nobody updates is the one a resumed session believes.
+- **A concern gets exactly one home.** A risk, a boundary or a worry is either settled, in which case ARCHITECTURE.md owns it as a design note, or unsettled, in which case PLAN.md `Open Questions` owns it with an owner and a resolution path. Never both. Two homes is how the two documents come to disagree, and the copy nobody updates is the one a resumed session believes.
 - `Specifics` carries only what no table owns and no task of the same type shares: the one gotcha, the topology choice, the exception. **One line, roughly 25 words.** If the note needs a second line, the fact belongs in ARCHITECTURE.md and the task should name the section instead. If it needs a caveat a sub-agent must not miss, that is an engineering question or an open question, not a `Specifics` sentence.
 - The `Verify` module path is where the task's file lives: `python scripts/check.py <ns>/ --build <ns>.circuits.usb.TestDesign` commits the task to `<ns>/circuits/usb.py`. That gives the path one owner, so no task restates it and no two sub-agents place the same module differently. `jitx/SKILL.md` "Project Structure" gives the directory shape.
 
@@ -51,26 +51,18 @@ Everything above that block is guidance for filling it, and none of it belongs i
 
 **Open Questions**
 
-- One row per unresolved decision that blocks work. Record the decision and what closes it, never the argument that produced it. Delete the section when empty; a question answered during Phase 0 becomes a Requirements Lock row instead.
+- One row per unresolved decision that blocks work, with a stable `OQ-n` ID. Record the decision and what closes it, never the argument that produced it or a list of affected task IDs. Do not renumber surviving questions when removing resolved rows. Delete the section when empty; a question answered during Phase 0 becomes a Requirements Lock row instead.
 - If another task's `Verify` or `Data` depends on it, it is a task with an id, not an Open Questions row.
 
 **Tasks**
 
 - Engineering questions: one test decides whether a question belongs on a task. Could the sub-agent answer it by reading the datasheet's own application circuit, or does it already appear on a checklist for this task type? Then it is checklist work with a second owner, not a question. Write at most three, name the datasheet section or specification that settles each, and give a part whose application circuit answers everything none at all.
 - The `Shape` line is for parametric or generator tasks only (BGA ballout, deskew geometry, antipad fence, N-lane fanout, per-layer table, repeating-block scene graph) and states the collection or typed object committed to. The three questions behind it are in `decomposition-guide.md` Step 3b: record the answer, never the prohibitions the questions enforce.
-- `Status` is one of `pending`, `blocked: OQ-n`, `in-progress`, `review`, `accepted`, `rework`, `rejected`. Blocking is transitive: a task whose dependency is blocked is blocked, not pending. A resumed session reads Status first, so blocked state belongs there and not only in the Open Questions `Blocks` column. The orchestrator changes it with `python scripts/plan_status.py <task-id> <status> [--note "<short note>"]`. A status containing a space is one argument, so blocking is `python scripts/plan_status.py cir-02 "blocked: OQ-3"`; the optional note is stored after the status as `; note: <text>`. It does not rewrite PLAN.md wholesale for a status change.
+- `Status` is one of `pending`, `blocked: OQ-n`, `in-progress`, `review`, `accepted`, `rework`, `rejected`. Blocking is transitive: a task whose dependency is blocked is blocked, not pending. A resumed session reads Status first; it is the sole stored task-to-question relationship. The orchestrator changes it with `python scripts/plan_status.py <task-id> <status> [--note "<short note>"]`. A status containing a space is one argument, so blocking is `python scripts/plan_status.py cir-02 "blocked: OQ-3"`; the optional note is stored after the status as `; note: <text>`. It does not rewrite PLAN.md wholesale for a status change.
 
-- **Per-task `Status` is the only owner of task state.** Three columns in this template can look like they carry it, and a plan that lets them is a plan that disagrees with itself — this is the single most common defect in Phase 0 output. What each one is actually for:
+- **Per-task `Status` is the only owner of task state.** Open Questions owns the unresolved decisions; Data Sources `Source status` owns source approval. An approved datasheet does not make a task startable.
 
-  | Field | Owns | Must not |
-  |---|---|---|
-  | per-task **`Status`** | whether *this task* can be started, and if not, which OQ stops it | — |
-  | Open Questions **`Blocks`** | a *pointer*: which task ids this question gates | assert a state; it is the index you walk to check `Status`, not a second copy of it |
-  | Data Sources **`Source status`** | whether *the data source* is settled — approved, or missing and what | say anything about whether a task can start |
-
-  The last distinction is the one that slips: "the datasheet is approved" and "the task is startable" are different facts that a single word like `ready` collapses. A task can have an approved source and still be blocked on something else.
-
-  A resumed session reads `Status` first. If `Blocks` names a task whose `Status` does not name that OQ, `Status` is what a reader believes and the plan has already drifted — the Phase 0 gate's *Task status reconciles with open questions* row exists to catch exactly that, and it walks `Blocks` first for a reason: reading `Status` first cannot show you a task that should be blocked and isn't.
+  Before starting or unblocking work, check each unresolved question against task `Data`, `Verify`, and dependencies, including transitive dependencies, then reconcile `Status`. Do not infer affected tasks solely from existing statuses: that misses a task never marked blocked. Each `blocked: OQ-n` must name an existing unresolved question affecting that task. If several questions affect it, name one unresolved question and keep the task blocked until all resolve. The Phase 0 gate checks this reconciliation before advancement.
 
 **State**
 
@@ -107,9 +99,9 @@ See ARCHITECTURE.md sections `Power Tree`, `Interface Map`, `Board`, and, when p
 
 ## Open Questions
 
-| Question | Blocks | Owner | Resolution path |
-|----------|--------|-------|-----------------|
-| [the decision, in one line] | [task ids or gate] | [user \| orchestrator] | [what closes it] |
+| ID | Question | Owner | Resolution path |
+|----|----------|-------|-----------------|
+| OQ-1 | [the decision, in one line] | [user \| orchestrator] | [what closes it] |
 
 ## Phase 1: Substrate + Components
 
