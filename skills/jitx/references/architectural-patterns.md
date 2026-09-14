@@ -402,7 +402,7 @@ Before accepting any rationalization of a banned pattern, answer:
 1. **What object owns the invariant?** (The numbering scheme, the layer-via map, the protocol pin roles, etc.)
 2. **Is this code inside that object's class or a subclass of it?** If yes, you have the same-class exception (carve-out is real). If no, see step 3.
 3. **Is there a public method on the owning object that returns what you need?** If yes, use it.
-4. **If no public method exists, can a subclass adapter expose one?** If yes, that's the fix — add a public method on the subclass that delegates to the framework's protected method (the "method calling another method on the same class" carve-out of the no-leading-underscore-from-elsewhere rule).
+4. **If no public method exists, can a subclass adapter expose one?** If yes, that's the fix — add a public method on the subclass that delegates to the framework's protected method (the "method calling another method on the same class" carve-out of the no-leading-underscore-from-elsewhere rule). All design-side callers go through the adapter.
 5. **If you reach for `getattr` / `type(...)` / `_protected_method()` in design code and none of steps 2–4 apply,** you're committing framework-boundary-bypass. Stop. Add the adapter or escalate.
 
 Wrapping the banned pattern in a helper does not make it allowed. The helper is the rationalization — the boundary is the real test.

@@ -35,22 +35,22 @@ The review is **evidence-anchored**: every finding cites `file:line` and quotes 
 2. **Read the rule sources** above. The point of reading them in-skill is so the reviewer cites verbatim — not paraphrases.
 3. **Walk the pattern checklist** (`references/checklist.md`). For each pattern, look for instances; for each instance, capture severity and citation.
 4. **Apply the architectural pass** (`jitx/references/architectural-patterns.md`). The dominant failure modes are encoded there as worked counter-examples (Bad/Good + rationale); check each one against the code under review.
-5. **Apply the ownership test to every banned-pattern hit or proposed exception** (see "Ownership test" below). The pattern checklist names patterns; the ownership test catches the framework-boundary-bypass failure where the AI rationalizes a banned pattern as "OK because the framework does it."
+5. **Apply the ownership test to every banned-pattern hit or proposed exception** — the five questions in `jitx/references/architectural-patterns.md` § 9 → "Ownership test", already loaded at step 4. The pattern checklist names patterns; the ownership test catches the framework-boundary-bypass failure where the AI rationalizes a banned pattern as "OK because the framework does it."
 6. **Emit the findings block** in the format below.
 7. **Hand back to the caller** (orchestrator in Think Twice, or user for single-task). The orchestrator folds findings into the task acceptance block; the user decides whether to fix or accept-with-rationale.
 
 The skill does **not** modify code. Findings → caller → fix decision → next iteration.
 
-## Ownership test (mandatory for every banned-pattern hit or proposed exception)
+## Ownership test — when it gates acceptance
 
-When the code uses a banned pattern (`getattr`, `type(...)`, `_protected_method()`, etc.), or when the agent/author proposes a carve-out ("this `getattr` is OK because…", "this is the boundary call into the framework…"), the reviewer must answer four questions before accepting the carve-out:
+The test itself is doctrine, not review procedure: the five questions live in `jitx/references/architectural-patterns.md` § 9 → "Ownership test", which step 4 has already loaded.
 
-1. **What object owns the invariant** the code is navigating? (A numbering scheme, a layer-to-via map, a protocol pin assignment, etc.)
-2. **Is this code inside that object's class or a subclass of it?** If yes, the same-class exception applies and the pattern is legitimately allowed (carve-out is real). If no, see step 3.
-3. **Is the caller using a public method on the owning object?** If yes, that's the right shape — no banned-pattern use needed. If no, see step 4.
-4. **If no public method exists, can a subclass adapter expose one?** If yes, that's the fix — add a public method on the subclass that delegates to the framework's protected method (the "method calling another method on the same class" carve-out of the no-leading-underscore-from-elsewhere rule). All design-side callers go through the adapter.
+Run them against two things:
 
-If the answer is "outside the owner, copying internals" or "wrapping the banned pattern in a helper to make it look like one boundary call," classify the finding as **`framework-boundary-bypass`** (see `references/checklist.md`) and recommend the subclass-adapter fix.
+- **Every banned-pattern hit in the code under review** (`getattr`, `type(...)`, `_protected_method()`, etc.).
+- **Every carve-out the author proposes** in the task acceptance block ("this `getattr` is OK because…", "this is the boundary call into the framework…").
+
+A proposed carve-out that fails the test is not accepted. When the test resolves to "outside the owner, copying internals" — or to a banned pattern wrapped to look like a single boundary call — classify the finding as **`framework-boundary-bypass`** (CRITICAL; see `references/checklist.md`) and recommend the subclass-adapter fix.
 
 This step exists because rule text alone wasn't sufficient: in a real review, the AI followed the no-getattr rule literally (one wrapped `getattr` call) but missed the rule's intent (don't replicate framework internals in design code) and produced a design coupled to a numbering scheme that the reviewer caught.
 
