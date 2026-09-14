@@ -439,7 +439,7 @@ class TestDesign(SampleDesign):
 jitx build <module>.design.TestDesign
 ```
 
-Don't run parallel JITX builds against the same project — sequence them. See `jitx/SKILL.md` "Build Safety".
+Don't run parallel JITX builds against the same project — sequence them. See [Build Safety — Don't Parallelize Same-Design Work](../jitx/SKILL.md#build-safety--dont-parallelize-same-design-work).
 
 `status: ok` proves that the selected part exists, not that it is assemblable or
 electrically suitable. After every passive-query change, Step 2 inspects the resolved

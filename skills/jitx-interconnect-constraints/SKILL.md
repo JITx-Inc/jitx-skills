@@ -710,8 +710,8 @@ pyright path/to/circuit.py
 jitx build <module.path.DesignClass>
 ```
 
-JITX builds against the same project run in sequence. See `jitx/SKILL.md`
-"Build Safety".
+JITX builds against the same project run in sequence. See
+[Build Safety — Don't Parallelize Same-Design Work](../jitx/SKILL.md#build-safety--dont-parallelize-same-design-work).
 
 ### Step 3: Prove emitted binding
 

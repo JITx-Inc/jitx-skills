@@ -194,7 +194,7 @@ loop resolve in one or two 15-second runs.
 Any jitx `Shape` converts with `shape.to_shapely()` (a `ShapelyGeometry`; the raw
 shapely geometry is its `.g`) — bounds, area, distance, intersection checks all
 work from there. Authoring in the other direction (shapely → jitx features) is
-covered in the main skill page ("Custom shapes with shapely").
+covered in the main skill page ([Custom shapes with shapely (general)](../SKILL.md#custom-shapes-with-shapely-general)).
 
 Three traps that produce confident wrong numbers: query-returned pad and via
 copper is in the source's local frame (compose `trace.transform`, see

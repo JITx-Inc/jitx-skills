@@ -76,7 +76,7 @@ Run the required checks and test build once from the project root:
 python scripts/check.py <ns>/ --build <module.path.TestDesign>
 ```
 
-Don't run a concurrent build of the same design in parallel — see `jitx/SKILL.md` "Build Safety".
+Don't run a concurrent build of the same design in parallel — see [Build Safety — Don't Parallelize Same-Design Work](../SKILL.md#build-safety--dont-parallelize-same-design-work).
 
 Before this command, a task that used `parts2jitx-kicad` inspects the generated
 module for JITX class definitions inside functions or methods and moves them to

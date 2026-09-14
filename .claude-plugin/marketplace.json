@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "JITX hardware design automation skills for PCB design, component modeling, substrate modeling, circuit creation, physical layout authoring, layout constraints and design rules, signal integrity constraints, pin assignment flexibility, same-model JITX code review, and mechanical CAD interchange",
-    "version": "1.8.0"
+    "version": "1.8.1"
   },
   "plugins": [
     {

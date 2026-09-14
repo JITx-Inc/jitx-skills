@@ -8,8 +8,8 @@ This file specifies when to invoke outside-voice review, what to ask it, and how
 
 Codex outside-voice never runs first. A same-model pass always precedes it. The pre-pass differs by scope:
 
-- **Per-task (Think Twice — `task-execution.md` Part A Step 4):** the `jitx-code-review` skill runs as the same-model self-critique pre-pass. Catches architectural and code-craft smells: parallel string-keyed models, sibling-attribute reflection, substrate-shaped tables in design files, build-spec-then-iterate, name-construction patterns. Reads `jitx/SKILL.md` Don'ts and `jitx/references/architectural-patterns.md`. **Mandatory for every sub-agent task in complete-board tier**; user-invoked for single-task work. Codex then runs *per-task* only for trigger-list task classes (this file's "Per-task — mandatory for triggered tasks" section).
-- **Phase 3b (whole-design audit):** the **four-pass design audit** runs as the same-model pre-pass: Circuit-vs-Datasheet, Assumption Compatibility, Interface-by-Interface Trace, Power+Thermal (see `references/completion-blocks.md` "Phase 3b Design Audit Block"). `jitx-code-review` does **not** re-run at Phase 3b because every Phase 1/2/3 task has already passed its per-task `jitx-code-review`. Codex then runs a bounded fan-out of outside-voice passes after the four-pass audit.
+- **Per-task (Think Twice — `task-execution.md` Part A Step 4):** the `jitx-code-review` skill runs as the same-model self-critique pre-pass. Catches architectural and code-craft smells: parallel string-keyed models, sibling-attribute reflection, substrate-shaped tables in design files, build-spec-then-iterate, name-construction patterns. Reads `jitx/SKILL.md` Don'ts and `jitx/references/architectural-patterns.md`. **Mandatory for every sub-agent task in complete-board tier**; user-invoked for single-task work. Codex then runs *per-task* only for trigger-list task classes ([Per-task — mandatory for triggered tasks (complete-board tier)](#per-task--mandatory-for-triggered-tasks-complete-board-tier)).
+- **Phase 3b (whole-design audit):** the **four-pass design audit** runs as the same-model pre-pass: Circuit-vs-Datasheet, Assumption Compatibility, Interface-by-Interface Trace, Power+Thermal (see [Phase 3b Design Audit Block (complete-board only)](completion-blocks.md#phase-3b-design-audit-block-complete-board-only)). `jitx-code-review` does **not** re-run at Phase 3b because every Phase 1/2/3 task has already passed its per-task `jitx-code-review`. Codex then runs a bounded fan-out of outside-voice passes after the four-pass audit.
 
 In both scopes the two reviewers are additive — neither replaces the other. Findings from both get severity tags (`CRITICAL` / `WARNING` / `NOTE`) and feed the same combined-verdict precedence rule below. A CRITICAL or WARNING finding from *either* reviewer changes the combined verdict to `issues-pending`.
 
@@ -17,7 +17,7 @@ In both scopes the two reviewers are additive — neither replaces the other. Fi
 
 ### Phase 3b — mandatory for complete-board
 
-After the same-model audit produces its block (see `completion-blocks.md` "Phase 3b Design Audit Block"), the orchestrator attempts the bounded outside-voice fan-out defined below. The attempt is **mandatory for complete-board tier**. The four-pass audit remains the primary gate evidence; the outside voice is additive.
+After the same-model audit produces its block (see [Phase 3b Design Audit Block (complete-board only)](completion-blocks.md#phase-3b-design-audit-block-complete-board-only)), the orchestrator attempts the bounded outside-voice fan-out defined below. The attempt is **mandatory for complete-board tier**. The four-pass audit remains the primary gate evidence; the outside voice is additive.
 
 Tool unavailability, a nonzero reviewer exit, or an invocation that produces no
 non-empty findings output is recorded as `skipped: <reason>`. A skipped reviewer

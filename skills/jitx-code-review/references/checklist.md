@@ -53,7 +53,7 @@ The name `getattr-on-self` was too narrow: it let agents rationalize `getattr(lp
 
 The failure mode is the AI seeing framework code use a banned pattern (because the framework class has same-class access to its own internals) and concluding that the pattern is allowed in design code too. The wrapper is the rationalization, not the fix.
 
-**Adjudicate with the ownership test:** for every hit above, and for every carve-out the author proposes, run the five questions in `jitx/references/architectural-patterns.md` § 9 → "Ownership test". A hit that resolves to "outside the owner, copying internals" is this pattern.
+**Adjudicate with the ownership test:** for every hit above, and for every carve-out the author proposes, run the five questions in `jitx/references/architectural-patterns.md` § 9 → [Ownership test](../../jitx/references/architectural-patterns.md#ownership-test-apply-to-every-banned-pattern-hit-or-proposed-exception). A hit that resolves to "outside the owner, copying internals" is this pattern.
 
 **Severity:** CRITICAL. The right fix is to add a public adapter method on a framework subclass that delegates to the protected method (allowed by the "method calling another method on the same class" carve-out of the no-leading-underscore-from-elsewhere rule), and route all design-side calls through the adapter.
 

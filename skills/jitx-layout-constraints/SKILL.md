@@ -61,7 +61,8 @@ Conditions:
 - A `Tag` subclass you declare at module scope. Tags form a hierarchy by
   class inheritance: a rule on `PowerTag` also matches every `PowerTag`
   subclass. Which objects can carry a tag and how to assign one is
-  `jitx-physical-layout`, "Layout-intent tags".
+  `jitx-physical-layout`'s
+  [Layout-intent tags (object selection)](../jitx-physical-layout/SKILL.md#layout-intent-tags-object-selection).
 - The nine builtin tags: `IsCopper`, `IsTrace`, `IsPour`, `IsVia`, `IsPad`,
   `IsBoardEdge`, `IsThroughHole`, `IsNeckdown`, `IsHole`. Conditions only;
   `assign()` on a builtin raises `TypeError`. `IsNeckdown` matches copper the
@@ -369,7 +370,7 @@ realization, edge pullback, and captured-shape semantics are owned by
   module scope (verified). The target and inset realization semantics are in
   [Pour realization semantics](../jitx-physical-layout/SKILL.md#pour-realization-semantics).
   For an exposed thermal pad, the explicit via field with its mask dams is
-  `jitx-physical-layout`'s `thermal_via_stitch.py` (its "Pad features" section);
+  `jitx-physical-layout`'s `thermal_via_stitch.py` (its [Pad features (soldermask / paste / thermal pad)](../jitx-physical-layout/SKILL.md#pad-features-soldermask--paste--thermal-pad) section);
   this skill owns only the rules that act on that pad.
 - Thermal relief is the `IsPad` default above. A solid connection for a
   high-current pad (direct connect) has no dedicated effect; the verified

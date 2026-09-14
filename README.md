@@ -256,6 +256,13 @@ Run the repo-local dual validation:
 python scripts/validate_dual_plugin.py .
 ```
 
+Check that every cross-reference between skill pages still resolves, and that no section is
+cited by a truncated name instead of a link:
+
+```bash
+python scripts/check_doc_links.py .
+```
+
 Run Codex manifest validation with the Codex plugin-creator validator:
 
 ```bash
