@@ -54,7 +54,7 @@ Every transition above runs through `python scripts/plan_status.py <task-id> <st
 
 **Who**: orchestrator (no sub-agents)
 
-### Process
+### Phase 0 Process
 
 1. **Analyze requirements**: parse the user's request, spec documents, or reference designs into structured form.
 
@@ -131,7 +131,7 @@ Please confirm data sources or provide alternatives (datasheets, footprints, spe
 
 **Who**: parallel sub-agents (one per task)
 
-### Orchestrator Actions
+### Phase 1 Orchestrator Actions
 
 1. For each Phase 1 task in PLAN.md:
    a. Run `python scripts/plan_status.py <task-id> in-progress`
@@ -173,7 +173,7 @@ Phase 2 tasks have partial dependencies. Group into clusters:
 
 Run independent clusters in parallel. Within a cluster, respect dependencies.
 
-### Orchestrator Actions
+### Phase 2 Orchestrator Actions
 
 1. Identify which Phase 2 tasks can run immediately (dependencies all `accepted`).
 2. Spawn those sub-agents.
@@ -205,7 +205,7 @@ Subcircuits that expose bundles (I2C, ULPI, USB2, etc.) for any signal that will
 
 **Who**: single agent (not parallelizable)
 
-### Process
+### Phase 3 Process
 
 A single sub-agent assembles the top-level design. The orchestrator reviews its code and acceptance block but does not author files under `<ns>/`.
 
@@ -548,7 +548,7 @@ Do not accept "noted for future refactoring" — if it's broken, fix it now.
 
 **Who**: orchestrator or single agent
 
-### Process
+### Phase 4 Process
 
 1. Run the full verification command: `python scripts/check.py <ns>/ --build <ns>.main.Design`
 2. Check output for:
