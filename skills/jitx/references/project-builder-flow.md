@@ -102,7 +102,7 @@ Please confirm data sources or provide alternatives (datasheets, footprints, spe
 **Note:** *Lookup/evidence* via parts2jitx is implied when LCSC/JLCPCB is the named channel. *Footprint data ingestion* (using EasyEDA-sourced `.kicad_mod` as the landpattern) requires explicit per-project approval — some users (especially commercial) may not want EasyEDA-sourced data in their project. See `references/parts-sourcing.md` "LCSC / JLCPCB via parts2jitx".
 ```
 
-**Channel evidence is required.** If the user has named a sourcing channel (LCSC/JLCPCB, Digi-Key/Mouser, internal PLM), the audit table must include channel-specific evidence for every named IC and connector before code is written. For LCSC/JLCPCB, that means `parts2jitx-lcsc <C-number>` output (stock, lifecycle, datasheet URL) plus `parts2jitx-lcsc <C-number> --pinout` saved to the project. The orchestrator may `pip install parts2jitx` automatically when LCSC/JLCPCB is the named channel. See `references/parts-sourcing.md` "Required-Sourcing Rule" for the full ladder including non-LCSC channels.
+**Channel evidence is required.** If the user has named a sourcing channel (LCSC/JLCPCB, Digi-Key/Mouser, internal PLM), the audit table must include channel-specific evidence for every named IC and connector before code is written. For LCSC/JLCPCB, that means `parts2jitx-lcsc <C-number>` output (stock, lifecycle, datasheet URL) plus `parts2jitx-lcsc <C-number> --pinout` saved to the project. The orchestrator may `pip install parts2jitx` automatically when LCSC/JLCPCB is the named channel. See [Required-Sourcing Rule (named channel → channel-specific evidence)](parts-sourcing.md#required-sourcing-rule-named-channel--channel-specific-evidence) for the full ladder including non-LCSC channels.
 
 **Rules:**
 - Always prefer user-provided data over automated lookups
@@ -142,7 +142,7 @@ Please confirm data sources or provide alternatives (datasheets, footprints, spe
 
 ### Parallel Safety
 
-Phase 1 tasks are independent at the *design* level. Each sub-agent writes its own component file with its own test design. Parallel sub-agents each build their own test design; because each agent's design is distinct (different module paths, different component class names), concurrent builds against the same project are acceptable. The JITX backend serializes internally on the WebSocket. What is NOT safe is two agents building the same design at the same time; the orchestrator should never spawn two tasks targeting the same test design class. The spawn-batch rule does not change this same-design build-safety rule. See `jitx/SKILL.md` "Build Safety".
+Phase 1 tasks are independent at the *design* level. Each sub-agent writes its own component file with its own test design. Parallel sub-agents each build their own test design; because each agent's design is distinct (different module paths, different component class names), concurrent builds against the same project are acceptable. The JITX backend serializes internally on the WebSocket. What is NOT safe is two agents building the same design at the same time; the orchestrator should never spawn two tasks targeting the same test design class. The spawn-batch rule does not change this same-design build-safety rule. See [Build Safety — Don't Parallelize Same-Design Work](../SKILL.md#build-safety--dont-parallelize-same-design-work).
 
 ### Exit Gate: Phase 1 → Phase 2
 
@@ -182,7 +182,7 @@ Run independent clusters in parallel. Within a cluster, respect dependencies.
 
 ### Topology-friendly bundle wiring
 
-Subcircuits that expose bundles (I2C, ULPI, USB2, etc.) for any signal that will receive an SI constraint at top level **must** wire the bundle sub-ports with `>>`, not `+`. The constraint solver only walks `>>` chains; ports reached only via `+` are invisible to it. This is a common silent failure — the netlist is correct, the build passes, but the JITX UI reports "No path for signal constraint" once constraints are applied. See the Phase 3 "Topology vs net membership" section for the failure modes and patterns.
+Subcircuits that expose bundles (I2C, ULPI, USB2, etc.) for any signal that will receive an SI constraint at top level **must** wire the bundle sub-ports with `>>`, not `+`. The constraint solver only walks `>>` chains; ports reached only via `+` are invisible to it. This is a common silent failure — the netlist is correct, the build passes, but the JITX UI reports "No path for signal constraint" once constraints are applied. See [Topology vs net membership (CRITICAL)](#topology-vs-net-membership-critical) for the failure modes and patterns.
 
 ### Exit Gate: Phase 2 → Phase 3
 
@@ -191,8 +191,8 @@ Subcircuits that expose bundles (I2C, ULPI, USB2, etc.) for any signal that will
 - [ ] Constraint classes instantiate without error
 - [ ] Provide/require interfaces are consistent across wrapper and consuming circuits
 - [ ] **Interface circuits expose bundle-typed ports** (I2S, I2C, SPI, USB2, GPIO, Power) — not individual signal ports. If a circuit wraps individual-pin components, the bundle wiring happens inside the circuit.
-- [ ] **For any signal that will receive an SI constraint at top level, the subcircuit's bundle wiring uses `>>` (not `+`)** between component pins and bundle sub-ports — see Phase 3 "Topology vs net membership"
-- [ ] **No anonymous `Resistor` / `Capacitor` / `Inductor` `.insert(...)` calls and no bare `+` / `>>` expressions** in the subcircuit; every structural object is stored on `self` (see Phase 3 "Silent-drop patterns"). The `grep gates` line from `python scripts/check.py <ns>/` enforces this rule; hard-fail hits block this gate.
+- [ ] **For any signal that will receive an SI constraint at top level, the subcircuit's bundle wiring uses `>>` (not `+`)** between component pins and bundle sub-ports — see [Topology vs net membership (CRITICAL)](#topology-vs-net-membership-critical)
+- [ ] **No anonymous `Resistor` / `Capacitor` / `Inductor` `.insert(...)` calls and no bare `+` / `>>` expressions** in the subcircuit; every structural object is stored on `self` (see [Silent-drop patterns (CRITICAL)](#silent-drop-patterns-critical)). The `grep gates` line from `python scripts/check.py <ns>/` enforces this rule; hard-fail hits block this gate.
 - [ ] **Every power-rail capacitor `.insert(...)` call uses `short_trace=True`** for decoupling, bypass, bulk, and output filter capacitors. Non-power-rail caps (AC coupling, RC time constants, RF matching, compensation, crystal load) and non-cap inserts (resistors, inductors) are dispositioned in the task acceptance block as exceptions or N/A. See `jitx-circuit-builder/SKILL.md` "short_trace=True is the default for power-rail capacitors". The `grep gates` line from `python scripts/check.py <ns>/` flags every `.insert(...)` missing `short_trace=` as review-required.
 - [ ] Port names and bundle types match between providers and consumers
 - [ ] Power circuit outputs match the voltage/current needs documented in ARCHITECTURE.md
@@ -243,8 +243,8 @@ A single sub-agent assembles the top-level design. The orchestrator reviews its 
    comparison or mismatch sends the assembly task to `rework`; it does not reach
    its acceptance verdict.
 9. Define board shape, mounting holes, and any keepout zones.
-10. **Set passive query defaults on the Design class** to match the design's manufacturing path and circuit role (see "Passive query defaults" below). Without explicit defaults, the unfiltered `jitxlib.parts` search may return parts unsuitable for the design (e.g. through-hole leaded electrolytics ahead of SMD ceramics on an SMT design).
-11. **Set default design rules on the Design class:** trace width, copper clearance, thermal relief, and wider traces for tagged power/ground rails. See "Default design rules" below. These are the production-friendly defaults every board should have; without them, the router uses the substrate's `FabricationConstraints` minimums, which are usually too narrow for power.
+10. **Set passive query defaults on the Design class** to match the design's manufacturing path and circuit role (see [Passive query defaults — match manufacturing and circuit role](#passive-query-defaults--match-manufacturing-and-circuit-role)). Without explicit defaults, the unfiltered `jitxlib.parts` search may return parts unsuitable for the design (e.g. through-hole leaded electrolytics ahead of SMD ceramics on an SMT design).
+11. **Set default design rules on the Design class:** trace width, copper clearance, thermal relief, and wider traces for tagged power/ground rails. See [Default design rules (set on the Design class)](#default-design-rules-set-on-the-design-class). These are the production-friendly defaults every board should have; without them, the router uses the substrate's `FabricationConstraints` minimums, which are usually too narrow for power.
 12. Build and verify `status: ok`.
 
 ### Passive query defaults — match manufacturing and circuit role
@@ -449,12 +449,12 @@ These editor-side checks won't catch Pattern 1 (the `.insert(...)` call has a si
 - [ ] Every constrained endpoint span and bridging-pin model matches the accepted
       per-module harness; the assembly acceptance block records both spans and
       cites the comparison evidence
-- [ ] **No "Invalid Topology Definitions" or "No path for signal constraint" errors in the JITX UI Issues list** — every constraint endpoint reachable via `>>` chains, not `+` (see "Topology vs net membership" above)
-- [ ] **No `Reference to structural object … lost during instantiation` warnings in the build output** — every structural object stored on `self`; no bare `+` / `>>` expressions (see "Silent-drop patterns" above)
+- [ ] **No "Invalid Topology Definitions" or "No path for signal constraint" errors in the JITX UI Issues list** — every constraint endpoint reachable via `>>` chains, not `+` (see [Topology vs net membership (CRITICAL)](#topology-vs-net-membership-critical))
+- [ ] **No `Reference to structural object … lost during instantiation` warnings in the build output** — every structural object stored on `self`; no bare `+` / `>>` expressions (see [Silent-drop patterns (CRITICAL)](#silent-drop-patterns-critical))
 - [ ] `ReferencePlanes(...)` context wraps all constraint applications
 - [ ] Board geometry defined (shape, mounting holes, pours)
 - [ ] `capacitor_query`, `resistor_query` and `inductor_query` set on the Design class to match the design's manufacturing path and circuit role, with per-circuit refinements documented for any specialty parts (HV, RF, bulk, precision, hand-build). The gate is the resolved parts, not the source: check the resolved package of each auto-selected passive against the declared assembly capability, because a design with no query at all also builds clean.
-- [ ] **Default design rules set on Design class**: the four canonical rules are present on `self.rules`, values calibrated to the substrate's fab floors (see "Default design rules" above and the `jitx-layout-constraints` skill)
+- [ ] **Default design rules set on Design class**: the four canonical rules are present on `self.rules`, values calibrated to the substrate's fab floors (see [Default design rules (set on the Design class)](#default-design-rules-set-on-the-design-class) and the `jitx-layout-constraints` skill)
 - [ ] The `grep gates` summary line reports 0 hard-fail hits; review-required hits are dispositioned
 
 **Emit the `Gate: Phase 3 → Phase 3b` block** from `references/completion-blocks.md` before advancing.
@@ -469,7 +469,7 @@ Each subcircuit was designed in isolation. Now review the assembled design as a 
 
 ### Audit Structure
 
-Spawn a sub-agent to perform the design-level audit. The audit agent reads code and the datasheet PDFs and **edits nothing**. It reads the PDFs and not the spec notes (CD-1). Where a note and the datasheet disagree, the note is the defect. It runs in its own context, so the pages cost the orchestrator nothing. It produces a **Phase 3b Audit Block** with issues classified as CRITICAL / WARNING / NOTE; see the template in `references/completion-blocks.md` "Phase 3b Design Audit Block".
+Spawn a sub-agent to perform the design-level audit. The audit agent reads code and the datasheet PDFs and **edits nothing**. It reads the PDFs and not the spec notes (CD-1). Where a note and the datasheet disagree, the note is the defect. It runs in its own context, so the pages cost the orchestrator nothing. It produces a **Phase 3b Audit Block** with issues classified as CRITICAL / WARNING / NOTE; see the template in [Phase 3b Design Audit Block (complete-board only)](completion-blocks.md#phase-3b-design-audit-block-complete-board-only).
 
 **After the same-model audit, attempt the bounded outside-voice fan-out (codex by default)
 defined in `references/outside-voice-review.md`.** The attempt is mandatory for
@@ -479,7 +479,7 @@ produces no output is recorded as `skipped: <reason>`; it carries no findings, a
 CRITICAL/WARNING finding from a completed pass makes the combined verdict
 `issues-pending` even if the same-model audit said `clean`.
 
-Before the audit runs, the orchestrator must have already dispatched and accepted fixes for the build-time silent-drop patterns documented in Phase 3 → "Silent-drop patterns". Those bugs build with `status: ok` but produce a wrong design, and the audit agent's datasheet-comparison passes assume the netlist matches the source. JITX emits a `Reference to structural object … lost during instantiation` warning for some of these cases (constraint and similar structural classes), but not for bare net or topology expressions. Handle both manually.
+Before the audit runs, the orchestrator must have already dispatched and accepted fixes for the build-time silent-drop patterns documented in [Silent-drop patterns (CRITICAL)](#silent-drop-patterns-critical). Those bugs build with `status: ok` but produce a wrong design, and the audit agent's datasheet-comparison passes assume the netlist matches the source. JITX emits a `Reference to structural object … lost during instantiation` warning for some of these cases (constraint and similar structural classes), but not for bare net or topology expressions. Handle both manually.
 
 The audit runs four passes:
 

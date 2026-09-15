@@ -7,7 +7,7 @@ description: "Use when the user asks to create a substrate, define a stackup, ad
 
 Generate complete JITX Python substrate definitions — stackups, materials, vias, routing structures, and fabrication constraints — all in a single file.
 
-A substrate task is **not complete** until the **Substrate completeness check** block (near the end of this skill) is filled out, row by row, in your completion summary. Prose that paraphrases some of its rows is not the block. Where the base `jitx` skill's task-acceptance block is in play, embed this block inside it rather than producing two competing completion artifacts. No filled block, no "done".
+A substrate task is **not complete** until the [Substrate completeness check — run before calling it done](#substrate-completeness-check--run-before-calling-it-done) block is filled out, row by row, in your completion summary. Prose that paraphrases some of its rows is not the block. Where the base `jitx` skill's task-acceptance block is in play, embed this block inside it rather than producing two competing completion artifacts. No filled block, no "done".
 
 ## Predefined Substrates (JLCPCB Only)
 
@@ -815,7 +815,7 @@ A suite that zipped a full report against an empty layer list and compared nothi
 5. **Define vias** — all via types needed (through, micro, stacked, blind, buried, backdrilled)
 6. **Add routing structures** — `RoutingStructure` and `DifferentialRoutingStructure` for each impedance target
 7. **Add substrate-side rules** — the fenced pour outline rule when the design needs one; board design rules (defaults, clearances, net classes, escapes) are the `jitx-layout-constraints` skill's step, not the substrate's
-8. **Verify** — `pyright` type check, then `jitx build` with a test design (sequence builds — don't parallelize against the same project; see `jitx/SKILL.md` "Build Safety"); for a report-driven substrate add source-driven tests (see "Verifying a Substrate Against Its Source"); then fill the **Substrate completeness check** below. No filled block, no "done".
+8. **Verify** — `pyright` type check, then `jitx build` with a test design (sequence builds — don't parallelize against the same project; see [Build Safety — Don't Parallelize Same-Design Work](../jitx/SKILL.md#build-safety--dont-parallelize-same-design-work)); for a report-driven substrate add source-driven tests (see "Verifying a Substrate Against Its Source"); then fill [Substrate completeness check — run before calling it done](#substrate-completeness-check--run-before-calling-it-done). No filled block, no "done".
 
 ## Substrate completeness check — run before calling it done
 

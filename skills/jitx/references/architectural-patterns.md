@@ -328,7 +328,7 @@ class MySubstrate(Substrate):
     stackup = Generic_Stackup()
 ```
 
-**Note — legitimate inline-subclass case:** `@inline class stackup(Symmetric):` with a *non-empty body* that declares layers (see `jitx-substrate-modeler/SKILL.md` "Inline Stackup") is the canonical pattern for defining a stackup. This rule applies only to **pass-through inline subclasses** where the body adds no fields, no overrides, no methods. The discriminator is body content: empty body = bad (instantiate instead); non-empty body = legitimate inline-stackup pattern.
+**Note — legitimate inline-subclass case:** `@inline class stackup(Symmetric):` with a *non-empty body* that declares layers (see [Inline Stackup (in Substrate class)](../../jitx-substrate-modeler/SKILL.md#inline-stackup-in-substrate-class)) is the canonical pattern for defining a stackup. This rule applies only to **pass-through inline subclasses** where the body adds no fields, no overrides, no methods. The discriminator is body content: empty body = bad (instantiate instead); non-empty body = legitimate inline-stackup pattern.
 
 **Why.** "This is incorrect — should instantiate generic instead of inlining". An empty-body `@inline class X(Base): pass` does nothing the base class doesn't already do — it's just a more expensive way to instantiate. The general principle: prefer instance composition over class-level mechanisms when both produce the same runtime structure. Inheritance is for *adding or changing* behavior; if you're not adding or changing anything, instantiate.
 

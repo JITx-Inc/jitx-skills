@@ -905,7 +905,7 @@ ruff format path/to/file.py
 | Start runtime | `jitx runtime start --background` |
 | Runtime status | `jitx runtime status` |
 | List designs | `jitx find` |
-| Build design | `jitx build module.Design` (sequence calls — see "Build Safety") |
+| Build design | `jitx build module.Design` (sequence calls — see [Build Safety](#build-safety--dont-parallelize-same-design-work)) |
 | Build all designs | `jitx build-all` |
 | Open board viewer | `jitx ui open --board --design module.Design` |
 | Open schematic viewer | `jitx ui open --schematic --design module.Design` |

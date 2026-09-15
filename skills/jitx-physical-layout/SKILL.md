@@ -507,7 +507,8 @@ design (the convention in `jitx-circuit-builder`). The exception: a local pour o
 keepout that must **track a placed sub-circuit** lives **inside that circuit** so it
 follows the circuit wherever it is placed. To ring an arbitrary shape with fence
 vias (antipads, RF cavities, BGA
-breakouts), see `jitx-substrate-modeler` "Fenced Pour Outlines".
+breakouts), see `jitx-substrate-modeler`,
+[Fenced Pour Outlines (Antipads, RF Cavities, BGA Breakouts)](../jitx-substrate-modeler/SKILL.md#fenced-pour-outlines-antipads-rf-cavities-bga-breakouts).
 
 ## Layout-intent tags (object selection)
 

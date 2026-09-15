@@ -4,12 +4,12 @@ Structured output that any JITX work must emit before claiming "done". The block
 
 This file holds:
 
-1. **Workflow tiers** — which artifacts apply to which size of job.
-2. **Task acceptance block** — the per-task completion artifact (universal: every tier requires this).
-3. **Grep gate patterns** — what `jitx/scripts/grep_gates.py` enforces.
-4. **Phase exit gate blocks** — for complete-board tier transitions (Phase 0→1, 1→2, 2→3, 3→3b, 3b→4).
-5. **Phase 3b design audit block** — read-only audit with CRITICAL / WARNING / NOTE classification.
-6. **Phase 4 verification block** — final JITX UI / Issues / DRC / SI verification with explicit tool-availability handling.
+1. [Workflow Tiers](#workflow-tiers) — which artifacts apply to which size of job.
+2. [Task Acceptance Block](#task-acceptance-block) — the per-task completion artifact (universal: every tier requires this).
+3. [Grep Gate Patterns](#grep-gate-patterns) — what `jitx/scripts/grep_gates.py` enforces.
+4. [Phase Exit Gate Blocks (complete-board only)](#phase-exit-gate-blocks-complete-board-only) — the complete-board tier transitions (Phase 0→1, 1→2, 2→3, 3→3b, 3b→4).
+5. [Phase 3b Design Audit Block (complete-board only)](#phase-3b-design-audit-block-complete-board-only) — read-only audit with CRITICAL / WARNING / NOTE classification.
+6. [Phase 4 Verification Block (complete-board only)](#phase-4-verification-block-complete-board-only) — final JITX UI / Issues / DRC / SI verification with explicit tool-availability handling.
 
 ---
 
@@ -226,7 +226,7 @@ $env:TOP_LEVEL_PATH="top"; python scripts/check.py <ns>/; Remove-Item Env:TOP_LE
 
 Each transition between phases emits one block before advancing. Single-task tier does not have phase gates — it uses the task acceptance block only. The block is the gate; an unemitted block means the transition has not happened.
 
-The criteria mirror the exit-gate bullet lists in `references/project-builder-flow.md`. The Phase 3b → Phase 4 gate references the Phase 3b audit block (see "Phase 3b Design Audit Block" below).
+The criteria mirror the exit-gate bullet lists in `references/project-builder-flow.md`. The Phase 3b → Phase 4 gate references the Phase 3b audit block (see [Phase 3b Design Audit Block (complete-board only)](#phase-3b-design-audit-block-complete-board-only)).
 
 ### Phase 0 → Phase 1
 

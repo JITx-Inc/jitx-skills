@@ -20,7 +20,8 @@ track your build.
 | Expressions | | `&` and, `\|` or, `~` not, on tags and expressions alike. Bare `True`/`False` are accepted as conditions. | `constraints.py:391-402`, `:641-796` |
 
 Which objects can carry a tag, container propagation, and the assignment
-warnings are owned by `jitx-physical-layout`, "Layout-intent tags" (source:
+warnings are owned by `jitx-physical-layout`,
+[Layout-intent tags (object selection)](../../jitx-physical-layout/SKILL.md#layout-intent-tags-object-selection) (source:
 `constraints.py:504-623`).
 
 ## Rule classes

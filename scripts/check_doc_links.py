@@ -1,0 +1,296 @@
+#!/usr/bin/env python3
+"""check_doc_links.py — link and citation integrity across skills/**/*.md.
+
+A skill cites its own sections and its siblings' sections constantly, and for a
+long time it did so in prose: **Bold Section Name** plus a positional hint like
+"near the end of this skill" or "below". Two things go wrong with that, and both
+went wrong here.
+
+The prose name is usually a *truncation*. `## Component completeness check — run
+before calling it done` gets cited as "the Component completeness check block",
+which drops the clause carrying the rule. And the positional hint is a claim
+about file layout that nothing maintains: reorganize the file and "below" points
+at nothing, silently, forever.
+
+A link is the repair, because a link is checkable. This script is what makes it
+checkable. It checks, across every markdown file under skills/:
+
+  1. every relative link target file exists
+  2. every `#anchor` resolves to a heading in the target file, under GitHub's
+     slug rules (lowercase, punctuation dropped entirely, spaces to hyphens —
+     so an em dash leaves a DOUBLE hyphen)
+  3. no link resolves to an ambiguous anchor — a slug carried by two or more
+     headings in the same file, where GitHub silently appends `-1` and the link
+     lands on whichever one came first
+  4. no bolded or quoted phrase is a strict truncated prefix of a real heading,
+     outside the allowlist below — this is the original defect, and it stays
+     gateable only because the sweep that introduced this script emptied it
+
+Check 4 needs an escape hatch, because the class genuinely contains non-citations:
+"Reference Design" names a datasheet section, not a heading. Word-boundary
+matching rejects most of those automatically; what survives goes in ALLOWLIST
+with a reason, keyed by path so allowlisting one file does not blind the others.
+Add a line and say why — do not disable the check.
+
+Fenced code blocks and YAML frontmatter are skipped. Without that, shell comments
+(`# Sync project deps from public PyPI...`) parse as headings and the output is
+garbage: 16 bogus duplicate-slug hits against 3 real ones, measured.
+
+NOTE ON ENFORCEMENT: this repo has no CI. This script binds only when a reviewer
+runs it — it is a documented command in README.md's Validation section, not an
+automated gate. Treat a green run as evidence someone checked, not as evidence
+the tree was never broken.
+
+Exit codes:
+  0  — clean
+  1  — at least one finding
+  2  — usage error
+
+Usage:
+  python3 scripts/check_doc_links.py [repo-root]
+  python3 scripts/check_doc_links.py [repo-root] --report-citations
+"""
+
+from __future__ import annotations
+
+import collections
+import re
+import sys
+from pathlib import Path
+
+# Phrases that look like truncated heading citations but are not, keyed by the
+# repo-relative path of the file containing them. Each entry states why.
+ALLOWLIST: dict[str, dict[str, str]] = {
+    "skills/jitx-circuit-builder/references/advanced-patterns.md": {
+        "top-level only": (
+            "prose emphasis on a rule, not a citation of the "
+            "'Top-Level Only (do NOT put these in subcircuits)' heading"
+        ),
+    },
+    "skills/jitx/references/outside-voice-review.md": {
+        "mcu / fpga components": (
+            "left-hand label of a task-class table row, not a citation of "
+            "domains/component-modeling.md's 'MCU / FPGA Components (Additional)'"
+        ),
+    },
+    "skills/jitx/references/plan-template.md": {
+        "data sources": (
+            "label for this file's own guidance on the PLAN.md 'Data Sources' section "
+            "(the template lives inside a fenced block, so its headings are invisible "
+            "to this check) — not a citation of parts-sourcing.md"
+        ),
+    },
+}
+
+FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
+HEADING_RE = re.compile(r"^(#{1,6})\s+(.*?)\s*$")
+LINK_RE = re.compile(r"\[([^\]]*)\]\(([^)\s]+)\)")
+# **bold** or "quoted" or “smart-quoted” — the three shapes prose citations take
+CITATION_RE = re.compile(r'\*\*([^*\n]{5,90})\*\*|["“]([^"”\n]{5,90})["”]')
+
+
+def slug(title: str) -> str:
+    """Convert a heading to its GitHub anchor.
+
+    Punctuation is dropped, not replaced, which is why `A — B` slugs to `a--b`.
+    """
+    text = re.sub(r"<[^>]+>", "", title.strip().lower())
+    text = re.sub(r"[`*~]", "", text)
+    text = re.sub(r"[^\w\s\-]", "", text, flags=re.UNICODE)
+    return text.replace(" ", "-")
+
+
+def normalize(title: str) -> str:
+    """Heading text reduced to what a prose citation of it would look like."""
+    return re.sub(r"\s+", " ", re.sub(r"[`*]", "", title)).strip().lower()
+
+
+def body_lines(text: str) -> list[tuple[int, str]]:
+    """Numbered lines outside fenced code blocks and outside YAML frontmatter."""
+    lines = text.split("\n")
+    out: list[tuple[int, str]] = []
+    fence: str | None = None
+    start = 0
+    if lines and lines[0].strip() == "---":
+        for i in range(1, len(lines)):
+            if lines[i].strip() == "---":
+                start = i + 1
+                break
+    for i in range(start, len(lines)):
+        line = lines[i]
+        match = FENCE_RE.match(line)
+        if match:
+            token = match.group(1)[0] * 3
+            if fence is None:
+                fence = token
+                continue
+            if line.strip().startswith(fence):
+                fence = None
+                continue
+        if fence is None:
+            out.append((i + 1, line))
+    return out
+
+
+class Doc:
+    def __init__(self, path: Path, rel: str) -> None:
+        self.path = path
+        self.rel = rel
+        self.lines = body_lines(path.read_text(encoding="utf-8"))
+        self.headings: dict[str, list[tuple[int, str]]] = collections.defaultdict(list)
+        self.titles: dict[str, tuple[str, int]] = {}
+        for lineno, line in self.lines:
+            match = HEADING_RE.match(line)
+            if not match:
+                continue
+            title = match.group(2)
+            self.headings[slug(title)].append((lineno, title))
+            self.titles.setdefault(normalize(title), (title, lineno))
+
+
+def collect(root: Path) -> dict[str, Doc]:
+    docs: dict[str, Doc] = {}
+    for path in sorted((root / "skills").rglob("*.md")):
+        rel = path.relative_to(root).as_posix()
+        docs[rel] = Doc(path, rel)
+    return docs
+
+
+def check_links(root: Path, docs: dict[str, Doc]) -> list[str]:
+    findings: list[str] = []
+    for doc in docs.values():
+        for lineno, line in doc.lines:
+            for match in LINK_RE.finditer(line):
+                target = match.group(2)
+                if target.startswith(("http://", "https://", "mailto:")):
+                    continue
+                path_part, _, anchor = target.partition("#")
+                where = f"{doc.rel}:{lineno}"
+                if path_part:
+                    resolved = (doc.path.parent / path_part).resolve()
+                    if not resolved.exists():
+                        findings.append(f"{where}: link target does not exist — {target}")
+                        continue
+                    try:
+                        rel = resolved.relative_to(root).as_posix()
+                    except ValueError:
+                        findings.append(f"{where}: link escapes the repo — {target}")
+                        continue
+                else:
+                    rel = doc.rel
+                if not anchor:
+                    continue
+                if rel not in docs:
+                    findings.append(f"{where}: anchor into a non-markdown target — {target}")
+                    continue
+                headings = docs[rel].headings.get(anchor)
+                if not headings:
+                    findings.append(f"{where}: anchor matches no heading — {target}")
+                elif len(headings) > 1:
+                    lines = ", ".join(f"L{n}" for n, _ in headings)
+                    findings.append(
+                        f"{where}: anchor is ambiguous, {len(headings)} headings share "
+                        f"slug #{anchor} in {rel} ({lines}) — {target}"
+                    )
+    return findings
+
+
+def truncated_citations(docs: dict[str, Doc]) -> list[tuple[str, int, str, list[tuple[str, int, str]], bool]]:
+    """Every bolded/quoted phrase that strictly truncates a real heading.
+
+    Returns (rel, lineno, phrase, [(target_rel, target_line, target_title)], allowlisted).
+    """
+    index: dict[str, list[tuple[str, int, str]]] = collections.defaultdict(list)
+    for doc in docs.values():
+        for norm, (title, lineno) in doc.titles.items():
+            index[norm].append((doc.rel, lineno, title))
+
+    rows = []
+    for doc in docs.values():
+        allowed = ALLOWLIST.get(doc.rel, {})
+        for lineno, line in doc.lines:
+            if HEADING_RE.match(line):
+                continue
+            for match in CITATION_RE.finditer(line):
+                raw = match.group(1) or match.group(2)
+                if "](" in raw:  # already a link; the link checker owns it
+                    continue
+                phrase = normalize(raw)
+                if len(phrase.split()) < 2 or phrase in index:
+                    continue
+                targets = []
+                for norm, entries in index.items():
+                    if not norm.startswith(phrase) or len(norm) <= len(phrase):
+                        continue
+                    if re.match(r"\w", norm[len(phrase)]):  # word-boundary guard
+                        continue
+                    targets.extend(entries)
+                if targets:
+                    rows.append((doc.rel, lineno, phrase, sorted(set(targets)), phrase in allowed))
+    return rows
+
+
+def report(docs: dict[str, Doc]) -> int:
+    rows = truncated_citations(docs)
+    for rel, lineno, phrase, targets, allowed in sorted(rows):
+        tag = "ALLOWED" if allowed else "CITATION"
+        print(f"[{tag}] {rel}:{lineno}  {phrase!r}")
+        for trel, tline, title in targets:
+            print(f"           -> {trel}:{tline}  {title!r}")
+    dupes = [
+        (doc.rel, s, [n for n, _ in occ])
+        for doc in docs.values()
+        for s, occ in sorted(doc.headings.items())
+        if len(occ) > 1
+    ]
+    if dupes:
+        print("\nduplicate heading slugs (anchors into these are ambiguous):")
+        for rel, s, lines in sorted(dupes):
+            print(f"  {rel}: #{s} at lines {lines}")
+    flagged = sum(1 for r in rows if not r[4])
+    print(
+        f"\n{len(rows)} truncated citation(s), {flagged} not allowlisted; "
+        f"{len(dupes)} duplicate slug(s)",
+        file=sys.stderr,
+    )
+    return 0
+
+
+def main(argv: list[str]) -> int:
+    args = argv[1:]
+    report_only = False
+    if "--report-citations" in args:
+        report_only = True
+        args = [a for a in args if a != "--report-citations"]
+    if len(args) > 1 or any(a.startswith("-") for a in args):
+        print(__doc__, file=sys.stderr)
+        return 2
+    root = Path(args[0] if args else ".").resolve()
+    if not (root / "skills").is_dir():
+        print(f"no skills/ directory under {root}", file=sys.stderr)
+        return 2
+
+    docs = collect(root)
+    if report_only:
+        return report(docs)
+
+    findings = check_links(root, docs)
+    findings.extend(
+        f"{rel}:{lineno}: prose cites a truncated heading {phrase!r} — link it instead "
+        f"({'; '.join(f'{t[0]}:{t[1]} {t[2]!r}' for t in targets)})"
+        for rel, lineno, phrase, targets, allowed in truncated_citations(docs)
+        if not allowed
+    )
+
+    print(f"checked {len(docs)} markdown file(s) under skills/", file=sys.stderr)
+    if findings:
+        for finding in sorted(findings):
+            print(finding)
+        print(f"\n{len(findings)} finding(s)", file=sys.stderr)
+        return 1
+    print("doc links and citations clean", file=sys.stderr)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

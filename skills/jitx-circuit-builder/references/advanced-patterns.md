@@ -170,7 +170,8 @@ self.GND += fence_pour
 self.fence_outline_keepout = KeepOut(shape, layers=LayerSet(6), pour=True, via=True)
 ```
 
-The Tag + `design_constraint(...).fence_via(...)` rule must already be declared on the substrate — see [jitx-substrate-modeler/SKILL.md](../../jitx-substrate-modeler/SKILL.md) "Fenced Pour Outlines".
+The Tag + `design_constraint(...).fence_via(...)` rule must already be declared on the substrate — see `jitx-substrate-modeler`,
+[Fenced Pour Outlines (Antipads, RF Cavities, BGA Breakouts)](../../jitx-substrate-modeler/SKILL.md#fenced-pour-outlines-antipads-rf-cavities-bga-breakouts).
 
 ## Copper Geometry
 

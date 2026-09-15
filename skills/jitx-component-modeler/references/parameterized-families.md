@@ -1,10 +1,11 @@
-# Parameterized Component Families
+# Two-Terminal Chips and Parameterized Families
 
-This file owns the two-terminal chip and parameterized-family paths. Read "Two-Terminal Chip
-Components" and "Parameterized Component Families" below before using the class shape. Those
-sections carry the rules that decide whether the result is right: fail-fast validation,
-round-before-encode, extract-at-the-second-family, E-series, and what to do when the catalog
-withholds a lineup. The opening sections carry the implementation shape.
+This file owns the two-terminal chip and parameterized-family paths. Read
+[Two-Terminal Chip Components](#two-terminal-chip-components) and
+[Parameterized Component Families](#parameterized-component-families) before using the class
+shape. Those sections carry the rules that decide whether the result is right: fail-fast
+validation, round-before-encode, extract-at-the-second-family, E-series, and what to do when
+the catalog withholds a lineup. The opening sections carry the implementation shape.
 
 One `jitx.Component` subclass stands in for every part a manufacturer lists under one series, with
 the part number computed per instance from the datasheet's own ordering scheme. No parts-database
@@ -121,7 +122,7 @@ component-agnostic name as soon as a second component type uses it:
 | `insert_two_pin(component, a, b, *, short_trace=False)` | `.insert()` parity with the queried passives |
 
 What stays per-family: the value encoder, the size / rating / range tables, and the part-number
-f-string. Three vendors, three encoders — see "Value-code encoders" below.
+f-string. Three vendors, three encoders — see [Value-code encoders — round before you encode](#value-code-encoders--round-before-you-encode).
 
 ## Generalizing across component types
 
@@ -242,5 +243,5 @@ When the opt-in check is enabled, MPN construction raises `ValueError` for a val
 
 Overview and selector-guide editions routinely omit the per-size value lineup the full series datasheet carries. Validate what the document *does* state — the ordering code, the published significand grid, the size / voltage / dielectric offering — record the gap in the docstring, and tell the user which envelope is checked and which is not. Do not invent ranges to make the validation look complete: a range nothing backs is the same failure as a dimension nothing backs.
 
-**Check for a second gap before concluding there is one.** A catalog that specifies its cases by standard size code often publishes **no chip outline table either** — size codes and thickness codes, but no length, width or termination band. That is a legitimate reason to take the geometry from the standard chip table (see "Taking the standard table's dimensions is a verification obligation"), but it is a *different provenance claim* from a family whose datasheet tabulates its own dimensions, and it has to be said out loud per dimension rather than absorbed. Where the catalog does publish one dimension and not the rest — thickness is the common case — say which came from where; the completeness check's **Library defaults** row separates a default that *agrees* with the source from one relied on because the source is silent, and will not fill without the split. Expect coverage to fall out of this too: a size the vendor offers may have no standard-table entry and no published outline to override it with, in which case it is excluded, and the exclusion and its reason are reportable rather than silent.
+**Check for a second gap before concluding there is one.** A catalog that specifies its cases by standard size code often publishes **no chip outline table either** — size codes and thickness codes, but no length, width or termination band. That is a legitimate reason to take the geometry from the standard chip table (see [Taking the standard table's dimensions is a verification obligation, not a shortcut](#taking-the-standard-tables-dimensions-is-a-verification-obligation-not-a-shortcut)), but it is a *different provenance claim* from a family whose datasheet tabulates its own dimensions, and it has to be said out loud per dimension rather than absorbed. Where the catalog does publish one dimension and not the rest — thickness is the common case — say which came from where; the completeness check's **Library defaults** row separates a default that *agrees* with the source from one relied on because the source is silent, and will not fill without the split. Expect coverage to fall out of this too: a size the vendor offers may have no standard-table entry and no published outline to override it with, in which case it is excluded, and the exclusion and its reason are reportable rather than silent.
 
