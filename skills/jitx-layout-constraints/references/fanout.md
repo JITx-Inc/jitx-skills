@@ -273,67 +273,13 @@ checks the strict-inside postcondition and stops if the result falls below
 
 ### Worked power escape
 
-The class trunk in this example is `0.5 mm` (skill default: `0.5 mm` power
-class width). The QFN pitch and pad size are read from the generated
-landpattern. `Route` accepts a `RoutePoint`, converts it to `.pad`, and accepts
-`sketch=` as a point sequence (`jitx/circuit.py:569-599`). `RoutePoint.pad` is
-the routing endpoint (`jitx/controlpoint.py:61-76`).
+`jitxexamples.patterns.qfn_power_fanout` is the worked one, with its checker. It derives the
+escape width from the queried pad geometry rather than a stated number, rounds to 1 nm and
+decrements, and asserts the postcondition that matters: the escape lands strictly inside the
+pad.
 
-```python
-from jitx import RoutePoint
-from jitx.circuit import Route
-from jitx.constraints import AnyObject, Tags, design_constraint
-
-POWER_WIDTH = 0.5  # skill default: 0.5 mm power-class width
-ESCAPE_RUN = 1.0  # skill default: 1.0 mm from pad edge to transition
-
-# pad_copper came from placed_pad_polygons(...).
-geometry = qfn_escape_geometry(
-    pad_copper,
-    qfn_power_pad,
-    rule_pads=(qfn_power_pad,),  # every pad selected by this concrete rule
-    package_center=qfn_center,
-    fab=design.substrate.constraints,
-    default_clearance=DEFAULT_CLEARANCE,  # the Design's IsCopper x IsCopper rule value
-)
-pad_center = pad_copper[qfn_power_pad].centroid.coords[0]
-qfn_center = qfn_component.transform.translation  # the placed QFN's origin
-delta = (pad_center[0] - qfn_center[0], pad_center[1] - qfn_center[1])
-outward = (  # unit vector from the package center through the pad, on the radial axis
-    (1.0 if delta[0] > 0 else -1.0, 0.0)
-    if abs(delta[0]) >= abs(delta[1])
-    else (0.0, 1.0 if delta[1] > 0 else -1.0)
-)
-transition = (
-    pad_center[0] + outward[0] * (geometry.pad_depth / 2.0 + ESCAPE_RUN),
-    pad_center[1] + outward[1] * (geometry.pad_depth / 2.0 + ESCAPE_RUN),
-)
-self.rp = RoutePoint(layer=top_copper_layer).at(transition)
-self.power_net += self.rp.port
-self.trunk_route = Route(trunk_port, self.rp, top_copper_layer)
-self.escape_route = Route(self.rp, qfn_power_pad, top_copper_layer)  # no sketch: turns need RoutePoints
-Tags(QfnEscapeTag()).assign(self.escape_route)
-self.escape_rules = [
-    design_constraint(QfnEscapeTag(), priority=4).trace_width(
-        geometry.escape_width
-    ),
-    design_constraint(
-        QfnEscapeTag(), AnyObject, priority=4
-    ).clearance(geometry.escape_clearance),
-]
-```
-
-`sketch=` is accepted, but on runtime 4.4.0-rc.9 its intermediate points are
-dropped and the route realizes as a straight line between its endpoints
-(`evals/cases/reference/net-net-clearance/NOTES.md`); a turn needs another
-`RoutePoint`. A sketch does not set width or clearance either. The tag selects the two rules. Both routes, the control point, and
-the rule list stay on `self`, so the design-tree walk can reach them.
-
-For a single-ended escape, tag the route segment. For a differential
-structure, tag the net. Per-route differential tags can deform the control
-point transition. See `control-points.md`, "Route", for that rule. Place a
-route at the common ancestor required by `control-points.md`, "Circuit
-ownership". Do not restate the ownership tree in local helpers.
+Read it rather than a transcription of it. Its docstring carries the measured output and the
+runtime version it was taken on, which a copy here would not keep current.
 
 ## BGA, diagonal channel and row depth
 

@@ -345,146 +345,22 @@ Read these fields from the selected substrate. The class values are examples, no
 
 ## 8. Direct connect
 
-Result, observed on 4.4.0rc5.dev2 on one pad shape (a 1.6 mm round pad):
-candidate 2 below produces a direct connect and candidate 1 does not. Before
-reusing the pattern on another pad shape, size or runtime, confirm it on that
-pad's captured `computed_shape` before relying on it. A higher-priority `thermal_relief` whose spoke width
-equals the pad diameter leaves the runtime's computed pour copper with no gap
-and no spokes at the tagged pad, while a default-relief pad on the same net
-keeps its four 0.2 mm spokes; the higher-priority rule carrying no effect leaves
-both pads identical. The raw `LayoutOutput.computed_shape` is the surface that shows that copper. Captured-query interpretation is owned by
-[Pour realization semantics](../../jitx-physical-layout/SKILL.md#pour-realization-semantics);
-`rd.query(Pour)` is not a valid witness for these voids on the tested 4.4 line
-(numbers in `evals/cases/reference/direct-connect/NOTES.md`).
+A working demonstration, with its receipt, is
+`jitxexamples.patterns.direct_connect`. It builds both candidates and shows which one
+holds: a higher-priority unary rule with no effect changes nothing about the pour, while a
+fab-floor gap with pad-wide overlapping spokes produces a direct connection.
 
-The installed Python surface has no direct-connect effect. A unary rule can
-carry thermal relief, but the translator emits a thermal effect only when
-`thermal_relief` was set (`jitx/_translate/rules.py:37`,
-`jitx/_translate/rules.py:62`). That source fact does not establish whether a
-higher-priority rule with no effect suppresses a lower-priority thermal.
-
-The tested candidates, in order, are:
-
-```python
-class DirectConnectTag(Tag):
-    """Pad selected for the direct-connect experiment."""
-# Candidate 1, tested: higher-priority unary rule with no effect. No effect on the pour.
-candidate_no_effect = design_constraint(
-    DirectConnectTag(), priority=POWER_PRIORITY
-)
-# Candidate 2, tested: fab-floor gap with pad-wide overlapping spokes. Direct connect.
-candidate_wide_spokes = design_constraint(
-    DirectConnectTag(), priority=POWER_PRIORITY
-).thermal_relief(
-    JLCPCBRules.min_copper_copper_space,  # JLCPCBRules floor: 0.09 mm thermal gap
-    TEST_PAD_DIAMETER,  # skill default: 1.6 mm spoke width equals test-pad diameter
-    4,  # skill default: 4 overlapping spokes
-)
-```
-
-Candidate 2 is the pattern; candidate 1 is recorded so nobody tries it again.
-When reusing candidate 2, read the result on a surface that shows computed
-pour copper. The reference case checked these surfaces:
-
-1. `rd.query(Copper)` and `rd.query(Pour)` after capture
-   (`jitx/run/runtime.py:421`), neither a voiding witness on the tested line.
-2. The raw `LayoutOutput.computed_shape`, which reverse flow assigns back to
-   an authored pour (`jitx/_translate/reverse_flow/linker.py:1313`,
-   `jitx/_translate/reverse_flow/linker.py:1329`).
-3. `Route.derived` for route-derived pours and features (`jitx/circuit.py:564`,
-   `jitx/circuit.py:613`).
-Surface 2 shows the voided pour; surfaces 1 and 3 do not on the 4.4 line, so it
-is the one to read. A successful build alone is not evidence of direct
-connection.
-
-The fabrication export is not a verification surface here; `computed_shape`
-already carries the fact (rule and reason: `jitx-physical-layout`, "Pour
-realization semantics").
+Read it rather than a description of it. The measured output is in that module's docstring,
+with the runtime version it was taken on.
 
 ## 9. Power puddle from a pad list
 
-This pad-union puddle has not yet been exercised against a runtime in a
-reference design; treat it as the intended shape and verify the puddle's
-copper after capture before relying on it. The shipped decoupling reference
-uses a simpler rectangular corridor between the two pads it joins
-(`_corridor` in its `design.py`), which has been built and captured.
+A local puddle serving a group of pins is built by the circuit that owns those pads. The
+pad-union helper that used to compute it is removed with the decoupling solver: it existed
+to feed that solver, and a helper that survives its only caller is a helper nobody maintains.
 
-Make a local puddle from pads in the circuit that owns them. `query` runs the
-Pad-to-Copper transformer, and that transformer composes the accumulated frame
-with `pad.transform` before yielding copper (`jitx/landpattern.py:173`,
-`jitx/landpattern.py:187`). Convert the result back into the owner's local
-frame before constructing the `Pour`.
-
-```python
-from collections.abc import Sequence
-from shapely.ops import unary_union
-from jitx import Circuit, Copper, Design, Net, Pad, Pour, current, query, visit
-from jitx.shapes.shapely import ShapelyGeometry
-def _owner_to_design(design: Design, owner: Circuit):
-    for trace, circuit in visit(design, Circuit):
-        if circuit is not owner:
-            continue
-        if trace.transform is None:
-            raise ValueError("unresolved owner coordinate frame")
-        if owner is design.circuit:
-            return trace.transform
-        if owner.transform is None:
-            raise ValueError("nested puddle owner must be placed")
-        return trace.transform * owner.transform
-    raise ValueError("puddle owner is not reachable from the Design")
-def add_power_puddle(
-    design: Design,
-    owner: Circuit,
-    rail: Net,
-    pads: Sequence[Pad],
-    layer: int,
-    buffer_mm: float,
-) -> Pour:
-    """Return the puddle Pour; the caller stores it and adds it to ``rail``.
-
-    buffer_mm is supplied by the design and labeled at the call site.
-    """
-    wanted = set(pads)
-    owner_from_design = ~_owner_to_design(design, owner)
-    pad_geometries = []
-    for trace, copper in query(design, Copper):
-        if trace.parent not in wanted or copper.layer != layer:
-            continue
-        if trace.transform is None:
-            raise ValueError("unresolved pad coordinate frame")
-        local_shape = owner_from_design * trace.transform * copper.shape
-        pad_geometries.append(local_shape.to_shapely().g)
-    if len(pad_geometries) != len(wanted):
-        raise ValueError("each selected pad must yield copper on the puddle layer")
-    geometry = unary_union(pad_geometries).buffer(
-        buffer_mm,
-        cap_style="square",
-        join_style="mitre",
-    )
-    if geometry.is_empty or geometry.geom_type not in ("Polygon", "MultiPolygon"):
-        raise ValueError(f"invalid puddle geometry: {geometry.geom_type}")
-    return Pour(ShapelyGeometry(geometry), layer=layer)
-PUDDLE_BUFFER = 0.5  # skill default: 0.5 mm pad-union buffer
-# The owning circuit stores the pour and adds it to the rail; the helper only
-# computes geometry (a free function must not mutate a circuit).
-self.power_puddle = add_power_puddle(
-    current.design,
-    self,
-    self.VDD,
-    [self.c1.landpattern.vdd_pad, self.u1.landpattern.vdd_pad],
-    self.power_layer,
-    PUDDLE_BUFFER,
-)
-self.VDD += self.power_puddle
-```
-
-`query` yields transformed targets while preserving `trace.transform`
-(`jitx/query.py:187`, `jitx/query.py:216`). `ShapelyGeometry` accepts a Shapely
-geometry and converts polygon or multipolygon data into JITX primitives
-(`jitx/shapes/shapely.py:21`, `jitx/shapes/shapely.py:64`). The pour remains an attribute of its positionable owner (`jitx/circuit.py:50`).
-
-Do not pass `isolate=`. It is deprecated, and clearance belongs in the binary
-rules from sections 2 and 5 (`jitx/copper.py:54`, `jitx/copper.py:71`).
+The principle stands without it. A puddle is copper on the rail inside the circuit that owns
+the pads, given an explicit position, and it needs its reason on the line that creates it.
 
 ## 10. Fill between signal traces
 
