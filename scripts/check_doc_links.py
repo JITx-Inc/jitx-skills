@@ -25,12 +25,36 @@ checkable. It checks, across every markdown file under skills/:
   4. no bolded or quoted phrase is a strict truncated prefix of a real heading,
      outside the allowlist below — this is the original defect, and it stays
      gateable only because the sweep that introduced this script emptied it
+  5. every backticked dotted Python path under a configured destination root
+     resolves in the selected interpreter, unless its own line names it with
+     the literal marker UNPUBLISHED:<full.path>
 
 Check 4 needs an escape hatch, because the class genuinely contains non-citations:
 "Reference Design" names a datasheet section, not a heading. Word-boundary
 matching rejects most of those automatically; what survives goes in ALLOWLIST
 with a reason, keyed by path so allowlisting one file does not blind the others.
 Add a line and say why — do not disable the check.
+
+Check 5 uses module specs where possible, importing parent packages as needed;
+attribute pointers import the longest module prefix and walk its attributes.
+It checks availability in that interpreter, not publication on a package index,
+and does not execute a leaf module just to verify its spec. Use --python PATH
+to select the interpreter (default: sys.executable). Repeat --module-root ROOT
+to replace the default roots; a root may be dotted, and matches itself plus
+everything beneath it, so jitxlib.verify gates that package alone. Imports run in one subprocess per check, with a
+30-second timeout; probe failures are findings, never a silent skip.
+
+The marker must name the exact full pointer on the same line, for example
+`jitxlib.verify` (UNPUBLISHED:jitxlib.verify). A bare UNPUBLISHED token or a
+marker for a parent or another pointer does not exempt it. A backticked `.name`
+continues the parent of the most recent full pointer on its line or the line
+before: `jitxexamples.patterns.default_rules`, `.net_net_clearance` names two
+sibling modules. Mark a continuation with its expanded full path on its own
+line. Only whole code spans that are dotted paths are checked, not calls or
+slash-separated paths. Matching is syntactic: dotted filenames and examples
+of wrong imports also match; surrounding prose does not silently exempt them.
+--skip-module-imports disables check 5 and prints a warning on stderr. Citation
+report mode only reports check 4 and duplicate slugs, as before.
 
 Fenced code blocks and YAML frontmatter are skipped. Without that, shell comments
 (`# Sync project deps from public PyPI...`) parse as headings and the output is
@@ -49,12 +73,16 @@ Exit codes:
 Usage:
   python3 scripts/check_doc_links.py [repo-root]
   python3 scripts/check_doc_links.py [repo-root] --report-citations
+  python3 scripts/check_doc_links.py [repo-root] --python PATH [--module-root ROOT ...]
+  python3 scripts/check_doc_links.py [repo-root] --skip-module-imports
 """
 
 from __future__ import annotations
 
 import collections
+import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -87,6 +115,67 @@ HEADING_RE = re.compile(r"^(#{1,6})\s+(.*?)\s*$")
 LINK_RE = re.compile(r"\[([^\]]*)\]\(([^)\s]+)\)")
 # **bold** or "quoted" or “smart-quoted” — the three shapes prose citations take
 CITATION_RE = re.compile(r'\*\*([^*\n]{5,90})\*\*|["“]([^"”\n]{5,90})["”]')
+# Destinations the restructure moved knowledge to. A root is matched as a dotted
+# PREFIX, so "jitxlib.verify" gates that package without dragging in every
+# jitxlib.* name a skill mentions in passing. The default set is deliberately not
+# {jitx, jitxlib, jitxexamples}: a skill legitimately names modules that do NOT
+# exist, in anti-pattern lists ("there is no jitx.bundle, jitx.passives"), and a
+# check that cannot tell a pointer from a named counterexample produced 106
+# findings against 11 real ones when it was first run. Widen with --module-root
+# for a one-off sweep; add a line here when the restructure creates a
+# destination that a skill routes to.
+MODULE_ROOTS = frozenset({"jitxlib.verify", "jitxexamples.patterns", "jitxexamples.demos"})
+
+
+def _under_root(pointer: str, roots: frozenset[str]) -> bool:
+    """True when a root equals the pointer or is one of its dotted prefixes."""
+    return any(pointer == root or pointer.startswith(root + ".") for root in roots)
+INLINE_CODE_RE = re.compile(r"(?<!`)(`+)([^`\n]+)\1(?!`)")
+DOTTED_PATH = r"[^\W\d]\w*(?:\.[^\W\d]\w*)+"
+MODULE_PATH_RE = re.compile(DOTTED_PATH)
+UNPUBLISHED_RE = re.compile(r"(?<![\w:])UNPUBLISHED:(" + DOTTED_PATH + r")(?![\w.])")
+
+# Keep the selected interpreter's own sys.path. A caller can use PYTHONPATH to
+# add fixtures or packages without injecting this process's site-packages.
+MODULE_PROBE = r'''
+import contextlib
+import importlib
+import importlib.util
+import json
+import sys
+
+
+def resolve(name):
+    parts = name.split(".")
+    for size in range(len(parts), 0, -1):
+        prefix = ".".join(parts[:size])
+        try:
+            spec = importlib.util.find_spec(prefix)
+        except ModuleNotFoundError as exc:
+            if exc.name == prefix or prefix.startswith(str(exc.name) + "."):
+                continue
+            raise
+        if spec is None:
+            continue
+        if size < len(parts):
+            value = importlib.import_module(prefix)
+            for attr in parts[size:]:
+                value = getattr(value, attr)
+        return
+    raise ModuleNotFoundError("no importable module prefix")
+
+
+results = {}
+for name in json.load(sys.stdin):
+    try:
+        with contextlib.redirect_stdout(sys.stderr):
+            resolve(name)
+    except (Exception, SystemExit) as exc:
+        results[name] = type(exc).__name__ + ": " + " ".join(str(exc).split())
+    else:
+        results[name] = None
+json.dump(results, sys.stdout)
+'''
 
 
 def slug(title: str) -> str:
@@ -230,6 +319,65 @@ def truncated_citations(docs: dict[str, Doc]) -> list[tuple[str, int, str, list[
     return rows
 
 
+def module_pointers(
+    docs: dict[str, Doc], roots: frozenset[str] = MODULE_ROOTS,
+) -> list[tuple[str, int, str]]:
+    """Return (rel, line, full pointer) for each pointer without its own marker."""
+    rows = []
+    for doc in docs.values():
+        last_full = ""
+        last_line = -2
+        for lineno, line in doc.lines:
+            unpublished = set(UNPUBLISHED_RE.findall(line))
+            for match in INLINE_CODE_RE.finditer(line):
+                pointer = match.group(2)
+                if pointer.startswith(".") and lineno - last_line <= 1:
+                    pointer = last_full.rpartition(".")[0] + pointer
+                elif MODULE_PATH_RE.fullmatch(pointer) and _under_root(pointer, roots):
+                    last_full, last_line = pointer, lineno
+                else:
+                    continue
+                if MODULE_PATH_RE.fullmatch(pointer) and pointer not in unpublished:
+                    rows.append((doc.rel, lineno, pointer))
+    return rows
+
+
+def check_module_imports(
+    docs: dict[str, Doc], python: str | None = None,
+    roots: frozenset[str] = MODULE_ROOTS,
+) -> list[str]:
+    rows = module_pointers(docs, roots)
+    names = sorted({pointer for _, _, pointer in rows})
+    if not names:
+        return []
+    try:
+        probe = subprocess.run(
+            [python or sys.executable, "-c", MODULE_PROBE],
+            input=json.dumps(names), capture_output=True, text=True, timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        errors = dict.fromkeys(names, "module import probe timed out after 30 seconds")
+    else:
+        try:
+            errors = json.loads(probe.stdout)
+            if (
+                probe.returncode != 0 or not isinstance(errors, dict)
+                or set(errors) != set(names)
+                or any(value is not None and not isinstance(value, str) for value in errors.values())
+            ):
+                raise ValueError("incomplete probe results")
+        except ValueError:
+            detail = " ".join(probe.stderr.split())
+            errors = dict.fromkeys(
+                names, f"module import probe failed (exit {probe.returncode}, invalid results): {detail}",
+            )
+    return [
+        f"{rel}:{lineno}: module pointer does not resolve: {pointer} ({errors[pointer]})"
+        for rel, lineno, pointer in rows
+        if errors[pointer] is not None
+    ]
+
+
 def report(docs: dict[str, Doc]) -> int:
     rows = truncated_citations(docs)
     for rel, lineno, phrase, targets, allowed in sorted(rows):
@@ -257,12 +405,35 @@ def report(docs: dict[str, Doc]) -> int:
 
 
 def main(argv: list[str]) -> int:
-    args = argv[1:]
+    args = []
     report_only = False
-    if "--report-citations" in args:
-        report_only = True
-        args = [a for a in args if a != "--report-citations"]
-    if len(args) > 1 or any(a.startswith("-") for a in args):
+    skip_module_imports = False
+    python = sys.executable
+    roots = set()
+    tokens = iter(argv[1:])
+    try:
+        for arg in tokens:
+            if arg == "--report-citations":
+                report_only = True
+            elif arg == "--skip-module-imports":
+                skip_module_imports = True
+            elif arg in {"--python", "--module-root"}:
+                value = next(tokens)
+                if not value or value.startswith("-"):
+                    raise ValueError("missing option value")
+                if arg == "--python":
+                    python = value
+                elif all(part.isidentifier() for part in value.split(".")):
+                    roots.add(value)
+                else:
+                    raise ValueError("module root must be a Python identifier")
+            elif arg.startswith("-"):
+                raise ValueError("unknown option")
+            else:
+                args.append(arg)
+        if len(args) > 1:
+            raise ValueError("too many arguments")
+    except (StopIteration, ValueError):
         print(__doc__, file=sys.stderr)
         return 2
     root = Path(args[0] if args else ".").resolve()
@@ -271,6 +442,8 @@ def main(argv: list[str]) -> int:
         return 2
 
     docs = collect(root)
+    if skip_module_imports:
+        print("WARNING: check 5 SKIPPED (--skip-module-imports); module pointers were not checked", file=sys.stderr)
     if report_only:
         return report(docs)
 
@@ -281,6 +454,12 @@ def main(argv: list[str]) -> int:
         for rel, lineno, phrase, targets, allowed in truncated_citations(docs)
         if not allowed
     )
+    if not skip_module_imports:
+        try:
+            findings.extend(check_module_imports(docs, python, frozenset(roots) if roots else MODULE_ROOTS))
+        except OSError as exc:
+            print(f"cannot run module import interpreter {python!r}: {exc}", file=sys.stderr)
+            return 2
 
     print(f"checked {len(docs)} markdown file(s) under skills/", file=sys.stderr)
     if findings:
@@ -289,6 +468,8 @@ def main(argv: list[str]) -> int:
         print(f"\n{len(findings)} finding(s)", file=sys.stderr)
         return 1
     print("doc links and citations clean", file=sys.stderr)
+    if not skip_module_imports:
+        print("module pointers clean", file=sys.stderr)
     return 0
 
 
