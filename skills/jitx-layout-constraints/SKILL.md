@@ -41,8 +41,9 @@ Read working designs and their measured receipts in module docstrings:
 `jitxexamples.patterns.default_rules`, `.net_net_clearance`,
 `.qfn_power_fanout`, `.direct_connect`, and `.stitch_via`.
 Use installed `jitxlib.verify` for `rule_width`, `rule_clearance`,
-`rule_coverage`, `min_clearance`, `centreline_length`, `shape_geometry`,
-`unique_by_specificity`, and `holds_circle`.
+`rule_coverage`, `clearance_relaxations`, `rule_scope`,
+`thermal_relief_geometry`, `min_clearance`, `centreline_length`,
+`shape_geometry`, `unique_by_specificity`, and `holds_circle`.
 
 ## Workflow
 
@@ -77,23 +78,30 @@ Use installed `jitxlib.verify` for `rule_width`, `rule_clearance`,
 7. Build, capture, and run the project verification gate below. Fix failed
    measurements before completion; name unavailable evidence explicitly.
 
-## Guidance without another complete owner
+## Where a net class gets its number
 
-- Existing JLC04161H-class skill defaults: 0.125 mm trace width and copper
-  clearance, thermal relief with 0.125 mm gap, 0.2 mm spokes and four spokes,
-  and 0.4 mm power/ground width. Calibrate against the selected substrate.
-- Additional class guidance: switch nodes use rail width and EMI-budget
-  pour pullback; sensitive analog keeps wider clearance to digital/power;
-  high-voltage/mains uses cited creepage clearance to `AnyObject`, optionally
-  layer-scoped; isolated domains use cited barrier clearance plus a keepout;
-  gate-drive width follows the driver datasheet, with default clearance and
-  circuit-owned placement. RF and high-speed differential classes use their
-  routing structure's width/clearance; high-current rails may need wider
-  ground clearance. Extend the class catalog as the design requires.
-- Pending claim, reported from a shipped board but not reproduced here:
-  same-tag binary clearance separates differential pairs without changing
-  their internal `pair_spacing`, because a coupled span is one trace object.
-  Verify the captured pair gap before relying on it.
+Each class names the source that answers it. A value taken from a source that
+answers a different question is an invented number, however real the source.
+
+- Board defaults: derive from the selected substrate rather than copying a
+  value. `jitxexamples.patterns.complete_rules` derives width, clearance and
+  relief from `fab.min_copper_width` and `fab.min_copper_copper_space`.
+- Power and ground: the current the rail carries, against the tiers in
+  [power and pours](references/power-and-pours.md).
+- Gate drive: the driver datasheet, with default clearance and circuit-owned
+  placement.
+- RF and high-speed differential: the routing structure's own width and
+  clearance. That clearance governs the structure's own geometry. It does not
+  answer how far an aggressor must stay away from it.
+- High voltage and mains: a cited creepage standard, to `AnyObject`, optionally
+  layer-scoped. Isolated domains add a cited barrier clearance and a keepout.
+- A sensitive net's separation from an aggressor: a derivation, because no fab
+  row and no routing structure holds it. State the disturbance budget, the
+  aggressor's edge rate or knee frequency, and the coupling estimate with the
+  stackup it came from. A defensible number with a stated derivation passes;
+  the expected number with no reasoning does not.
+
+Extend the list as a design requires, naming the source before the number.
 
 ## Decoupling
 
@@ -116,7 +124,9 @@ it is a library, not the project gate.
   Require non-empty traces before width comparisons; a losing override can
   silently leave a route unrealized.
 - Check every realized polyline width against its winning rule with a labeled
-  tolerance. Wider and narrower both fail. Use `check_route_width` when a
+  tolerance. Wider and narrower both fail. Assert a realized escape width
+  against the measured pad widths the rule selects as its own comparison: a
+  tolerance sized like the inset passes a pad-width trace on rounding alone. Use `check_route_width` when a
   net/layer carries both trunk and escape widths. A polygon without a width
   field fails; never skip it. A via-to-via route at the via-pad diameter
   fails if it misses the rule: use pad-to-point routing or a matching via pad.
@@ -127,6 +137,11 @@ it is a library, not the project gate.
   `rule_clearance`; end with `rule_coverage(rules, witnessed)`. Count
   unwitnessed rules separately. Never pass an unexercised rule or substitute
   a second table of expected values.
+- Run `clearance_relaxations(rules)` before trusting any separation. A broader
+  rule at a higher priority, `AnyObject` on either side being the usual shape,
+  relaxes a specific rule below it while the build still reports `status: ok`
+  and the geometry still measures clean. Run `rule_scope(rd)` to catch a rule
+  declared away from the objects it governs.
 - For trace-to-pour clearance, thermal relief, and sliver removal, follow
   [pour realization semantics](../jitx-physical-layout/SKILL.md#pour-realization-semantics).
   Report each as unverified from `rd.query`, with its reason; fabrication
@@ -155,4 +170,7 @@ receipts before treating a reported behavior as established.
 Follow [architectural patterns](../jitx/references/architectural-patterns.md)
 and run [jitx-code-review](../jitx-code-review/SKILL.md) for self-critique.
 Record the four defaults, net-class table or explicit absence, measurement
-commands/results, and unverified items in the completion block.
+commands/results, and unverified items in the completion block. Name the sources
+you actually read, and for each number the source that answers it. A pointer
+that did not resolve is an open item naming the source, never a gap filled from
+memory.
