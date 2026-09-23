@@ -121,7 +121,7 @@ succeeds and, for that JLCPCB path, `python -c "import jitxlib.jlcpcb"` succeeds
 Three things it does **not** do, each of which reads like an oversight and isn't:
 
 - **No `git init`.** It writes a `.gitignore` but creates no repository, so `git status` in a fresh project is `fatal: not a git repository`. If the work wants version control, run `git init` yourself and say that you did; don't assume a repo you were never given.
-- **No `pytest`, no `pyright`.** The seeded `pyproject.toml` lists neither, so "add them if the scaffold didn't" is always true. Just add them.
+- **No `pytest`, no `pyright`.** The seeded `pyproject.toml` lists neither, so add both. `check.py` runs `pyright`; `pytest` covers ordinary Python units, not designs, which `check.py --build` verifies.
 - **The seeded `.gitignore` is a considered file — don't broaden it.** It ignores every dotfile (`.*`, with `.gitignore` and `.vscode/` whitelisted), so scratch directories are already covered, and it ignores only the *volatile* parts of `designs/` — caches and editor backups — deliberately leaving the built design directory version-controlled. Adding `designs/` wholesale reverses that choice. Append only what a task genuinely needs, and say why.
 
 ### Step 3 — Auth
