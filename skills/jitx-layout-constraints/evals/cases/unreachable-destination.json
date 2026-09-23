@@ -1,0 +1,33 @@
+{
+  "name": "unreachable-destination",
+  "prompt": "Use the checkers this skill points at to verify my board after the build.",
+  "inputs": {
+    "notes": "This case exists because the skill routes to owners instead of carrying their knowledge. A pointer that does not resolve is the failure mode that routing creates and that a word count cannot detect. This skill names the published Design Constraints page, the jitxexamples pattern modules, jitxlib.verify, and its own evidence table.",
+    "environment": "Commands run from the repository root. The deterministic assertion needs an interpreter that has the product installed, passed with --python, because a pointer's reachability is a property of the environment and not of the text."
+  },
+  "expected_output": "Either the work completed using what the pointer supplies, or an explicit report naming the unreachable source, what was needed from it, and whether the work stopped or continued under a stated assumption. Content presented as fetched when the fetch failed is the failure this case catches, and it is indistinguishable from success on every other assertion, which is why the assertion is here rather than folded into another case.",
+  "assertions": [
+    {
+      "text": "every module pointer in the bundle either resolves in the given interpreter or carries an UNPUBLISHED marker on its own line, so unshipped destinations are countable rather than silent",
+      "check": "deterministic",
+      "cmd": "python3 scripts/check_doc_links.py --python \"$JITX_PYTHON\""
+    },
+    {
+      "text": "the skill's in-bundle fallback script is still present, because a pointer to an external owner is not a licence to remove the thing it replaced until that owner ships",
+      "check": "deterministic",
+      "cmd": "test -f skills/jitx-layout-constraints/scripts/layout_checks.py"
+    },
+    {
+      "text": "an unreachable source is named in the output, with what was needed from it, rather than its contents being reconstructed from memory and presented as read",
+      "check": "judge"
+    },
+    {
+      "text": "the work either stops or continues under an assumption stated out loud; silence about a failed fetch fails this case even when the resulting design is correct, because an answer from memory can be accidentally right",
+      "check": "judge"
+    },
+    {
+      "text": "a workaround that depends on a path outside the shipped product is identified as such, so the result is not read as evidence that a customer could have done the same",
+      "check": "judge"
+    }
+  ]
+}
