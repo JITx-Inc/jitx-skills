@@ -45,13 +45,13 @@ self.rules = [
     UnaryDesignConstraint(IsTrace, priority=DEFAULT_PRIORITY).trace_width(
         SIGNAL_WIDTH
     ),
-    UnaryDesignConstraint(PowerTag(), priority=POWER_PRIORITY).trace_width(
+    UnaryDesignConstraint(IsTrace & PowerTag(), priority=POWER_PRIORITY).trace_width(
         POWER_WIDTH
     ),
-    UnaryDesignConstraint(HighCurrentTag(), priority=CLASS_PRIORITY).trace_width(
+    UnaryDesignConstraint(IsTrace & HighCurrentTag(), priority=CLASS_PRIORITY).trace_width(
         HIGH_CURRENT_WIDTH
     ),
-    UnaryDesignConstraint(Rail12VTag(), priority=CLASS_PRIORITY).trace_width(
+    UnaryDesignConstraint(IsTrace & Rail12VTag(), priority=CLASS_PRIORITY).trace_width(
         RAIL_12V_WIDTH
     ),
 ]

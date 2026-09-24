@@ -39,29 +39,42 @@ class Qfn1v8EscapeTag(EscapeTag): ...
 
 # Every width and clearance below comes from the geometry helpers.
 self.rules = [
-    design_constraint(PowerTag(), priority=2).trace_width(POWER_WIDTH),
-    design_constraint(QfnEscapeTag(), priority=4).trace_width(qfn_width),
-    design_constraint(QfnEscapeTag(), AnyObject, priority=4).clearance(
-        qfn_clearance
-    ),
-    design_constraint(BgaEscapeTag(), priority=4).trace_width(bga_width),
-    design_constraint(BgaEscapeTag(), AnyObject, priority=4).clearance(
-        bga_clearance
-    ),
-    design_constraint(PassiveEscapeTag(), priority=4).trace_width(
+    design_constraint(IsTrace & PowerTag(), priority=2).trace_width(POWER_WIDTH),
+    design_constraint(IsTrace & QfnEscapeTag(), priority=4).trace_width(qfn_width),
+    design_constraint(
+        IsCopper & QfnEscapeTag(), IsCopper, priority=4
+    ).clearance(qfn_clearance),
+    design_constraint(IsTrace & BgaEscapeTag(), priority=4).trace_width(bga_width),
+    design_constraint(
+        IsCopper & BgaEscapeTag(), IsCopper, priority=4
+    ).clearance(bga_clearance),
+    design_constraint(IsTrace & PassiveEscapeTag(), priority=4).trace_width(
         passive_width
     ),
     design_constraint(
-        PassiveEscapeTag(), AnyObject, priority=4
+        IsCopper & PassiveEscapeTag(), IsCopper, priority=4
     ).clearance(passive_clearance),
-    design_constraint(Qfn1v8EscapeTag(), priority=4).trace_width(
+    design_constraint(IsTrace & Qfn1v8EscapeTag(), priority=4).trace_width(
         qfn_1v8_width
     ),
     design_constraint(
-        Qfn1v8EscapeTag(), AnyObject, priority=4
+        IsCopper & Qfn1v8EscapeTag(), IsCopper, priority=4
     ).clearance(qfn_1v8_clearance),
 ]
 ```
+
+Every condition above carries an object type tag. A `trace_width` rule whose
+condition is a bare user tag loses to a plain `IsTrace` rule on local
+specificity, and wins here only because its priority outranks the default. Flatten
+the ladder and the bare form silently reverts to the signal width.
+
+The escape clearance is the broad rule in this set, so it is also the one that can
+relax a protection written at a lower priority: it is selected on any copper that
+carries the escape tag, including copper a lower-priority rule was written to keep
+apart, because priority is applied before specificity. Run `clearance_relaxations`
+before relying on it. The worked case is under "Avoiding pitfalls" on the
+[Design Constraints page](https://docs.jitx.com/en/latest/essentials/physical_design/design-constraints.html),
+in a section not yet published at the time of writing.
 
 Use a package-family tag when every escape in that family has the same derived
 values. If one rail differs, use a concrete rail tag such as
