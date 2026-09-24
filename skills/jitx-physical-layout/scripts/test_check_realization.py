@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Unit tests for physical-layout realization witness evaluation."""
+"""Realization tests, including offline capture fixtures using JITX reverse flow."""
 
 from __future__ import annotations
 
@@ -187,6 +187,122 @@ class VacuousPassTests(unittest.TestCase):
 
 
 class CaptureAdapterTests(unittest.TestCase):
+    def _offset_circuit_checks(
+        self, *, voided: bool, top_level_keepout: bool = False
+    ) -> list[CheckResult]:
+        """Exercise real traversal and reverse-flow decoding without a runtime socket."""
+        import jitx
+        from jitx import Board, Circuit, Design, Pour
+        from jitx._instantiation import instantiation
+        from jitx._translate.reverse_flow.linked import LinkedPour
+        from jitx._translate.reverse_flow.linker import Capture
+        from jitx.feature import KeepOut
+        from jitx.layerindex import LayerSet
+        from jitx.shapes.composites import rectangle
+        from jitxcore._proto.layout_output_pb2 import LayoutPour
+
+        class Filter(Circuit):
+            gnd_island = Pour(rectangle(10, 7), layer=0)
+            keepout = KeepOut(rectangle(2, 2), LayerSet(0), pour=True)
+
+        class Root(Circuit):
+            filter = Filter().at(-11, 5.5)
+
+        class Profile(Board):
+            shape = rectangle(40, 30)
+
+        class OffsetDesign(Design):
+            # Avoid the direct-script runtime launcher in Design.__init_subclass__.
+            __module__ = "realization_fixture"
+            circuit = Root().at(0, 0)
+            board = Profile()
+            substrate = SimpleNamespace(
+                constraints=SimpleNamespace(
+                    min_copper_width=MIN_FEATURE, min_copper_edge_space=0.3
+                )
+            )
+
+        with instantiation.require():
+            root = OffsetDesign()
+            if top_level_keepout:
+                root.circuit.intruder = KeepOut(
+                    rectangle(1, 1).at(-14, 4), LayerSet(0), pour=True
+                )
+        pour_object = root.circuit.filter.gnd_island
+        authored_shape = pour_object.shape
+        trace, _ = realization._unique_visits(root, Pour)[0]
+        self.assertEqual(trace.transform.translation, (-11, 5.5))
+
+        # Synthetic LayoutOutput payload in the same global frame as capture.
+        # Applying the circuit placement twice puts the left edge at -27,
+        # outside the board's -20 edge. The hole tests PolygonSet preservation.
+        proto = LayoutPour(layer=0)
+        polygon = proto.computed_shape.components.add()
+        for x, y in ((-16, 2), (-6, 2), (-6, 9), (-16, 9)):
+            polygon.outer.points.add(x=x, y=y)
+        if voided:
+            hole = polygon.inners.add()
+            for x, y in ((-12, 4.5), (-12, 6.5), (-10, 6.5), (-10, 4.5)):
+                hole.points.add(x=x, y=y)
+
+        def capture():
+            # Use the installed linker branch for an existing authored Pour.
+            with instantiation.require():
+                Capture.apply_pours(
+                    SimpleNamespace(pours=[LinkedPour(proto, pour_object, None)])
+                )
+
+        rd = SimpleNamespace(
+            root=root,
+            capture=capture,
+            layers=lambda: SimpleNamespace(normalize=lambda layer: layer % 2),
+            nets=lambda: SimpleNamespace(
+                find=lambda _obj: SimpleNamespace(name="GND")
+            ),
+            query=lambda _target: [],
+        )
+        runtime = SimpleNamespace(submit=lambda _design: rd)
+        with (
+            patch.object(jitx, "runtime", contextlib.nullcontext(runtime)),
+            patch.object(realization, "_load_design", return_value=OffsetDesign),
+        ):
+            checks = realization._capture_checks(
+                "realization_fixture.OffsetDesign", (), ()
+            )
+        self.assertIsNot(pour_object.shape, authored_shape)
+        return checks
+
+    def test_captured_pour_in_offset_circuit_stays_inside_board(self) -> None:
+        checks = self._offset_circuit_checks(voided=True)
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            status = run_checks(checks)
+        self.assertEqual(status, 0, stdout.getvalue())
+        self.assertEqual(
+            [c.measured for c in checks if c.name == "pour-realization"], [66.0]
+        )
+        self.assertEqual(
+            [c.measured for c in checks if c.name == "pour-keepout"], [0.0]
+        )
+        self.assertEqual(
+            [c.measured for c in checks if c.name == "copper-edge-spacing"], [4.0]
+        )
+
+    def test_offset_keepout_still_rejects_unvoided_pour(self) -> None:
+        checks = self._offset_circuit_checks(voided=False)
+        keepouts = [c for c in checks if c.name == "pour-keepout"]
+        self.assertEqual(len(keepouts), 1)
+        self.assertFalse(keepouts[0].passed)
+        self.assertEqual(keepouts[0].measured, 4.0)
+
+    def test_top_level_keepout_compares_against_global_pour(self) -> None:
+        checks = self._offset_circuit_checks(voided=True, top_level_keepout=True)
+        keepouts = [c for c in checks if c.name == "pour-keepout"]
+        self.assertEqual(len(keepouts), 2)
+        intruder = next(c for c in keepouts if "keepout=circuit.intruder " in c.detail)
+        self.assertFalse(intruder.passed)
+        self.assertEqual(intruder.measured, 1.0)
+
     def test_bottom_side_normalizes_pour_and_keepout_layers(self) -> None:
         class BottomSide:
             def apply(self, layer: int) -> int:

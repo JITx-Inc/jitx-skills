@@ -186,6 +186,10 @@ description says via centres and is being corrected, so trust the measurement
 over the text on any release that still reads that way. An 8 mm square, pitch 2.0, pad 0.45 produced nine
 vias at inset 1.5/1.75 and one at 1.8/1.9/2.1: the drop is 1.775, not 2.0
 (centre) or 1.85 (hole). Plan per-axis counts with
-`2 * floor((size / 2 - inset - pad_diameter / 2) / pitch) + 1`.
-Measure achieved margin from captured centres, boundary, and pad diameter;
-capture provides neither rule-to-group binding nor an inset-satisfied flag.
+`2 * floor((size / 2 - inset - pad_diameter / 2) / pitch) + 1`, which counts
+how many sites fit a region centred on the lattice. Where the grid starts is not
+established: a pour centred at -3.25 on a 1.5 pitch realized vias on whole
+multiples of the pitch, not on its own centre, so a count mismatch on an offset
+region is inconclusive by itself. Measure achieved margin from captured centres,
+boundary, and pad diameter; capture provides neither rule-to-group binding nor an
+inset-satisfied flag.

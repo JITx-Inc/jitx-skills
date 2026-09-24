@@ -150,10 +150,14 @@ every test you write against a simple part. Don't special-case it — always com
 accounts for bottom-side mirroring — don't hand-roll that. Either transform may be
 `None` when the frame couldn't be determined; guard before composing.
 
-Two realized-geometry frames that will also bite you:
+Realized-geometry frames that will also bite you:
 
 - **`Route.Trace.shapes` are already DESIGN-GLOBAL** (verified against export
   output) — do not re-apply the query transform to them.
+- Captured `Pour.shape` is also design-global: reverse-flow `apply_pours` copies
+  `computed_shape` directly. Do not reapply `trace.transform` to its coordinates;
+  an offset circuit would move the pour twice. Keepouts remain owner-local and
+  still need `trace.transform`; the root board shape needs no placement transform.
 - **`ControlPoint.traces` shapes are LOCAL to the control point** — apply the
   query `trace.transform` (it correctly composes nested-circuit placements).
 

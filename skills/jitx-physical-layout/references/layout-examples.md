@@ -25,10 +25,19 @@ raise means change the grid, not skip the check. The substrate supplies
 the soldermask bridge, registration, and copper-edge values. The selected via
 class supplies its pad diameter.
 
-```python
-from jitx import Pad, current
-from jitx.inspect import visit
+Use the project's substrate class in place of `BoardSubstrate`. Call the helper
+inside `PowerAmp.__init__`, after creating `self.landpattern` and before creating
+pad mappings. A module-level generator call is an `Instantiable`: its
+`thermal_pad` is an `InstantiableAttribute`, and `visit` finds no pads. The helper
+needs an instantiated `Landpattern` in the active design/substrate context.
+Reconfiguring the thermal pad rebuilds its objects, so create mappings afterward.
 
+```python
+from jitx import Landpattern, Pad, current
+from jitx.inspect import visit
+from jitx.via import Via
+
+from my_project.substrate import BoardSubstrate
 from my_project.thermal_via_stitch import (
     StitchParams,
     ThermalViaField,
@@ -37,7 +46,7 @@ from my_project.thermal_via_stitch import (
 )
 
 
-class ThermalStitchVia(current.design.substrate.StdViaPreferred):
+class ThermalStitchVia(BoardSubstrate.StdViaPreferred):
     """The substrate's preferred via, declared for use inside a pad.
 
     The library class carries via_in_pad = False; a via inside an exposed pad
@@ -48,41 +57,55 @@ class ThermalStitchVia(current.design.substrate.StdViaPreferred):
 
     via_in_pad = True
 
-# Landpattern side. Read the exposed-pad shape back from the generated
-# landpattern, then replace its standard feature config with the CSG config.
-via_class = ThermalStitchVia
-params = StitchParams.from_substrate(current.design.substrate.constraints, via_class)
-# visit, not query: query opens the substrate context and needs a design root
-ep_pad = next(
-    (pad for _, pad in visit(landpattern, Pad) if pad in landpattern.thermal_pads),
-    None,
-)
-if ep_pad is None:
-    raise ValueError("landpattern has no thermal pad to stitch")
-min_x, min_y, max_x, max_y = ep_pad.shape.to_shapely().g.bounds
-ep_size = (max_x - min_x, max_y - min_y)  # jitx.query landpattern Pad bounds
-positions = grid_thermal_via_positions(
-    ep_size=ep_size,
-    via_grid=(4, 4),  # skill default: 4 columns by 4 rows.
-    edge_margin=params.edge_margin,
-    via_pad_diameter=params.via_pad_diameter,
-)
-config = soldermask_defined_thermal_pad_config(
-    ep_size=ep_size,
-    via_positions=positions,
-    via_pad_diameter=params.via_pad_diameter,
-    min_mask_bridge=params.min_mask_bridge,
-    mask_expansion=params.mask_expansion,
-    fillet_radius=params.fillet_radius,
-)
-landpattern.thermal_pad(shape=ep_pad.shape, config=config)
+def configure_thermal_stitch(
+    landpattern: Landpattern, via_class: type[Via]
+) -> list[tuple[float, float]]:
+    if not isinstance(landpattern, Landpattern):
+        raise TypeError("configure thermal stitching inside Component.__init__")
+    params = StitchParams.from_substrate(current.substrate.constraints, via_class)
+    # visit reads pads from the instantiated landpattern without a design query.
+    ep_pad = next(
+        (pad for _, pad in visit(landpattern, Pad) if pad in landpattern.thermal_pads),
+        None,
+    )
+    if ep_pad is None:
+        raise ValueError("landpattern has no thermal pad to stitch")
+    min_x, min_y, max_x, max_y = ep_pad.shape.to_shapely().g.bounds
+    ep_size = (max_x - min_x, max_y - min_y)
+    positions = grid_thermal_via_positions(
+        ep_size=ep_size,
+        via_grid=(4, 4),  # skill default: 4 columns by 4 rows.
+        edge_margin=params.edge_margin,
+        via_pad_diameter=params.via_pad_diameter,
+    )
+    config = soldermask_defined_thermal_pad_config(
+        ep_size=ep_size,
+        via_positions=positions,
+        via_pad_diameter=params.via_pad_diameter,
+        min_mask_bridge=params.min_mask_bridge,
+        mask_expansion=params.mask_expansion,
+        fillet_radius=params.fillet_radius,
+    )
+    landpattern.thermal_pad(shape=ep_pad.shape, config=config)
+    return positions
+```
 
-# Circuit side. Store the container structurally and use plain net membership.
+Inside `PowerAmp.__init__`, after assigning the generated landpattern:
+
+```python
+self.thermal_via_positions = configure_thermal_stitch(self.landpattern, ThermalStitchVia)
+# Create PadMapping objects now, using the rebuilt self.landpattern.thermal_pads.
+```
+
+Inside the circuit's `__init__`, store the container structurally and join its
+vias to the ground net:
+
+```python
 self.amp = PowerAmp().at(thermal_anchor)
 self.GND += self.amp.EP
 self.thermal_vias = ThermalViaField(
-    positions=positions,
-    via_class=via_class,
+    positions=self.amp.thermal_via_positions,
+    via_class=ThermalStitchVia,
     anchor=thermal_anchor,
 )
 for via in self.thermal_vias.vias:
