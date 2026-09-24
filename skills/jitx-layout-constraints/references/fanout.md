@@ -18,82 +18,10 @@ capture are in
 
 ## The rule ladder
 
-The default board rules are priority zero. A class rule is priority two in
-this example, rung three is reserved for layer-scoped class overrides, and
-each concrete escape tag gets one unary width rule and one binary clearance
-rule at priority four. Required clearance protections use priority five or
-higher, above every permissive rule they must beat (the ladder in
-[the workflow](../SKILL.md#workflow)). The factory chooses the rule class
-from the positional condition count (`jitx/constraints.py:70-111`), unary
-rules expose `trace_width` (`jitx/constraints.py:910-922`), and binary rules
-expose `clearance` (`jitx/constraints.py:1135-1172`).
-
-```python
-from jitx.constraints import IsCopper, IsTrace, Tag, design_constraint
-
-POWER_WIDTH = 0.5  # skill default: 0.5 mm power-class width
-
-class PowerTag(Tag): ...
-class EscapeTag(Tag): ...
-class QfnEscapeTag(EscapeTag): ...
-class BgaEscapeTag(EscapeTag): ...
-class PassiveEscapeTag(EscapeTag): ...
-class Qfn1v8EscapeTag(EscapeTag): ...
-
-# Every width and clearance below comes from the geometry helpers.
-self.rules = [
-    design_constraint(IsTrace & PowerTag(), priority=2).trace_width(POWER_WIDTH),
-    design_constraint(IsTrace & QfnEscapeTag(), priority=4).trace_width(qfn_width),
-    design_constraint(
-        IsCopper & QfnEscapeTag(), IsCopper, priority=4
-    ).clearance(qfn_clearance),
-    design_constraint(IsTrace & BgaEscapeTag(), priority=4).trace_width(bga_width),
-    design_constraint(
-        IsCopper & BgaEscapeTag(), IsCopper, priority=4
-    ).clearance(bga_clearance),
-    design_constraint(IsTrace & PassiveEscapeTag(), priority=4).trace_width(
-        passive_width
-    ),
-    design_constraint(
-        IsCopper & PassiveEscapeTag(), IsCopper, priority=4
-    ).clearance(passive_clearance),
-    design_constraint(IsTrace & Qfn1v8EscapeTag(), priority=4).trace_width(
-        qfn_1v8_width
-    ),
-    design_constraint(
-        IsCopper & Qfn1v8EscapeTag(), IsCopper, priority=4
-    ).clearance(qfn_1v8_clearance),
-]
-```
-
-Every condition above carries an object type tag. A `trace_width` rule whose
-condition is a bare user tag loses to a plain `IsTrace` rule on local
-specificity, and wins here only because its priority outranks the default. Flatten
-the ladder and the bare form silently reverts to the signal width.
-
-The escape clearance is the broad rule in this set, so it is also the one that can
-relax a protection written at a lower priority: it is selected on any copper that
-carries the escape tag, including copper a lower-priority rule was written to keep
-apart, because priority is applied before specificity. Author those protections
-above the escape clearance, then run `clearance_relaxations` to verify the ladder.
-If the escape cannot fit while satisfying a protection, change the geometry or
-report the conflict; do not lower the protection.
-The worked case is "Priority is a ladder, so put what must win at the top",
-under "Avoiding pitfalls" on the
-[Design Constraints page](https://docs.jitx.com/en/latest/essentials/physical_design/design-constraints.html).
-
-Use a package-family tag when every escape in that family has the same derived
-values. If one rail differs, use a concrete rail tag such as
-`Qfn1v8EscapeTag` and its own rule pair. Do not also tag that segment with
-`QfnEscapeTag`, so there is one winning pair of effects.
-
-One generic `EscapeTag` rule hides why a value changed and assumes QFN rows,
-BGA channels, and passive courtyards produce the same result. They do not.
-Specific tags make the package and rail intent readable at the route.
-
-Tag subclasses belong at module scope. Tag assignments and rule objects must
-be structural attributes under the `Design`; lists are traversed. See
-`rule-reference.md`, "Rule classes", for the source-backed mechanics.
+The ladder is in [the workflow](../SKILL.md#workflow), low to high, and
+`jitxexamples.patterns.complete_rules` is it as working code: five named rungs applied
+across a whole rule set, with a test asserting every protection outranks every
+permissive rule.
 
 ## Read placed pad copper once
 
@@ -292,13 +220,8 @@ checks the strict-inside postcondition and stops if the result falls below
 
 ### Worked power escape
 
-`jitxexamples.patterns.qfn_power_fanout` is the worked one, with its checker. It derives the
-escape width from the queried pad geometry rather than a stated number, rounds to 1 nm and
-decrements, and asserts the postcondition that matters: the escape lands strictly inside the
-pad.
-
-Read it rather than a transcription of it. Its docstring carries the measured output and the
-runtime version it was taken on, which a copy here would not keep current.
+`jitxexamples.patterns.qfn_power_fanout` is the worked one, with its
+checker and its measured receipt.
 
 ## BGA, diagonal channel and row depth
 
@@ -446,11 +369,8 @@ escape-width source (`jitx/feature.py:177-194`).
 
 ## Not NeckDown
 
-`RoutingStructure.NeckDown` only supplies parameters for a neckdown region;
-the installed code surface provides no route-side region activator
-(`jitx/si.py:553-575`). Those parameters take effect when a region is
-activated in the UI. A specific escape tag keeps the code-side intent visible
-to readers and rules, so this skill does not use it for package escapes.
+`RoutingStructure.NeckDown` is a substrate definition, not a code-side
+fanout mechanism. Read its docstring before reaching for it.
 
 ## What to check after build
 

@@ -349,13 +349,8 @@ Read these fields from the selected substrate. The class values are examples, no
 
 ## 8. Direct connect
 
-A working demonstration, with its receipt, is
-`jitxexamples.patterns.direct_connect`. It builds both candidates and shows which one
-holds: a higher-priority unary rule with no effect changes nothing about the pour, while a
-fab-floor gap with pad-wide overlapping spokes produces a direct connection.
-
-Read it rather than a description of it. The measured output is in that module's docstring,
-with the runtime version it was taken on.
+`jitxexamples.patterns.direct_connect` builds both candidates and
+shows which holds, with the measured output in its docstring.
 
 ## 9. Power puddle from a pad list
 
