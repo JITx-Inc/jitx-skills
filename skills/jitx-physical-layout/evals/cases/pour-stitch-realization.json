@@ -39,6 +39,5 @@
       "text": "a realization claim names the runtime binary version, not only the installed wheel versions, because the runtime is what computed the geometry",
       "check": "judge"
     }
-  ],
-  "future_cases": "A parameter set where the centre-based and pad-edge readings of SquareViaStitchGrid.inset predict different per-axis counts, which would resolve the contradiction this case can only record."
+  ]
 }

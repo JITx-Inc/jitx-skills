@@ -1,0 +1,37 @@
+{
+  "name": "local-docs-retrieval",
+  "prompt": "My QFN escape clearance is a binary rule at priority 4 with the second condition left broad, and separately I hold my 5 V rail 0.3 mm away from the antenna feed at priority 2. The board builds, and when I measure the finished layout every clearance passes. Is anything wrong with this rule set?",
+  "inputs": {
+    "notes": "This case exists because RETRIEVAL scored 8.5 and 9.0 across two panel runs without any run ever fetching from the documentation. Those scores were earned on in-bundle references, installed jitx source, and module docstrings of packages that happened to be pip-installed on the authoring machine. A reader will not have those packages, so a pointer satisfied by a local install is not evidence the documentation carries the knowledge.\n\nThe case is self-enforcing rather than sandboxed. The answer lives only in the documentation as built: the mechanism, that priority is applied before either form of specificity so a broad rule at a high rung is selected over a narrow protection below it, and the remedy, which is to order the ladder so a protection sits above the permissive rules it guards rather than excluding a tag from the permissive condition. An agent that answers from the bundle, from the live site, or from recall will not produce it, because it is in none of them.",
+    "environment": "The agent is given the path to a local documentation build and is not given an interpreter with jitxexamples or jitxlib installed. Build it with ci/build_retrieval.py in the jitx-doc checkout; llms.txt is the index and each page has a Markdown twin at the same path with a .md extension."
+  },
+  "expected_output": "An answer naming the relaxation, the mechanism that causes it, and the ladder ordering that fixes it, plus a list of sources actually opened with how each was reached and which failed. Reporting that the rule set is fine is the failure this case catches, because the board does build and does measure clean.",
+  "assertions": [
+    {
+      "text": "the answer states that the broad higher-priority rule is selected against the protected pair, so the declared separation is not applied, and says this happens before specificity is consulted",
+      "check": "judge"
+    },
+    {
+      "text": "the remedy given is to order the ladder so the protection outranks the permissive rule, rather than only excluding a tag from the permissive condition, and if exclusion is offered its two traps are named: binary conditions match in both orderings, and excluding a tag withdraws the permissive rule everywhere",
+      "check": "judge"
+    },
+    {
+      "text": "sources are listed with how each was reached, and the documentation is among them; an answer that cites only in-bundle references or recall fails even if it is correct",
+      "check": "judge"
+    },
+    {
+      "text": "a pointer that did not resolve is named as an open item rather than filled in, and an installed package standing in for a documentation page is called out as the substitution it is",
+      "check": "judge"
+    },
+    {
+      "text": "the probe content exists in the local build, so a correct answer could only have come from it",
+      "check": "deterministic",
+      "cmd": "grep -q 'Priority is a ladder' \"$JITX_DOC_BUILD\"/essentials/physical_design/design-constraints.md"
+    },
+    {
+      "text": "the probe's own content is absent from every file an agent under test reads. A skill may name the section it routes to; what it must not contain is the mechanism, so the phrase tested here is one that appears only in the documentation body.",
+      "check": "deterministic",
+      "cmd": "! grep -rq -e 'order the ladder by what must win' skills/*/SKILL.md skills/*/references skills/*/scripts"
+    }
+  ]
+}

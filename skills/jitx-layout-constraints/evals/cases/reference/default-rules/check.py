@@ -7,32 +7,12 @@ The runtime adapter and capture entry point are in
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
 import jitx
-
-
-def _load_layout_checks() -> None:
-    for parent in Path(__file__).resolve().parents:
-        candidates = (
-            parent / "scripts" / "layout_checks.py",
-            parent / "layout_checks.py",
-        )
-        for candidate in candidates:
-            if candidate.is_file():
-                sys.path.insert(0, str(candidate.parent))
-                return
-    raise RuntimeError("could not locate layout_checks.py from the reference tree")
-
-
-_load_layout_checks()
-
-from layout_checks import (  # pyright: ignore[reportMissingImports]
+from jitxlib.verify import (
     CheckResult,
+    check_route_width,
     check_routes,
-    run_checks,
-    trace_widths,
+    report,
 )
 
 try:  # Package import in a scratch project, direct import when run beside design.py.
@@ -51,63 +31,39 @@ except ImportError:
     )
 
 
-def _route_widths(route: object) -> tuple[float, ...]:
-    shapes = []
-    for trace in route.traces or ():  # type: ignore[attr-defined]
-        for shape in trace.shapes:
-            shapes.append(getattr(shape, "geometry", shape))
-    return tuple(sorted(trace_widths(shapes)))
-
-
-def _route_width_result(label: str, route: object, expected: float) -> CheckResult:
-    widths = _route_widths(route)
-    passed = bool(widths) and all(
-        abs(width - expected) <= WIDTH_TOLERANCE for width in widths
-    )
-    return CheckResult(
-        name=f"width-{label}",
-        passed=passed,
-        measured=widths if widths else None,
-        expected=expected,
-        detail=f"tol={WIDTH_TOLERANCE:.4f} mm",
-    )
-
-
 def main() -> int:
     with jitx.runtime as runtime:
         rd = runtime.submit(DefaultRulesDesign)
         rd.capture()
         circuit = rd.root.circuit
         routes = [*circuit.rule_owner.routes, *circuit.sibling.routes]
-        sibling_widths = _route_widths(circuit.sibling.routes[0])
-        board_wide = bool(sibling_widths) and all(
-            abs(width - CHILD_RULE_WIDTH) <= WIDTH_TOLERANCE for width in sibling_widths
+        board_wide = check_route_width(
+            circuit.sibling.routes[0], CHILD_RULE_WIDTH, WIDTH_TOLERANCE
         )
-        child_local = bool(sibling_widths) and all(
-            abs(width - DEFAULT_TRACE_WIDTH) <= WIDTH_TOLERANCE
-            for width in sibling_widths
+        child_local = check_route_width(
+            circuit.sibling.routes[0], DEFAULT_TRACE_WIDTH, WIDTH_TOLERANCE
         )
-        if board_wide:
+        if board_wide.passed:
             outcome = "board-wide"
-        elif child_local:
+        elif child_local.passed:
             outcome = "child-local"
         else:
             outcome = "ambiguous"
         checks = [
             check_routes(routes),
-            _route_width_result(
-                "rule-owner", circuit.rule_owner.routes[0], CHILD_RULE_WIDTH
+            check_route_width(
+                circuit.rule_owner.routes[0], CHILD_RULE_WIDTH, WIDTH_TOLERANCE
             ),
             CheckResult(
                 name="child-rule-scope",
-                passed=board_wide or child_local,
-                measured=sibling_widths if sibling_widths else None,
+                passed=board_wide.passed or child_local.passed,
+                measured=board_wide.measured,
                 expected=None,
-                detail=f"observed={outcome}",
+                detail=f"observed={outcome}; {board_wide.detail}",
             ),
         ]
         print("child-rule scope probe, result classified from captured copper")
-        return run_checks(checks)
+        return report(checks)
 
 
 if __name__ == "__main__":

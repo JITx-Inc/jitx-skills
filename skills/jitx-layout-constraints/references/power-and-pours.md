@@ -26,7 +26,8 @@ from jitx.constraints import IsTrace, Tag, UnaryDesignConstraint
 DEFAULT_PRIORITY = 0  # skill default: board-default priority 0
 POWER_PRIORITY = 1  # skill default: shared power priority 1
 CLASS_PRIORITY = 2  # skill default: rail and class priority 2
-ESCAPE_PRIORITY = 4  # skill default: tagged escape priority 4, above every class rule and override
+ESCAPE_PRIORITY = 4  # skill default: escape priority 4, below required clearance protections
+PROTECTION_PRIORITY = ESCAPE_PRIORITY + 1  # skill default: required clearances above permissive escapes
 
 SIGNAL_WIDTH = 0.15  # Bogatin 2019 tier: 0.15 mm signal width, 1 oz copper
 POWER_WIDTH = 0.5  # Bogatin 2019 tier: 0.5 mm power width, 1 oz copper
@@ -74,6 +75,9 @@ The class width stays on the trunk. A short tagged escape takes `ESCAPE_PRIORITY
 when the landpattern requires it (see `fanout.md`; when the class width fits the
 pad there is no escape rule). Use a tag on a `Route` segment, never
 `RoutingStructure.NeckDown`.
+Required clearances use `PROTECTION_PRIORITY`, including layer-specific fab
+spacing. Keep them above every permissive rule that could match the same copper.
+Order overlapping protections so none can reduce another required minimum.
 
 ## 2. Power as traces
 
@@ -107,7 +111,7 @@ POUR_PULLBACK_MARGIN = 0.11  # skill default: 0.11 mm beyond the fab floor
 power_to_ground_pour = fab.min_copper_copper_space + POUR_PULLBACK_MARGIN  # FabricationConstraints floor plus skill default margin
 self.rules.append(
     BinaryDesignConstraint(
-        PowerTag(), IsPour, priority=CLASS_PRIORITY
+        PowerTag(), IsPour, priority=PROTECTION_PRIORITY
     ).clearance(power_to_ground_pour)
 )
 ```
@@ -153,7 +157,7 @@ VIA_CLEARANCE_MARGIN = 0.11  # skill default: 0.11 mm beyond the fab floor
 power_via_clearance = fab.min_copper_copper_space + VIA_CLEARANCE_MARGIN  # FabricationConstraints floor plus skill default margin
 self.rules.append(
     BinaryDesignConstraint(
-        PowerTag(), IsVia, priority=CLASS_PRIORITY
+        PowerTag(), IsVia, priority=PROTECTION_PRIORITY
     ).clearance(power_via_clearance)
 )
 ```
@@ -193,7 +197,7 @@ SENSE_CLEARANCE_MARGIN = 0.11  # skill default: 0.11 mm beyond the fab floor
 sense_power_clearance = fab.min_copper_copper_space + SENSE_CLEARANCE_MARGIN  # FabricationConstraints floor plus skill default margin
 self.rules.append(
     BinaryDesignConstraint(
-        SenseTag(), PowerTag(), priority=CLASS_PRIORITY
+        SenseTag(), PowerTag(), priority=PROTECTION_PRIORITY
     ).clearance(sense_power_clearance)
 )
 ```
@@ -234,17 +238,17 @@ self.rules.extend(
         BinaryDesignConstraint(
             IsTrace & OnLayer(return_layer),
             IsPour & OnLayer(return_layer),
-            priority=POWER_PRIORITY,
+            priority=PROTECTION_PRIORITY,
         ).clearance(trace_pour_clearance),
         BinaryDesignConstraint(
             IsPour & OnLayer(return_layer),
             IsHole,
-            priority=POWER_PRIORITY,
+            priority=PROTECTION_PRIORITY,
         ).clearance(pour_hole_clearance),
         BinaryDesignConstraint(
             IsPour & OnLayer(return_layer),
             IsThroughHole,
-            priority=CLASS_PRIORITY,
+            priority=PROTECTION_PRIORITY,
         ).clearance(pour_hole_clearance),
     ]
 )
@@ -284,7 +288,7 @@ def heavy_copper_spacing_rules(
         BinaryDesignConstraint(
             IsCopper & OnLayer(index),
             IsCopper,
-            priority=POWER_PRIORITY,
+            priority=PROTECTION_PRIORITY,
         ).clearance(c_heavy)
         for index in layers_over_thickness(threshold_mm)
     ]

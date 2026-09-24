@@ -6,7 +6,7 @@
     "reference": "evals/cases/reference/stitch-via/stitch_via_design.py",
     "environment": "Commands run from the repository root with python3 resolving to the project interpreter that has jitx installed and a reachable runtime; the check script is run once per variant from a project that packages the reference module."
   },
-  "expected_output": "Three designs differing only in how the via class is declared, plus a control with no rule, each built and captured; the check asserts the via count equals the grid count derived from the pour size, pitch, and inset for the three rule variants and zero for the control, and exits nonzero otherwise. NOTES.md records the commands and counts.",
+  "expected_output": "Three designs differing only in how the via class is declared, plus a control with no rule, each built and captured; the check compares the captured counts against the recorded measurements of nine for the rule variants and zero for the control. A separate regression compares the pad-edge count law against the original and discriminating measured rows recorded in the jitxexamples.patterns.stitch_via module docstring, reading pad diameter from the selected via class. Every mismatch exits nonzero.",
   "assertions": [
     {
       "text": "the reference module type-checks against the installed jitx package",
@@ -14,7 +14,12 @@
       "cmd": "python3 -m pyright --pythonpath \"$(command -v python3)\" skills/jitx-layout-constraints/evals/cases/reference/stitch-via/*.py"
     },
     {
-      "text": "each rule variant produces the derived via count and the control produces zero",
+      "text": "the pad-edge law matches recorded measurements, including rows where the center law predicts the wrong count",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-layout-constraints/evals/cases/reference/stitch-via/test_check_stitch_via.py"
+    },
+    {
+      "text": "each rule variant produces the recorded nine vias and the control produces zero",
       "check": "deterministic",
       "cmd": "for v in mixin direct module control; do python3 skills/jitx-layout-constraints/evals/cases/reference/stitch-via/check_stitch_via.py $v || exit 1; done"
     },

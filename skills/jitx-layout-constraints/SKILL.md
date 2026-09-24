@@ -1,6 +1,6 @@
 ---
 name: jitx-layout-constraints
-description: "Use when the user asks to set default trace width or clearance, write design rules, set net-to-net, trace-to-pour, trace-to-hole, or per-layer clearance, size power trace width by net class or current, keep one net's copper away from another, tag nets into classes with their own width and spacing, place and route decoupling capacitors, set pour rules (inner or outer layer, heavy copper, sliver removal, thermal relief, direct connect), express pour stitching as a rule, step a wide power trace down to fit a QFN, BGA, or passive pad (fanout or escape width), verify widths and clearances after build, or find out why a design rule did not apply. Covers Tag, design_constraint, UnaryDesignConstraint, BinaryDesignConstraint, builtin tags, OnLayer, AnyObject, priority, all rule effects, FabricationConstraints floors, the Bogatin power and decoupling habits, and after-build checks. Fab minimums, stackups, vias, and routing-structure definitions belong to jitx-substrate-modeler ('set fabrication rules' means the fab floor; design rules above the floor live here). Drawing copper, diagnosing realized pours or stitch vias, control-point mechanics, and the geometry-verification loop belong to jitx-physical-layout. Topology and timing constraints belong to jitx-interconnect-constraints."
+description: "Use when the user asks to set default trace width or clearance, write design rules, set net-to-net, trace-to-pour, trace-to-hole, or per-layer clearance, size power trace width by net class or current, keep one net's copper away from another, tag nets into classes with their own width and spacing, place decoupling capacitors, set pour rules (layer, heavy copper, sliver removal, thermal relief, direct connect), express pour stitching as a rule, step a wide power trace down to fit a QFN, BGA, or passive pad (fanout or escape width), verify widths and clearances after build, or find out why a rule did not apply. Fab minimums, stackups, vias, and routing-structure definitions belong to jitx-substrate-modeler ('set fabrication rules' means the fab floor). Drawing copper, diagnosing realized pours or stitch vias, control-point mechanics, and the geometry-verification loop belong to jitx-physical-layout. Topology and timing constraints belong to jitx-interconnect-constraints."
 ---
 
 # JITX Layout Constraints
@@ -39,11 +39,9 @@ pour rules, package escapes, decoupling, and checks of applied rules.
 
 Read working designs and their measured receipts in module docstrings:
 `jitxexamples.patterns.default_rules`, `.net_net_clearance`,
-`.qfn_power_fanout`, `.direct_connect`, and `.stitch_via`.
-Use installed `jitxlib.verify` for `rule_width`, `rule_clearance`,
-`rule_coverage`, `clearance_relaxations`, `rule_scope`,
-`thermal_relief_geometry`, `min_clearance`, `centreline_length`,
-`shape_geometry`, `unique_by_specificity`, and `holds_circle`.
+`.qfn_power_fanout`, `.direct_connect`, `.stitch_via`, and `.complete_rules`.
+Use installed `jitxlib.verify` for the checks below. Reference checkers also
+use its `CheckResult`, `check_width`, and `check_clearance`.
 
 ## Workflow
 
@@ -61,9 +59,10 @@ Use installed `jitxlib.verify` for `rule_width`, `rule_clearance`,
 4. Declare tag classes at module scope. Store rules as structural attributes
    beside their objects; follow the rule reference for collection and scope.
    Share common behavior through base tags. Write the priority ladder beside
-   the rules: defaults, power/ground and layer-wide rules, classes,
-   layer-scoped class overrides, escapes. Give competing overrides distinct
-   priorities in that order.
+   the rules, low to high: defaults, power/ground widths, class widths,
+   layer-scoped width overrides, permissive escapes, clearance protections.
+   Give competing overrides distinct priorities. Put each protection above
+   every permissive rule it must beat, including escapes and layer-wide rules.
 5. Apply the relevant power/pour reference. For every pad reached by a
    tagged class width, measure whether width and clearance fit. Keep the
    class rule when they do; otherwise derive the escape width/clearance pair
@@ -84,8 +83,10 @@ Each class names the source that answers it. A value taken from a source that
 answers a different question is an invented number, however real the source.
 
 - Board defaults: derive from the selected substrate rather than copying a
-  value. `jitxexamples.patterns.complete_rules` derives width, clearance and
-  relief from `fab.min_copper_width` and `fab.min_copper_copper_space`.
+  value. `jitxexamples.patterns.complete_rules` derives its thermal spoke width
+  and pour stitch inset from `fab.min_copper_width`, and checks its trace width
+  against that floor rather than deriving it, which is the weaker of the two and
+  is why the floor check is there.
 - Power and ground: the current the rail carries, against the tiers in
   [power and pours](references/power-and-pours.md).
 - Gate drive: the driver datasheet, with default clearance and circuit-owned
@@ -117,18 +118,19 @@ for interactive placement.
 
 After every build, follow the
 [capture loop](../jitx-physical-layout/references/geometry-verification.md).
-Use [layout_checks.py](scripts/layout_checks.py) for the constraint checks;
-it is a library, not the project gate.
+Use `jitxlib.verify` for the constraint checks;
+it is a library, not the project gate. If it is unavailable, name the missing
+installation and leave its checks open; do not substitute a bundled fallback.
 
 - Enumerate expected routes for every override and pass them to `check_routes`.
   Require non-empty traces before width comparisons; a losing override can
   silently leave a route unrealized.
 - Check every realized polyline width against its winning rule with a labeled
-  tolerance. Wider and narrower both fail. Assert a realized escape width
-  against the measured pad widths the rule selects as its own comparison: a
-  tolerance sized like the inset passes a pad-width trace on rounding alone. Use `check_route_width` when a
-  net/layer carries both trunk and escape widths. A polygon without a width
-  field fails; never skip it. A via-to-via route at the via-pad diameter
+  tolerance. Wider and narrower both fail. Use `check_route_width` for mixed
+  trunk/escape widths on one net/layer. For escapes, pass every selected pad's
+  measured width as `pad_widths=`; realized widths must be strictly smaller
+  than every selected pad, independently of tolerance. Empty pad selections
+  and shapes without width fields fail. A via-to-via route at the via-pad diameter
   fails if it misses the rule: use pad-to-point routing or a matching via pad.
 - Measure minimum copper distance between the two nets on the relevant
   layer; require at least the binary clearance. Authored routes need these
@@ -142,13 +144,19 @@ it is a library, not the project gate.
   relaxes a specific rule below it while the build still reports `status: ok`
   and the geometry still measures clean. Run `rule_scope(rd)` to catch a rule
   declared away from the objects it governs.
-- For trace-to-pour clearance, thermal relief, and sliver removal, follow
+- Measure thermal relief with `thermal_relief_geometry`, which compares a
+  complete, isolated relief's copper against the declared gap, spoke width and
+  count. It cannot certify a relief clipped by a pour edge, choose the governing
+  rule, establish net membership, or prove capture freshness.
+- Use `stitch_via_count` for square stitch grids, following its docstring's
+  input requirements and limits; physical layout owns capture and pour selection.
+- For trace-to-pour clearance and sliver removal, follow
   [pour realization semantics](../jitx-physical-layout/SKILL.md#pour-realization-semantics).
   Report each as unverified from `rd.query`, with its reason; fabrication
   export cannot close those items.
 
 Run the project's check script, for example `python3 -m <project>.check`,
-ending it with `raise SystemExit(run_checks([...]))`. Output must show
+ending it with `raise SystemExit(report([...]))`. Output must show
 nonzero checks, zero failures, route counts, measured/expected values, and
 rule coverage; exit 0 is required for measured completion. Empty checks,
 unrealized routes, wrong widths/clearances, or unwitnessed rules fail.

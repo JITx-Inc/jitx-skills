@@ -90,11 +90,14 @@ have two traces, polarity/net membership correct, bounds and clearances measured
 Use the [geometry loop](references/geometry-verification.md), including EDB/HFSS
 presence checks when exporting there.
 
-For pours, keepouts, stitching, and edge spacing, copy
-[scripts/check_realization.py](scripts/check_realization.py) into the project and run:
+Use `jitxlib.verify` for the checks it owns. If it is unavailable, name the
+missing installation and leave those checks open; do not substitute a bundled
+fallback. For pour, keepout, and edge checks it does not yet cover, run the
+bundled [realization checker](scripts/check_realization.py) from the project,
+using the resolved skill directory:
 
 ```bash
-python scripts/check_realization.py my_project.designs.Design \
+python "<skill-directory>/scripts/check_realization.py" my_project.designs.Design \
   --stitch-target circuit.thermal_ground \
   --board-wide-pour circuit.ground_return
 ```
@@ -104,6 +107,11 @@ exit 0 and witness paths for authored pours, selected stitch targets, and
 board-wide spacing. Exit 1 means failed checks; exit 2 means missing capture or
 unreadable evidence. Record the exact command and checked names in task/Phase 4
 Physical realization rows; missing commands or nonzero exits block completion.
+
+For square stitch grids, also use `jitxlib.verify.stitch_via_count` to check
+counts, sites, keepout exclusions, and coverage by every intended pour. Its
+docstring owns input requirements and limits; read it before selecting captured
+geometry. The bundled checker's stitch-presence check does not establish these.
 
 Use the production substrate, passive-query defaults, and board rules in any
 `SampleDesign` harness. The checker cannot validate that equivalence or placement
@@ -173,8 +181,9 @@ and check against `min_copper_edge_space`.
 
 Stitch rules require a `Pour`, not `Pad`/`Copper`/`IsPad`; create a tagged,
 net-connected pour from thermal-pad geometry when using those rules.
-On 4.4.0, `SquareViaStitchGrid.inset` measures to the via pad edge, contradicting
-the centre-based docstring. An 8 mm square, pitch 2.0, pad 0.45 produced nine
+On 4.4.0, `SquareViaStitchGrid.inset` measures to the via pad edge. The field
+description says via centres and is being corrected, so trust the measurement
+over the text on any release that still reads that way. An 8 mm square, pitch 2.0, pad 0.45 produced nine
 vias at inset 1.5/1.75 and one at 1.8/1.9/2.1: the drop is 1.775, not 2.0
 (centre) or 1.85 (hole). Plan per-axis counts with
 `2 * floor((size / 2 - inset - pad_diameter / 2) / pitch) + 1`.

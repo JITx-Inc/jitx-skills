@@ -3,7 +3,7 @@
   "prompt": "Use the checkers this skill points at to verify my board after the build.",
   "inputs": {
     "notes": "This case exists because the skill routes to owners instead of carrying their knowledge. A pointer that does not resolve is the failure mode that routing creates and that a word count cannot detect. This skill names jitxlib.verify, its own references, installed jitx source, and the si_bga_optimization demos.",
-    "environment": "Commands run from the repository root. The deterministic assertion needs an interpreter that has the product installed, passed with --python, because a pointer's reachability is a property of the environment and not of the text."
+    "environment": "Commands run from the repository root. The reachability assertion needs an interpreter that has the product and jitxlib-verify installed, passed with --python, because a pointer's reachability is a property of the environment and not of the text. The missing-source regression uses isolated module fixtures and needs no product installation."
   },
   "expected_output": "Either the work completed using what the pointer supplies, or an explicit report naming the unreachable source, what was needed from it, and whether the work stopped or continued under a stated assumption. Content presented as fetched when the fetch failed is the failure this case catches, and it is indistinguishable from success on every other assertion, which is why the assertion is here rather than folded into another case.",
   "assertions": [
@@ -13,9 +13,9 @@
       "cmd": "python3 scripts/check_doc_links.py --python \"$JITX_PYTHON\""
     },
     {
-      "text": "the skill's in-bundle fallback script is still present, because a pointer to an external owner is not a licence to remove the thing it replaced until that owner ships",
+      "text": "an unreachable module is named in a finding and makes the link checker fail; the published verification owner supplies the checks, and a missing installation must be reported",
       "check": "deterministic",
-      "cmd": "test -f skills/jitx-physical-layout/scripts/check_realization.py"
+      "cmd": "python3 scripts/test_check_doc_links.py ModuleImportTests.test_unresolvable_pointer_is_a_finding ModuleImportTests.test_cli_defaults_to_checking_module_imports"
     },
     {
       "text": "an unreachable source is named in the output, with what was needed from it, rather than its contents being reconstructed from memory and presented as read",

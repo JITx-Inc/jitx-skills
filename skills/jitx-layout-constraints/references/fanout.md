@@ -2,8 +2,9 @@
 
 Use this reference when a net-class width reaches a package whose pad or
 channel cannot accept it. Keep the class rule. Split the physical path at a
-control point, tag only the short escape segment, and let a higher-priority
-package rule set that segment's width and clearance.
+control point, tag only the short escape segment, and let a package rule above
+the class width set that segment's width. Keep required clearance protections
+above any permissive package clearance.
 
 This page owns the package geometry derivation. The complete rule surface is
 in `rule-reference.md`.
@@ -20,13 +21,15 @@ capture are in
 The default board rules are priority zero. A class rule is priority two in
 this example, rung three is reserved for layer-scoped class overrides, and
 each concrete escape tag gets one unary width rule and one binary clearance
-rule at priority four (the ladder in `SKILL.md`, "Priority"). The factory chooses the rule class
+rule at priority four. Required clearance protections use priority five or
+higher, above every permissive rule they must beat (the ladder in
+[the workflow](../SKILL.md#workflow)). The factory chooses the rule class
 from the positional condition count (`jitx/constraints.py:70-111`), unary
 rules expose `trace_width` (`jitx/constraints.py:910-922`), and binary rules
 expose `clearance` (`jitx/constraints.py:1135-1172`).
 
 ```python
-from jitx.constraints import AnyObject, Tag, design_constraint
+from jitx.constraints import IsCopper, IsTrace, Tag, design_constraint
 
 POWER_WIDTH = 0.5  # skill default: 0.5 mm power-class width
 
@@ -71,10 +74,13 @@ the ladder and the bare form silently reverts to the signal width.
 The escape clearance is the broad rule in this set, so it is also the one that can
 relax a protection written at a lower priority: it is selected on any copper that
 carries the escape tag, including copper a lower-priority rule was written to keep
-apart, because priority is applied before specificity. Run `clearance_relaxations`
-before relying on it. The worked case is under "Avoiding pitfalls" on the
-[Design Constraints page](https://docs.jitx.com/en/latest/essentials/physical_design/design-constraints.html),
-in a section not yet published at the time of writing.
+apart, because priority is applied before specificity. Author those protections
+above the escape clearance, then run `clearance_relaxations` to verify the ladder.
+If the escape cannot fit while satisfying a protection, change the geometry or
+report the conflict; do not lower the protection.
+The worked case is "Priority is a ladder, so put what must win at the top",
+under "Avoiding pitfalls" on the
+[Design Constraints page](https://docs.jitx.com/en/latest/essentials/physical_design/design-constraints.html).
 
 Use a package-family tag when every escape in that family has the same derived
 values. If one rail differs, use a concrete rail tag such as
