@@ -25,9 +25,12 @@ routes, and captured-geometry verification. Start environment setup with
    project's package directory with `rg -n 'class NAME|def NAME' PACKAGE_DIR`;
    confirm the definition, then run `pyright` below.
 2. Choose the relevant owner:
-   - [Geometry verification](references/geometry-verification.md): construction
-     and placement prerequisites, capture, coordinate frames, query versus visit,
-     net lookup, captured pours, and export-presence checks.
+   - Installed `jitx.run.runtime.RuntimeDesign`, `jitx.query`, and `jitx.inspect`:
+     capture, query versus visit, and net lookup; the
+     [realization checker](scripts/check_realization.py) demonstrates the loop.
+     `jitxlib.verify.geometry` owns shape conversion and its frame/void traps;
+     [geometry evidence](references/geometry-verification.md) retains observations
+     without a code owner.
    - [Control points](references/control-points.md): `Route`, binding, chirality,
      ownership, and deskew routing.
    - `jitxexamples.demos.si_bga_optimization`: `deskew.py` owns arc-polyline
@@ -36,8 +39,8 @@ routes, and captured-geometry verification. Start environment setup with
      pours; `si_geometry.py` owns keepout/antipad geometry. Check these against
      installed APIs and the control-point reference before reuse.
    - `jitxlib.landpatterns.pads`: `SMDPadConfig`, `ThermalPadGeneratorMixin`,
-     `WindowSubdivide` own pad-feature generation. [Layout examples](references/layout-examples.md)
-     cover custom-pad mask/paste, thermal-pad CSG, and antennas.
+     `WindowSubdivide` own pad-feature generation. [Example owners](references/layout-examples.md)
+     route thermal-pad CSG, custom-pad mask/paste, and the pending antenna example.
    - `jitxlib.verify`: reuse `shape_geometry`, `unique_by_specificity`,
      `min_clearance`, `holds_circle`, `centreline_length`, and rule readers.
 3. Store vias, copper, routes, and keepouts structurally on the circuit before
@@ -48,10 +51,11 @@ routes, and captured-geometry verification. Start environment setup with
    for placement relative to another instance; installed `jitx.circuit.Circuit`
    owns the deferred-placement and force-floating semantics. Pin geometry-dependent anchors
    with `.at(0, 0)` in the geometry's frame. Let other reusable-circuit components
-   use solver/interactive placement instead of nominal-package offsets. Follow
-   the geometry reference for composed coordinates and stored floating placements.
+   use solver/interactive placement instead of nominal-package offsets.
+   Record explicit subsystem positions or confirmed stored interactive placements
+   before interpreting capture.
    Put board-wide pours at the top level; keep local pours/keepouts inside the
-   circuit they must follow, as demonstrated in the antenna example.
+   circuit they must follow.
 5. Write capture assertions before iterating; build sequentially per design.
    Follow [architectural patterns](../jitx/references/architectural-patterns.md)
    for structural collections, then run [jitx-code-review](../jitx-code-review/SKILL.md)
@@ -59,9 +63,10 @@ routes, and captured-geometry verification. Start environment setup with
 
 ## Pour realization semantics
 
-Read [geometry verification](references/geometry-verification.md) for deferred
-construction, floating-circuit failures, capture overwriting authored shapes,
-`Empty()`, and hole-preserving conversion. Apply the
+Read the [construction and placement observations](references/geometry-verification.md#construction-and-placement)
+before diagnosing missing geometry. For capture overwrites, `Empty()`, and
+hole-preserving conversion, read the realization checker and `jitxlib.verify.geometry`.
+Apply the
 [remaining runtime observations](#pour-and-stitch-runtime-observations), then run
 [verification](#verification); build success and emitted-via counts cannot prove
 realized pour area.
@@ -87,8 +92,13 @@ python -m my_project.checks
 Require no type errors and capture assertions reporting `[PASS]/[FAIL]`, with
 nonzero exit on failure: every route/control point realized, coupled trunks
 have two traces, polarity/net membership correct, bounds and clearances measured.
-Use the [geometry loop](references/geometry-verification.md), including EDB/HFSS
-presence checks when exporting there.
+For EDB/HFSS exports, reopen `.aedb` read-only and assert copper/via presence:
+netless copper uses `<NO-NET>`, primitive bboxes are in meters, and vias are
+`layout.padstack_instances`. Objects reachable only through `Net` or
+`PortAttachment` can disappear from EDB; structural storage is required.
+For direct Python export, follow installed `jitx/_cli/design/export.py::_run_export`
+for the disposable instantiation frame and design/substrate contexts; omitting
+the active frame raises "Structure not active".
 
 Use `jitxlib.verify` for the checks it owns. If it is unavailable, name the
 missing installation and leave those checks open; do not substitute a bundled
@@ -119,8 +129,10 @@ provenance; record mismatches and withhold shipping-board claims. Report trace-t
 and sliver removal individually as unwitnessed by this checker. Fabrication
 exports do not close those checks.
 
-The [thermal-via helper](scripts/thermal_via_stitch.py) has no built reference
-design yet: verify mask/paste openings in fabrication output on first use;
+Configure thermal pads inside `Component.__init__`, after assigning the
+landpattern and before creating mappings. For the
+[thermal-via helper](scripts/thermal_via_stitch.py), verify mask/paste openings
+in fabrication output on first use;
 `ValueError` means revise the grid, never bypass validation.
 
 ## Knowledge without a complete owner

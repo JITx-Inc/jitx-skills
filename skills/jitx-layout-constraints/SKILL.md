@@ -111,13 +111,13 @@ pins and capacitors over capacitor count or values. Place capacitors close
 as the package permits, with a via at each capacitor pad to the return layer
 and short, wide connections. The datasheet decides count, value, and package.
 Give headless decoupling blocks explicit positions; follow
-[placement prerequisites](../jitx-physical-layout/references/geometry-verification.md#placement-state-is-a-prerequisite)
+[placement sequencing](../jitx-physical-layout/SKILL.md#workflow-and-owners)
 for interactive placement.
 
 ## Verification
 
 After every build, follow the
-[capture loop](../jitx-physical-layout/references/geometry-verification.md).
+[physical-layout verification](../jitx-physical-layout/SKILL.md#verification).
 Use `jitxlib.verify` for the constraint checks;
 it is a library, not the project gate. If it is unavailable, name the missing
 installation and leave its checks open; do not substitute a bundled fallback.
