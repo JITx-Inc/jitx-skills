@@ -94,7 +94,7 @@ def main() -> int:
         raise AssertionError(
             f"queried {len(queried_vias)} owned vias, expected {len(owned_vias)}"
         )
-    nets = rd.nets()
+    nets = rd.nets
     for via in queried_vias:
         if any(via is owned for owned in bank.power_vias):
             index = next(i for i, owned in enumerate(bank.power_vias) if via is owned)

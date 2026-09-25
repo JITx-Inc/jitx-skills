@@ -117,13 +117,13 @@ def _collect_copper(rd: Any, net: str, layer: int) -> list[_CopperSample]:
             "captured layout checks require the jitx package used to build the design"
         ) from exc
 
-    normalized_layer = rd.layers().normalize(layer)
-    net_index = rd.nets()
+    normalized_layer = rd.layers.normalize(layer)
+    net_index = rd.nets
     samples: list[_CopperSample] = []
     for trace, copper in rd.query(Copper):
         if isinstance(copper, Pour):
             continue
-        if rd.layers().normalize(copper.layer) != normalized_layer:
+        if rd.layers.normalize(copper.layer) != normalized_layer:
             continue
         runtime_net = net_index.find(copper)
         if runtime_net is None or runtime_net.name != net:
