@@ -34,8 +34,7 @@
 - [ ] Unused op-amp sections: non-inverting input to mid-rail, output left open
 
 ### Decoupling — CRITICAL (commonly missed)
-- [ ] 100nF bypass cap on EVERY power pin of EVERY active IC in the circuit
-- [ ] Bulk capacitor (10uF) per power domain
+- [ ] Decoupling per the datasheet and any PDN requirement where they specify values and placement; otherwise the fewest, largest MLCCs in the smallest package rated at least 2x the rail, one per group of power pins, connected with the lowest loop inductance (Bogatin; see `jitx-layout-constraints` Decoupling). No per-pin 10uF / 1uF / 100nF stack unless the datasheet asks for it
 - [ ] **Every power-rail cap `.insert(...)` uses `short_trace=True`** — decoupling, bypass, bulk, output filter. Exceptions (AC coupling, RC time constants, RF, crystal load) are dispositioned in the task acceptance block. Gated at Phase 2 → 3.
 - [ ] Ferrite bead or filter on analog supply pins if mixed-signal
 

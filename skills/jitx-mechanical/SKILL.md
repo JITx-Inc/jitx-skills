@@ -1,6 +1,6 @@
 ---
 name: jitx-mechanical
-description: "Mechanical CAD interface for JITX designs. Use when the user asks to import DXF, EMN, IDF, IDX, or BDF mechanical data; set a board outline from mechanical CAD; export a JITX board to DXF; attach STEP models; or work with mechanical CAD data. Also covers how to export a full board STEP (UI-only in py-jitx 4.2.x — there is no CLI)."
+description: "Mechanical CAD interface for JITX designs. Use when the user asks to import DXF, EMN, IDF, IDX, or BDF mechanical data; set a board outline from mechanical CAD; export a JITX board to DXF; attach STEP models; or work with mechanical CAD data. Also covers how to export a full board STEP, which on 4.4 has a CLI (`jitx design export legacy-step`) as well as the application UI."
 ---
 
 # JITX Mechanical Interface Skill
@@ -34,7 +34,7 @@ Do not suggest the retired per-format commands or packages. Use
 | Generate a Board-focused JITX Python module from mechanical data | `jitx-mechanical import` |
 | Export JITX XML board data to DXF | `jitx-mechanical export-dxf` |
 | Attach a STEP/STP model to a component | `jitx.model3d.Model3D` |
-| Export a complete board assembly STEP | JITX application UI (no CLI in 4.2.x) |
+| Export a complete board assembly STEP | `jitx design export legacy-step <DESIGN>`, or the JITX application UI |
 
 ## Before Importing Holes
 
@@ -310,10 +310,22 @@ landpattern object when that is the lighter change.
 
 ## Board STEP Export
 
-Full board STEP export is done through the JITX application UI after the design
-builds successfully and the 3D view is available. Neither py-jitx 4.2.x nor
-`jitx-mechanical` exposes a CLI for board STEP export — do not invent one (the
-Stanza-era `export-step()` does not exist in the Python runtime).
+Full board STEP export has a CLI on 4.4:
+
+```bash
+jitx design export legacy-step <module.path.Design>
+```
+
+It is one of the `jitx design export legacy-*` family (`legacy-kicad`,
+`legacy-altium`, `legacy-edx`, `legacy-odb++`, `legacy-step`, `legacy-xml`),
+served by the `legacy` export plugin that ships with `jitx`. Run
+`jitx design export --help` on your install to see what is actually registered
+rather than trusting this list. The application UI still does it too, after the
+design builds and the 3D view is available.
+
+`jitx-mechanical` does **not** expose board STEP export — it owns DXF/EMN/IDF/IDX
+import and DXF export. And the Stanza-era `export-step()` does not exist in the
+Python runtime, so don't reach for that name.
 
 Checklist before exporting:
 

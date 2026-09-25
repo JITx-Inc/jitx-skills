@@ -1,0 +1,43 @@
+{
+  "name": "usb-hub-escapes",
+  "prompt": "USB-C in, four USB 2.0 ports out, RP2040 doing the control side. JLCPCB four layer. The differential pairs need to stay matched and I want the escapes out of the RP2040 done in code so I can regenerate them when the pinout moves.",
+  "inputs": {
+    "parts": "jitxexamples.components.mcus.raspberry_pi_RP2040 for the controller. Use a real USB-C receptacle and downstream connectors from jitxexamples.components.connectors where one fits, or a clearly labelled placeholder with its pad geometry stated.",
+    "substrate": "a JLCPCB 4-layer stackup",
+    "notes": "The brief gives no geometry and no rule list on purpose. Pad pitch, escape width, channel width and pair spacing all have to come from queried landpattern copper, a fabrication row, or a routing structure, and the source has to answer the question it is used for.",
+    "environment": "Commands run from the repository root with an interpreter that has jitx installed and a reachable runtime."
+  },
+  "expected_output": "Layout code that authors the escapes and the pair routing through control points rather than by hand, a design that builds, and checks that read the captured design back. Differential legs must be shown to have kept their polarity and their pairing, not merely to exist.",
+  "assertions": [
+    {
+      "text": "escapes are authored with control points rather than as free routes, with the transition split at a RoutePoint and the tag carried on the segment rather than on the net",
+      "check": "judge"
+    },
+    {
+      "text": "each differential pair realizes two traces, and each leg is resolved to its own net so polarity is established rather than assumed from drawing order",
+      "check": "judge"
+    },
+    {
+      "text": "the circuit that owns each route is the common ancestor of its endpoints, and a route whose endpoints sit in sibling circuits is placed accordingly rather than on whichever circuit was convenient",
+      "check": "judge"
+    },
+    {
+      "text": "every declared rule is witnessed by a check, reported through rule_coverage with unwitnessed rules named rather than passed over",
+      "check": "judge"
+    },
+    {
+      "text": "clearance_relaxations is run and reports no relaxation, or names the relaxation and how it was resolved",
+      "check": "judge"
+    },
+    {
+      "text": "no check passes on an empty selection: a gate that measured nothing fails",
+      "check": "judge"
+    },
+    {
+      "text": "the checker library the skill routes to is importable in the environment used",
+      "check": "deterministic",
+      "cmd": "python3 -c \"import jitxlib.verify\""
+    }
+  ],
+  "future_cases": "A pinout change re-run, to establish that regenerating the escapes from code actually survives the pins moving, which is the reason the engineer asked for code in the first place."
+}

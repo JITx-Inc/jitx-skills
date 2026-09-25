@@ -1,0 +1,41 @@
+{
+  "name": "rail-steps-down-twice",
+  "prompt": "A 3.3 V rail carries 2 A from a buck to a QFN-32 and to two 0402 bypass capacitors. The QFN pads are 0.36 mm across on a 0.65 mm pitch and it has an exposed thermal pad. There is a ground pour on the same layer with a keepout under the antenna. Fab is JLCPCB standard. Write the rules, the routes and the tags, build it, and prove the rules applied.",
+  "inputs": {
+    "substrate": "jitxlib.jlcpcb.JLC04161H_7628",
+    "notes": "Composition, not a single rule. The five older cases each isolate one behaviour and every one of them would pass against an agent that cannot compose a rule set. Here the rail wants a class width neither the QFN pad nor the 0402 terminal can accept, so two different step-down rungs are needed; the pour wants its own clearance, deliberately above trace-to-trace; and the thermal pad wants relief or direct connect. Those rules contend, and resolving them is the skill.",
+    "environment": "Commands run from the repository root with an interpreter that has jitx and jitxlib.verify installed and a reachable runtime."
+  },
+  "expected_output": "A rule set, layout code carrying routes and tags, and checks, all three. The design builds and the checks assert on the captured design rather than on the authored input.",
+  "assertions": [
+    {
+      "text": "every declared rule is witnessed by a check the agent wrote, reported through rule_coverage with the unwitnessed count named",
+      "check": "judge"
+    },
+    {
+      "text": "the trunk realizes at the class width, and each escape realizes strictly inside its own narrowest selected pad, asserted against the measured pad width directly and not only through a width tolerance",
+      "check": "judge"
+    },
+    {
+      "text": "the two step-down rungs are distinct, because the QFN pad and the 0402 terminal do not accept the same escape width, and each outranks the class rule while losing to the pad-connection rule",
+      "check": "judge"
+    },
+    {
+      "text": "clearance_relaxations is run and reports no rule relaxed, or names the relaxation and how it was resolved",
+      "check": "judge"
+    },
+    {
+      "text": "the pour realizes with positive area and respects the keepout, measured rather than inferred from build status",
+      "check": "judge"
+    },
+    {
+      "text": "no check passes on an empty selection: a gate that measured nothing fails",
+      "check": "judge"
+    },
+    {
+      "text": "the checker library the skill routes to is importable in the environment used",
+      "check": "deterministic",
+      "cmd": "python3 -c \"import jitxlib.verify\""
+    }
+  ]
+}

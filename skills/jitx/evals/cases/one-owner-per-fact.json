@@ -1,0 +1,31 @@
+{
+  "name": "one-owner-per-fact",
+  "prompt": "Same board as phase0-doc-economy. After Phase 0, revise the 3.3V rail's load current and change the USB pair's routing structure.",
+  "expected_output": "Exactly one edit site per fact. The rail current changes only in ARCHITECTURE.md's Power Tree; the routing structure changes only in the Interface Map. PLAN.md's Requirements Lock points at those sections rather than carrying its own copy, so no second edit is needed and no drift is possible.",
+  "assertions": [
+    {
+      "text": "regression case for the observed drift: a real board's PLAN.md and ARCHITECTURE.md each carried a power tree and the two revisions diverged. The plan template must point at ARCHITECTURE.md rather than restate it.",
+      "check": "deterministic",
+      "cmd": "grep -q 'Never write a value a table already owns' skills/jitx/references/plan-template.md"
+    },
+    {
+      "text": "the Requirements Lock is a provenance ledger, not a value table: each row names who settled the item and points at the owner where a table holds the realization. This supersedes two earlier shapes, a bare 'locked, see ARCHITECTURE.md' that asserted nothing about who decided and was met by any self-consistent design, and a verbatim quote of the request that reproduced dimensions, layer count, impedances and fab house that ARCHITECTURE.md owns.",
+      "check": "deterministic",
+      "cmd": "grep -q 'Each row records \\*\\*who settled the item\\*\\*' skills/jitx/references/plan-template.md && grep -q '| Item | Source | Where it lives |' skills/jitx/references/plan-template.md"
+    },
+    {
+      "text": "impedance targets are named by routing structure, since a predefined substrate class already defines the ohms",
+      "check": "deterministic",
+      "cmd": "grep -q 'Name the routing structure rather than the ohms' skills/jitx/references/architecture-template.md"
+    },
+    {
+      "text": "no fact appears with conflicting values across the two produced documents",
+      "check": "judge"
+    },
+    {
+      "text": "a design fact a datasheet settles is an open question, never an assumption. Guards the affordance added for genuinely unstated requirements from absorbing values nobody has looked up.",
+      "check": "deterministic",
+      "cmd": "grep -q 'never an assumption' skills/jitx/references/plan-template.md"
+    }
+  ]
+}

@@ -613,7 +613,7 @@ pyright path/to/circuit.py
 jitx build <module.path.DesignClass>
 ```
 
-Don't run parallel JITX builds against the same project — sequence them. See `jitx/SKILL.md` "Build Safety".
+Don't run parallel JITX builds against the same project — sequence them. See [Build Safety — Don't Parallelize Same-Design Work](../jitx/SKILL.md#build-safety--dont-parallelize-same-design-work).
 
 Pin assignment errors appear as "Unsatisfiable pin assignment" in the Issues List. Constraint violations appear under "Unsatisfied Signal Constraints".
 

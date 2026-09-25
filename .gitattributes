@@ -1,0 +1,6 @@
+# Vendor pinout fixtures are committed byte-for-byte, CRLF included, because the
+# CRLF is part of what the eval case exercises: a raw-byte hash of a real vendor
+# file differs from a hash of its newline-normalized text, and the skill tells
+# agents to record the former. Without this, git normalizes the endings on
+# checkout and `git diff --check` reports trailing whitespace on every line.
+skills/*/evals/cases/fixtures/*.txt -text -whitespace

@@ -7,9 +7,9 @@ description: "Same-model self-critique pass for JITX Python code just written in
 
 Task-level architectural self-review for JITX Python code just written in the current workspace. The reviewer agent reads the code with a checklist-bound, evidence-anchored framing — different from the framing under which the code was written — which is what catches what the in-session author rationalized as fine.
 
-This skill is the *per-task same-model pre-pass* in the Think Twice flow (see `jitx/references/task-execution.md` Part A Step 4 and `jitx/references/outside-voice-review.md` "Same-model passes precede codex"). It catches architectural and code-craft smells (string-hacking, parallel models, naming hygiene). Codex outside-voice — which runs only for trigger-list task classes (MCU/FPGA, RF, power, safety, high-speed digital, battery) — catches the JITX-engineering-domain issues (datasheet-vs-code, impedance/return-path, voltage-divider math).
+This skill is the *per-task same-model pre-pass* in the Think Twice flow (see `jitx/references/task-execution.md` Part A Step 4 and [Same-model passes precede codex (two distinct pre-passes, two distinct scopes)](../jitx/references/outside-voice-review.md#same-model-passes-precede-codex-two-distinct-pre-passes-two-distinct-scopes)). It catches architectural and code-craft smells (string-hacking, parallel models, naming hygiene). Codex outside-voice — which runs only for trigger-list task classes (MCU/FPGA, RF, power, safety, high-speed digital, battery) — catches the JITX-engineering-domain issues (datasheet-vs-code, impedance/return-path, voltage-divider math).
 
-Phase 3b's same-model pre-pass is the **four-pass design audit** (not this skill) — see `jitx/references/completion-blocks.md` "Phase 3b Design Audit Block". By the time Phase 3b runs, every Phase 1/2/3 task has already passed its per-task `jitx-code-review` and the findings live in the task acceptance blocks.
+Phase 3b's same-model pre-pass is the **four-pass design audit** (not this skill) — see [Phase 3b Design Audit Block (complete-board only)](../jitx/references/completion-blocks.md#phase-3b-design-audit-block-complete-board-only). By the time Phase 3b runs, every Phase 1/2/3 task has already passed its per-task `jitx-code-review` and the findings live in the task acceptance blocks.
 
 ## When this skill runs
 
@@ -35,22 +35,22 @@ The review is **evidence-anchored**: every finding cites `file:line` and quotes 
 2. **Read the rule sources** above. The point of reading them in-skill is so the reviewer cites verbatim — not paraphrases.
 3. **Walk the pattern checklist** (`references/checklist.md`). For each pattern, look for instances; for each instance, capture severity and citation.
 4. **Apply the architectural pass** (`jitx/references/architectural-patterns.md`). The dominant failure modes are encoded there as worked counter-examples (Bad/Good + rationale); check each one against the code under review.
-5. **Apply the ownership test to every banned-pattern hit or proposed exception** (see "Ownership test" below). The pattern checklist names patterns; the ownership test catches the framework-boundary-bypass failure where the AI rationalizes a banned pattern as "OK because the framework does it."
+5. **Apply the ownership test to every banned-pattern hit or proposed exception** — the five questions in `jitx/references/architectural-patterns.md` § 9 → [Ownership test](../jitx/references/architectural-patterns.md#ownership-test-apply-to-every-banned-pattern-hit-or-proposed-exception), already loaded at step 4. The pattern checklist names patterns; the ownership test catches the framework-boundary-bypass failure where the AI rationalizes a banned pattern as "OK because the framework does it."
 6. **Emit the findings block** in the format below.
 7. **Hand back to the caller** (orchestrator in Think Twice, or user for single-task). The orchestrator folds findings into the task acceptance block; the user decides whether to fix or accept-with-rationale.
 
 The skill does **not** modify code. Findings → caller → fix decision → next iteration.
 
-## Ownership test (mandatory for every banned-pattern hit or proposed exception)
+## Ownership test — when it gates acceptance
 
-When the code uses a banned pattern (`getattr`, `type(...)`, `_protected_method()`, etc.), or when the agent/author proposes a carve-out ("this `getattr` is OK because…", "this is the boundary call into the framework…"), the reviewer must answer four questions before accepting the carve-out:
+The test itself is doctrine, not review procedure: the five questions live in `jitx/references/architectural-patterns.md` § 9 → [Ownership test](../jitx/references/architectural-patterns.md#ownership-test-apply-to-every-banned-pattern-hit-or-proposed-exception), which step 4 has already loaded.
 
-1. **What object owns the invariant** the code is navigating? (A numbering scheme, a layer-to-via map, a protocol pin assignment, etc.)
-2. **Is this code inside that object's class or a subclass of it?** If yes, the same-class exception applies and the pattern is legitimately allowed (carve-out is real). If no, see step 3.
-3. **Is the caller using a public method on the owning object?** If yes, that's the right shape — no banned-pattern use needed. If no, see step 4.
-4. **If no public method exists, can a subclass adapter expose one?** If yes, that's the fix — add a public method on the subclass that delegates to the framework's protected method (the "method calling another method on the same class" carve-out of the no-leading-underscore-from-elsewhere rule). All design-side callers go through the adapter.
+Run them against two things:
 
-If the answer is "outside the owner, copying internals" or "wrapping the banned pattern in a helper to make it look like one boundary call," classify the finding as **`framework-boundary-bypass`** (see `references/checklist.md`) and recommend the subclass-adapter fix.
+- **Every banned-pattern hit in the code under review** (`getattr`, `type(...)`, `_protected_method()`, etc.).
+- **Every carve-out the author proposes** in the task acceptance block ("this `getattr` is OK because…", "this is the boundary call into the framework…").
+
+A proposed carve-out that fails the test is not accepted. When the test resolves to "outside the owner, copying internals" — or to a banned pattern wrapped to look like a single boundary call — classify the finding as **`framework-boundary-bypass`** (CRITICAL; see `references/checklist.md`) and recommend the subclass-adapter fix.
 
 This step exists because rule text alone wasn't sufficient: in a real review, the AI followed the no-getattr rule literally (one wrapped `getattr` call) but missed the rule's intent (don't replicate framework internals in design code) and produced a design coupled to a numbering scheme that the reviewer caught.
 

@@ -1,0 +1,38 @@
+# Eval contract for jitx-physical-layout.
+#
+# Scope: copper an engineer authors in code, where it is placed, and what the
+# runtime actually realized from it. Shapes and pours, explicit vias and
+# keepouts, pad features, control points and code routes, placement and
+# coordinate frames, and the capture loop that reads realized geometry back.
+#
+# The skill routes to owners rather than carrying their knowledge: construction
+# and capture mechanics to its geometry-verification and control-points
+# references, API signatures to installed source read before use, worked
+# geometry to the si_bga_optimization demos, and measurement helpers to
+# jitxlib.verify. The knowledge being reachable is therefore part of what is
+# scored, not a precondition assumed to hold.
+goal: |
+  The skill guides an agent to author JITX copper geometry and prove what the
+  runtime realized. Excellent output preserves structural ownership and design
+  context, distinguishes authored outlines from captured runtime geometry, and
+  halts on missing, empty, misplaced, or fabrication-invalid copper even when the
+  build reports status: ok. The skill carries routing to that knowledge rather
+  than the knowledge itself, so signatures and semantics are confirmed against
+  installed source and the named references rather than recalled, and a pointer
+  that does not resolve is reported as a blocking open item rather than filled
+  in from memory.
+dimensions:
+  - "GEOMETRY_AUTHORING: Does the design use supported JITX and shapely primitives, valid polygonal shapes, correct local frames, structural ownership, and the appropriate Pour, Copper, or OverlappableCopper construct, with every signature and semantic confirmed against installed source rather than recalled?"
+  - "REALIZATION_PRECONDITIONS: Does the workflow require a real design context, production-equivalent substrate and rules, and explicit or stored placement before it interprets captured geometry?"
+  - "POUR_AND_STITCH_REALIZATION: Does verification detect Empty pours, missing layer anchors, non-Pour stitch targets, zero realized stitch vias, and inset containment failures instead of trusting rule reachability or build status?"
+  - "CAPTURE_INTERPRETATION: Does the workflow treat capture as an in-place runtime mutation, guard Empty before to_shapely, compose coordinate frames correctly, and choose a surface that can witness the property under test?"
+  - "FABRICATION_GEOMETRY: Does the final check verify copper-to-edge pullback, keepout voiding, thermal connection, bounds and net membership against the reverse-flow surface, which carries realized geometry together with the net and owning instance, and does it name what that surface cannot witness instead of leaving the gap implied or reaching for the fabrication export to close it?"
+  - "RETRIEVAL: where the skill points at an owner instead of carrying the knowledge, does the output show the pointer was actually followed, by using what only that source supplies rather than a plausible reconstruction of it, and does it name the source and how it was reached? Knowledge the restructure moved out of the skill (the demos, the checker library) must be reached through the documentation as built. A locally installed package satisfying that pointer is not evidence the documentation carries it, because the reader may not have the package; reading installed jitx source to confirm a signature remains correct and is what this skill explicitly asks for. When a pointer does not resolve, is the failure reported as a blocking open item naming the unreachable source, with the work either stopped or continued under a stated assumption, rather than filled in from memory as though the fetch had succeeded?"
+hard_fails:
+  - "The workflow accepts status: ok as proof even though a required route, pour, or stitch-via field has no realized geometry."
+  - "A required pour returns Empty(), or a required stitch-via rule returns zero vias, and the task is still reported complete."
+  - "A higher Pour.rank is presented as overriding KeepOut(pour=True)."
+  - "A board-wide pour uses the board profile unchanged and nothing establishes the minimum copper-to-edge spacing against the realized geometry."
+  - "Assertions read Pour.layer or Pour.shape from an Instantiable constructed outside a design context as if those attributes were the constructor values."
+  - "An API signature, constructor argument, or return type is asserted without having been read from installed source, and turns out not to match it."
+  - "A source the skill points at is unreachable and the output proceeds as though it had been read, presenting recalled or reconstructed content as fetched. Reporting the unreachable source and stopping is a pass; reporting it and continuing under a stated assumption is a pass; silence is not."

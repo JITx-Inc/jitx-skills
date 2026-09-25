@@ -1,0 +1,43 @@
+{
+  "name": "pour-stitch-realization",
+  "prompt": "Put a ground pour on layer 2 and on the bottom of my 4-layer board, stitch them together, and keep copper and vias out from under the antenna. Then tell me what actually came back, not what I asked for.",
+  "inputs": {
+    "substrate": "jitxlib.jlcpcb.JLC04161H_7628",
+    "reference": "evals/cases/reference/pour-stitch-realization/layout.py",
+    "notes": "The reference authors the pours as the board profile buffered inward by the substrate's min_copper_edge_space, places through vias on the ground net as pour anchors, expresses stitching as a design_constraint on a tagged pour, and puts a four-layer KeepOut under netless antenna copper. Measured results and the controls are in the NOTES.md beside it.",
+    "environment": "Commands run from the repository root with python3 resolving to the project interpreter that has jitx installed and a reachable runtime."
+  },
+  "expected_output": "Layout code plus a capture gate that measures realized pour area rather than trusting build status, reports what it cannot witness, and fails on an unanchored control. A design that reports success on emitted via count or on status: ok alone does not satisfy this case.",
+  "assertions": [
+    {
+      "text": "the reference layout module type-checks against the installed jitx package",
+      "check": "deterministic",
+      "cmd": "python3 -m pyright --pythonpath \"$(command -v python3)\" skills/jitx-physical-layout/evals/cases/reference/pour-stitch-realization/layout.py"
+    },
+    {
+      "text": "the skill's own realization checker still passes its unit suite, since the case's gate is that checker rather than bespoke eval logic",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-physical-layout/scripts/test_check_realization.py"
+    },
+    {
+      "text": "an unanchored pour is caught: with the anchor vias removed and nothing else changed, stitch vias are still emitted and the build still reports status: ok, and the gate must still fail",
+      "check": "judge"
+    },
+    {
+      "text": "realized pour area is measured and reconciled against the authored outline, the keepout, and the edge pullback, rather than reported as present or absent",
+      "check": "judge"
+    },
+    {
+      "text": "the stitch group is checked against the grid the rule implies, with sites missing under the keepout accounted for in both directions, and stitch centres shown to be covered by both realized planes",
+      "check": "judge"
+    },
+    {
+      "text": "trace-to-pour clearance, thermal spokes and sliver removal are named as unwitnessed by this surface rather than closed from a fabrication export",
+      "check": "judge"
+    },
+    {
+      "text": "a realization claim names the runtime binary version, not only the installed wheel versions, because the runtime is what computed the geometry",
+      "check": "judge"
+    }
+  ]
+}

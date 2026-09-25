@@ -105,7 +105,7 @@ for pair in self.bga.TX:
 
 **Why.** "Why isn't this an array of arrays?". Sibling attributes are the failure mode when the underlying collection is homogeneous (same type, same role). Reach for `list` / `dict` / `PinGroup` directly. If you need a programmatic collection, `getattr(self, ...)` is the wrong answer; the right answer is to declare the collection.
 
-If you genuinely need to introspect children (across heterogeneous types, e.g., "give me every pad on this Component"), use JITX's inspection API — never name-reconstruction with `getattr`.
+If you genuinely need to introspect children (across heterogeneous types, e.g., "give me every pad on this Component"), use JITX's inspection API — never name-reconstruction with `getattr`. When you want *positions* out of that walk, compose `trace.transform * element.transform`; an element's own `transform` is local to its immediate container and is not a coordinate on its own (see `jitx-physical-layout/references/geometry-verification.md` § "Coordinate frames").
 
 ---
 
@@ -328,7 +328,7 @@ class MySubstrate(Substrate):
     stackup = Generic_Stackup()
 ```
 
-**Note — legitimate inline-subclass case:** `@inline class stackup(Symmetric):` with a *non-empty body* that declares layers (see `jitx-substrate-modeler/SKILL.md` "Inline Stackup") is the canonical pattern for defining a stackup. This rule applies only to **pass-through inline subclasses** where the body adds no fields, no overrides, no methods. The discriminator is body content: empty body = bad (instantiate instead); non-empty body = legitimate inline-stackup pattern.
+**Note — legitimate inline-subclass case:** `@inline class stackup(Symmetric):` with a *non-empty body* that declares layers (see [Inline Stackup (in Substrate class)](../../jitx-substrate-modeler/SKILL.md#inline-stackup-in-substrate-class)) is the canonical pattern for defining a stackup. This rule applies only to **pass-through inline subclasses** where the body adds no fields, no overrides, no methods. The discriminator is body content: empty body = bad (instantiate instead); non-empty body = legitimate inline-stackup pattern.
 
 **Why.** "This is incorrect — should instantiate generic instead of inlining". An empty-body `@inline class X(Base): pass` does nothing the base class doesn't already do — it's just a more expensive way to instantiate. The general principle: prefer instance composition over class-level mechanisms when both produce the same runtime structure. Inheritance is for *adding or changing* behavior; if you're not adding or changing anything, instantiate.
 
@@ -402,7 +402,7 @@ Before accepting any rationalization of a banned pattern, answer:
 1. **What object owns the invariant?** (The numbering scheme, the layer-via map, the protocol pin roles, etc.)
 2. **Is this code inside that object's class or a subclass of it?** If yes, you have the same-class exception (carve-out is real). If no, see step 3.
 3. **Is there a public method on the owning object that returns what you need?** If yes, use it.
-4. **If no public method exists, can a subclass adapter expose one?** If yes, that's the fix — add a public method on the subclass that delegates to the framework's protected method (the "method calling another method on the same class" carve-out of the no-leading-underscore-from-elsewhere rule).
+4. **If no public method exists, can a subclass adapter expose one?** If yes, that's the fix — add a public method on the subclass that delegates to the framework's protected method (the "method calling another method on the same class" carve-out of the no-leading-underscore-from-elsewhere rule). All design-side callers go through the adapter.
 5. **If you reach for `getattr` / `type(...)` / `_protected_method()` in design code and none of steps 2–4 apply,** you're committing framework-boundary-bypass. Stop. Add the adapter or escalate.
 
 Wrapping the banned pattern in a helper does not make it allowed. The helper is the rationalization — the boundary is the real test.

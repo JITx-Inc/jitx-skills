@@ -1,0 +1,28 @@
+// Positives: topology, timing, SI primitives, and binding verification.
+{"intent":"make this clock path an ordered JITX topology and cap its propagation delay","expected_skill":"jitx-interconnect-constraints"}
+{"intent":"my SI constraint builds status ok; prove it actually bound end to end","expected_skill":"jitx-interconnect-constraints"}
+{"intent":"add insertion-loss limits across the RF feed and its series capacitor","expected_skill":"jitx-interconnect-constraints"}
+{"intent":"constrain P-to-N skew on these four differential lanes","expected_skill":"jitx-interconnect-constraints"}
+{"intent":"match the RGMII data signals to the transmit clock","expected_skill":"jitx-interconnect-constraints"}
+{"intent":"set up DQ-to-DQS timing for this DDR byte lane","expected_skill":"jitx-interconnect-constraints"}
+{"intent":"chain a USB SuperSpeed pair through the AC coupling block","expected_skill":"jitx-interconnect-constraints"}
+{"intent":"why does Topology(begin, end) stop before the connector inside my subcircuit","expected_skill":"jitx-interconnect-constraints"}
+{"intent":"add the pin model that joins the topology across this common-mode choke","expected_skill":"jitx-interconnect-constraints"}
+{"intent":"apply a 100 ohm differential structure to the PCIe topology","expected_skill":"jitx-interconnect-constraints"}
+{"intent":"compare the SI spans in my module harness and assembled board","expected_skill":"jitx-interconnect-constraints"}
+{"intent":"walk topologySegments in load-cache.json and check every constrained endpoint","expected_skill":"jitx-interconnect-constraints"}
+{"intent":"build a reusable SignalConstraint for this two-lane serial protocol","expected_skill":"jitx-interconnect-constraints"}
+{"intent":"set the reference plane context for a constrained single-ended topology","expected_skill":"jitx-interconnect-constraints"}
+// Near-miss negatives: layout rules own widths and clearances.
+{"intent":"set the default trace width to 0.15 mm and copper clearance to 0.2 mm","expected_skill":"jitx-layout-constraints","ambiguous_with":["jitx-interconnect-constraints"]}
+{"intent":"make the short QFN escape narrower than the power net class","expected_skill":"jitx-layout-constraints","ambiguous_with":["jitx-interconnect-constraints"]}
+{"intent":"check whether the built copper obeyed my net-to-net clearance rule","expected_skill":"jitx-layout-constraints","ambiguous_with":["jitx-interconnect-constraints"]}
+// Near-miss negatives: pin assignment owns muxing and swappability.
+{"intent":"let the solver choose which MCU pins carry SPI and UART","expected_skill":"jitx-pin-assignment","ambiguous_with":["jitx-interconnect-constraints"]}
+{"intent":"allow PCIe lane swapping and differential polarity inversion during pin assignment","expected_skill":"jitx-pin-assignment","ambiguous_with":["jitx-interconnect-constraints"]}
+{"intent":"map this DDR byte group onto any legal bank pins","expected_skill":"jitx-pin-assignment","ambiguous_with":["jitx-interconnect-constraints"]}
+// Near-miss negatives: substrate modeling owns stackups and structure definitions.
+{"intent":"create a six-layer stackup from the fabricator report","expected_skill":"jitx-substrate-modeler","ambiguous_with":["jitx-interconnect-constraints"]}
+{"intent":"define the 50 ohm microstrip RoutingStructure for this substrate","expected_skill":"jitx-substrate-modeler","ambiguous_with":["jitx-interconnect-constraints"]}
+{"intent":"calculate and add a 100 ohm DifferentialRoutingStructure to the stackup","expected_skill":"jitx-substrate-modeler","ambiguous_with":["jitx-interconnect-constraints"]}
+{"intent":"enter the fabrication minimums and via definitions for this board house","expected_skill":"jitx-substrate-modeler","ambiguous_with":["jitx-interconnect-constraints"]}

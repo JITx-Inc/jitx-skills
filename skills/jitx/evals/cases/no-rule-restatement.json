@@ -1,0 +1,11 @@
+{
+  "name": "no-rule-restatement",
+  "prompt": "Same board, plus a 7-lane BGA escape so at least one subsystem is genuinely parametric.",
+  "expected_output": "The parametric subsystem gets an Object-Hierarchy Decisions entry naming the shape, owner and derivation it commits to. The banned forms behind that commitment (sibling attributes, getattr reflection, string-keyed dicts) appear nowhere in either document: they are owned by SKILL.md's Don'ts and architectural-patterns.md, and every sub-agent already has them.",
+  "assertions": [
+    {"text": "regression case for a regression this run caused and then reverted: broadening the architectural-questions block to every parametric task type, and adding a Guardrail field, both made the agent write the skill's own prohibitions into the design docs. Both judges triggered the restates-process-instructions hard fail on exactly that text.", "check": "deterministic", "cmd": "! grep -q 'Guardrail' skills/jitx/references/architecture-template.md"},
+    {"text": "the architectural questions are asked by reference rather than by restating the rules they enforce", "check": "deterministic", "cmd": "! grep -q 'getattr' skills/jitx/references/plan-template.md"},
+    {"text": "the per-subsystem threshold survives, so a one-off subsystem gets no entry at all", "check": "deterministic", "cmd": "grep -q 'N > 1 and the things are siblings' skills/jitx/references/architecture-template.md"},
+    {"text": "no sentence in either produced document would read identically for a different board", "check": "judge"}
+  ]
+}

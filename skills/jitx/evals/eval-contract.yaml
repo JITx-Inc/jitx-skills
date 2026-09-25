@@ -1,0 +1,49 @@
+# Eval contract — jitx skill, complete-board tier (Phase 0 planning artifacts)
+#
+# Scope: the artifacts the complete-board workflow produces before any code is
+# written — PLAN.md and ARCHITECTURE.md at the Phase 0 exit gate. Other parts of
+# the jitx skill (environment setup, single-task tier, build/verify) are outside
+# this contract and get their own task_slug if they are ever evaled.
+
+goal: |
+  A hardware engineer describes a board in plain terms. The complete-board
+  workflow turns that request into exactly two planning documents — PLAN.md (task
+  graph, data sources, state) and ARCHITECTURE.md (power tree, interfaces, board)
+  — that let parallel sub-agents build the design without coming back for facts
+  that should have been written down.
+
+  Excellent is the SHORTEST pair of documents that still carries every fact a
+  sub-agent, the Phase 3b audit, or a resumed session cannot derive on its own.
+  Both halves are load-bearing: a document too short to complete the design is a
+  failure, and so is one that pads out the page with facts stated twice, prose
+  that repeats its own table, or instructions that already live in the skill and
+  its references.
+
+  One reading has to be settled before any of this can be scored consistently. A
+  board request routinely fails to settle facts the design needs: a speed grade, a
+  current budget, a footprint source. Surfacing such a fact as an open question with
+  an owner and a resolution path, and marking the tasks it gates as blocked, is the
+  CORRECT Phase 0 outcome and scores as sufficient. Inventing a value to look
+  settled, or omitting the fact silently, is the failure. Judge the escalation, not
+  the existence of the gap, and do not charge one gap twice by scoring it down as a
+  dimension and again as a hard fail.
+
+  Calibration for a mid-size board (roughly 8-15 components, 2-4 power rails):
+  ARCHITECTURE.md around 60 lines, PLAN.md around 6 lines per task plus a shared
+  header. These are the expected scale, not a pass/fail line — a denser board
+  legitimately needs more, and the question a judge answers is whether every line
+  present is carrying a fact, not whether a counter came in under a number.
+
+dimensions:
+  - "DESIGN_SUFFICIENCY — can each Phase 1/2/3 sub-agent complete its own task from its PLAN.md entry plus ARCHITECTURE.md alone? Every task needs its data source, its inputs, its verification command; every rail needs voltage and load; every interface needs protocol and whether it is SI-constrained. A fact a sub-agent would have to ask for is a defect, UNLESS the plan already escalated it as a named open question with an owner and a resolution path and marked the gated tasks blocked, which is the correct handling of something the request never settled."
+  - "DOC_ECONOMY — is the length near the minimum that carries those facts? Penalize: instructions restated from the skill or its references, prose sections that repeat a table already present, template boilerplate or example rows left in, per-task text that says the same thing for every task of that type, ceremony re-printed in full where a status line would serve."
+  - "ONE_OWNER_PER_FACT — is each fact stated in exactly one place? A rail voltage, a bus impedance, a layer count, or a part number appearing in both documents (or twice in one) is a defect even when the two copies currently agree, because they drift. Cross-reference instead of copying."
+  - "TASK_GRAPH_INTEGRITY — does the graph actually build a board? Every task carries id, type, skill, dependencies, verification, status; dependencies are acyclic and phase-ordered; nothing a buildable board needs is unowned (substrate decision, top-level assembly, protection, decoupling, bus pull-ups, programming access)."
+  - "RESUMABILITY — could a fresh session or the Phase 3b audit reconstruct project state from these two files: which tasks are accepted, which gates passed, what was deferred, what is blocking? Recording the outcome is required; re-printing the full checklist that produced it is not."
+
+hard_fails:
+  - "A task the plan presents as READY cannot be started from what is written: no data source, no verification command, or a dependency pointing at no task. A task explicitly marked blocked by a named open question does not trigger this, provided that question carries an owner and a resolution path."
+  - "The same rail, interface, or board parameter is specified with conflicting values in two places."
+  - "Template residue survives in a delivered document: an unreplaced bracket placeholder, or an example row naming a part, rail or interface that is not part of this design. A cell naming a specific open question (`blocked: OQ-4`) is recorded state, not residue."
+  - "The task graph omits work the board cannot be built without — no substrate decision, or no top-level assembly task."
+  - "Either document restates process instructions that already live in the skill or its references, rather than the facts specific to this design."

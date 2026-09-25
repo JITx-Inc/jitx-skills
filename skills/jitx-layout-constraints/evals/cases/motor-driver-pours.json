@@ -1,0 +1,20 @@
+{
+  "name": "motor-driver-pours",
+  "prompt": "Two amp buck feeding a motor driver, TPS62933, two ounce outer copper, JLCPCB. There are four M3 mounting holes and the heatsink bolts through two of them. I need the power path to carry the current and the pour not to break up around the holes.",
+  "inputs": {
+    "parts": "jitxexamples.components.power_switchmode.texas_instruments_TPS62933DRLR",
+    "substrate": "a JLCPCB stackup with two ounce outer copper",
+    "notes": "Heavy copper changes what the fab will make, so a width taken from a one ounce table is the wrong number. M3 clearance holes are non-plated and copper must keep away from them. A pour threading between four holes is where minimum feature size and sliver removal stop being theoretical.",
+    "environment": "Commands run from the repository root with an interpreter that has jitx installed and a reachable runtime."
+  },
+  "expected_output": "A rule set whose conductor widths are justified for two ounce copper at the stated current, with copper-to-hole clearance, a minimum pour feature size, and a thermal pad treatment, plus checks on the captured design.",
+  "assertions": [
+    {"text": "the power conductor width is justified for the stated current on two ounce copper, and a one ounce figure is not carried over without adjustment", "check": "judge"},
+    {"text": "copper-to-hole clearance is declared against the non-plated mounting holes, and the heatsink holes are not treated as ordinary clearance holes without saying why", "check": "judge"},
+    {"text": "a minimum pour feature size is set and the realized pour is checked for slivers and orphaned islands rather than assumed intact", "check": "judge"},
+    {"text": "the thermal pad is either direct connect or relief, declared deliberately, and the choice is measured on the captured design rather than trusted", "check": "judge"},
+    {"text": "every declared rule is witnessed, and clearance_relaxations reports no relaxation or names how one was resolved", "check": "judge"},
+    {"text": "no check passes on an empty selection", "check": "judge"},
+    {"text": "the checker library the skill routes to is importable", "check": "deterministic", "cmd": "python3 -c \"import jitxlib.verify\""}
+  ]
+}

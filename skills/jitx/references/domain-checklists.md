@@ -24,4 +24,5 @@ Your initial implementation likely missed something. This is expected and normal
 - [External Connector / Hot-Plug Interfaces](domains/external-interfaces.md)
 - [Substrate](domains/substrate.md)
 - [General Gotcha Scrub](domains/general-gotchas.md)
+- [Layout Constraints](domains/layout-constraints.md)
 - [Net Class Taxonomy](net-classes.md)

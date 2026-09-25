@@ -55,7 +55,7 @@ There are **two distinct uses** of parts2jitx; each has its own consent rule. Th
 | **Lookup / evidence** | `parts2jitx-lcsc <C-number>` (stock, lifecycle, datasheet URL) and `parts2jitx-lcsc <C-number> --pinout` (pin labels). Cross-checks the datasheet and confirms the part is buyable. | **Implied** when the user names LCSC / JLCPCB / a specific LCSC C-number as the sourcing channel. The orchestrator may `pip install parts2jitx` automatically — naming the channel implies consent for the lookup tool. |
 | **Footprint data ingestion** | `parts2jitx-lcsc --footprint` downloads the EasyEDA-sourced `.kicad_mod`; `parts2jitx-kicad` converts it into JITX landpattern code. Uses the EasyEDA component database as the *primary geometric source*. | **Explicit per-project approval required.** EasyEDA component data has its own terms of use; commercial users in particular may not want EasyEDA-sourced footprint provenance in their project. Always ask before using the footprint download path. |
 
-For standard packages (QFN, SON, DFN, SOIC, SOT, QFP, BGA), the default landpattern source is the **JITX generator** with dimensions from the datasheet mechanical drawing — not the LCSC KiCad footprint. Fall back to KiCad import only when the generator can't represent specialty paddle geometry (split paddles, non-standard thermal pads, asymmetric layouts). See `jitx-component-modeler/SKILL.md` "Standard-Package Decision Rule".
+For standard packages (QFN, SON, DFN, SOIC, SOT, QFP, BGA), the default landpattern source is the **JITX generator** with dimensions from the datasheet mechanical drawing — not the LCSC KiCad footprint. Fall back to KiCad import only when the generator can't represent specialty paddle geometry (split paddles, non-standard thermal pads, asymmetric layouts). See [Standard-Package Decision Rule (parts2jitx + LCSC workflows)](../../jitx-component-modeler/references/source-and-package-selection.md#standard-package-decision-rule-parts2jitx--lcsc-workflows).
 
 For non-standard packages (connectors, RF modules, unusual mechanical), the workflow is:
 
@@ -87,6 +87,13 @@ parts2jitx-kicad my_footprint.kicad_mod --class-name MyConnector --manufacturer 
 
 This works with any `.kicad_mod` file regardless of source — not just LCSC/EasyEDA.
 
+Converter output is an input to component modeling, not build-ready evidence.
+Some output places `Pad` or `Landpattern` subclasses inside a component's
+`__init__`, which the runtime rejects as dynamic JITX class creation. The
+component-modeling task inspects the generated module and moves every JITX class
+definition to module scope before its initial build. `task-execution.md` Step 3
+does not advance when a generated class remains inside a function or method.
+
 ## Data Audit (Project Builder)
 
 In the Project Builder workflow, Phase 0 includes a **data source audit** before any work begins. The orchestrator presents a table showing where each component's data will come from, and the user approves or provides alternatives. See `references/project-builder-flow.md` Phase 0 for details.
@@ -110,7 +117,7 @@ pip install parts2jitx
 
 The datasheet remains the higher authority for dimensions, pin labels, and pad assignments. Sourcing-channel pinout (e.g., `parts2jitx-lcsc --pinout`) is a useful cross-check but does not replace the datasheet's mechanical drawing and pinout table. When the two disagree, the datasheet wins and the conflict is documented in the task acceptance block under `Secondary references`.
 
-**Standard packages (QFN, SON, DFN, SOIC, SOT, QFP, BGA):** parts2jitx-lcsc gives you stock + pinout. Use the **JITX generator** for the landpattern, with dimensions from the datasheet mechanical drawing. Do not import the LCSC KiCad footprint as the landpattern for standard packages — see `jitx-component-modeler/SKILL.md` "Standard-Package Decision Rule".
+**Standard packages (QFN, SON, DFN, SOIC, SOT, QFP, BGA):** parts2jitx-lcsc gives you stock + pinout. Use the **JITX generator** for the landpattern, with dimensions from the datasheet mechanical drawing. Do not import the LCSC KiCad footprint as the landpattern for standard packages — see [Standard-Package Decision Rule (parts2jitx + LCSC workflows)](../../jitx-component-modeler/references/source-and-package-selection.md#standard-package-decision-rule-parts2jitx--lcsc-workflows).
 
 **Mechanical / pad-only footprints (Tag-Connect TC2050, fiducials, castellations, pogo pads):** these have no purchasable component — no stock/lifecycle to check. Channel evidence does not apply; the vendor mechanical drawing is the source. See "Mechanical / Vendor-Defined Footprints" above.
 
@@ -124,11 +131,11 @@ The datasheet remains the higher authority for dimensions, pin labels, and pad a
 
 3. **Identify data source** for each part: does the user have a datasheet? A footprint? Or should we search/download?
 
-4. **Record chosen parts in PLAN.md** with MPN, package, key specs, data source, and the **component-choice rationale table** below.
+4. **Record chosen parts in PLAN.md** `Data Sources`: MPN, package, data source, and the one-line `Chosen over` outcome. The full **component-choice rationale table** below is presented at the audit in chat, not filed in PLAN.md.
 
 ### Component-Choice Rationale Table
 
-For every part the orchestrator proposes, record the rationale. This is the table the user reviews at the Phase 0 data source audit. Filling it forces the agent to justify each choice against the locked requirements, not just availability.
+For every part the orchestrator proposes, record the rationale. **Present this table to the user in chat at the Phase 0 data source audit; it does not go into PLAN.md.** What PLAN.md keeps afterwards is the `Data Sources` row: the chosen part, its approved sources, and the `Chosen over` cell. Filling this table forces the agent to justify each choice against the locked requirements, not just availability.
 
 | Field | What to capture |
 |-------|-----------------|
@@ -138,7 +145,7 @@ For every part the orchestrator proposes, record the rationale. This is the tabl
 | **Stock / availability** | Stock level at the chosen distributor; lead time if not in stock |
 | **Fabrication risk** | Package class fab requires (e.g. "0.5 mm pitch BGA — needs ≥6-layer w/ microvias"), any DRC concerns |
 | **Thermal / power** | Worst-case dissipation, whether package can handle it, ambient assumption |
-| **Why this part over alternatives** | Concrete: which 1–2 alternatives were considered and why rejected (cost, availability, package, feature gap, EOL, etc.) |
+| **Why this part over alternatives** | Concrete: one rejected alternative and why (cost, availability, package, feature gap, EOL). A second only when it changed the decision; a list of three is padding, not rigour. |
 
 A row without a real "rejected alternatives" entry is a flag — it usually means the agent took the first hit from a query without weighing tradeoffs. The user can challenge any row at the data source audit.
 

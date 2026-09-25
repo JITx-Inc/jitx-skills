@@ -7,7 +7,7 @@ description: "Use when the user asks to create a substrate, define a stackup, ad
 
 Generate complete JITX Python substrate definitions — stackups, materials, vias, routing structures, and fabrication constraints — all in a single file.
 
-A substrate task is **not complete** until the **Substrate completeness check** block (near the end of this skill) is filled out, row by row, in your completion summary. Prose that paraphrases some of its rows is not the block. Where the base `jitx` skill's task-acceptance block is in play, embed this block inside it rather than producing two competing completion artifacts. No filled block, no "done".
+A substrate task is **not complete** until the [Substrate completeness check — run before calling it done](#substrate-completeness-check--run-before-calling-it-done) block is filled out, row by row, in your completion summary. Prose that paraphrases some of its rows is not the block. Where the base `jitx` skill's task-acceptance block is in play, embed this block inside it rather than producing two competing completion artifacts. No filled block, no "done".
 
 ## Predefined Substrates (JLCPCB Only)
 
@@ -92,10 +92,12 @@ When the substrate comes from a source document — a fab's stackup report or qu
 The JITX-recommended layout for a fab's impedance-controlled stackup report as CSV — the JumpStart kits ship one, and a fab's own export can be annotated into it. It is organized as `SECTION` blocks: `DOCUMENT` (quote metadata, board size, thickness totals, tolerances, finishes, the primary-units declaration), `REVISION_HISTORY`, `MATERIALS_DIELECTRIC`, `MATERIALS_COPPER`, `STACKUP`, `VIAS`, `IMPEDANCE`, `FAB_RULES`, `NOTES`. A differently shaped export gets mapped onto these concepts, not forced through this parsing. Conventions that matter:
 
 - **Dual unit columns.** Dimensions carry `_mil` and `_mm` columns; the schema declares the mm values controlling where the two disagree (JITX is mm-native). Some rows populate only one column, so parse per cell, not per column.
-- **`FAB_RULES` maps by the `JITX_attribute` column, not row order.** A row naming an attribute maps onto a mandatory `FabricationConstraints` field (see Fabrication Constraints for the full set). A row with an empty `JITX_attribute` is a capability limit (drill minimums, aspect-ratio ceilings, stacked-microvia counts, minimum dielectric between coppers): read it as written and check it by hand — some state an `N:1` string or a bare count, so they must not go through the same numeric parsing as the mappable rules. See "Capability limits and derived checks" under Fabrication Constraints.
+- **`FAB_RULES` maps by the `JITX_attribute` column, not row order.** A row naming an attribute maps onto a mandatory `FabricationConstraints` field (see Fabrication Constraints for the full set). A row with an empty `JITX_attribute` is a capability limit (drill minimums, aspect-ratio ceilings, stacked-microvia counts, minimum dielectric between coppers): read it as written and check it by hand — some state an `N:1` string or a bare count, so they must not go through the same numeric parsing as the mappable rules. See "Capability limits and derived checks" under Fabrication Constraints. **Where a source states two limits for one JITX field, the field can only hold one, and it is usually the looser** — a board with laser and mechanical drilling quotes two drill minimums, `min_drill_diameter` takes the laser figure, and the mechanical minimum stays a hand-checked capability limit. A floor that admits a hole the fab cannot drill is worse than no floor, because it reads as enforced — so the completeness check's **Fab rules** row will not fill without naming which value the field holds and which one you hand-check.
 - **`IMPEDANCE` quotes each controlled target once per geometry** — surface microstrip and inner stripline need different widths for the same impedance — with the modelled `eps_eff`, the loss, and a `Ref_layers` column naming that line's reference planes. A row with `Controlled = No` is the fab's default line/space: documentation, not a routing structure.
+- **A target column and a modelled column are not interchangeable.** `impedance=` takes the **target** the fab was asked to hit, never the figure its solver returned; the two differ wherever the solve did not land exactly on the target, and a structure declaring the solver's output as its impedance has replaced the design intent with a result. This is the one place the "prefer the fab's modelled figure" habit — right for `eps_eff`, where the field solver beats any closed form — points the wrong way. The modelled impedance, the impedance tolerance and any propagation-delay column have no JITX field: docstring them, and the completeness check's **No-field walk** row is where they are accounted for.
+- **A `*-UNC` row is the uncoupled region of the pair it names, not a structure of its own.** It belongs inside that `DifferentialRoutingStructure` as its `uncoupled_region`. Two tells beyond the name: its width equals the coupled row's on every geometry, and its clearance follows the differential rule the source states rather than the single-ended one, because it is still spaced as half of a pair. Counting such a row as a separate target emits a standalone structure whose clearance quietly violates the source's own clearance rule — which is why the completeness check's **Routing structures** row asks for structure count against controlled-row count and how the rows collapse, rather than for a bare count.
 - **`NOTES` states the depth basis per drill type** (laser and mechanical depths are not measured the same way) — read it before deriving any aspect ratio.
-- **`REVISION_HISTORY` is the re-issue signal.** On a revised report, re-derive everything that is arithmetic over a changed row (annular ring, aspect ratio) and re-run the capability hand-checks rather than carrying stale figures.
+- **`REVISION_HISTORY` is the re-issue signal.** On a revised report, re-derive everything that is arithmetic over a changed row (annular ring, aspect ratio) and re-run the capability hand-checks rather than carrying stale figures. When *you* are the one issuing the revision, the edit is not finished at the history line: `DOCUMENT`'s own `Revision` and issue date move with it, or the report contradicts itself in the two fields a reader checks first. Neither is an invented value — both follow from the act of issuing a revision — so they are inside even a strict "change only what I give you" instruction. A revision in the *filename* is a third copy of the same fact and the one you cannot keep in sync; prefer `DOCUMENT.Revision` as the single source of truth.
 
 ## Materials
 
@@ -111,8 +113,21 @@ class SoldermaskLayer(Dielectric):
     # no thickness here — passed per-stackup at instantiation
 
 class FR4_Prepreg(Dielectric):
+    # material_name reaches the translated payload as materialName, so when a
+    # source names a manufacturer and product, put it HERE -- not only in the
+    # docstring. A docstring is a Python-side record; this crosses into the design.
+    # Name and numbers move together: a product name over generic FR-4 constants
+    # is a mislabel that now ships. Generic constants get a generic name.
+    material_name = "FR-4 2116 prepreg"
     dielectric_coefficient = 4.4   # Dk (dielectric constant / relative permittivity)
     loss_tangent = 0.0168          # Df (dissipation factor)
+
+class FR408HR_2116(Dielectric):
+    # Named product, so the constants are that product's -- see the laminate
+    # table below, and confirm against the manufacturer's current datasheet.
+    material_name = "Isola FR408HR 2116 prepreg"
+    dielectric_coefficient = 3.68  # Dk
+    loss_tangent = 0.0092          # Df
 
 class FR4_Core(Dielectric):
     dielectric_coefficient = 4.6   # Dk
@@ -447,6 +462,8 @@ layers = symmetric_routing_layers({
 
 ### Layer with NeckDown
 
+Neckdown parameters describe the structure only; how a neckdown region is activated, and the code-side alternative for stepping a width down into a package pad, are in the `jitx-layout-constraints` skill, "Fanout".
+
 ```python
 RoutingStructure.Layer(
     trace_width=0.15, clearance=0.1,
@@ -499,7 +516,7 @@ RoutingStructure.Layer(
 .reference({1: 3 * 0.100, 3: 3 * 0.100})  # skill default: 3× dielectric height, not a source value
 ```
 
-Do **not** pass `None` widths (`.reference(dict.fromkeys(...))`): construction accepts the mapping, but translation assigns `desired_width` straight into a protobuf float and **fails at build time** — a trap, not a fallback (verified against jitx 4.2.2 `_translate/routing.py`). If the user insists on strict source-only transcription with no defaults, record the `Ref_layers` identities in the docstring, omit `.reference()`, and name the omission as an open item in the completeness check. The scalar form `reference(layer)` without a width raises `TypeError: Must specify desired_width if layer is not a mapping`. Either way, never silently fill in a width nothing backs — the unlabeled invented number is exactly the failure the completeness check exists to catch.
+Do **not** pass `None` widths (`.reference(dict.fromkeys(...))`): construction accepts the mapping, but translation assigns `desired_width` straight into a protobuf float and **fails at build time** — a trap, not a fallback (verified on jitx 4.4.0: `_translate/routing.py` assigns `desired_width` straight into a protobuf float, unguarded). If the user insists on strict source-only transcription with no defaults, record the `Ref_layers` identities in the docstring, omit `.reference()`, and name the omission as an open item in the completeness check. The scalar form `reference(layer)` without a width raises `TypeError: Must specify desired_width if layer is not a mapping`. Either way, never silently fill in a width nothing backs — the unlabeled invented number is exactly the failure the completeness check exists to catch.
 
 ### Differential Routing Structure
 
@@ -529,7 +546,7 @@ DRS_100 = DifferentialRoutingStructure(
 )
 ```
 
-**Differential with NeckDown (for BGA escape or constrained areas):**
+**Differential with NeckDown (parameters for a neckdown region activated in the UI; for code-side escape rules see `jitx-layout-constraints`):**
 
 ```python
 DRS_100_ND = DifferentialRoutingStructure(
@@ -628,147 +645,33 @@ Capability limits are verified by review and by tests against the area they gove
 - **Annular ring** = `(pad − hole) / 2`, checked against the source's minimum annular ring.
 - **Aspect ratio** = drill depth ÷ finished hole diameter, **on the depth basis the source states for that drill type** — laser depths are typically the ablated dielectric span, mechanical depths the full drilled depth; one convention applied to both gives wrong ratios.
 
+**A value landing exactly on a limit is not a violation.** Fab capability limits are inclusive unless the source says otherwise, and a build-up designed to its own stated ratio will sit on the limit for every via of that type — by construction, not by accident. Reading a maximum as exclusive turns a correct stackup into a wall of capability failures and stops the task. If the source genuinely leaves the convention open and the answer changes your verdict, ask rather than picking.
+
 ## Design Constraints (Tags)
 
-This section defines the *rules* (`design_constraint(...)`) a tag triggers. Choosing
-*which* layout objects to tag and why — fanout/escape tags on package escapes,
-direct-connect on high-current pads, tagging a code-based `Route` — is covered in the
-**jitx-physical-layout** subskill.
+Design rules (`design_constraint(...)`, `UnaryDesignConstraint`,
+`BinaryDesignConstraint`, builtin tags, `OnLayer`, priority, every rule
+effect, and why a rule did not fire) are owned by the **jitx-layout-constraints**
+skill. This skill owns what those rules read from: `FabricationConstraints`
+(the enforced floors), via definitions, and routing structures. The one
+substrate-side rule still declared here is the fenced pour outline below,
+because its via class and fence pattern live on the substrate.
 
-For net-to-net clearances and via stitching rules:
+### Substrate sharp edges (verified on real boards)
 
-```python
-from jitx.constraints import Tag, design_constraint
-
-class RFSignalTag(Tag): pass
-class GNDTag(Tag): pass
-
-# Trace width for tagged nets (unary constraint — single tag)
-self.rule1 = design_constraint(RFSignalTag(), priority=1).trace_width(0.102)
-
-# Net-to-net clearance (binary constraint — two tags)
-self.rule2 = design_constraint(RFSignalTag(), RFSignalTag()).clearance(1.05)
-self.rule3 = design_constraint(RFSignalTag(), GNDTag()).clearance(0.15)
-```
-
-**Board-wide defaults belong on the Design class, not the substrate.** The four canonical defaults — trace width, copper clearance, thermal relief, wider power/ground — go in `self.rules` on the top-level Design via `UnaryDesignConstraint(IsTrace)` / `BinaryDesignConstraint(IsCopper, IsCopper)` / `UnaryDesignConstraint(IsPad)` / `UnaryDesignConstraint(PowerTag() | GroundTag(), priority=1)`. See `jitx/references/project-builder-flow.md` "Default design rules" for the full pattern. The substrate's `FabricationConstraints` are the fab-minimum floor; the Design rules are the production-friendly defaults that sit above the floor.
-
-`design_constraint(...)` and `UnaryDesignConstraint(...)` / `BinaryDesignConstraint(...)` are equivalent — the lowercase form is a factory that returns the right subtype based on arity. Use either.
-
-### Tag inheritance & proliferation
-
-**Tags form a hierarchy through class inheritance, and a rule on a base tag applies to every subclass tag.** This is a first-class JITX feature, not a trick — a tag can subclass *another tag*, not just `Tag`:
-
-```python
-class FenceTag(Tag): pass
-class AntipadFenceTag(FenceTag): pass        # subclass of FenceTag
-class DeskewAntipadFenceTag(AntipadFenceTag): pass   # subclass of AntipadFenceTag
-
-# Applies to ALL fence tags — antipad, deskew, and any future FenceTag subclass:
-self.fence_clearance = design_constraint(FenceTag(), GNDTag()).clearance(0.15)
-
-# Applies only to the deskew variant; give it higher priority to override the base
-# rule where they overlap (higher priority wins when multiple rules match):
-self.deskew_fence = design_constraint(DeskewAntipadFenceTag(), priority=10).fence_via(...)
-```
-
-A net/pour/object tagged `DeskewAntipadFenceTag()` matches rules written against `DeskewAntipadFenceTag`, `AntipadFenceTag`, **and** `FenceTag`. Where two matching rules conflict, the higher `priority=` wins — that's how a specific subtag rule overrides the general base-tag rule. (Tags also combine with `&` / `|` / `~` and `Tag.any(...)` when a hierarchy isn't the right shape.)
-
-**Flat tag proliferation is a smell.** A row of near-identical sibling tags that all inherit straight from `Tag` and differ only by name — each wired to its own rule that mostly restates the others — usually wants one of:
-- a **base tag** carrying the shared rule, with subtags only where behavior actually differs (the neckdown case: one clearance rule for *all* neckdown via `NeckDownTag`, plus a higher-priority rule for the one neckdown level that's special), or
-- a single **combined rule** (`design_constraint(TagA() | TagB())…`) when the tags aren't really distinct concepts.
-
-Reach for many flat tags only when the rule sets are genuinely distinct. Mapping a spreadsheet of per-combination rules into a flat tag-per-row table is the usual way this goes wrong — the hierarchy expresses the same intent with far fewer rules.
-
-### Conditions toolbox — builtin tags, layers, expressions
-
-Rule conditions are not limited to tags you define:
-
-- **Builtin tags** — `IsCopper`, `IsTrace`, `IsPour`, `IsVia`, `IsPad`,
-  `IsBoardEdge`, `IsThroughHole`, `IsNeckdown`, `IsHole` (import from
-  `jitx.constraints` or top-level `jitx`). The engine matches them by object
-  kind; they are **conditions only** — `assign()` on a builtin raises
-  `TypeError`. The four canonical Design defaults use these
-  (see `jitx/references/project-builder-flow.md` "Default design rules").
-- **`OnLayer(index)`** — layer-scoped condition (import from `jitx.constraints`;
-  not re-exported top-level). `OnLayer.external()` matches the top and bottom
-  copper layers; `OnLayer.internal()` is its inverse.
-- **`AnyObject`** — matches everything; useful as the second condition of a
-  binary rule.
-- **Expressions** — conditions combine with `&` / `|` / `~`, and n-ary
-  `Tag.any(*tags)` / `Tag.all(*tags)`.
-
-```python
-from jitx.constraints import design_constraint, AnyObject, OnLayer
-
-# Wider high-speed traces on external layers only:
-self.hs_outer = design_constraint(HighSpeedTag() & OnLayer.external()).trace_width(0.15)
-
-# Keep everything 0.3 mm away from tagged power copper:
-self.pwr_keepaway = design_constraint(PowerTag(), AnyObject).clearance(0.3)
-```
-
-Which objects can carry a tag (`Net`, `TopologyNet`, `Copper`, `Pour`, `Route`,
-`Component`, `Circuit`, `Landpattern`, `Pad`, `Via`, `ControlPoint`), container
-inheritance (tagging a landpattern tags its pads), and tagging `self` to tag all
-instances of a class are covered in **jitx-physical-layout** "Layout-intent tags".
-
-### Constraint effects — the full surface
-
-A rule's effects are chainable methods; one rule can set several. The arity
-boundary: unary rules (one condition) chain any effect below *except*
-clearance; binary rules (two conditions) support only `.clearance()`.
-Everything a `design_constraint(...)` can do (all dimensions in mm):
-
-| Effect | Signature | Notes |
-|---|---|---|
-| Trace width | `.trace_width(width)` | example above |
-| Clearance | `.clearance(clearance)` | **binary rules only** — `design_constraint(cond1, cond2)` |
-| Via fencing | `.fence_via(via_cls, ViaFencePattern(...))` | along traces/pour outlines — see "Fenced Pour Outlines" below |
-| Via stitching | `.stitch_via(via_cls, grid)` | grid = `SquareViaStitchGrid(pitch=, inset=)` or `TriangularViaStitchGrid(pitch=, inset=)`; `inset` = boundary-to-outermost-via-center distance |
-| Thermal relief | `.thermal_relief(gap_distance, spoke_width, num_spokes)` | pad-to-pour connections |
-| Serpentine params | `.serpentine_params(min_radius=, min_pitch=)` | bend radius / segment pitch of length-matching serpentines |
-| Coupled-pair params | `.coupled_pair_params(deskew_bump_radius=, skew_tolerance=, min_bump_spacing=, max_bump_length=, long_lookahead=)` | deskew-bump geometry for diff pairs; `skew_tolerance` is in **mm** (distance, not time — the time-domain skew budget lives in `jitx-interconnect-constraints`) |
-| Pour feature size | `.pour_feature_size(min_width)` | clips pour regions not coverable by a circle of `min_width` diameter fully inside the pour (sliver removal; thermal-relief spokes excluded) |
-| Routing structure | `.routing_structure(rs, ...)` | see below |
-
-```python
-from jitx.constraints import design_constraint, SquareViaStitchGrid, IsPour
-
-# Stitch tagged ground pours on a 2 mm square grid:
-self.gnd_stitch = design_constraint(GNDPourTag()).stitch_via(
-    GndVia, SquareViaStitchGrid(pitch=2.0, inset=0.5)
-)
-
-# Board-wide pour sliver removal:
-self.no_slivers = design_constraint(IsPour).pour_feature_size(min_width=0.3)
-```
-
-### Routing structures as a rule effect
-
-`.routing_structure(...)` assigns an impedance-controlled structure (defined on
-this substrate) to every trace matching the condition — including plain `Net`s
-and code-based `Route`s that have no `>>` topology. Reference planes resolve one
-of three ways:
-
-```python
-# (a) one net references every reference layer the structure declares:
-self.hs = design_constraint(HighSpeedTag()).routing_structure(self.RS_50, ref_net=gnd)
-
-# (b) per-layer mapping:
-self.hs = design_constraint(HighSpeedTag()).routing_structure(
-    self.DRS_100, ref_layer_nets={1: gnd, 4: gnd}
-)
-
-# (c) neither argument — requires an active jitx.si.ReferencePlanes context,
-#     else ValueError at rule-construction time.
-```
-
-The keyword names are `ref_net` / `ref_layer_nets` (not `reference_*`); passing
-both raises `ValueError`. For ordered point-to-point paths where the structure
-travels with timing/loss constraints, the topology-based
-`Constrain(...).structure(...)` flow is usually the better fit — the choice is
-covered in **jitx-interconnect-constraints** "Tag-based routing structures".
+- **Fenced differential structures can't use `symmetric_routing_layers`** (the
+  fence via's layer endpoints can't be mirrored, layers stay a lazy attribute,
+  and applying the DRS via a rule dies with `DesignTranslationContext is not
+  active`. Last measured on the 4.2 line and **not re-measured on 4.4.0** — the
+  workaround below is cheap and correct either way, so it stands; if you have a
+  fenced DRS on 4.4, try `symmetric_routing_layers` once and tell us). Enumerate the fenced coupled layers explicitly
+  (`layers={0: ..., -1: ..., 1: ..., -2: ...}`); keep `symmetric_routing_layers`
+  for fence-less structures. A module-scope `RoutingStructure` (not an attribute
+  of a Substrate class) hits the same lazy-layers error.
+- **Cannonball-Huray roughness tuples don't fit `Conductor.roughness`** (scalar
+  only, `TypeError: must be real number, not tuple`). Keep a scalar on the
+  substrate; carry the Huray pair as a simulation-side surface-roughness override
+  (e.g. the SI tool's stackup override), not on the jitx stackup.
 
 ## Fenced Pour Outlines (Antipads, RF Cavities, BGA Breakouts)
 
@@ -830,7 +733,7 @@ self.GND += fence_pour
 self.fence_outline_keepout = KeepOut(shape, layers=LayerSet(6), pour=True, via=True)
 ```
 
-Do not set `isolate=` on the fence Pour — it's legacy. Pour clearance is governed by `FabricationConstraints` + Tag-based `design_constraint(...).clearance(...)`.
+Do not set `isolate=` on the fence Pour; it is deprecated. Pour clearance is a design rule; see the `jitx-layout-constraints` skill, Pours.
 
 ## Via Mixin Pattern
 
@@ -877,6 +780,10 @@ class MyDesign(Design):
     circuit = MyCircuit()  # an empty Circuit suffices for a substrate smoke test
 ```
 
+**With no runtime, `jitx build --dry --no-dependency-check` still translates.** It answers "does this substrate translate at all" offline — stackup, vias and fab rules all reach the payload and a structural error surfaces. Both flags are needed: `--dry` skips the runtime probe, but the pyproject dependency sync is gated on `--no-dependency-check` alone and runs regardless of `--dry`, so `--dry` by itself still reaches the network and fails offline for a reason that has nothing to do with your substrate. The CLI's own `--dry` help text claims it skips the dependency check; it does not — read the behaviour, not the help string. It needs a project, which is often the only thing missing: a minimal `pyproject.toml` is four lines away, and "no project, so no build" is not the same claim as "cannot be translated". Run it and record the real message. It does **not** satisfy a build gate — see the base `jitx` skill — but reporting a substrate unverified when `--dry` was available is a check skipped, not a check unavailable.
+
+**This design, not the scaffold's seeded one, is what a substrate task builds to be done.** `jitx project layout init` seeds a design that subclasses `SampleDesign` and overrides only `circuit`, so it binds **`SampleSubstrate`** — a two-layer sample stackup — and never yours. That build is green and meaningless for your work: it exercises none of your substrate file, which could be empty. Bind your own substrate on your own `Design` and build that. It proves the toolchain, which is worth doing before you write code, and proves nothing about your work afterwards. Add the design above as a **new** class rather than editing the seeded one: the scaffold's smoke target stays intact, and a fresh target has no previously-built design directory to diff against, so the runtime does not stop to ask about the component instances that vanished.
+
 ## Layer Index Convention
 
 - Indices count **conductors only** — dielectrics and soldermask are not indexed. For an N-copper stackup: `0`…`N-1` from the top, `-1`…`-N` from the bottom (20 copper: `0` is L1, `-1` is L20).
@@ -888,14 +795,16 @@ class MyDesign(Design):
 
 ## Verifying a Substrate Against Its Source
 
-For a report-driven substrate, back the completeness check with tests that **parse the source and compare it to the built design** — layer order and names, thicknesses, Dk/Df, via spans and geometry, every `FabricationConstraints` field, per-layer widths, reference planes — so a re-issued report fails the suite instead of drifting past it. Compare reference-plane *identities* against the source; assert any skill-default widths against the default's own formula (3× dielectric height) — the source never stated them, so testing them against the source would be circular.
+For a report-driven substrate, back the completeness check with tests that **parse the source at test time and compare it to the built design**. Re-typing the report's numbers into `EXPECTED_*` constants beside the test is not this: it compares one transcription against another, so a re-issued report needs *both* files edited and the suite goes green either way. The entire value is that the source moves and the suite notices; read the file. Cover layer order and names, thicknesses, Dk/Df, via spans and geometry, every `FabricationConstraints` field, per-layer widths and reference planes, so a re-issued report fails the suite instead of drifting past it. Compare reference-plane *identities* against the source; assert any skill-default widths against the default's own formula (3× dielectric height) — the source never stated them, so testing them against the source would be circular.
 
-**Tests must subclass `jitx.test.TestCase`, never plain `unittest.TestCase`** (verified on jitx 4.2.2–4.4.0rc1). It activates the JITX instantiation context, and needs no runtime — instantiating a design works offline. Without the context the design does not error, it **reads as empty**: `decompose(stackup, Material)` returns zero layers and raises nothing, and iterating `stackup.conductors` hangs. Defend in depth:
+**Tests must subclass `jitx.test.TestCase`, never plain `unittest.TestCase`** (verified on jitx 4.4.0). It activates the JITX instantiation context, and needs no runtime — instantiating a design works offline. Without the context the design does not error, it **reads as empty**: `decompose(stackup, Material)` returns zero layers and raises nothing, and iterating `stackup.conductors` hangs. Defend in depth:
 
 - assert the layer count against the source's row count **before** any per-row comparison, and
 - pass `strict=True` to every `zip` of source rows against design elements.
 
 A suite that zipped a full report against an empty layer list and compared nothing at all would otherwise report green.
+
+**`decompose()` yields proxies, so read `ClassVar`s off the instance, not off the type.** `decompose(stackup, Material)` returns `Proxy` objects rather than instances of your material classes. Instance attribute access forwards fine, but only for the fields that layer's own class declares: `thickness` is on `Material`, `roughness` on `Conductor` alone, `dielectric_coefficient` and `loss_tangent` on `Dielectric` alone. So `decompose(stackup, Material)` hands back a mixed list where `layer.roughness` raises on every dielectric and `layer.dielectric_coefficient` raises on every conductor — decompose by `Conductor` or `Dielectric` when you want the subtype fields. Reading through the type fails for a second reason: `type(layer).roughness` raises `AttributeError: type object 'Proxy' has no attribute 'roughness'` on every layer, whatever its kind. Since `roughness`, `dielectric_coefficient` and `loss_tangent` are all declared `ClassVar` in `jitx/stackup.py`, reaching for them through the class is the natural first attempt when writing exactly these tests. Unlike the empty-stackup trap above this one fails loudly, so it costs a minute rather than a false green.
 
 ## Workflow
 
@@ -905,8 +814,8 @@ A suite that zipped a full report against an empty layer list and compared nothi
 4. **Set fab constraints** — `FabricationConstraints` with all manufacturing rules
 5. **Define vias** — all via types needed (through, micro, stacked, blind, buried, backdrilled)
 6. **Add routing structures** — `RoutingStructure` and `DifferentialRoutingStructure` for each impedance target
-7. **Add design rules** — Tags and `design_constraint()` for clearances if needed
-8. **Verify** — `pyright` type check, then `jitx build` with a test design (sequence builds — don't parallelize against the same project; see `jitx/SKILL.md` "Build Safety"); for a report-driven substrate add source-driven tests (see "Verifying a Substrate Against Its Source"); then fill the **Substrate completeness check** below. No filled block, no "done".
+7. **Add substrate-side rules** — the fenced pour outline rule when the design needs one; board design rules (defaults, clearances, net classes, escapes) are the `jitx-layout-constraints` skill's step, not the substrate's
+8. **Verify** — `pyright` type check, then `jitx build` with a test design (sequence builds — don't parallelize against the same project; see [Build Safety — Don't Parallelize Same-Design Work](../jitx/SKILL.md#build-safety--dont-parallelize-same-design-work)); for a report-driven substrate add source-driven tests (see "Verifying a Substrate Against Its Source"); then fill [Substrate completeness check — run before calling it done](#substrate-completeness-check--run-before-calling-it-done). No filled block, no "done".
 
 ## Substrate completeness check — run before calling it done
 
@@ -923,23 +832,36 @@ Units: everything in mm — spot-check arithmetic for one converted row: <mils�
 Vias: <N> defined / <N> the source offers — itemize the source ids; spans, drill type,
       pad/hole, fill/cap/tent reconciled per source (say where fill material/capping has
       no JITX field); aspect ratios checked on the depth basis the source states per drill type
-Routing structures: one structure per impedance target, with a layer entry for every
-      geometry/layer the source lists: <list>;
+Routing structures: <N> structures / <N> controlled rows the source lists — say how the
+      rows collapse; impedance taken from the source's target column, not its modelled
+      column; with a layer entry for every geometry/layer the source lists: <list>;
       velocity from eps_eff where the source gives it; pair gap edge-to-edge;
       neck-down + uncoupled regions where given; reference planes carried
 Fab rules: <N>/<N> mappable rules in FabricationConstraints; capability limits with no
-      JITX field documented: <list | none>
+      JITX field documented: <list | none>; where two source limits contend for one
+      field, which value the field holds and which is hand-checked: <list | none>
 No-field walk: every source section walked (document-level tolerances, surface finish,
       plating class, quote metadata included) — stated values with no JITX field
       docstringed: <list>
 Provenance: values traceable to no source row: NONE | <list + the labeled rule backing each>
 Checks: pyright <clean | N errors>; build <clean | not run: <reason>>
-Verdict: complete | open items: <list>   (any non-clean check, or build not run, is an
-      open item — "complete" with a failing or unrun check is not a valid combination)
+Verdict: complete | open items: <list>
+      Derive this line from every row above. List each unresolved or unsupported
+      claim, mismatch, and failed, skipped, or unavailable check as an open item.
+      Any open item requires "open items"; "complete" is valid only when every
+      row is supported and resolved and every check ran clean.
+      An unavailable environment is an open item, not an exemption.
 ```
 
 Row-by-row intent — the *why*, so the block stays evidence rather than ceremony:
 
+- **A total you solved for is not a total you checked.** Where a dielectric thickness is
+  unstated and the finished thickness is known, it is arithmetically tempting to solve the
+  unknown as the balancing term. Do that and the reconciliation becomes tautological: the
+  total agrees because it was constructed to agree, and the check that would have caught a
+  transcription slip can no longer fail. If a thickness is unstated, it is an open question
+  with the fab, and the reconciliation is reported as not performed rather than performed
+  and passed.
 - **Stackup** — the summed thickness must reconcile with the source's stated totals under the document's own stated inclusions and precision (which layers each total includes, how many digits it prints); an unexplained residual is a transcription slip to chase, not rounding to wave off. Name copper layers for their source id and function.
 - **Materials** — one class per distinct material/property set: never collapse two source rows that differ in any modeled property (Dk, Df, roughness, thickness); the collapsed row is untraceable. What the source states but JITX has no field for survives in docstrings, not by being dropped — and the walk covers *every* section of the document (tolerances, surface finish, plating class), not just the material tables.
 - **Vias** — every `Via` class on a substrate registers on the board automatically, so define exactly the source's inventory and nothing speculative. Fab reports state drill depth on different bases for laser vs mechanical drills — check each aspect ratio on the basis that matches its drill, not one convention for all.

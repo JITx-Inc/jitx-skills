@@ -1,0 +1,37 @@
+// Routing fixtures for the `jitx` base skill.
+// Positives: asks that belong to the base skill — environment, tier classification,
+// the complete-board workflow, build/run, project structure.
+// Negatives: near-misses that share vocabulary but are owned by a sibling skill.
+// Every negative names the skill that should win, so a collision is visible.
+{"intent": "build me a board with an STM32, a USB-C connector, an IMU on SPI and a microSD socket", "expected_skill": "jitx"}
+{"intent": "design a PCB from these requirements", "expected_skill": "jitx"}
+{"intent": "I need a complete JITX project from scratch, 4-layer JLCPCB", "expected_skill": "jitx"}
+{"intent": "set up the jitx environment and get the runtime running", "expected_skill": "jitx"}
+{"intent": "jitx build isn't finding my design", "expected_skill": "jitx"}
+{"intent": "what workflow tier is this, single task or complete board?", "expected_skill": "jitx"}
+{"intent": "write PLAN.md and ARCHITECTURE.md for this design before we start coding", "expected_skill": "jitx"}
+{"intent": "the plan doc for this board is enormous, trim it to what the sub-agents actually need", "expected_skill": "jitx"}
+{"intent": "we're at the Phase 1 to Phase 2 gate, what has to be true to advance?", "expected_skill": "jitx"}
+{"intent": "resume the board project, what's left in the task graph?", "expected_skill": "jitx"}
+{"intent": "open the board viewer for this design", "expected_skill": "jitx"}
+{"intent": "where does components/ go in a jitx project?", "expected_skill": "jitx"}
+// Near-miss negatives — shared vocabulary, different owner.
+{"intent": "model the TPS54302 from this datasheet", "expected_skill": "jitx-component-modeler", "ambiguous_with": ["jitx"]}
+{"intent": "create a component for an NE555 in SOIC-8", "expected_skill": "jitx-component-modeler", "ambiguous_with": ["jitx"]}
+{"intent": "build a 6-layer stackup with 90 ohm differential routing structures", "expected_skill": "jitx-substrate-modeler", "ambiguous_with": ["jitx"]}
+{"intent": "model this substrate from the fab house's stackup report", "expected_skill": "jitx-substrate-modeler", "ambiguous_with": ["jitx"]}
+{"intent": "wire up the decoupling caps and add a ground pour", "expected_skill": "jitx-circuit-builder", "ambiguous_with": ["jitx"]}
+{"intent": "connect the regulator output to the MCU power pins", "expected_skill": "jitx-circuit-builder", "ambiguous_with": ["jitx"]}
+{"intent": "draw the antenna copper and place the fence vias in code", "expected_skill": "jitx-physical-layout", "ambiguous_with": ["jitx", "jitx-substrate-modeler"]}
+{"intent": "escape route the BGA and place the fanout vias", "expected_skill": "jitx-physical-layout", "ambiguous_with": ["jitx"]}
+{"intent": "add length matching and skew constraints to the DDR byte lanes", "expected_skill": "jitx-interconnect-constraints", "ambiguous_with": ["jitx"]}
+{"intent": "constrain the USB pair to 90 ohms over a reference plane", "expected_skill": "jitx-interconnect-constraints", "ambiguous_with": ["jitx", "jitx-substrate-modeler"]}
+{"intent": "set up provide.one_of so the solver can pick the SPI pins", "expected_skill": "jitx-pin-assignment", "ambiguous_with": ["jitx", "jitx-circuit-builder"]}
+{"intent": "import the mechanical outline from this DXF", "expected_skill": "jitx-mechanical", "ambiguous_with": ["jitx"]}
+{"intent": "export the board to STEP for the mechanical team", "expected_skill": "jitx-mechanical", "ambiguous_with": ["jitx"]}
+{"intent": "review the jitx code I just wrote for string-hacking and framework-boundary problems", "expected_skill": "jitx-code-review", "ambiguous_with": ["jitx"]}
+{"intent": "check my design code against JITX conventions before I merge", "expected_skill": "jitx-code-review", "ambiguous_with": ["jitx"]}
+// Outside the bundle entirely.
+{"intent": "write a KiCad plugin that exports netlists", "expected_skill": null}
+{"intent": "explain how a buck converter works", "expected_skill": null}
+{"intent": "order these parts from LCSC for me", "expected_skill": null}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "JITX Layout Constraints"
+  short_description: "Design rules, clearances, power width, decoupling, and fanout step-down in code"
+  default_prompt: "Use $jitx-layout-constraints to set default trace width and clearance, net-to-net or trace-to-pour clearance rules, power trace width by class, decoupling capacitor placement, pour rules, fanout width step-down into QFN or BGA pads, or to find out why a design rule did not apply."

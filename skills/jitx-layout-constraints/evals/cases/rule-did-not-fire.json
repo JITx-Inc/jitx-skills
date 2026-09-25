@@ -1,0 +1,16 @@
+{
+  "name": "rule-did-not-fire",
+  "prompt": "I set a 0.5 mm width on my power tag and the traces are still coming out at 0.125. I did not touch priorities. What is wrong?",
+  "inputs": {
+    "notes": "A diagnostic, not a board. The skill carries a section for this and nothing exercises it. The answer is the canonical tag ordering: an object type tag sorts before a user tag, so a bare user-tag condition loses to a plain IsTrace rule on local specificity and the user tag is never reached. That mechanism is on the published documentation page and in no file the skill ships, so the case doubles as a retrieval probe.",
+    "environment": "No build is required. A documentation build or the published page must be reachable."
+  },
+  "expected_output": "The mechanism, not a workaround. The corrected condition, and the reason the engineer's own observation about priorities is the wrong place to look.",
+  "assertions": [
+    {"text": "the answer names local specificity and the canonical ordering, and explains that the user tag is never reached because an object type tag is considered first", "check": "judge"},
+    {"text": "the corrected code adds an object type tag to the condition rather than reaching for an explicit priority, and the reason priority is the worse fix is stated", "check": "judge"},
+    {"text": "the absence of explicit priorities is identified as why specificity got to decide, rather than accepted as evidence that priority is not involved", "check": "judge"},
+    {"text": "the same trap for binary constraints is named, where both conditions need an object type tag", "check": "judge"},
+    {"text": "the source of the mechanism is named and was actually opened, not reconstructed", "check": "judge"}
+  ]
+}

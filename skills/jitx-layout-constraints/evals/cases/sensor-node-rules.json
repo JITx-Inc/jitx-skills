@@ -1,0 +1,21 @@
+{
+  "name": "sensor-node-rules",
+  "prompt": "I've got an nRF52840 with a LIS3DHTR on I2C and a U.FL for the antenna, running off an LT1763. Four layer JLCPCB, inner 1 is ground. The radio has to not hear the I2C, and I want the analog supply quiet. Set the rules and show me they took.",
+  "inputs": {
+    "parts": "jitxexamples.components.mcus.nordic_NRF52840_QIAA_R, jitxexamples.components.sensors.stmicroelectronics_LIS3DHTR, jitxexamples.components.power_linear_regulators.analog_devices_LT1763CS8, jitxexamples.components.connectors.hirose_electric_co_ltd_U_FL_R_SMT_10",
+    "substrate": "a JLCPCB 4-layer stackup with inner 1 as the ground plane",
+    "notes": "No geometry and no rule list are given. Three requirements contend over the same copper: the antenna feed wants its routing structure's own geometry, the radio wants distance from the I2C lines, and the analog supply wants a quiet pour. A separation between an aggressor and a victim is not a fabrication row and not a routing structure's self-clearance.",
+    "environment": "Commands run from the repository root with an interpreter that has jitx installed and a reachable runtime."
+  },
+  "expected_output": "A rule set covering board defaults, the ground plane, the analog supply, the I2C class and the antenna feed, with the radio-to-I2C separation derived rather than cited, plus checks that read the built design back.",
+  "assertions": [
+    {"text": "the separation protecting the radio from the I2C lines carries a derivation: a stated disturbance budget, the aggressor's edge rate or knee frequency, and a coupling estimate naming the stackup it came from", "check": "judge"},
+    {"text": "the antenna feed's routing structure clearance is not used as the aggressor separation, since it governs that structure's own geometry and answers a different question", "check": "judge"},
+    {"text": "a rule is scoped to a layer where the requirement is layer-specific, rather than applied board-wide and left to chance on the inner plane", "check": "judge"},
+    {"text": "trace-to-pour clearance is expressed, and reported as unverified from capture if it cannot be measured, rather than silently dropped", "check": "judge"},
+    {"text": "decoupling placement is decided by loop inductance between the power and return pins and the capacitor, with count and value left to the datasheet", "check": "judge"},
+    {"text": "every declared rule is witnessed, and clearance_relaxations reports no relaxation or names how one was resolved", "check": "judge"},
+    {"text": "no check passes on an empty selection", "check": "judge"},
+    {"text": "the checker library the skill routes to is importable", "check": "deterministic", "cmd": "python3 -c \"import jitxlib.verify\""}
+  ]
+}

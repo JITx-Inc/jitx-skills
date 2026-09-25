@@ -1,0 +1,10 @@
+{
+  "name": "blocks-live-in-chat",
+  "prompt": "Same board. Advance from Phase 0 to Phase 1, then from Phase 1 to Phase 2, emitting the required gate blocks.",
+  "expected_output": "Both gate blocks emitted in chat. PLAN.md gains one Gate status row per gate carrying verdict, date and any deferred or blocking item, and nothing else. Neither block's text appears in PLAN.md.",
+  "assertions": [
+    {"text": "regression case for the observed accumulation: a real board's PLAN.md absorbed 151 lines of gate blocks and 61 of modification narrative. The rule that blocks live in chat must be stated where the blocks are defined.", "check": "deterministic", "cmd": "grep -q 'Never paste a task acceptance block, phase gate block' skills/jitx/references/completion-blocks.md"},
+    {"text": "the plan template provides a gate status table and a one-row-per-batch modifications table as the recording surface", "check": "deterministic", "cmd": "grep -q '## Gate status' skills/jitx/references/plan-template.md && grep -q '## Modifications' skills/jitx/references/plan-template.md"},
+    {"text": "a fresh session can still name accepted tasks, passed gates, deferrals and blockers from PLAN.md alone", "check": "judge"}
+  ]
+}

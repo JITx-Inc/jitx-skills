@@ -1,0 +1,36 @@
+{
+  "name": "cross-file-consistency",
+  "prompt": "Same board. Before dispatching Phase 1, reconcile what the templates, the gate blocks, the decomposition guide and the flow all say about the same decision.",
+  "expected_output": "One answer per question, wherever the agent looks. A rule stated in a template is not contradicted by a gate block, a guide, or SKILL.md.",
+  "assertions": [
+    {
+      "text": "the requirements lock is never satisfied by pointing at the design's own file: a lock citing ARCHITECTURE.md is met by any self-consistent design, which is the failure mode the lock exists to prevent",
+      "check": "deterministic",
+      "cmd": "! sed -n '/## Requirements Lock/,/## Design Reference/p' skills/jitx/references/plan-template.md | grep -q 'see ARCHITECTURE.md'"
+    },
+    {
+      "text": "no file claims a predefined substrate needs no task; the four files that discuss it agree the task exists and narrows to selection plus verification",
+      "check": "deterministic",
+      "cmd": "! grep -rqE 'no task needed|skip the substrate task|no substrate modeling task needed' --exclude-dir=evals skills/jitx/"
+    },
+    {
+      "text": "the layout in SKILL.md defines every directory the template's Verify commands build from, substrate.py and constraints/ included",
+      "check": "deterministic",
+      "cmd": "sed -n '/^project\\//,/^```$/p' skills/jitx/SKILL.md | grep -q 'substrate.py' && sed -n '/^project\\//,/^```$/p' skills/jitx/SKILL.md | grep -q 'constraints/'"
+    },
+    {
+      "text": "the engineering-question cap is stated once and identically in the template and the decomposition guide",
+      "check": "deterministic",
+      "cmd": "test $(grep -rc 'at most three' skills/jitx/references/plan-template.md skills/jitx/references/decomposition-guide.md | grep -c ':1') -eq 2"
+    },
+    {
+      "text": "parts-sourcing does not both require and forbid the rationale table in PLAN.md",
+      "check": "deterministic",
+      "cmd": "! grep -q 'Record chosen parts in PLAN.md\\*\\* with MPN, package, key specs, data source, and the \\*\\*component-choice rationale table' skills/jitx/references/parts-sourcing.md"
+    },
+    {
+      "text": "an agent following the bundle end to end never has to choose between two conflicting instructions",
+      "check": "judge"
+    }
+  ]
+}

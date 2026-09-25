@@ -2,6 +2,8 @@
 
 Parameter tables sourced from [jitx_protocols_ext](https://github.com/JITx-Inc/jitx-protocols-ext) and industry specifications. All timing values in seconds, impedance in ohms.
 
+**`jitx_protocols_ext` is a separate distribution and is not installed with jitx or jitxlib.** Every import below fails with `ModuleNotFoundError` until it is added to the project. Confirm it imports before building on it, and if it is absent, either add it deliberately or write the constraint from the parameter tables here rather than leaving a dead import in the design.
+
 ## Serial Protocols
 
 ### PCIe
@@ -14,6 +16,7 @@ Parameter tables sourced from [jitx_protocols_ext](https://github.com/JITx-Inc/j
 | V5-V7 | 0.85ps | 16.0 | 85 +/-5% | 32-128 GT/s |
 
 ```python
+# requires the separate jitx-protocols-ext distribution; not installed with jitx
 from jitx_protocols_ext.protocols.pcie import PCIe, PCIeConstraint, PCIeVersion, PCIeWidth
 
 std = PCIeVersion.V5.standard()  # Returns PCIeStandard(skew, loss, impedance)
@@ -32,6 +35,7 @@ Lane widths: x1, x2, x4, x8, x16, x32. Supports `on_board=True` for chip-to-chip
 | SATA 3.4 | 1ps | 15.0 | 90 +/-15% | 6.0 Gb/s |
 
 ```python
+# requires the separate jitx-protocols-ext distribution; not installed with jitx
 from jitx_protocols_ext.protocols.sata import SATA
 
 std = SATA.Generation.SATA3p0.standard()
@@ -53,6 +57,7 @@ cst = SATA.Constraint(std)
 | QSFP-DD (400G) | 8 | 1ps | 10ps | 18.0 | 100 +/-10% |
 
 ```python
+# requires the separate jitx-protocols-ext distribution; not installed with jitx
 from jitx_protocols_ext.protocols.sfp import SFP_Lane, SFPConstraint, SFPLink
 
 std = SFPLink.QSFP28_100G.standard()
@@ -133,6 +138,7 @@ RGMII is single-ended (not differential). Uses `RoutingStructure` (not `Differen
 **Topology:** Fly-by (daisy-chain controller → mem0 → mem1)
 
 ```python
+# requires the separate jitx-protocols-ext distribution; not installed with jitx
 from jitx_protocols_ext.protocols.memory.ddr4 import DDR4, DDR4Constraint, DDR4Width, DDR4Rank
 ```
 
@@ -149,6 +155,7 @@ from jitx_protocols_ext.protocols.memory.ddr4 import DDR4, DDR4Constraint, DDR4W
 **Impedances:** 85 +/-5% (diff), 40 +/-10% (SE)
 
 ```python
+# requires the separate jitx-protocols-ext distribution; not installed with jitx
 from jitx_protocols_ext.protocols.memory.lpddr4 import LPDDR4, LPDDR4Constraint, LPDDR4Width
 ```
 
@@ -168,6 +175,7 @@ from jitx_protocols_ext.protocols.memory.lpddr4 import LPDDR4, LPDDR4Constraint,
 Separate write clock (WCK) and read data strobe (RDQS) per byte lane.
 
 ```python
+# requires the separate jitx-protocols-ext distribution; not installed with jitx
 from jitx_protocols_ext.protocols.memory.lpddr5 import LPDDR5, LPDDR5Constraint, LPDDR5Width
 ```
 
@@ -188,6 +196,7 @@ from jitx_protocols_ext.protocols.memory.lpddr5 import LPDDR5, LPDDR5Constraint,
 4 data channels, PAM3 signaling on DQ.
 
 ```python
+# requires the separate jitx-protocols-ext distribution; not installed with jitx
 from jitx_protocols_ext.protocols.memory.gddr7 import GDDR7, GDDR7Constraint
 ```
 

@@ -1,0 +1,27 @@
+# Eval contract for jitx-substrate-modeler.
+# The dimensions mirror the SKILL.md "Substrate completeness check" categories —
+# the skill's own definition of what a good substrate has is the rubric its
+# outputs are judged against.
+goal: |
+  An engineer hands the skill a fabrication house's stackup document (CSV export,
+  PDF report, or spec) and gets back a single-file JITX substrate whose every value
+  traces to the source: complete stackup and materials, exactly the source's via
+  inventory, one routing structure per impedance target and geometry, and the full
+  fabrication-rule set. Excellent = a reviewer can reconcile the generated file
+  against the source row by row and find no invented numbers — and a weaker agent
+  model (customers run Sonnet-class agents and tools like Devin) still produces a
+  faithful substrate by following the skill, because the skill carries the checks
+  rather than assuming a strong model.
+dimensions:
+  - "STACKUP_FIDELITY — do layer count, order, names, and per-layer thicknesses match the source, and does the summed total reconcile with the source's stated finished/overall thickness?"
+  - "MATERIAL_FIDELITY — one material class per distinct source row (no collapsing rows that differ in Dk/Df/roughness), correct unit conversions (mils to mm, oz to finished-thickness mm, Rz um to mm), no-field values docstringed?"
+  - "VIA_INVENTORY — exactly the source's via set, correct spans/drill types/pad and hole sizes/fill-cap-tent, aspect ratios on the source's stated depth basis per drill type, nothing speculative?"
+  - "ROUTING_STRUCTURE_FIT — one structure per impedance target covering every listed layer and geometry, velocity from eps_eff where given, edge-to-edge pair gaps, neck-down and uncoupled regions, reference planes carried?"
+  - "FAB_RULES_COMPLETE — every source rule that maps to a FabricationConstraints field present and correct, capability limits with no JITX field documented rather than dropped or force-fit?"
+  - "PROVENANCE — does every number trace to a source row, with unstated values asked about or documented as omissions rather than invented (including to satisfy a type checker)?"
+hard_fails:
+  - "A numeric value in the generated substrate that traces to no source row and carries no skill-default label on its own line at the call site (an invented number). A declared, per-call-site-labeled skill default — e.g. reference-plane width = 3x dielectric height — is rule-backed, not invented."
+  - "Via structures beyond the source's stated inventory."
+  - "The generated file fails Python syntax or type checking, when the environment can run those checks."
+  - "The substrate is presented as complete without the SKILL.md Substrate completeness check block."
+  - "The substrate fails jitx build/translation when a build environment is available; an unavailable environment must be declared as an open item in the completion block, never silently skipped."
