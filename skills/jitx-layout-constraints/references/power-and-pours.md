@@ -97,9 +97,9 @@ def assert_only_local_power_puddles(
     allowed_local_puddles: Collection[Pour],
 ) -> None:
     allowed = set(allowed_local_puddles)
-    power_groups = {rd.nets().find(net) for net in power_nets}
+    power_groups = {rd.nets.find(net) for net in power_nets}
     for _, pour in rd.query(Pour):
-        net = rd.nets().find(pour)
+        net = rd.nets.find(pour)
         if net in power_groups and pour not in allowed:
             raise AssertionError(f"board-wide power pour: {pour}")
 fab = self.substrate.constraints
@@ -112,7 +112,7 @@ self.rules.append(
 )
 ```
 
-`RuntimeDesign.query` and `RuntimeDesign.nets().find` are capture-side surfaces
+`RuntimeDesign.query` and `RuntimeDesign.nets.find` are capture-side surfaces
 (`jitx/run/runtime.py:421`, `jitx/run/runtime.py:565`). The clearance starts
 with `min_copper_copper_space`, one of the enforced fabrication floors
 (`jitx/substrate.py:165`). The added margin is a skill default, so change it

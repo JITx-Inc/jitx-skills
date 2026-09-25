@@ -409,7 +409,7 @@ for capacitor in queried:
 ```
 
 Also check that each via and puddle resolves to its intended net through
-`rd.nets().find(...)`, the realized escape widths match the priority 4 rule,
+`rd.nets.find(...)`, the realized escape widths match the priority 4 rule,
 and the selected capacitor landpattern still matches the geometry used by the
 solver.
 
