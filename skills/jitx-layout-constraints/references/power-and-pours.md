@@ -1,90 +1,29 @@
-# Power Routing and Pours
+# Power and pour owners
 
-This is the worked detail for `SKILL.md`, "Routed power" and "Pours". Use
-[Rule Reference](rule-reference.md) for the complete condition and effect
-surface. Rules remain structural (`jitx/_translate/design.py:187`). Higher priorities win when several rules match (`jitx/constraints.py:802`, `jitx/constraints.py:860`).
+- Width tiers and tag/rule implementations: `jitxexamples.patterns.complete_rules`;
+  current-to-tier selection: [skill workflow](../SKILL.md#where-a-net-class-gets-its-number).
+- Pours, layer selection, sliver removal, and fill geometry:
+  [Pours](https://docs.jitx.com/en/latest/essentials/physical_design/pours.html).
+  Pour rule effects: installed `jitx.constraints`; capture limits:
+  [pour realization semantics](../../jitx-physical-layout/SKILL.md#pour-realization-semantics).
+- Direct connect: `jitxexamples.patterns.direct_connect`, including its versioned receipt.
+- Fill between signal traces and the engineering basis for routed power:
+  Eric Bogatin, [Seven Habits of Successful 2-Layer Board Designers](https://www.signalintegrityjournal.com/blogs/12-fundamentals/post/1207-seven-habits-of-successful-2-layer-board-designers),
+  Signal Integrity Journal, 2019-04-23.
 
-Source citations (`jitx/constraints.py:910` and the like) point into the
-installed py-jitx package on a `4.4.0` install; line numbers move between
-builds, so confirm on your own install before relying on one.
+Power-as-traces policy (including local puddles), pad-to-via sizing, Kelvin
+lines, and heavy-copper rules have no worked owner and remain below. Snippets
+use the project's power tag, sourced signal width, class priority, and protection
+priority from the [rule ladder](../SKILL.md#workflow).
+Source line citations and library dimensions were read on a 4.4.0 install;
+confirm them against the selected substrate and installed source.
 
-Engineering basis: Eric Bogatin, ["Seven Habits of Successful 2-Layer Board Designers"](https://www.signalintegrityjournal.com/blogs/12-fundamentals/post/1207-seven-habits-of-successful-2-layer-board-designers),
-Signal Integrity Journal, 2019-04-23. Only claims that article makes are attributed to it.
-
-## 1. Width tiers as tags
-
-For 1 oz copper, Bogatin 2019 gives these engineering tiers:
-
-- 6 mil, 0.15 mm, and about 1 A DC (Bogatin 2019 tier).
-- 20 mil, 0.5 mm, and about 3 A (Bogatin 2019 tier).
-- 100 mil, 2.5 mm, and about 10 A (Bogatin 2019 tier).
-
-The rules use `trace_width` (`jitx/constraints.py:910`). Tag inheritance lets a base-tag rule match subtags (`jitx/constraints.py:344`).
-
-```python
-from jitx.constraints import IsTrace, Tag, UnaryDesignConstraint
-DEFAULT_PRIORITY = 0  # skill default: board-default priority 0
-POWER_PRIORITY = 1  # skill default: shared power priority 1
-CLASS_PRIORITY = 2  # skill default: rail and class priority 2
-ESCAPE_PRIORITY = 4  # skill default: escape priority 4, below required clearance protections
-PROTECTION_PRIORITY = ESCAPE_PRIORITY + 1  # skill default: required clearances above permissive escapes
-
-SIGNAL_WIDTH = 0.15  # Bogatin 2019 tier: 0.15 mm signal width, 1 oz copper
-POWER_WIDTH = 0.5  # Bogatin 2019 tier: 0.5 mm power width, 1 oz copper
-HIGH_CURRENT_WIDTH = 2.5  # Bogatin 2019 tier: 2.5 mm high-current width, 1 oz copper
-RAIL_12V_WIDTH = 2.5  # Bogatin 2019 tier: 2.5 mm for this rail, 1 oz copper
-class PowerTag(Tag):
-    """Power routed at the shared power tier."""
-class HighCurrentTag(PowerTag):
-    """Power routed at the high-current tier."""
-class Rail12VTag(PowerTag):
-    """One rail whose width differs from the shared power tier."""
-class EscapeTag(Tag):
-    """A specific, short pad escape segment."""
-# Store this list on the Design. The rule collector walks structural lists.
-self.rules = [
-    UnaryDesignConstraint(IsTrace, priority=DEFAULT_PRIORITY).trace_width(
-        SIGNAL_WIDTH
-    ),
-    UnaryDesignConstraint(IsTrace & PowerTag(), priority=POWER_PRIORITY).trace_width(
-        POWER_WIDTH
-    ),
-    UnaryDesignConstraint(IsTrace & HighCurrentTag(), priority=CLASS_PRIORITY).trace_width(
-        HIGH_CURRENT_WIDTH
-    ),
-    UnaryDesignConstraint(IsTrace & Rail12VTag(), priority=CLASS_PRIORITY).trace_width(
-        RAIL_12V_WIDTH
-    ),
-]
-```
-
-Assign the narrowest tag that states the rail's real requirement:
-
-```python
-PowerTag().assign(self.VDD_3V3)
-HighCurrentTag().assign(self.MOTOR_SUPPLY)
-Rail12VTag().assign(self.VIN_12V)
-```
-
-These are 1 oz engineering defaults, not a current-capacity calculation. The
-fab's capability table or a measured temperature rise is the only reason to
-change them. Record that replacement source on the same line as the new width.
-Do not use an IPC current-carrying chart, formula, or coefficient here.
-
-The class width stays on the trunk. A short tagged escape takes `ESCAPE_PRIORITY`
-when the landpattern requires it (see `fanout.md`; when the class width fits the
-pad there is no escape rule). Use a tag on a `Route` segment, never
-`RoutingStructure.NeckDown`.
-Required clearances use `PROTECTION_PRIORITY`, including layer-specific fab
-spacing. Keep them above every permissive rule that could match the same copper.
-Order overlapping protections so none can reduce another required minimum.
-
-## 2. Power as traces
+## Power as traces
 
 Bogatin's reason for routing power as traces is inspectable connectivity. A
 trace exposes its path and width, while a fill hides the intended current path.
 The policy is therefore: no board-wide power pours. The one exception is the
-local pad-derived puddle in section 9.
+local pad-derived puddle under [local power puddles](#power-puddle-from-a-pad-list).
 
 The listed unary effects do not prevent Python from constructing a `Pour` (`jitx/constraints.py:871`). Enforce the
 policy with a capture check, and use a binary clearance so the board-wide
@@ -123,7 +62,7 @@ with `min_copper_copper_space`, one of the enforced fabrication floors
 only when the design's coupling or voltage requirement supplies another
 source.
 
-## 3. Pad-to-via for power
+## Pad-to-via for power
 
 Read the via class from the substrate. A via exposes its pad `diameter`, drill
 `hole_diameter`, and `via_in_pad` capability (`jitx/via.py:60`,
@@ -171,7 +110,7 @@ classes set it to false (`jitxlib/jlcpcb/vias.py:141`,
 `jitxlib/jlcpcb/vias.py:157`). Do not mutate an ordinary via class to bypass
 that capability decision.
 
-## 4. Sense (Kelvin) lines
+## Sense (Kelvin) lines
 
 A Kelvin sense connection belongs to the circuit that owns the shunt. A sense
 trace is usually on the power net it measures, so tag the sense route
@@ -206,61 +145,7 @@ self.rules.append(
 assignment supports nets, copper, pads, vias, routes, components, and circuits
 (`jitx/constraints.py:495`, `jitx/constraints.py:565`).
 
-## 5. Pours
-
-Put one board-wide ground pour on the return layer below the routed signal
-layer. The top-level circuit owns it. See the circuit builder's
-`references/advanced-patterns.md`, "Pours", for net attachment and placement.
-Bogatin recommends top-layer components, signals, and power traces over a
-continuous ground return. Do not rely on a top-layer ground fill as the return.
-Pour materialization, placement prerequisites, edge pullback, empty output, and
-capture semantics are owned by
-[Pour realization semantics](../../jitx-physical-layout/SKILL.md#pour-realization-semantics).
-
-```python
-from jitx import current
-from jitx.constraints import (
-    BinaryDesignConstraint,
-    IsHole,
-    IsPour,
-    IsThroughHole,
-    IsTrace,
-    OnLayer,
-)
-# Inside the top-level circuit's __init__. Creation of self.ground_return uses
-# the edge-pullback pattern owned by jitx-physical-layout at the link above.
-fab = current.design.substrate.constraints
-TRACE_POUR_MARGIN = 0.11  # skill default: 0.11 mm beyond the fab floor
-trace_pour_clearance = fab.min_copper_copper_space + TRACE_POUR_MARGIN  # FabricationConstraints floor plus skill default margin
-pour_hole_clearance = fab.min_copper_hole_space  # FabricationConstraints field
-self.rules.extend(
-    [
-        BinaryDesignConstraint(
-            IsTrace & OnLayer(return_layer),
-            IsPour & OnLayer(return_layer),
-            priority=PROTECTION_PRIORITY,
-        ).clearance(trace_pour_clearance),
-        BinaryDesignConstraint(
-            IsPour & OnLayer(return_layer),
-            IsHole,
-            priority=PROTECTION_PRIORITY,
-        ).clearance(pour_hole_clearance),
-        BinaryDesignConstraint(
-            IsPour & OnLayer(return_layer),
-            IsThroughHole,
-            priority=PROTECTION_PRIORITY,
-        ).clearance(pour_hole_clearance),
-    ]
-)
-```
-
-`OnLayer(index)` is a rule condition, and negative indices count from the
-bottom (`jitx/constraints.py:471`). `Pour` takes one integer layer and joins a
-net through membership (`jitx/copper.py:46`, `jitx/copper.py:71`). The
-`isolate=` argument is deprecated in 4.4. Use clearance rules instead
-(`jitx/copper.py:54`).
-
-## 6. Heavy copper
+## Heavy copper
 
 `Stackup.conductors` returns the ordered conducting layers, and each
 `Conductor` carries `thickness` in millimeters (`jitx/stackup.py:54`,
@@ -321,50 +206,8 @@ resolved to the conductor sequence.
 The predefined example stackup models 0.035 mm outer copper (`jitxlib/jlcpcb/JLC04161H_7628.py:16`) and 0.0152 mm inner copper (`jitxlib/jlcpcb/JLC04161H_7628.py:17`). If a fab quote calls for a thicker
 layer, update the substrate before generating the rules.
 
-## 7. Sliver removal
+## Power puddle from a pad list
 
-`pour_feature_size` clips pour regions that cannot contain a circle of the
-given minimum width, excluding thermal spokes (`jitx/constraints.py:309`,
-`jitx/constraints.py:1038`). Start with the selected fab's copper-width floor.
-
-```python
-from jitx.constraints import IsPour, design_constraint
-from jitxlib.jlcpcb.rules import JLCPCBRules
-min_pour_feature = JLCPCBRules.min_copper_width  # JLCPCBRules floor: 0.09 mm copper width
-self.rules.append(
-    design_constraint(IsPour, priority=DEFAULT_PRIORITY).pour_feature_size(
-        min_pour_feature
-    )
-)
-```
-
-The JLCPCB example floors are:
-
-- 0.09 mm minimum copper width (`jitxlib/jlcpcb/rules.py:8`).
-- 0.09 mm copper-to-copper clearance (`jitxlib/jlcpcb/rules.py:9`).
-- 0.254 mm copper-to-hole clearance (`jitxlib/jlcpcb/rules.py:10`).
-- 0.3 mm copper-to-edge clearance (`jitxlib/jlcpcb/rules.py:11`).
-
-Read these fields from the selected substrate. The class values are examples, not constants to copy to another fab.
-
-## 8. Direct connect
-
-`jitxexamples.patterns.direct_connect` builds both candidates and
-shows which holds, with the measured output in its docstring.
-
-## 9. Power puddle from a pad list
-
-A local puddle serving a group of pins is built by the circuit that owns those pads. The
-pad-union helper that used to compute it is removed with the decoupling solver: it existed
-to feed that solver, and a helper that survives its only caller is a helper nobody maintains.
-
-The principle stands without it. A puddle is copper on the rail inside the circuit that owns
-the pads, given an explicit position, and it needs its reason on the line that creates it.
-
-## 10. Fill between signal traces
-
-Do not add copper fill between signal traces as a crosstalk treatment. [Bogatin 2019](https://www.signalintegrityjournal.com/blogs/12-fundamentals/post/1207-seven-habits-of-successful-2-layer-board-designers)
-states that such fill does not reliably reduce crosstalk and can increase it.
-Keep the continuous return on the layer below, route signals on top, and solve
-crosstalk with the trace geometry and spacing that the design requires. A top
-fill is not a substitute for the return layer or for a sourced signal spacing.
+A local puddle serving a group of pins is built by the circuit that owns those
+pads. It is copper on the rail, given an explicit position, and needs its reason
+on the line that creates it.

@@ -31,8 +31,11 @@ routes, and captured-geometry verification. Start environment setup with
      `jitxlib.verify.geometry` owns shape conversion and its frame/void traps;
      [geometry evidence](references/geometry-verification.md) retains observations
      without a code owner.
-   - [Control points](references/control-points.md): `Route`, binding, chirality,
-     ownership, and deskew routing.
+   - For authored escapes, deskew fans, or insertion geometry, use installed
+     `jitx.circuit.Route` and `jitx.controlpoint` for APIs and
+     `jitxexamples.patterns.control_points` for binding, chirality, segment/net
+     tags, coupled trunks, and crossovers. [Control points](references/control-points.md)
+     retains common-ancestor sequencing and failures without a worked owner.
    - `jitxexamples.demos.si_bga_optimization`: `deskew.py` owns arc-polyline
      construction and `deskew_connections` (left-to-p, right-to-n);
      `bga_escape.py` demonstrates control points, virtual connections, and fence

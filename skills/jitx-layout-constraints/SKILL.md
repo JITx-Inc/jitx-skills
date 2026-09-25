@@ -21,11 +21,13 @@ pour rules, package escapes, decoupling, and checks of applied rules.
 - [Rule reference](references/rule-reference.md) owns only the evidence table:
   what each behavior did when it was built, against a named version, and where
   the receipt lives. Its pending behaviors remain unverified.
-- [Power and pours](references/power-and-pours.md) owns Bogatin tiers,
-  power-as-traces policy, pad-to-via sizing, Kelvin lines, layer selection,
-  heavy copper, sliver removal, direct connect, and fill between traces.
-- [Fanout](references/fanout.md) owns the rule ladder, placed-pad measurements,
-  QFN/BGA/passive derivations, and the prohibition on code-side NeckDown.
+- [Pours](https://docs.jitx.com/en/latest/essentials/physical_design/pours.html)
+  owns pours, layer selection, sliver removal, and fill geometry;
+  [power and pours](references/power-and-pours.md) routes the signal-fill policy
+  and retains unowned power-as-traces, pad-to-via, Kelvin, and heavy-copper guidance.
+- [Fanout](references/fanout.md) retains unowned BGA/passive derivations and
+  routes QFN measurement/escape to `jitxexamples.patterns.qfn_power_fanout`,
+  the ladder to `jitxexamples.patterns.complete_rules`, and NeckDown to installed source.
 - [Substrate modeler](../jitx-substrate-modeler/SKILL.md) owns fab floors,
   stackups, vias, routing structures, and fenced pour outlines.
 - [Physical layout](../jitx-physical-layout/SKILL.md) owns copper drawing,
@@ -37,9 +39,9 @@ pour rules, package escapes, decoupling, and checks of applied rules.
   [circuit builder](../jitx-circuit-builder/SKILL.md) owns wiring, passives,
   and basic top-level pours.
 
-Read working designs and their measured receipts in module docstrings:
-`jitxexamples.patterns.default_rules`, `.net_net_clearance`,
-`.qfn_power_fanout`, `.direct_connect`, `.stitch_via`, and `.complete_rules`.
+Working designs and versioned receipts: `jitxexamples.patterns.default_rules`,
+`.net_net_clearance`, `.direct_connect`, `.stitch_via`, and `.complete_rules`
+(including Bogatin width tiers). Direct-connect behavior belongs to its pattern.
 Use installed `jitxlib.verify` for the checks below. Reference checkers also
 use its `CheckResult`, `check_width`, and `check_clearance`.
 
@@ -63,10 +65,13 @@ use its `CheckResult`, `check_width`, and `check_clearance`.
    layer-scoped width overrides, permissive escapes, clearance protections.
    Give competing overrides distinct priorities. Put each protection above
    every permissive rule it must beat, including escapes and layer-wide rules.
-5. Apply the relevant power/pour reference. For every pad reached by a
+5. Apply the relevant power/pour owner. For every pad reached by a
    tagged class width, measure whether width and clearance fit. Keep the
    class rule when they do; otherwise derive the escape width/clearance pair
-   from the fanout reference or fail. Do not hand-pick only conspicuous pads.
+   or fail. Subtract 0.02 mm from the narrowest selected pad width, then round
+   down to a 0.01 mm grid (`complete_rules` guideline defaults); require the
+   fab floor and strict-narrower check. This replaces the QFN pattern's
+   historical 1 nm subtraction. Use fanout for BGA/passive channel limits.
 6. Put escape rules on the owning circuit; split width transitions at
    `RoutePoint`s, including near vias/layer changes. Follow
    [control-point mechanics](../jitx-physical-layout/references/control-points.md)
@@ -82,13 +87,13 @@ use its `CheckResult`, `check_width`, and `check_clearance`.
 Each class names the source that answers it. A value taken from a source that
 answers a different question is an invented number, however real the source.
 
-- Board defaults: derive from the selected substrate rather than copying a
-  value. `jitxexamples.patterns.complete_rules` derives its thermal spoke width
-  and pour stitch inset from `fab.min_copper_width`, and checks its trace width
-  against that floor rather than deriving it, which is the weaker of the two and
-  is why the floor check is there.
-- Power and ground: the current the rail carries, against the tiers in
-  [power and pours](references/power-and-pours.md).
+- Board defaults: derive from the selected substrate; use
+  `jitxexamples.patterns.complete_rules` for floor-derived thermal spokes and
+  stitch inset, and its trace-width floor check.
+- Power and ground: round the stated current up to the next covering tier in
+  `jitxexamples.patterns.complete_rules`; if none covers it, obtain another source.
+  A tier is a published figure for a copper weight, so a different copper
+  weight needs its own source, not an adjustment.
 - Gate drive: the driver datasheet, with default clearance and circuit-owned
   placement.
 - RF and high-speed differential: the routing structure's own width and

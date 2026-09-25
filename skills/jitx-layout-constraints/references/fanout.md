@@ -1,29 +1,24 @@
-# Fanout and Package Escape Rules
+# Fanout and package escape owners
 
-Use this reference when a net-class width reaches a package whose pad or
-channel cannot accept it. Keep the class rule. Split the physical path at a
-control point, tag only the short escape segment, and let a package rule above
-the class width set that segment's width. Keep required clearance protections
-above any permissive package clearance.
+- Rule ladder: [skill workflow](../SKILL.md#workflow) and
+  `jitxexamples.patterns.complete_rules`.
+- QFN pad measurement, adjacent-gap derivation, and worked escape:
+  `jitxexamples.patterns.qfn_power_fanout`. Apply the
+  [manufacturable width derivation](../SKILL.md#workflow) in place of its
+  historical 1 nm subtraction; that receipt does not verify the new width.
+- Route and control-point APIs: installed `jitx.circuit` and `jitx.controlpoint`;
+  [physical-layout verification](../../jitx-physical-layout/SKILL.md#verification)
+  owns capture. Width checks belong to `jitxlib.verify` and the
+  [constraint verification gate](../SKILL.md#verification).
+- `RoutingStructure.NeckDown`: installed `jitx.si` owns the substrate
+  definition; use tagged route segments for code-side escapes.
 
-This page owns the package geometry derivation. The complete rule surface is
-in `rule-reference.md`.
-Source citations (`jitx/constraints.py:910` and the like) point into the
-installed py-jitx package on a `4.4.0` install; line numbers move between
-builds, so confirm on your own install before relying on one.
- Route and control-point mechanics are in
-`jitx-physical-layout/references/control-points.md`. Coordinate composition and
-capture are in
-`jitx-physical-layout/references/geometry-verification.md`.
+BGA and passive derivations have no worked owner and remain below, with their
+shared pad-query helper. Source line citations refer to a 4.4.0 install;
+confirm them against installed source. Neither derivation has a captured
+reference result.
 
-## The rule ladder
-
-The ladder is in [the workflow](../SKILL.md#workflow), low to high, and
-`jitxexamples.patterns.complete_rules` is it as working code: five named rungs applied
-across a whole rule set, with a test asserting every protection outranks every
-permissive rule.
-
-## Read placed pad copper once
+## Shared support for the unowned derivations
 
 The installed query engine converts pads to copper. A query result stays in
 the source's local frame, so compose the query trace with the copper shape
@@ -69,7 +64,7 @@ def placed_pad_polygons(
 
 Do not read `pad.transform` alone. A composite landpattern adds frames above
 the pad, and bottom-side placement adds mirroring. The full failure mode and
-composition rule are in `geometry-verification.md`, "Coordinate frames".
+composition rule are in [geometry evidence](../../jitx-physical-layout/references/geometry-verification.md#coordinate-frames).
 
 A generated landpattern (`SMT("0805")`, the QFN generator) is built lazily.
 If nothing has touched its pads before the `query(design, Copper)` walk runs
@@ -87,147 +82,38 @@ floor_width = fab.min_copper_width
 floor_space = fab.min_copper_copper_space
 ```
 
-The four enforced fabrication fields and their precedence over design rules
-are summarized in `rule-reference.md`, "What the rules sit on". Do not copy a
-fabricator value into an escape helper.
-
-## QFN, adjacent-pad gap and pad width
-
-The `jitxlib` QFN generator places four rows from a lead profile, and the
-profile carries the row pitch (`jitxlib/landpatterns/generators/qfn.py:115-134`,
-`jitxlib/landpatterns/quad.py:123-145`). `DensityLevel` selects the
-IPC-7351 land-protrusion goal. IPC-7351 is the standard implemented by the
-generator, not an escape-width table.
-
-Measure the emitted copper. For a pad on a left or right row, pad width is its
-Y extent. For a pad on a top or bottom row, pad width is its X extent. The
-nearest pad with the same radial coordinate is the adjacent pad in that row.
-Its center distance is the realized pitch, and polygon distance is the
-realized edge gap.
+Use the same manufacturable width policy for every pad/channel limit:
 
 ```python
 from collections.abc import Sequence
-from dataclasses import dataclass
-from math import isclose
-from shapely.geometry.base import BaseGeometry
-
-from jitx.landpattern import Pad
+from decimal import Decimal, ROUND_FLOOR
 from jitx.substrate import FabricationConstraints
 
 GEOMETRY_TOLERANCE = 1e-6  # skill default: 1e-6 mm comparison tolerance
-WIDTH_QUANTUM = 1e-6  # skill default: 1 nm fixed width quantum
-WIDTH_DECIMAL_PLACES = 6  # skill default: fixed precision matching WIDTH_QUANTUM
+ESCAPE_PAD_INSET = Decimal("0.02")  # complete_rules guideline default, mm
+FANOUT_WIDTH_GRID = Decimal("0.01")  # complete_rules guideline default, mm
+
+# No source on this machine establishes an escape spacing margin, and none is
+# invented here. Bind it from the design's own spacing budget before calling
+# the helpers below; there is no skill default.
+CLEARANCE_MARGIN: float
 
 def strictly_inside_width(limit: float, floor: float) -> float:
-    """Quantize below a measured limit and enforce both postconditions."""
-    width = round(limit, WIDTH_DECIMAL_PLACES) - WIDTH_QUANTUM
+    """Subtract the pad margin, round down to the grid, then check the fab floor."""
+    steps = (Decimal(str(limit)) - ESCAPE_PAD_INSET) / FANOUT_WIDTH_GRID
+    width = float(steps.to_integral_value(rounding=ROUND_FLOOR) * FANOUT_WIDTH_GRID)
     if not width < limit:
-        raise ValueError("quantized escape is not strictly below its measured limit")
+        raise ValueError("escape is not strictly below its measured limit")
     if width < floor:
-        raise ValueError("quantized escape is below the fabrication copper floor")
+        raise ValueError("escape is below the fabrication copper floor")
     return width
-
-@dataclass(frozen=True)
-class QfnEscapeGeometry:
-    pad_width: float
-    narrowest_rule_pad_width: float
-    adjacent_gap: float
-    row_pitch: float
-    pad_depth: float
-    escape_width: float
-    escape_clearance: float
-
-def qfn_escape_geometry(
-    pad_copper: dict[Pad, BaseGeometry],
-    target_pad: Pad,
-    rule_pads: Sequence[Pad],
-    package_center: tuple[float, float],
-    fab: FabricationConstraints,
-    default_clearance: float,  # the board's default clearance rule value
-) -> QfnEscapeGeometry:
-    target = pad_copper[target_pad]
-    minx, miny, maxx, maxy = target.bounds
-    center = ((minx + maxx) / 2.0, (miny + maxy) / 2.0)
-    delta = (center[0] - package_center[0], center[1] - package_center[1])
-    radial_is_x = abs(delta[0]) >= abs(delta[1])
-    radial_index = 0 if radial_is_x else 1
-    tangent_index = 1 - radial_index
-    neighbors: list[tuple[float, BaseGeometry]] = []
-    for pad, geometry in pad_copper.items():
-        if pad is target_pad:
-            continue
-        gx0, gy0, gx1, gy1 = geometry.bounds
-        other_center = ((gx0 + gx1) / 2.0, (gy0 + gy1) / 2.0)
-        if not isclose(
-            other_center[radial_index],
-            center[radial_index],
-            abs_tol=GEOMETRY_TOLERANCE,
-        ):
-            continue
-        row_delta = abs(other_center[tangent_index] - center[tangent_index])
-        neighbors.append((row_delta, geometry))
-    if not neighbors:
-        raise ValueError("target QFN pad has no neighbor in its row")
-    row_pitch, neighbor = min(neighbors, key=lambda item: item[0])
-    pad_width = maxy - miny if radial_is_x else maxx - minx
-    pad_depth = maxx - minx if radial_is_x else maxy - miny
-    adjacent_gap = row_pitch - pad_width
-    if not isclose(adjacent_gap, target.distance(neighbor), abs_tol=GEOMETRY_TOLERANCE):
-        raise ValueError("QFN row pads are not a uniform pitch-minus-width channel")
-    floor_space = fab.min_copper_copper_space
-    if adjacent_gap < floor_space:
-        raise ValueError("adjacent QFN pads are closer than the fabrication spacing floor")
-
-    # One rule must fit every pad it selects. Measure each pad in its row's
-    # tangential direction, then stay one fixed quantum inside the narrowest.
-    rule_pad_widths: list[float] = []
-    for pad in rule_pads:
-        geometry = pad_copper[pad]
-        gx0, gy0, gx1, gy1 = geometry.bounds
-        gcx, gcy = geometry.centroid.coords[0]
-        gdelta = (gcx - package_center[0], gcy - package_center[1])
-        g_radial_is_x = abs(gdelta[0]) >= abs(gdelta[1])
-        rule_pad_widths.append(
-            gy1 - gy0 if g_radial_is_x else gx1 - gx0
-        )
-    narrowest_rule_pad_width = min(rule_pad_widths)
-    escape_width = strictly_inside_width(
-        narrowest_rule_pad_width,
-        fab.min_copper_width,
-    )
-    # Start from the board default and only tighten where the neighbor gap
-    # cannot hold it; never below the floor. A floor-level clearance at the
-    # escape rung would loosen the board default around every escape.
-    escape_clearance = max(floor_space, min(default_clearance, adjacent_gap))
-    return QfnEscapeGeometry(
-        pad_width,
-        narrowest_rule_pad_width,
-        adjacent_gap,
-        row_pitch,
-        pad_depth,
-        escape_width,
-        escape_clearance,
-    )
 ```
-
-The adjacent-gap guard proves that the selected process can separate the QFN
-pads. It does not narrow the trace after that guard, so this helper makes no
-centered-channel claim. The width comes from the narrowest pad selected by the
-rule, rounded to a fixed `1 nm` precision, then reduced by one `1 nm` quantum.
-The subtraction is unconditional. The helper
-checks the strict-inside postcondition and stops if the result falls below
-`min_copper_width`; it never types a narrower replacement.
-
-### Worked power escape
-
-`jitxexamples.patterns.qfn_power_fanout` is the worked one, with its
-checker and its measured receipt.
 
 ## BGA, diagonal channel and row depth
 
 Unverified: no built reference case exercises this helper yet. Treat it as the
 intended shape and verify the realized width after capture before relying on
-it; the QFN path above is the one with a captured reference.
+it; the QFN pattern is the one with a captured reference.
 
 The BGA generator places circular pad lands on a grid. Its `ball_diameter`
 argument becomes the PCB pad-circle diameter, and its pitch becomes the X and
@@ -292,7 +178,7 @@ available signal layer, and the plan continues inward only while the derived
 channel and via geometry remain legal. Build the row order from pad centers
 and the layer order from the selected substrate. Store the resulting mapping
 beside the routes. For differential lanes, use the net-tag and control-point
-mechanics already documented in `control-points.md`; the package plan does not
+mechanics in [control points](../../jitx-physical-layout/references/control-points.md); the package plan does not
 change them.
 
 ## Two-terminal passive, terminal gap and courtyard
@@ -366,52 +252,3 @@ the terminals. Use `outward_escape_width` for a route leaving a terminal away
 from the other pad. In either case, cap at the pad width and fail if the result
 is below `min_copper_width`. The courtyard is a placement envelope, not an
 escape-width source (`jitx/feature.py:177-194`).
-
-## Not NeckDown
-
-`RoutingStructure.NeckDown` is a substrate definition, not a code-side
-fanout mechanism. Read its docstring before reaching for it.
-
-## What to check after build
-
-Follow `SKILL.md`, "Verification", after capture. A clean build is not width
-evidence. Both authored routes must have non-empty `route.traces`, and every
-realized polyline on each route must carry the winning width; an empty
-`traces` or a wrong width is a failed check, and the escape is not reported
-as done until it passes. Captured route
-shapes and their width fields are defined in `jitx/circuit.py:545-562` and
-`jitx/shapes/primitive.py:285-317`.
-
-```python
-from jitx.shapes.primitive import ArcPolyline, Polyline
-
-def realized_widths(route: Route) -> tuple[float, ...]:
-    assert route.traces, f"unrealized route: {route}"
-    widths: list[float] = []
-    wrong_primitives: list[str] = []
-    for trace in route.traces:
-        for shape in trace.shapes:
-            primitive = shape.to_primitive().geometry
-            if isinstance(primitive, ArcPolyline | Polyline):
-                widths.append(primitive.width)
-            else:
-                wrong_primitives.append(type(primitive).__name__)
-    assert not wrong_primitives, (
-        f"route realized as {wrong_primitives}, not a width-bearing polyline; "
-        "the width rule failed"
-    )
-    assert widths, f"route has no realized polyline width: {route}"
-    return tuple(widths)
-
-assert all(width == POWER_WIDTH for width in realized_widths(circuit.trunk_route))
-assert all(
-    width == circuit.escape_geometry.escape_width
-    for width in realized_widths(circuit.escape_route)
-)
-```
-
-Use a small numeric tolerance in an executable check to absorb serialization
-noise. Label that tolerance as a skill default on the line that defines it.
-Print the derived pad width, governing gap, clearance, and both measured route
-widths so a reviewer can compare the requested rule values with captured
-copper.
