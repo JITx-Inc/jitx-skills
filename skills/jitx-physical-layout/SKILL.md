@@ -622,7 +622,7 @@ ruff format path/to/layout.py
 Then verify **realized geometry, not build success** (4.3 reverse flow): submit +
 `capture()` the design through the runtime and assert against the concrete result —
 `route.traces` non-empty for every route, `rd.query(Copper)` bounds where you meant
-them, `rd.nets().find(...)` on every net-bearing feature. The full loop, the
+them, `rd.nets.find(...)` on every net-bearing feature. The full loop, the
 `query`-vs-`visit` semantics, and the coordinate-frame rules are in
 `references/geometry-verification.md` — this replaces screenshot/viewer checking
 for code-authored layout. Validate shapely outputs (non-empty

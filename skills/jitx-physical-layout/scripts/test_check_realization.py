@@ -196,7 +196,7 @@ class CaptureAdapterTests(unittest.TestCase):
             def normalize(self, layer: int) -> int:
                 return layer + 4 if layer < 0 else layer
 
-        rd = SimpleNamespace(layers=lambda: Layers())
+        rd = SimpleNamespace(layers=Layers())
         transform = SimpleNamespace(side=BottomSide())
         self.assertEqual(
             _normalized_pour_layer(rd, SimpleNamespace(layer=0), transform), 3
@@ -264,6 +264,7 @@ class CaptureAdapterTests(unittest.TestCase):
                 self.capture_called = True
                 pour_object.shape = computed_shape
 
+            @property
             def nets(self) -> FakeNets:
                 return FakeNets()
 

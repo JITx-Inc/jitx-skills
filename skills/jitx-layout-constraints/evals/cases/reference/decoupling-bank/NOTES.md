@@ -133,7 +133,7 @@ OK
 Recorded once from a capture probe, as a geometric cross-check that `p1` (the
 power pad) sits on the solver's power side after the rotation fix. Bounds are
 design-global, from `route.traces[*].shapes[*].to_shapely().g.bounds`, and net
-names come from `rd.nets().find(trace)`:
+names come from `rd.nets.find(trace)`:
 
 ```text
 route[0] net=VCORE bounds=(-2.0000, -1.4000, -1.2689, -1.1000)

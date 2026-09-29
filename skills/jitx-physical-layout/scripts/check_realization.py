@@ -394,8 +394,8 @@ def _normalized_layers(
         if side is not None:
             begin = side.apply(begin)
             end = side.apply(end)
-        begin = rd.layers().normalize(begin)
-        end = rd.layers().normalize(end)
+        begin = rd.layers.normalize(begin)
+        end = rd.layers.normalize(end)
         low, high = sorted((begin, end))
         layers.update(range(low, high + 1))
     return frozenset(layers)
@@ -408,7 +408,7 @@ def _normalized_pour_layer(rd: object, pour: object, transform: object) -> int:
     side = getattr(transform, "side", None)
     if side is not None:
         layer = side.apply(layer)
-    return rd.layers().normalize(layer)
+    return rd.layers.normalize(layer)
 
 
 def _stitch_rule_targets(
@@ -448,7 +448,7 @@ def _stitch_rule_targets(
             if isinstance(atom, BuiltinTag):
                 return atom in (BuiltinTag.IsCopper, BuiltinTag.IsPour)
             if isinstance(atom, OnLayer):
-                return rd.layers().normalize(atom.index) == layers_by_pour[id(pour)]
+                return rd.layers.normalize(atom.index) == layers_by_pour[id(pour)]
             return any(
                 isinstance(assigned, type(atom)) for assigned in tags_by_pour[id(pour)]
             )
@@ -517,7 +517,7 @@ def _capture_checks(
             authored_shape_ids[id(pour)],
         )
         geometry, empty = _geometry(captured.shape, trace.transform)
-        runtime_net = rd.nets().find(captured)
+        runtime_net = rd.nets.find(captured)
         net_name = (
             "<unresolved>" if runtime_net is None else runtime_net.name or "<unnamed>"
         )
@@ -542,10 +542,10 @@ def _capture_checks(
         sample = samples_by_id.get(id(target))
         if sample is None:
             raise ValueError(f"stitch target {label!r} is not an authored Pour")
-        target_net = rd.nets().find(target)
+        target_net = rd.nets.find(target)
         points: list[tuple[float, float]] = []
         for group in stitch_groups:
-            group_net = rd.nets().find(group.net) if group.net is not None else None
+            group_net = rd.nets.find(group.net) if group.net is not None else None
             if target_net is not None and group_net is target_net:
                 points.extend(tuple(via.position) for via in group.vias)
         stitch_samples.append(StitchTargetWitness(label, "Pour", sample, tuple(points)))

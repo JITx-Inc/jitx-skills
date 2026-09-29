@@ -29,7 +29,7 @@ with jitx.runtime as r:          # connects to this project's runtime
             ...
 
     # 3) net identity, element- or trace-level
-    nets = rd.nets()
+    nets = rd.nets
     assert nets.find(circ.gnd_pour[0]).name == nets.find(circ.c1.gnd).name
     for tr in circ.trunk.traces:                  # which net rides each trunk line
         print(nets.find(tr).name)
@@ -159,11 +159,11 @@ Two realized-geometry frames that will also bite you:
 
 ## Net resolution
 
-`rd.nets()` returns an index; `.find(element)` resolves any design object — a
+`rd.nets` returns an index; `.find(element)` resolves any design object — a
 port, a pour added via `net += Pour(...)` / `net.connected.extend(...)`, or an
 individual realized `Route.Trace` — to its connected net (`.name`). Per-trace net
 lookup is how you verify a coupled trunk's polarity (which physical line carries
-`p`). `rd.layers().normalize(i)` normalizes negative layer indices.
+`p`). `rd.layers.normalize(i)` normalizes negative layer indices.
 
 ## What checks to write
 

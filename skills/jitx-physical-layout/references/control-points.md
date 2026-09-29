@@ -270,7 +270,7 @@ then verify all N with the traces assert.
 `pyright` catches a wrong accessor or constructor immediately. Then verify
 **realized geometry, not build success**: submit + capture through the runtime and
 assert, for every route: (1) `traces` is non-empty (and `== 2` traces for a coupled
-trunk), (2) the net riding each trunk line (`rd.nets().find(trace)`) matches the
+trunk), (2) the net riding each trunk line (`rd.nets.find(trace)`) matches the
 intended polarity, (3) the shapely bounds of the trace shapes are where you meant
 (`shape.to_shapely().g.bounds`). Full recipe, query-vs-visit semantics, and
 coordinate-frame rules: `references/geometry-verification.md`.
