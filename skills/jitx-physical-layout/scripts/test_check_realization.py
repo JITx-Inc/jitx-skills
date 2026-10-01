@@ -255,10 +255,8 @@ class CaptureAdapterTests(unittest.TestCase):
         rd = SimpleNamespace(
             root=root,
             capture=capture,
-            layers=lambda: SimpleNamespace(normalize=lambda layer: layer % 2),
-            nets=lambda: SimpleNamespace(
-                find=lambda _obj: SimpleNamespace(name="GND")
-            ),
+            layers=SimpleNamespace(normalize=lambda layer: layer % 2),
+            nets=SimpleNamespace(find=lambda _obj: SimpleNamespace(name="GND")),
             query=lambda _target: [],
         )
         runtime = SimpleNamespace(submit=lambda _design: rd)
