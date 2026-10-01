@@ -5,19 +5,19 @@
     "substrate": "jitxlib.jlcpcb.JLC04161H_7628",
     "reference": "evals/cases/reference/net-net-clearance/design.py",
     "notes": "The JLCPCB copper spacing floor is read from JLCPCBRules.min_copper_copper_space, jitxlib/jlcpcb/rules.py:9. The capture check excludes pours because captured Pour geometry is the input outline before runtime voiding.",
-    "environment": "Commands run from the repository root with python3 resolving to the project interpreter that has jitx installed."
+    "environment": "Commands run from the repository root with python3 resolving to the project interpreter that has jitx and jitxlib-verify installed."
   },
   "expected_output": "A design module with module-scope power and ground tags, four structural board defaults, a priority 2 two-condition clearance rule, and two pad-to-point routes authored closer together than the rule (and, in a variant, closer than the fabrication floor). A check script submits and captures each design, verifies route realization and trace widths, measures power-to-ground copper clearance, and asserts the observed behavior: realized clearance equals the authored gap, the clearance rule does not move code-authored routes, and the floor is not enforced on them either, all with status ok. NOTES.md records the real commands and output.",
   "assertions": [
     {
-      "text": "the pure helper unit tests pass",
+      "text": "the installed verification API used by the reference imports and rejects empty route and check selections",
       "check": "deterministic",
-      "cmd": "python3 skills/jitx-layout-constraints/scripts/test_layout_checks.py"
+      "cmd": "python3 -c \"from jitxlib.verify import CheckResult, check_clearance, check_routes, check_width, report; assert not check_routes([]).passed; assert report([]) == 1\""
     },
     {
-      "text": "the shipped helper and reference module type-check against the installed JITX package",
+      "text": "the reference design and checker type-check against the installed JITX and verification packages",
       "check": "deterministic",
-      "cmd": "python3 -m pyright --pythonpath \"$(command -v python3)\" skills/jitx-layout-constraints/scripts/layout_checks.py skills/jitx-layout-constraints/evals/cases/reference/net-net-clearance/design.py skills/jitx-layout-constraints/evals/cases/reference/net-net-clearance/check.py"
+      "cmd": "python3 -m pyright --pythonpath \"$(command -v python3)\" skills/jitx-layout-constraints/evals/cases/reference/net-net-clearance/design.py skills/jitx-layout-constraints/evals/cases/reference/net-net-clearance/check.py"
     },
     {
       "text": "the built and captured reference checks pass",

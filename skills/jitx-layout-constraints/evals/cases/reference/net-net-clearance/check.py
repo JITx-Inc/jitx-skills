@@ -15,34 +15,15 @@ The runtime adapter and capture entry point are in
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 from typing import Any
 
 import jitx
-
-
-def _load_layout_checks() -> None:
-    for parent in Path(__file__).resolve().parents:
-        candidates = (
-            parent / "scripts" / "layout_checks.py",
-            parent / "layout_checks.py",
-        )
-        for candidate in candidates:
-            if candidate.is_file():
-                sys.path.insert(0, str(candidate.parent))
-                return
-    raise RuntimeError("could not locate layout_checks.py from the reference tree")
-
-
-_load_layout_checks()
-
-from layout_checks import (  # pyright: ignore[reportMissingImports]
+from jitxlib.verify import (
     CheckResult,
     check_clearance,
     check_routes,
     check_width,
-    run_checks,
+    report,
 )
 
 try:  # Package import in a scratch project, direct import when run beside design.py.
@@ -114,7 +95,7 @@ def main() -> int:
     with jitx.runtime as runtime:
         example = _capture(runtime, NetNetClearanceDesign)
         print("example rule, source: skill example above the fabrication floor")
-        example_exit = run_checks(
+        example_exit = report(
             _common_checks(example)
             + _clearance_observation(example, EXAMPLE_CLEARANCE, "example")
         )
@@ -144,7 +125,7 @@ def main() -> int:
             f"skill test value {BELOW_FLOOR_CLEARANCE:.4f} mm; "
             f"fabrication floor {floor:.4f} mm"
         )
-        below_exit = run_checks(below_checks)
+        below_exit = report(below_checks)
     return 1 if example_exit or below_exit else 0
 
 

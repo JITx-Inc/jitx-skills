@@ -1,0 +1,42 @@
+{
+  "name": "rf-front-end-geometry",
+  "prompt": "Board has a drawn antenna on the top layer, a filter section that needs its own ground island tied back at one point, and a PAM8302 with an exposed pad. Two layer JLCPCB. The antenna and the filter ground are my own shapes, not parts.",
+  "inputs": {
+    "parts": "jitxexamples.components.audio_amps.PAM8302AADCR for the amplifier. The antenna and the ground island are authored geometry, not components.",
+    "substrate": "a JLCPCB 2-layer stackup",
+    "notes": "Authored copper is the point. A net tie is copper the router must not treat as a short, and an island tied at one point is the case where a pour and a net tie interact. The exposed pad needs its own mask and paste treatment, which is a different question from the copper.",
+    "environment": "Commands run from the repository root with an interpreter that has jitx installed and a reachable runtime."
+  },
+  "expected_output": "Authored shapes with their connectivity declared rather than implied by overlap, a design that builds without unrouted warnings it did not earn, and checks that establish the copper reaches the endpoints it claims on the layers it claims.",
+  "assertions": [
+    {
+      "text": "netless copper intended to overlap is authored as OverlappableCopper, and its connectivity is declared rather than left for the router to infer from physical contact",
+      "check": "judge"
+    },
+    {
+      "text": "a declared connection is checked against the geometry: the copper's endpoints are shown to reach the declared source and destination on the declared layers, since a declaration suppresses a warning without establishing contact",
+      "check": "judge"
+    },
+    {
+      "text": "the ground island is tied at exactly one point, and that is measured rather than asserted from the authored shape",
+      "check": "judge"
+    },
+    {
+      "text": "the exposed pad's mask and paste openings are authored deliberately, with the paste treatment justified against whether the vias are filled, rather than inheriting a default",
+      "check": "judge"
+    },
+    {
+      "text": "every pour realizes with positive area and is checked for it, because a pour can return Empty while the build reports status ok",
+      "check": "judge"
+    },
+    {
+      "text": "no check passes on an empty selection",
+      "check": "judge"
+    },
+    {
+      "text": "the checker library the skill routes to is importable in the environment used",
+      "check": "deterministic",
+      "cmd": "python3 -c \"import jitxlib.verify\""
+    }
+  ]
+}

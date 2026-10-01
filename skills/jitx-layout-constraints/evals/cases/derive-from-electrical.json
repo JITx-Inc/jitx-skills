@@ -1,0 +1,35 @@
+{
+  "name": "derive-from-electrical",
+  "prompt": "A 500 kHz buck with a 62 MHz switching knee and a 20 V swing on its switch node. Its feedback tap is a high-impedance divider against a 0.6 V reference; treat a 1% disturbance as the limit. A separate ADC sense line reads the output rail. The bootstrap node swings with the switch node. Stackup is a JLCPCB 4-layer 1.6 mm with 7628 prepreg. Produce the rules, the layout, and the checks.",
+  "inputs": {
+    "notes": "Every other case hands the agent geometry and asks for rules, which tests whether it can express a constraint it was already given. This one runs the other way, from electrical requirement to layout constraint, and gives no number to copy. The agent must decide which pairs are aggressor and victim, that the bootstrap node belongs with the switch node rather than with power, what disturbance budget a 0.6 V reference implies, and what spacing that budget buys on this stackup.",
+    "environment": "Commands run from the repository root with an interpreter that has jitx and jitxlib.verify installed and a reachable runtime."
+  },
+  "expected_output": "A rule set whose sensitive-net separations each carry a derivation rather than a citation, plus layout and checks. Grading is not on hitting a particular number.",
+  "assertions": [
+    {
+      "text": "each sensitive-net separation states a disturbance budget, and the aggressor's edge rate or knee frequency enters the calculation",
+      "check": "judge"
+    },
+    {
+      "text": "the coupling estimate names the stackup it came from, with the substrate height read from that stackup rather than typed in",
+      "check": "judge"
+    },
+    {
+      "text": "a different defensible number with a stated derivation passes; the expected number with no reasoning does not",
+      "check": "judge"
+    },
+    {
+      "text": "any input to the derivation that is an engineering choice rather than a sourced value is labelled as such at the point of use, including the functional form of the coupling model and not only its scalars",
+      "check": "judge"
+    },
+    {
+      "text": "no separation is set by taking a routing structure's own clearance, a fabrication row, or a multiple of the board default, since none of those answers how far an aggressor must stay from a victim",
+      "check": "judge"
+    },
+    {
+      "text": "aggressor and victim pairs that were considered and ruled out are recorded, so a sparse class matrix is distinguishable from one nobody looked at",
+      "check": "judge"
+    }
+  ]
+}
