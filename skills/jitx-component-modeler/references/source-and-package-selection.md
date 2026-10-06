@@ -62,7 +62,7 @@ If the project keeps a gitignored scratch directory for source documents, save t
 `scripts/extract_pages.py` enforces this itself — it checks the magic bytes and exits non-zero with the reason before touching PyMuPDF, so a mirror page fails loudly instead of extracting nothing. Fetching by hand, check it by hand:
 
 ```bash
-file datasheets/<mpn>.pdf        # expect: PDF document, version 1.x
+file datasheets/<mpn>.pdf        # expect: PDF document
 head -c 5 datasheets/<mpn>.pdf   # expect: %PDF-
 ```
 

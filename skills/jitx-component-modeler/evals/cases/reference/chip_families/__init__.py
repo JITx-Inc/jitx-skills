@@ -21,6 +21,6 @@ package demonstrates is shape, not content:
   (``vishay_crcw._STANDARD_TABLE_OVERRIDES``);
 - ``insert_two_pin`` giving family classes ``.insert()`` parity with the queried
   passives in ``jitxlib.parts``;
-- the shared module's own name recording that it was renamed once a non-resistor
-  family started using it.
+- a shared module named for chip SMT parts rather than resistors, because a
+  non-resistor family uses it.
 """

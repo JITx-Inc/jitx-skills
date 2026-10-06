@@ -133,7 +133,7 @@ def run_grep_gates(src_dir):
 def confirm_build_witness(result):
     """Require the printed `status:` line, not just a zero exit.
 
-    A jitx command has been observed exiting 0 while printing a failure
+    A jitx command can exit 0 while printing a failure
     ("`jitx runtime status` exits 0 and prints Runtime: not running"), so an exit
     code alone is not evidence that this build succeeded. A PASS therefore has to
     carry `status: ok` in the output. An exit 0 with `status: error`, or with no

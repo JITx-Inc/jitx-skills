@@ -37,7 +37,7 @@ Everything above that block is guidance for filling it, and none of it belongs i
   - `user-stated — see ARCHITECTURE.md <Section>`, when a table owns the realization (rails, fab house, mechanical). The provenance claim is the row's content; the value stays with its owner.
   - `not specified — assuming: X`, where the assumption is the content and has no other owner, so it is written out in full and is challengeable at the audit.
   - `no constraint`.
-- An earlier revision filled these rows with a bare `locked — see ARCHITECTURE.md ...`, which asserted nothing about who decided and was therefore satisfied by any self-consistent design. A later one quoted the request verbatim, which reproduced the dimensions, layer count, impedances and fab house that ARCHITECTURE.md owns. Naming the source and pointing at the owner is what avoids both.
+- A bare `locked — see ARCHITECTURE.md ...` asserts nothing about who decided and is therefore satisfied by any self-consistent design. Quoting the request verbatim reproduces the dimensions, layer count, impedances and fab house that ARCHITECTURE.md owns. Naming the source and pointing at the owner avoids both.
 - **A design fact that a datasheet or a specification settles is never an assumption.** It is an Open Questions row with an owner and a resolution path, and the tasks it gates read `blocked: OQ-n`. The `assuming: X` form is only for a requirement the user did not state, never for a value nobody has looked up yet.
 
 **Data Sources**

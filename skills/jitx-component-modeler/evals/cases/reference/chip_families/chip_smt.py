@@ -9,9 +9,9 @@ E-series resistance check. Vendor-specific data — size / part-number tables
 and value-code schemes — lives in each family module, since those genuinely
 differ between manufacturers.
 
-(This module began life as ``chip_resistor.py``; it was renamed once the MLCC
-capacitor family started using it — everything here except ``check_eseries``
-is component-agnostic.)
+(Everything here except ``check_eseries`` is component-agnostic, so the module
+is named for chip SMT parts rather than resistors: the MLCC capacitor family uses
+it too.)
 """
 
 from math import floor, log10

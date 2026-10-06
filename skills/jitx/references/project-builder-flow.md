@@ -601,7 +601,7 @@ This is why PLAN.md must be kept up-to-date with every status change.
 
 When a required dependency is missing — `jitxlib` doesn't import, the target substrate package isn't available, `parts2jitx` returns broken output that can't be patched in a smoke build, the datasheet PDF the user said they'd provide hasn't arrived — that is a **blocker**, not a license to drop the design requirement.
 
-A failure seen in practice: `jitxlib` failed to import, so the agent silently dropped controlled-impedance routing from the design rather than fix the environment. **Do not do this.**
+The failure to avoid: `jitxlib` fails to import, and the agent silently drops controlled-impedance routing from the design rather than fix the environment. **Do not do this.**
 
 Concrete rule:
 

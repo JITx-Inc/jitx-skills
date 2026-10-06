@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """check_doc_links.py — link and citation integrity across skills/**/*.md.
 
-A skill cites its own sections and its siblings' sections constantly, and for a
-long time it did so in prose: **Bold Section Name** plus a positional hint like
-"near the end of this skill" or "below". Two things go wrong with that, and both
-went wrong here.
+A skill cites its own sections and its siblings' sections constantly. Citing
+them in prose, as **Bold Section Name** plus a positional hint like "near the
+end of this skill" or "below", goes wrong in two ways.
 
 The prose name is usually a *truncation*. `## Component completeness check — run
 before calling it done` gets cited as "the Component completeness check block",
@@ -23,8 +22,7 @@ checkable. It checks, across every markdown file under skills/:
      headings in the same file, where GitHub silently appends `-1` and the link
      lands on whichever one came first
   4. no bolded or quoted phrase is a strict truncated prefix of a real heading,
-     outside the allowlist below — this is the original defect, and it stays
-     gateable only because the sweep that introduced this script emptied it
+     outside the allowlist below: the truncation defect described above
   5. every backticked dotted Python path under a configured destination root
      resolves in the selected interpreter, unless its own line names it with
      the literal marker UNPUBLISHED:<full.path>
@@ -54,11 +52,11 @@ line. Only whole code spans that are dotted paths are checked, not calls or
 slash-separated paths. Matching is syntactic: dotted filenames and examples
 of wrong imports also match; surrounding prose does not silently exempt them.
 --skip-module-imports disables check 5 and prints a warning on stderr. Citation
-report mode only reports check 4 and duplicate slugs, as before.
+report mode only reports check 4 and duplicate slugs.
 
 Fenced code blocks and YAML frontmatter are skipped. Without that, shell comments
-(`# Sync project deps from public PyPI...`) parse as headings and the output is
-garbage: 16 bogus duplicate-slug hits against 3 real ones, measured.
+(`# Sync project deps from public PyPI...`) parse as headings and bogus
+duplicate-slug hits bury the real ones.
 
 NOTE ON ENFORCEMENT: this repo has no CI. This script binds only when a reviewer
 runs it — it is a documented command in README.md's Validation section, not an
@@ -115,15 +113,14 @@ HEADING_RE = re.compile(r"^(#{1,6})\s+(.*?)\s*$")
 LINK_RE = re.compile(r"\[([^\]]*)\]\(([^)\s]+)\)")
 # **bold** or "quoted" or “smart-quoted” — the three shapes prose citations take
 CITATION_RE = re.compile(r'\*\*([^*\n]{5,90})\*\*|["“]([^"”\n]{5,90})["”]')
-# Destinations the restructure moved knowledge to. A root is matched as a dotted
+# Destinations skills route knowledge to. A root is matched as a dotted
 # PREFIX, so "jitxlib.verify" gates that package without dragging in every
 # jitxlib.* name a skill mentions in passing. The default set is deliberately not
 # {jitx, jitxlib, jitxexamples}: a skill legitimately names modules that do NOT
 # exist, in anti-pattern lists ("there is no jitx.bundle, jitx.passives"), and a
-# check that cannot tell a pointer from a named counterexample produced 106
-# findings against 11 real ones when it was first run. Widen with --module-root
-# for a one-off sweep; add a line here when the restructure creates a
-# destination that a skill routes to.
+# check that cannot tell a pointer from a named counterexample buries the real
+# findings under false ones. Widen with --module-root for a one-off sweep; add a
+# line here when a skill routes to a new destination.
 MODULE_ROOTS = frozenset({"jitxlib.verify", "jitxexamples.patterns", "jitxexamples.demos"})
 
 

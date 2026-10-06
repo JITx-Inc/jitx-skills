@@ -52,7 +52,7 @@ Run them against two things:
 
 A proposed carve-out that fails the test is not accepted. When the test resolves to "outside the owner, copying internals" — or to a banned pattern wrapped to look like a single boundary call — classify the finding as **`framework-boundary-bypass`** (CRITICAL; see `references/checklist.md`) and recommend the subclass-adapter fix.
 
-This step exists because rule text alone wasn't sufficient: in a real review, the AI followed the no-getattr rule literally (one wrapped `getattr` call) but missed the rule's intent (don't replicate framework internals in design code) and produced a design coupled to a numbering scheme that the reviewer caught.
+This step exists because rule text alone does not carry intent: an agent can follow the no-getattr rule literally (one wrapped `getattr` call), miss the rule's intent (don't replicate framework internals in design code), and produce a design coupled to a numbering scheme.
 
 ## Severity scheme
 

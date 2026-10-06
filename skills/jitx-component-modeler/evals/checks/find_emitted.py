@@ -4,12 +4,10 @@
 Used by the `component-from-pin-file` eval case so its assertions can address the
 emitted module without hardcoding where it sits.
 
-Why this exists: the case originally pinned `<output>/components/acme_fx500.py`.
-A run then placed it at `components/fpgas/acme_fx500.py` — which is *more*
-correct, because the skill's `references/source-and-package-selection.md` "Output Location" asks for
-`components/<category>/<manufacturer>_<mpn>.py`. Pinning the flat path would
-have marked a skill-compliant layout as wrong. That is the same over-specifying
-mistake the CLI assertions made three runs running: the harness asserting an
+Why this exists: the skill's `references/source-and-package-selection.md`
+"Output Location" asks for `components/<category>/<manufacturer>_<mpn>.py`, so a
+compliant run may place the module at `components/fpgas/acme_fx500.py`. Pinning a
+flat path would mark a skill-compliant layout as wrong: the harness would assert an
 incidental choice instead of the property it actually cares about.
 
 Heuristic: among `*.py` under the tree, the emitted module is the one declaring

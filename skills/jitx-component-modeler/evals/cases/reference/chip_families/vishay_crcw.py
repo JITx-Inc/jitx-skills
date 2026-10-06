@@ -16,8 +16,8 @@ JITX's standard chip dimensions for the size rather than vendor-specific
 overrides. That is a deliberate choice, not an absence of data -- the datasheet's
 DIMENSIONS AND MASS table (doc page 11) is transcribed below as
 :data:`CRCW_DIMENSIONS` and asserted against the standard table per size in
-``tests/test_js1_vishay_crcw.py``, which is how the one size that disagrees
-(2512) was found and overridden.
+the family's tests, which is how the one size that disagrees (2512) is found
+and overridden.
 
 Datasheet (doc 20035): https://www.vishay.com/docs/20035/dcrcwe3.pdf
 
@@ -80,9 +80,9 @@ CRCW_DIMENSIONS: dict[str, ChipDims] = {
 # is 0.6 +/- 0.20, and Yageo's RC_L Table 1 gives 0.60 +/- 0.20 for the same case
 # (see yageo_rc.RC_DIMENSIONS). A 2.0 mm band on a 6.35 mm body is a third of the
 # part's length and sizes the pads from a termination roughly three times too
-# long. Every other size in this family agrees within 0.2 mm. Filed upstream as a
-# jitxlib data bug; drop this override once the table is corrected -- the test
-# below fails when that happens, so it will not be forgotten.
+# long. Every other size in this family agrees within 0.2 mm. Drop this override
+# once the table is corrected -- the test below fails when that happens, so it
+# will not be forgotten.
 _STANDARD_TABLE_OVERRIDES = ("2512",)
 
 # Rated dissipation P70 (W) per size (datasheet Technical Specifications).

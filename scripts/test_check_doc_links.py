@@ -36,7 +36,7 @@ from check_doc_links import (  # noqa: E402
 
 class SlugTests(unittest.TestCase):
     def test_em_dash_leaves_a_double_hyphen(self):
-        # The case the whole sweep turns on: punctuation is dropped, not replaced,
+        # The case anchor checking turns on: punctuation is dropped, not replaced,
         # so the space either side of the em dash collapses to two hyphens.
         self.assertEqual(
             slug("Component completeness check — run before calling it done"),
@@ -350,7 +350,7 @@ class ModuleImportTests(unittest.TestCase):
         self.assertEqual(len(findings), 1)
         self.assertIn("custompkg.missing", findings[0])
 
-    def test_default_roots_are_restructure_destinations(self):
+    def test_default_roots_are_routing_destinations(self):
         self.assertEqual(MODULE_ROOTS, frozenset({
             "jitxlib.verify", "jitxexamples.patterns", "jitxexamples.demos",
         }))

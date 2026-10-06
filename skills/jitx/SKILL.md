@@ -11,13 +11,8 @@ Base skill for JITX hardware design automation. JITX is a Python framework for p
 
 The `jitx` CLI owns project scaffolding, auth, runtime install/start, and design build for VSCode-free workflows. Drive everything through it.
 
-> **Supported version line — one owner for this fact.** This bundle documents and is verified
-> against **jitx 4.4.x** (`jitx >= 4.4, < 4.5`), the public PyPI line as of the 4.4.0 release.
-> Every "verified on 4.4.0" note elsewhere in the bundle is evidence for a specific claim; this
-> line is the only place the *supported range* is stated, so no sibling skill restates it.
-> Earlier lines (4.0.x, 4.2.x) are no longer described here — APIs, defaults and CLI behaviour
-> below differ from what these pages say. On an older install, either upgrade or expect the
-> pages to disagree with your package; verify every import with `pyright` either way.
+Verify every import with `pyright` against the installed package; where the package and
+these pages disagree, follow the package.
 
 > **Platform note (read once).** These commands run in **your** shell on **your** OS. macOS / Linux / WSL / Git Bash use **bash**; native Windows uses **PowerShell**. Commands identical in both (all `jitx ...`, `pip ...`, `pyright`, `ruff`, every `python scripts/...`) are shown once; where they diverge, a `bash` block and a `powershell` block are given — run the one for your shell.
 >
@@ -37,7 +32,7 @@ if ! command -v jitx >/dev/null 2>&1; then
   [ -d .venv ] || python3 -m venv .venv 2>/dev/null || python -m venv .venv
   # venv layout: .venv/bin on macOS/Linux/WSL, .venv/Scripts under Git Bash (Windows Python).
   source .venv/bin/activate 2>/dev/null || source .venv/Scripts/activate
-  pip install "jitx>=4.4,<4.5" jitxlib-standard jitxlib-parts jitxlib-voltage-divider ruff --quiet 2>&1 | tail -1
+  pip install jitx jitxlib-standard jitxlib-parts jitxlib-voltage-divider ruff --quiet 2>&1 | tail -1
 else
   # `jitx` is on PATH — activate the project venv if one exists so build/runtime calls resolve consistently.
   [ -d .venv ] && { source .venv/bin/activate 2>/dev/null || source .venv/Scripts/activate; }
@@ -51,7 +46,7 @@ if (-not (Get-Command jitx -ErrorAction SilentlyContinue)) {
   # Everything below is on public PyPI. No index flags, no pre-release flags.
   if (-not (Test-Path .venv)) { python -m venv .venv }
   .\.venv\Scripts\Activate.ps1
-  pip install "jitx>=4.4,<4.5" jitxlib-standard jitxlib-parts jitxlib-voltage-divider ruff --quiet 2>&1 | Select-Object -Last 1
+  pip install jitx jitxlib-standard jitxlib-parts jitxlib-voltage-divider ruff --quiet 2>&1 | Select-Object -Last 1
 } else {
   # `jitx` is on PATH — activate the project venv if one exists so build/runtime calls resolve consistently.
   if (Test-Path .venv) { .\.venv\Scripts\Activate.ps1 }
@@ -88,9 +83,7 @@ if [ ! -f pyproject.toml ] || ! grep -q "jitx" pyproject.toml; then
 fi
 # Sync project deps from public PyPI. The `jitxlib` namespace is split across
 # distributions and installing `jitx` alone brings none of them (Step 1 table).
-# The scaffold pins `jitx<5`, so pip may resolve an older 4.x that still satisfies
-# it; the explicit range below re-pins to the line this bundle documents.
-pip install -e . "jitx>=4.4,<4.5" jitxlib-standard jitxlib-parts jitxlib-voltage-divider --quiet 2>&1 | tail -1
+pip install -e . jitx jitxlib-standard jitxlib-parts jitxlib-voltage-divider --quiet 2>&1 | tail -1
 jitx --version
 ```
 ```powershell
@@ -102,9 +95,7 @@ if ((-not (Test-Path pyproject.toml)) -or (-not (Select-String -Quiet -Pattern "
 }
 # Sync project deps from public PyPI. The `jitxlib` namespace is split across
 # distributions and installing `jitx` alone brings none of them (Step 1 table).
-# The scaffold pins `jitx<5`, so pip may resolve an older 4.x that still satisfies
-# it; the explicit range below re-pins to the line this bundle documents.
-pip install -e . "jitx>=4.4,<4.5" jitxlib-standard jitxlib-parts jitxlib-voltage-divider --quiet 2>&1 | Select-Object -Last 1
+pip install -e . jitx jitxlib-standard jitxlib-parts jitxlib-voltage-divider --quiet 2>&1 | Select-Object -Last 1
 jitx --version
 ```
 
@@ -157,7 +148,7 @@ The runtime is a daemon (an instance of the bundled `jitx` launcher binary, run 
 # `runtime status` exits 0 even when it prints "Runtime: not running", so it is
 # not a start guard. This block installs if needed, then starts unconditionally;
 # a second start on a running project prints an error line, exits 0, and starts
-# no second daemon (measured on 4.4.0).
+# no second daemon.
 if ! jitx runtime introspect >/dev/null 2>&1; then
   # Not installed. `update` is the idempotent variant of `install`; safe in setup
   # scripts. Without --version it installs the runtime matching the installed
@@ -171,7 +162,7 @@ jitx runtime start --background
 # `runtime status` exits 0 even when it prints "Runtime: not running", so it is
 # not a start guard. This block installs if needed, then starts unconditionally;
 # a second start on a running project prints an error line, exits 0, and starts
-# no second daemon (measured on 4.4.0).
+# no second daemon.
 jitx runtime introspect 2>$null | Out-Null
 if ($LASTEXITCODE -ne 0) {
   # Not installed. `update` is the idempotent variant of `install`; safe in setup
@@ -193,12 +184,12 @@ Honor an existing pin; otherwise omit `--version` and let the backend resolve.
 
 **Keep the CLI and the runtime on the same line.** `jitx runtime introspect`
 prints the runtime's `version` and `installation_type`; `jitx --version` prints
-the package's. A 4.4 runtime under a 4.3 package (or the reverse) is the
+the package's. A runtime from one release line under a package from another is the
 version-mismatch failure mode that surfaces as ambiguous errors much later —
 check both before deciding a build failure is your code.
 
 **Channels:** development-channel runtime builds (versions tagged
-`<major>.<minor>.<patch>-develop.N`, e.g. `4.4.0-develop.12`) are served by the testing backend — install them with
+`<major>.<minor>.<patch>-develop.N`) are served by the testing backend — install them with
 `jitx runtime install --version <v> --testing` (the prod backend 404s on them).
 The runtime is **per-project** (discovered by walking up from CWD); each project
 you build or capture from needs its own `jitx runtime start --background`.
@@ -261,10 +252,10 @@ error: Import "jitx" could not be resolved (reportMissingImports)
 error: Import "jitxlib.landpatterns.generators.bga" could not be resolved
 ```
 
-**Those errors are about the interpreter, not the code.** Verified by running one pyright binary
-against two interpreters on the same file: with an interpreter lacking `jitx`, two unresolved-import
-errors; with the project's own, the imports resolve and pyright goes on to find a real type error the
-first run never reached. The failure mode to guard against is an agent believing the message and
+**Those errors are about the interpreter, not the code.** One pyright binary pointed at two
+interpreters gives two results on the same file: with an interpreter lacking `jitx`, the
+unresolved-import errors above; with the project's own, the imports resolve and pyright goes on to
+report type errors the other result hid. The failure mode to guard against is an agent believing the message and
 "fixing" correct imports — and worse, the run that reports only import errors has type-checked almost
 nothing, so a clean-looking follow-up is not evidence.
 
@@ -316,17 +307,17 @@ Durable rules for JITX Python user code. The architectural rules below protect a
     different ways and it matters which: moving the ports into `__init__` **abandons the declaration
     model** and is the dangerous one — an agent that takes it converts a working component into a
     broken one, and the breakage surfaces far away, at translation. Annotating `typing.ClassVar` is
-    **runtime-neutral** — the component still instantiates and its ports are still found (verified on
-    4.4.0) — but it misdescribes what the attribute is, since these are the object model rather
+    **runtime-neutral** — the component still instantiates and its ports are still found — but it
+    misdescribes what the attribute is, since these are the object model rather
     than shared class state, so it buys silence at the cost of a false statement in the source.
     Prefer neither: silence the rule per-file in `[tool.ruff.lint.per-file-ignores]` for the design
     package, with a comment saying why.
 - **Use `ruff format`** to apply style consistency. `check.py` verifies the result with `ruff format --check`.
   - **Commit a ruff config, and run ruff from the project directory.** Config discovery walks up
     from the working directory, so a check run from somewhere else silently resolves *that* tree's
-    settings. An agent working in a scratch directory under a repo has had `ruff check` report clean
-    against the repo's narrower `select`, then surface 13 real findings when run from the right
-    place. A committed config anchors the result so it does not depend on where the command was
+    settings. Run from a scratch directory under a repo, `ruff check` applies that repo's `select`,
+    which may be narrower, and can report clean on code that fails the project's own config. A
+    committed config anchors the result so it does not depend on where the command was
     typed — which also means "ruff clean" in a completion block is a reproducible claim rather than
     an artifact of one shell's cwd.
   - **Set `[tool.ruff] line-length` explicitly if anything in the project *emits* Python.** A code
@@ -433,7 +424,7 @@ new-style plugins (e.g. `hfss` from `jitxlib-ansys`) consume the captured
 
 ## Visualizers (Board / Schematic Popout)
 
-VSCode is no longer required to view a built design. `jitx ui open` spawns the bundled `jitx-ui` Electron viewer pointed at the running runtime. Pick exactly one of `--board` / `--schematic`:
+Viewing a built design does not require VSCode. `jitx ui open` spawns the bundled `jitx-ui` Electron viewer pointed at the running runtime. Pick exactly one of `--board` / `--schematic`:
 
 ```bash
 # Open the board (PCB layout) viewer for a specific design.
@@ -499,7 +490,7 @@ project/
 >
 > If you find yourself already typing "Big design — here's my proposed architecture..." or "I'll set up the skeleton and start filling in components", you have skipped Phase 0. Stop, classify, and create `PLAN.md` first.
 >
-> This callout exists because the prior failure mode was exactly this: the agent jumped from request to architecture prose to component files without classifying, never entered Phase 0, and bypassed every Pass 1–5 enforcement.
+> This callout guards one failure: an agent that jumps from request to architecture prose to component files without classifying never enters Phase 0, and bypasses every gate the workflow enforces.
 
 After environment setup, classify the work into one of two tiers. The tier names which output blocks are required and whether the formal Phase 0 → Phase 4 chain applies. Every tier requires a **task acceptance block** for each unit of work — no exceptions.
 
@@ -508,7 +499,7 @@ After environment setup, classify the work into one of two tiers. The tier names
 | **single-task** | One subskill against one artifact: a component, a circuit, a substrate, a constraint set, a pin-assignment wrapper. No top-level assembly. | Task acceptance block in chat | Invoke the subskill directly |
 | **complete-board** | Anything beyond a single isolated artifact — anything that produces a buildable board, no matter how few components. | Task acceptance block per task + phase exit gate blocks + Phase 3b audit + Phase 4 verification | Full Project Builder Workflow below |
 
-If you're tempted to call something "small" or "trivial" to avoid the workflow, classify it as complete-board. The Phase 0–4 ceremony is cheap on a small board (a few extra block emissions); the cost of skipping it on a real board is shipping with required features missing. The original failure mode of this skill was exactly the "looks small, skip the workflow" escape hatch.
+If you're tempted to call something "small" or "trivial" to avoid the workflow, classify it as complete-board. The Phase 0–4 ceremony is cheap on a small board (a few extra block emissions); the cost of skipping it on a real board is shipping with required features missing.
 
 For tier definitions, the task acceptance block, phase exit gate blocks, the Phase 3b design audit block, and the Phase 4 verification block: read `references/completion-blocks.md`.
 
