@@ -11,8 +11,11 @@ Base skill for JITX hardware design automation. JITX is a Python framework for p
 
 The `jitx` CLI owns project scaffolding, auth, runtime install/start, and design build for VSCode-free workflows. Drive everything through it.
 
-Verify every import with `pyright` against the installed package; where the package and
-these pages disagree, upgrade jitx (`pip install -U jitx`) and recheck.
+Verify every import with `pyright` against the installed package. When a name these pages
+use is missing from it, the install is older than the pages: unless the project pins jitx,
+upgrade the JITX packages together (`pip install -U jitx jitxlib-standard jitxlib-parts
+jitxlib-voltage-divider`), run `jitx runtime update`, and recheck. Where the package and
+these pages still disagree, write the code against the installed package.
 
 > **Platform note (read once).** These commands run in **your** shell on **your** OS. macOS / Linux / WSL / Git Bash use **bash**; native Windows uses **PowerShell**. Commands identical in both (all `jitx ...`, `pip ...`, `pyright`, `ruff`, every `python scripts/...`) are shown once; where they diverge, a `bash` block and a `powershell` block are given — run the one for your shell.
 >

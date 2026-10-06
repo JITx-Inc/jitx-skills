@@ -94,17 +94,11 @@ Runtime:
 
 ```text
 $ jitx runtime start --background
-{
-  "mode": "background",
-  "pid": 40620,
-  "uri": "ws://localhost:<port>/<id>",
-  "log_path": "<scratch>/.jitx/logs/runtime.log",
-  "exit_code": null
-}
+(JSON with mode, pid, uri, log_path, exit_code)
 
 $ jitx runtime status
 Runtime: reachable at ws://localhost:<port>/<id>
-  PID:   40620
+  PID:   <pid>
   Mode:  background
 ```
 

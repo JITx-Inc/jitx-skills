@@ -15,8 +15,8 @@ object itself is what the rule resolves.
 
 An isolated project was staged with a
 `pyproject.toml` declaring `jitx`, `jitxlib-standard`, and `jitxlib-jlcpcb`, and
-a flat `<project>/` package holding `__init__.py` plus byte-identical
-copies of `stitch_via_design.py` and `check_stitch_via.py`. The `$JITX find`
+a flat `<project>/` package holding `__init__.py`, the three rule-variant designs and
+the checker. The `$JITX find`
 and control-probe commands below were run from that project root. `$JITX` and
 `$PY` are the `jitx` and `python` entry points of the venv that has jitx
 installed.
