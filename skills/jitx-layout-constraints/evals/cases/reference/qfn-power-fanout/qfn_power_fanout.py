@@ -16,11 +16,11 @@ Verified API surfaces:
 * query transform behavior: ``jitx/query.py:187-263``
 """
 
-from decimal import Decimal, ROUND_FLOOR
 from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from decimal import Decimal, ROUND_FLOOR
 from math import isclose
 
 from shapely.geometry.base import BaseGeometry
