@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Build, capture, and check the child-Circuit rule-scope reference.
 
-The runtime adapter and capture entry point are in
-``jitx/run/runtime.py:404`` and ``jitx/run/runtime.py:593``.
+The runtime adapter and capture entry point are ``jitx.runtime`` and
+``jitx.run.runtime.SyncRuntimeDesign.capture``.
 """
 
 from __future__ import annotations

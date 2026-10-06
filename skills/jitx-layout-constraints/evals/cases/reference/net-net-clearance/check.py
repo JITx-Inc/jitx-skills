@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
 """Build, capture, and check the net-to-net clearance reference designs.
 
-What this reference establishes (runtime 4.4.0-rc.9, py-jitx 4.4.0rc5.dev2):
-a two-condition clearance rule between two tagged nets does not move
-code-authored routes. The realized copper sits where the code put it, even
-below the fabrication floor, and the build reports ``status: ok``. Width rules
-on the same nets do apply. The checks below assert that observed behavior, so
-a runtime that starts enforcing clearance on authored routes fails this case
-and the skill text gets revisited.
+What this reference establishes: a two-condition clearance rule between two
+tagged nets does not move code-authored routes. The realized copper sits where
+the code put it, even below the fabrication floor, and the build reports
+``status: ok``. Width rules on the same nets do apply. The checks below assert
+that observed behavior, so a runtime that enforces clearance on authored routes
+fails this case and the skill text needs revisiting.
 
-The runtime adapter and capture entry point are in
-``jitx/run/runtime.py:404`` and ``jitx/run/runtime.py:593``.
+The runtime adapter and capture entry point are ``jitx.runtime`` and
+``jitx.run.runtime.SyncRuntimeDesign.capture``.
 """
 
 from __future__ import annotations
@@ -86,7 +85,7 @@ def _clearance_observation(rd: Any, requested: float, label: str) -> list[CheckR
             passed=is_number and not rule_reached,
             measured=measured,
             expected=requested,
-            detail="verified behavior on the 4.4 line; a pass here means the rule moved nothing",
+            detail="a pass here means the rule moved nothing",
         ),
     ]
 

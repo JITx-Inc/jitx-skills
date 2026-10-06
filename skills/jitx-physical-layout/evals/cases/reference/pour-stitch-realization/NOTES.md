@@ -43,10 +43,3 @@ The two published readings of `SquareViaStitchGrid.inset`, centre-based and pad-
 predict (11, 7) at pitch 4.0, inset 1.0, pad 0.45. This design cannot discriminate between
 them and says so rather than claiming the question closed. Resolving it needs a parameter
 set where the two readings differ.
-
-## Versions
-
-Measured with jitx 4.4.3.dev4+gd4a224684, jitxcore 4.4.0, jitxlib-standard 4.4.0 and
-jitxlib-jlcpcb 2.0.0 against a runtime binary reporting `jitx_version 4.5.0-develop.15`.
-The runtime binary is the version that matters for a realization claim, and it is not the
-same as the installed wheel versions.

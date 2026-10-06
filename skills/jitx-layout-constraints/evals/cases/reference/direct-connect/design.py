@@ -1,4 +1,4 @@
-"""Minimal direct-connect candidates for JITX 4.4 capture and ODB++ checks."""
+"""Minimal direct-connect candidates for capture and ODB++ checks."""
 
 from jitx import (
     Board,

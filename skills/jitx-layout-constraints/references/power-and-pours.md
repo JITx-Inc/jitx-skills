@@ -6,7 +6,7 @@
   [Pours](https://docs.jitx.com/en/latest/essentials/physical_design/pours.html).
   Pour rule effects: installed `jitx.constraints`; capture limits:
   [pour realization semantics](../../jitx-physical-layout/SKILL.md#pour-realization-semantics).
-- Direct connect: `jitxexamples.patterns.direct_connect`, including its versioned receipt.
+- Direct connect: `jitxexamples.patterns.direct_connect`.
 - Fill between signal traces and the engineering basis for routed power:
   Eric Bogatin, [Seven Habits of Successful 2-Layer Board Designers](https://www.signalintegrityjournal.com/blogs/12-fundamentals/post/1207-seven-habits-of-successful-2-layer-board-designers),
   Signal Integrity Journal, 2019-04-23.
@@ -15,8 +15,8 @@ Power-as-traces policy (including local puddles), pad-to-via sizing, Kelvin
 lines, and heavy-copper rules have no worked owner and remain below. Snippets
 use the project's power tag, sourced signal width, class priority, and protection
 priority from the [rule ladder](../SKILL.md#workflow).
-Source line citations and library dimensions were read on a 4.4.0 install;
-confirm them against the selected substrate and installed source.
+Confirm cited symbols and library dimensions against the selected substrate and
+installed source.
 
 ## Power as traces
 
@@ -25,10 +25,11 @@ trace exposes its path and width, while a fill hides the intended current path.
 The policy is therefore: no board-wide power pours. The one exception is the
 local pad-derived puddle under [local power puddles](#power-puddle-from-a-pad-list).
 
-The listed unary effects do not prevent Python from constructing a `Pour` (`jitx/constraints.py:871`). Enforce the
+The unary effects (`jitx.constraints.UnaryDesignConstraint`) do not prevent
+Python from constructing a `Pour`. Enforce the
 policy with a capture check, and use a binary clearance so the board-wide
 ground pour stays away from power copper. Binary rules own clearance
-(`jitx/constraints.py:1135`, `jitx/constraints.py:1160`).
+(`jitx.constraints.BinaryDesignConstraint.clearance`).
 
 ```python
 from collections.abc import Collection
@@ -56,19 +57,19 @@ self.rules.append(
 ```
 
 `RuntimeDesign.query` and `RuntimeDesign.nets.find` are capture-side surfaces
-(`jitx/run/runtime.py:421`, `jitx/run/runtime.py:565`). The clearance starts
-with `min_copper_copper_space`, one of the enforced fabrication floors
-(`jitx/substrate.py:165`). The added margin is a skill default, so change it
+(`jitx.run.runtime.RuntimeDesign`). The clearance starts with
+`min_copper_copper_space`, one of the enforced fabrication floors
+(`jitx.substrate.FabricationConstraints`). The added margin is a skill default, so change it
 only when the design's coupling or voltage requirement supplies another
 source.
 
 ## Pad-to-via for power
 
-Read the via class from the substrate. A via exposes its pad `diameter`, drill
-`hole_diameter`, and `via_in_pad` capability (`jitx/via.py:60`,
-`jitx/via.py:64`, `jitx/via.py:70`). Read `min_annular_ring` from the active
-fabrication constraints (`jitx/substrate.py:178`).
-`current.design` reads the active design context (`jitx/__init__.py:116`, `jitx/__init__.py:132`).
+Read the via class from the substrate. A via (`jitx.via.Via`) exposes its pad
+`diameter`, drill `hole_diameter`, and `via_in_pad` capability. Read
+`min_annular_ring` from the active fabrication constraints
+(`jitx.substrate.FabricationConstraints`). `current.design`
+(`jitx.Current.design`) reads the active design context.
 
 ```python
 from jitx import current
@@ -101,13 +102,13 @@ self.rules.append(
 )
 ```
 
-The JLCPCB example substrate exposes `StdViaPreferred.diameter = 0.45 mm` from its via class (`jitxlib/jlcpcb/vias.py:24`, `jitxlib/jlcpcb/vias.py:34`).
+The JLCPCB example substrate exposes `StdViaPreferred.diameter = 0.45 mm` from
+its via class (`jitxlib.jlcpcb.vias.StandardVias.StdViaPreferred`).
 That value is an example read from the substrate, not a portable default.
 
 Set `via_in_pad` only on a via class whose fab process allows via-in-pad. The
-example substrate's filled class sets `via_in_pad = True` and its ordinary
-classes set it to false (`jitxlib/jlcpcb/vias.py:141`,
-`jitxlib/jlcpcb/vias.py:157`). Do not mutate an ordinary via class to bypass
+example substrate's filled class (`StdViaTentedFilled` in `jitxlib.jlcpcb.vias`)
+sets `via_in_pad = True` and its ordinary classes set it to false. Do not mutate an ordinary via class to bypass
 that capability decision.
 
 ## Sense (Kelvin) lines
@@ -143,13 +144,13 @@ self.rules.append(
 
 `SenseTag` and its circuit rule must remain structural attributes. Tag
 assignment supports nets, copper, pads, vias, routes, components, and circuits
-(`jitx/constraints.py:495`, `jitx/constraints.py:565`).
+(`jitx.constraints.Tags.assign`).
 
 ## Heavy copper
 
 `Stackup.conductors` returns the ordered conducting layers, and each
-`Conductor` carries `thickness` in millimeters (`jitx/stackup.py:54`,
-`jitx/stackup.py:112`). Find heavy layers from the modeled stackup. Do not type
+`Conductor` carries `thickness` in millimeters (`jitx.stackup.Stackup.conductors`,
+`jitx.stackup.Conductor`). Find heavy layers from the modeled stackup. Do not type
 a guessed layer index.
 
 ```python
@@ -186,11 +187,11 @@ self.heavy_copper_rules = heavy_copper_spacing_rules(
 
 There is no heavy-copper spacing field in `FabricationConstraints`; its full
 field list contains the four enforced copper floors and documentation fields
-only (`jitx/substrate.py:154`, `jitx/substrate.py:161`). Keep `c_heavy` as a
+only (`jitx.substrate.FabricationConstraints`). Keep `c_heavy` as a
 required user parameter.
 
 `OnLayer.internal()` is wrong for this job because it matches every conductor
-that is not an external layer (`jitx/constraints.py:486`). A per-index
+that is not an external layer. A per-index
 `OnLayer(index)` rule changes only the conductor whose modeled thickness
 crossed the threshold.
 
@@ -203,7 +204,8 @@ The heavy-copper rule builder runs inside the design context through
 `current.design.substrate.stackup.conductors` and stops if that value has not
 resolved to the conductor sequence.
 
-The predefined example stackup models 0.035 mm outer copper (`jitxlib/jlcpcb/JLC04161H_7628.py:16`) and 0.0152 mm inner copper (`jitxlib/jlcpcb/JLC04161H_7628.py:17`). If a fab quote calls for a thicker
+The predefined example stackup, `jitxlib.jlcpcb.JLC04161H_7628`, models 0.035 mm
+outer copper and 0.0152 mm inner copper. If a fab quote calls for a thicker
 layer, update the substrate before generating the rules.
 
 ## Power puddle from a pad list

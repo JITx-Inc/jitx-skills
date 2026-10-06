@@ -2,7 +2,7 @@
 
 ## Result
 
-Direct connect is expressible on jitx 4.4.0rc5.dev2 via candidate 2. A
+Direct connect is expressible via candidate 2. A
 higher-priority `thermal_relief` whose spoke width equals the pad diameter
 removes the tagged pad's relief void completely: the runtime's computed pour
 copper has no gap and no spokes at that pad, while the default-thermal pad on
@@ -32,8 +32,8 @@ The project needs its own runtime (`jitx runtime start --background`) and the
 project root has to be importable. The package was not pip-installed, so
 `PYTHONPATH=<project root>` was exported for every command below. Without it
 `jitx find` reports `designs: []` and two `ModuleNotFoundError` import failures,
-because `DesignFinder.find_by_file` falls back to bare module names when the
-package itself is not on `sys.path` (`jitx/run/discover.py:222`).
+because `jitx.run.discover.DesignFinder.find_by_file` falls back to bare module
+names when the package itself is not on `sys.path`.
 
 No changes were made to `design.py` or `check.py`. Both ran as shipped.
 
@@ -89,13 +89,6 @@ geometry degenerates into solid copper.
 
 All commands run from the scratch project root with
 `PATH` and `PYTHONPATH` pointing at the installed interpreter and that root.
-
-Installed version:
-
-```text
-$ python -c "from importlib.metadata import version; print(version('jitx'))"
-4.4.0rc5.dev2
-```
 
 Runtime:
 

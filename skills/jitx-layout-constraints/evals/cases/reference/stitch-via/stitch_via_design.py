@@ -1,10 +1,10 @@
-"""Reference designs for stitch-via class discovery on JITX 4.4.
+"""Reference designs for stitch-via class discovery.
 
 Each design applies one unary rule to the same tagged ground pour. The via
 definition is reached through the predefined substrate's mixin, declared as a
 direct nested attribute of a substrate subclass, or declared at module scope.
 The rule and its condition remain structural attributes under each Design, as
-required by the traversal at ``jitx/_translate/design.py:187``.
+the design-rule traversal requires.
 """
 
 from __future__ import annotations

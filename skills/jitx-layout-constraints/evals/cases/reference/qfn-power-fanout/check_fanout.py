@@ -27,14 +27,13 @@ WIDTH_TOLERANCE_MM = 1e-7  # one decade below the 1e-6 mm width quantum
 # error, and the assertion written to catch that case decides it on rounding.
 PYPROJECT = """\
 [build-system]
-requires = ["hatchling>=1.27.0,<2.0"]
+requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
 name = "qfn-power-fanout-reference"
 version = "0.1"
-dependencies = ["jitx>=4.4.0rc2,<5", "jitxlib-standard>=4.4.0rc2,<5"]
-requires-python = ">=3.12"
+dependencies = ["jitx", "jitxlib-standard"]
 """
 
 

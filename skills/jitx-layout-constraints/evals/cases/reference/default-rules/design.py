@@ -1,8 +1,9 @@
 """Reference design for the scope of a rule stored on a child Circuit.
 
-API claims are checked against ``jitx/constraints.py:71``,
-``jitx/constraints.py:910``, ``jitx/constraints.py:1160``, and
-``jitx/substrate.py:161`` in the installed JITX package.
+API claims are checked against ``jitx.constraints.design_constraint``,
+``jitx.constraints.UnaryDesignConstraint.trace_width``,
+``jitx.constraints.BinaryDesignConstraint.clearance``, and
+``jitx.substrate.FabricationConstraints`` in the installed JITX package.
 """
 
 from jitx import Board, Circuit, Component, Design, Net, Port, RoutePoint
@@ -22,7 +23,7 @@ from jitxlib.jlcpcb import JLC04161H_7628
 from jitxlib.landpatterns.twopin.smt import SMT
 from jitxlib.symbols.resistor import ResistorSymbol
 
-TOP_LAYER = 0  # JLC04161H_7628 top conductor index, jitxlib/jlcpcb/JLC04161H_7628.py:27
+TOP_LAYER = 0  # JLC04161H_7628 top conductor index
 DEFAULT_TRACE_WIDTH = 0.12  # skill default: 0.12 mm default trace width
 CHILD_RULE_WIDTH = 0.30  # skill test value: 0.30 mm child-declared trace width
 POWER_WIDTH = 0.20  # skill default: 0.20 mm power and ground trace width

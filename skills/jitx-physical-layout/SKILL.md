@@ -1,6 +1,6 @@
 ---
 name: jitx-physical-layout
-description: "Use when the user asks to author PCB physical layout from code: draw copper, antennas, filters, net ties, custom shapes, board outlines, custom pads, soldermask or paste openings, thermal pads with vias, code-placed vias, fanout or escape tags, direct-connect or thermal-relief tags, control points, code-based routes, diff-pair fans/trunks, escape routing, or deskew, or to inspect or verify realized geometry from Python (jitx.query, RuntimeDesign capture, missing or Empty pours, missing stitch vias, route realization checks). Covers shapely geometry, Copper, OverlappableCopper, Pour realization semantics, pad features, PortAttachment, explicit placement, layout-intent tags, Route/control-point APIs, and the 4.3 reverse-flow geometry-verification workflow. Use jitx-layout-constraints to author pour and via-stitching rules, jitx-substrate-modeler for stackups, via definitions, routing structures, fence-via rules, and fenced pours, and jitx-circuit-builder for net wiring, passives, and basic pours."
+description: "Use when the user asks to author PCB physical layout from code: draw copper, antennas, filters, net ties, custom shapes, board outlines, custom pads, soldermask or paste openings, thermal pads with vias, code-placed vias, fanout or escape tags, direct-connect or thermal-relief tags, control points, code-based routes, diff-pair fans/trunks, escape routing, or deskew, or to inspect or verify realized geometry from Python (jitx.query, RuntimeDesign capture, missing or Empty pours, missing stitch vias, route realization checks). Covers shapely geometry, Copper, OverlappableCopper, Pour realization semantics, pad features, PortAttachment, explicit placement, layout-intent tags, Route/control-point APIs, and the reverse-flow geometry-verification workflow. Use jitx-layout-constraints to author pour and via-stitching rules, jitx-substrate-modeler for stackups, via definitions, routing structures, fence-via rules, and fenced pours, and jitx-circuit-builder for net wiring, passives, and basic pours."
 ---
 
 # JITX Physical Layout
@@ -43,7 +43,7 @@ routes, and captured-geometry verification. Start environment setup with
      installed APIs and the control-point reference before reuse.
    - `jitxlib.landpatterns.pads`: `SMDPadConfig`, `ThermalPadGeneratorMixin`,
      `WindowSubdivide` own pad-feature generation. [Example owners](references/layout-examples.md)
-     route thermal-pad CSG, custom-pad mask/paste, and the pending antenna example.
+     route thermal-pad CSG, custom-pad mask/paste, and the antenna example.
    - `jitxlib.verify`: reuse `shape_geometry`, `unique_by_specificity`,
      `min_clearance`, `holds_circle`, `centreline_length`, and rule readers.
 3. Store vias, copper, routes, and keepouts structurally on the circuit before
@@ -105,7 +105,7 @@ the active frame raises "Structure not active".
 
 Use `jitxlib.verify` for the checks it owns. If it is unavailable, name the
 missing installation and leave those checks open; do not substitute a bundled
-fallback. For pour, keepout, and edge checks it does not yet cover, run the
+fallback. For pour, keepout, and edge checks it does not cover, run the
 bundled [realization checker](scripts/check_realization.py) from the project,
 using the resolved skill directory:
 
@@ -174,8 +174,7 @@ Every constrained segment must use `>>` topology: a plain `+` segment makes
 the whole path invalid. The interconnect skill owns topology, via/control-point
 elements, tags, and `BridgingPinModel` across series components.
 
-Production observations from saturn-ethernet (4.3.0-rc.3): model measured delay,
-not drawn skew. One wrapped hook measured about 0.07 ps
+Model measured delay, not drawn skew: one wrapped hook measured about 0.07 ps
 versus about 2 ps inferred from length. Use equal mean delays with measured
 residual as a `Toleranced` spread; drawn length informs loss and mean only.
 Constraint endpoints must be component ports; control-point `.port` bundles
@@ -185,8 +184,8 @@ fail topology begin/end translation. Keep control points mid-path.
 
 Place a same-net pad or via reaching each pour layer before stitching. Top-side
 pads cannot anchor inner/bottom pours, and solver-emitted stitches cannot keep
-pours alive. On 4.4.0, an unanchored inner pour emitted nine vias yet captured
-`Empty()`; one placed through via made it realize. `orphans` is not respected.
+pours alive. An unanchored inner pour emitted nine vias yet captured `Empty()`;
+one placed through via made it realize. `orphans` is not respected.
 
 `KeepOut(pour=True)` wins at every pour rank; rank prioritizes competing pours.
 `via=True` blocks automatic vias, not explicitly placed ones. Read installed
@@ -196,11 +195,11 @@ and check against `min_copper_edge_space`.
 
 Stitch rules require a `Pour`, not `Pad`/`Copper`/`IsPad`; create a tagged,
 net-connected pour from thermal-pad geometry when using those rules.
-On 4.4.0, `SquareViaStitchGrid.inset` measures to the via pad edge. The field
-description says via centres and is being corrected, so trust the measurement
-over the text on any release that still reads that way. An 8 mm square, pitch 2.0, pad 0.45 produced nine
-vias at inset 1.5/1.75 and one at 1.8/1.9/2.1: the drop is 1.775, not 2.0
-(centre) or 1.85 (hole). Plan per-axis counts with
+`SquareViaStitchGrid.inset` measures to the via pad edge, not via centres;
+trust the measurement over any field description that says centres. An 8 mm
+square, pitch 2.0, pad 0.45 produced nine vias at inset 1.5 or 1.75 and one at
+1.8, 1.9 or 2.1: the drop is 1.775, not 2.0 (centre) or 1.85 (hole). Plan
+per-axis counts with
 `2 * floor((size / 2 - inset - pad_diameter / 2) / pitch) + 1`, which counts
 how many sites fit a region centred on the lattice. Where the grid starts is not
 established: a pour centred at -3.25 on a 1.5 pitch realized vias on whole

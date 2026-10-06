@@ -50,7 +50,7 @@ class StitchGridCountTests(TestCase):
                 )
 
     def test_discriminating_measurements(self):
-        # Same source, follow-up measurements using StdViaTentedFilled.
+        # Same source, measurements using StdViaTentedFilled.
         # The first seven rows distinguish the pad-edge law from the center law.
         pad_diameter = JLC04161H_7628.StdViaTentedFilled.diameter
         assert isinstance(pad_diameter, float)

@@ -4,8 +4,7 @@
   `jitxexamples.patterns.complete_rules`.
 - QFN pad measurement, adjacent-gap derivation, and worked escape:
   `jitxexamples.patterns.qfn_power_fanout`. Apply the
-  [manufacturable width derivation](../SKILL.md#workflow) in place of its
-  historical 1 nm subtraction; that receipt does not verify the new width.
+  [manufacturable width derivation](../SKILL.md#workflow).
 - Route and control-point APIs: installed `jitx.circuit` and `jitx.controlpoint`;
   [physical-layout verification](../../jitx-physical-layout/SKILL.md#verification)
   owns capture. Width checks belong to `jitxlib.verify` and the
@@ -14,16 +13,14 @@
   definition; use tagged route segments for code-side escapes.
 
 BGA and passive derivations have no worked owner and remain below, with their
-shared pad-query helper. Source line citations refer to a 4.4.0 install;
-confirm them against installed source. Neither derivation has a captured
-reference result.
+shared pad-query helper. Confirm cited symbols against installed source.
+Neither derivation has a captured reference result.
 
 ## Shared support for the unowned derivations
 
 The installed query engine converts pads to copper. A query result stays in
 the source's local frame, so compose the query trace with the copper shape
-before measuring (`jitx/query.py:187-263`,
-`jitx/landpattern.py:173-206`). The query must start at the design because it
+before measuring (`jitx.query.query`). The query must start at the design because it
 opens the design and substrate contexts.
 
 ```python
@@ -93,7 +90,7 @@ GEOMETRY_TOLERANCE = 1e-6  # skill default: 1e-6 mm comparison tolerance
 ESCAPE_PAD_INSET = Decimal("0.02")  # complete_rules guideline default, mm
 FANOUT_WIDTH_GRID = Decimal("0.01")  # complete_rules guideline default, mm
 
-# No source on this machine establishes an escape spacing margin, and none is
+# No source this skill cites establishes an escape spacing margin, and none is
 # invented here. Bind it from the design's own spacing budget before calling
 # the helpers below; there is no skill default.
 CLEARANCE_MARGIN: float
@@ -111,13 +108,13 @@ def strictly_inside_width(limit: float, floor: float) -> float:
 
 ## BGA, diagonal channel and row depth
 
-Unverified: no built reference case exercises this helper yet. Treat it as the
+Unverified: no built reference case exercises this helper. Treat it as the
 intended shape and verify the realized width after capture before relying on
 it; the QFN pattern is the one with a captured reference.
 
 The BGA generator places circular pad lands on a grid. Its `ball_diameter`
 argument becomes the PCB pad-circle diameter, and its pitch becomes the X and
-Y center spacing (`jitxlib/landpatterns/generators/bga.py:63-103`). Read the
+Y center spacing (`jitxlib.landpatterns.generators.bga.BGABase`). Read the
 placed pad polygons anyway, since depopulated and nonuniform arrays change the
 available channels.
 
@@ -183,7 +180,7 @@ change them.
 
 ## Two-terminal passive, terminal gap and courtyard
 
-Unverified: no built reference case exercises this helper yet; verify the
+Unverified: no built reference case exercises this helper; verify the
 realized width after capture before relying on it.
 
 A two-terminal passive has two separate questions. The pad-to-pad gap governs
@@ -251,4 +248,4 @@ Use `between_pad_width` only when the authored path actually passes between
 the terminals. Use `outward_escape_width` for a route leaving a terminal away
 from the other pad. In either case, cap at the pad width and fail if the result
 is below `min_copper_width`. The courtyard is a placement envelope, not an
-escape-width source (`jitx/feature.py:177-194`).
+escape-width source (`jitx.feature.Courtyard`).

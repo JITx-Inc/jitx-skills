@@ -19,8 +19,8 @@ pour rules, package escapes, decoupling, and checks of applied rules.
   specificity, the pitfalls, and binary constraints. Read it before writing a
   rule.
 - [Rule reference](references/rule-reference.md) owns only the evidence table:
-  what each behavior did when it was built, against a named version, and where
-  the receipt lives. Its pending behaviors remain unverified.
+  what each behavior did when it was built, and where the receipt lives. Its
+  pending behaviors remain unverified.
 - [Pours](https://docs.jitx.com/en/latest/essentials/physical_design/pours.html)
   owns pours, layer selection, sliver removal, and fill geometry;
   [power and pours](references/power-and-pours.md) routes the signal-fill policy
@@ -39,7 +39,7 @@ pour rules, package escapes, decoupling, and checks of applied rules.
   [circuit builder](../jitx-circuit-builder/SKILL.md) owns wiring, passives,
   and basic top-level pours.
 
-Working designs and versioned receipts: `jitxexamples.patterns.default_rules`,
+Working designs: `jitxexamples.patterns.default_rules`,
 `.net_net_clearance`, `.direct_connect`, `.stitch_via`, and `.complete_rules`
 (including Bogatin width tiers). Direct-connect behavior belongs to its pattern.
 Use installed `jitxlib.verify` for the checks below. Reference checkers also
@@ -70,8 +70,8 @@ use its `CheckResult`, `check_width`, and `check_clearance`.
    class rule when they do; otherwise derive the escape width/clearance pair
    or fail. Subtract 0.02 mm from the narrowest selected pad width, then round
    down to a 0.01 mm grid (`complete_rules` guideline defaults); require the
-   fab floor and strict-narrower check. This replaces the QFN pattern's
-   historical 1 nm subtraction. Use fanout for BGA/passive channel limits.
+   fab floor and strict-narrower check. Use fanout for BGA/passive channel
+   limits.
 6. Put escape rules on the owning circuit; split width transitions at
    `RoutePoint`s, including near vias/layer changes. Follow
    [control-point mechanics](../jitx-physical-layout/references/control-points.md)
@@ -175,8 +175,8 @@ Check reachability, competing priorities, arity and selectors in the
 [rule reference](references/rule-reference.md); tag assignment and stitch
 materialization in physical layout; routing-structure ownership and floors
 in substrate modeler; escape geometry in fanout. Re-run the verification
-gate after correction. Consult the evidence table and working-design
-receipts before treating a reported behavior as established.
+gate after correction. Consult the evidence table and working designs
+before treating a reported behavior as established.
 
 ## Completion
 

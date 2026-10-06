@@ -7,13 +7,15 @@ source. Escape geometry is read from the emitted pads with ``jitx.query``.
 
 Verified API surfaces:
 
-* tag assignment and supported targets: ``jitx/constraints.py:344-630``
-* unary trace width and binary clearance: ``jitx/constraints.py:871-922`` and
-  ``jitx/constraints.py:1135-1172``
-* ``Route``, ``sketch=``, and captured traces: ``jitx/circuit.py:466-599``
-* ``RoutePoint.pad``: ``jitx/controlpoint.py:61-76``
-* Pad to Copper transform composition: ``jitx/landpattern.py:173-206``
-* query transform behavior: ``jitx/query.py:187-263``
+* tag assignment and supported targets: ``jitx.constraints.Tag`` and
+  ``jitx.constraints.Tags.assign``
+* unary trace width and binary clearance:
+  ``jitx.constraints.UnaryDesignConstraint.trace_width`` and
+  ``jitx.constraints.BinaryDesignConstraint.clearance``
+* ``Route``, ``sketch=``, and captured traces: ``jitx.circuit.Route``
+* ``RoutePoint.pad``: ``jitx.controlpoint.RoutePoint``
+* Pad to Copper transform composition and query transform behavior:
+  ``jitx.query.query``
 """
 
 from __future__ import annotations

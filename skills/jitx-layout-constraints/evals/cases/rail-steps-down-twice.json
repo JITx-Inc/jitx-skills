@@ -3,7 +3,7 @@
   "prompt": "A 3.3 V rail carries 2 A from a buck to a QFN-32 and to two 0402 bypass capacitors. The QFN pads are 0.36 mm across on a 0.65 mm pitch and it has an exposed thermal pad. There is a ground pour on the same layer with a keepout under the antenna. Fab is JLCPCB standard. Write the rules, the routes and the tags, build it, and prove the rules applied.",
   "inputs": {
     "substrate": "jitxlib.jlcpcb.JLC04161H_7628",
-    "notes": "Composition, not a single rule. The five older cases each isolate one behaviour and every one of them would pass against an agent that cannot compose a rule set. Here the rail wants a class width neither the QFN pad nor the 0402 terminal can accept, so two different step-down rungs are needed; the pour wants its own clearance, deliberately above trace-to-trace; and the thermal pad wants relief or direct connect. Those rules contend, and resolving them is the skill.",
+    "notes": "Composition, not a single rule. The five reference cases each isolate one behaviour and every one of them would pass against an agent that cannot compose a rule set. Here the rail wants a class width neither the QFN pad nor the 0402 terminal can accept, so two different step-down rungs are needed; the pour wants its own clearance, deliberately above trace-to-trace; and the thermal pad wants relief or direct connect. Those rules contend, and resolving them is the skill.",
     "environment": "Commands run from the repository root with an interpreter that has jitx and jitxlib.verify installed and a reachable runtime."
   },
   "expected_output": "A rule set, layout code carrying routes and tags, and checks, all three. The design builds and the checks assert on the captured design rather than on the authored input.",

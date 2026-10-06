@@ -32,9 +32,9 @@ def expected_grid_count(
 ) -> int:
     """Vias per axis on a center-anchored square grid, squared.
 
-    Measured on the 4.4.0 runtime, ``inset`` is the distance from the stitched
-    region's boundary to the via pad edge, so the general
-    count per axis is ``2 * floor((pour_size / 2 - inset - pad_diameter / 2) / pitch) + 1``.
+    ``inset`` is the measured distance from the stitched region's boundary to
+    the via pad edge, so the general count per axis is
+    ``2 * floor((pour_size / 2 - inset - pad_diameter / 2) / pitch) + 1``.
     The runtime anchors one via on the region center and steps outward by whole
     pitches, so the count per axis is odd. Read ``pad_diameter`` from the
     selected via class, not its drill. No pad fits when the available radius

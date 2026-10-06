@@ -10,22 +10,22 @@ Pour outlines. Board outlines get no automatic pullback, so both pours are the
 board profile buffered inward by the substrate's ``min_copper_edge_space``
 (0.3 mm on ``JLCPCBRules``). That is the circuit-builder inward-buffer recipe
 (``jitx-circuit-builder``, references/advanced-patterns.md, "Pours"), including
-its emptiness and geom-type guard. ``isolate=`` is deprecated on 4.4 and is not
-used here.
+its emptiness and geom-type guard. ``isolate=`` is deprecated and is not used
+here.
 
 Anchoring. ``jitx-physical-layout`` SKILL.md, "Pour and stitch runtime
 observations": a same-net pad or via must reach each pour layer before
 stitching, top-side pads cannot anchor inner or bottom pours, and
 solver-emitted stitches cannot keep a pour alive. An unanchored inner pour was
-observed on 4.4.0 emitting nine vias and still capturing ``Empty()``. So four
+observed emitting nine vias and still capturing ``Empty()``. So four
 through vias (``StdViaPreferred``, layer 0 to -1) are placed explicitly, stored
 structurally on the circuit, and joined directly to ``GND``. They are anchors,
 not stitching.
 
 Stitching. Expressed as a rule, not as placed geometry: a ``Tag`` on both pours
 plus ``design_constraint(...).stitch_via(...)``. Shape follows the working
-reference design ``jitxexamples.patterns.stitch_via``, whose receipt shows the
-via class object itself is what the rule resolves.
+reference design ``jitxexamples.patterns.stitch_via``; the via class object
+itself is what the rule resolves.
 
 Antenna keepout. ``KeepOut`` flags are read from installed ``jitx/feature.py``:
 ``pour=True`` keeps pours out, ``via=True`` avoids auto-placed vias,
@@ -234,7 +234,7 @@ class ControlNoAnchorDesign(Design):
 
     Discriminates "the pours realized because the rule stitched them" from "the
     pours realized because a placed through via anchored them", which is the
-    4.4.0 behaviour the skill records.
+    behaviour the skill records.
     """
 
     board = StitchedBoard()

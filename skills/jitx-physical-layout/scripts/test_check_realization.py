@@ -107,11 +107,11 @@ class KeepoutAndEdgeTests(unittest.TestCase):
         )
 
     def test_micron_corner_residue_does_not_fail_a_correct_void(self) -> None:
-        # Regression for a gate that could not pass correct work. The runtime
-        # rounds a void's inner corners, leaving micron-scale triangles inside the
-        # keepout: measured at 9.46e-05 mm^2 over four ~9 um corners on a real
-        # build, against an exact `overlap == 0.0` test. Residue this small is not
-        # copper any process can make, so it must not fail the check.
+        # The runtime rounds a void's inner corners, leaving micron-scale
+        # triangles inside the keepout: measured at 9.46e-05 mm^2 over four ~9 um
+        # corners on a real build, which an exact `overlap == 0.0` test fails.
+        # Residue this small is not copper any process can make, so it must not
+        # fail the check.
         keepout = shapely.box(4, 4, 6, 6)
         void = keepout.buffer(-0.009, join_style=1)  # rounded inner corners
         geometry = shapely.box(1, 1, 9, 9).difference(void)
@@ -138,7 +138,7 @@ class KeepoutAndEdgeTests(unittest.TestCase):
     def test_edge_spacing_tolerates_representation_error(self) -> None:
         # A pour buffered inward by exactly the floor captures back at 0.29999997
         # against a 0.3 floor. That is float representation, not a spacing
-        # violation, and the previous 1e-9 slack was tighter than the error.
+        # violation, and a 1e-9 slack is tighter than the error.
         board = shapely.box(0, 0, 10, 10)
         just_under = pour(geometry=shapely.box(0.29999997, 0.29999997, 9.7, 9.7))
         self.assertTrue(check_board_edge(board, (just_under,), 0.3)[0].passed)
@@ -157,11 +157,12 @@ class KeepoutAndEdgeTests(unittest.TestCase):
 
 
 class VacuousPassTests(unittest.TestCase):
-    """A green result has to be evidence. These pin the two rows that were not."""
+    """A green result has to be evidence. These pin two rows that could pass
+    without testing anything."""
 
     def test_keepout_with_no_same_layer_pour_is_a_finding_not_a_pass(self) -> None:
-        # Previously reported PASS with same-layer-comparisons=0, which reads
-        # identically whether the keepout is working or is on the wrong layer.
+        # A PASS with same-layer-comparisons=0 reads identically whether the
+        # keepout is working or is on the wrong layer.
         keepout = KeepOutWitness(
             "circuit.keepout", frozenset({7}), shapely.box(4, 4, 6, 6)
         )
@@ -175,8 +176,8 @@ class VacuousPassTests(unittest.TestCase):
         self.assertEqual(check_keepouts((pour(),), (), MIN_FEATURE), [])
 
     def test_edge_check_names_the_board_wide_target(self) -> None:
-        # The identity that board-wide-target used to carry now rides on the
-        # check that actually proves something about the pour.
+        # The board-wide target's name rides on the check that proves something
+        # about the pour.
         board = shapely.box(0, 0, 10, 10)
         witness = pour(geometry=shapely.box(0.4, 0.4, 9.6, 9.6))
         result = check_board_edge(
