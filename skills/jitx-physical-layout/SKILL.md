@@ -174,11 +174,12 @@ Every constrained segment must use `>>` topology: a plain `+` segment makes
 the whole path invalid. The interconnect skill owns topology, via/control-point
 elements, tags, and `BridgingPinModel` across series components.
 
-Model measured delay, not drawn skew: one wrapped hook measured about 0.07 ps
-versus about 2 ps inferred from length. Use equal mean delays with measured
-residual as a `Toleranced` spread; drawn length informs loss and mean only.
-Constraint endpoints must be component ports; control-point `.port` bundles
-fail topology begin/end translation. Keep control points mid-path.
+Observed on one production board: model measured delay, not drawn skew. One
+wrapped hook measured about 0.07 ps versus about 2 ps inferred from length. Use
+equal mean delays with measured residual as a `Toleranced` spread; drawn length
+informs loss and mean only. Constraint endpoints must be component ports;
+control-point `.port` bundles fail topology begin/end translation. Keep control
+points mid-path.
 
 ### Pour and stitch runtime observations
 

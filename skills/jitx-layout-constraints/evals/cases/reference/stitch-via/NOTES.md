@@ -16,13 +16,14 @@ object itself is what the rule resolves.
 An isolated project was staged with a
 `pyproject.toml` declaring `jitx`, `jitxlib-standard`, and `jitxlib-jlcpcb`, and
 a flat `<project>/` package holding `__init__.py` plus byte-identical
-copies of `stitch_via_design.py` and `check_stitch_via.py`. Every command below
-was run from that project root. `$JITX` and `$PY` are the `jitx` and `python`
-entry points of the venv that has jitx installed.
+copies of `stitch_via_design.py` and `check_stitch_via.py`. The `$JITX find`
+and control-probe commands below were run from that project root. `$JITX` and
+`$PY` are the `jitx` and `python` entry points of the venv that has jitx
+installed.
 
 The project package is not pip-installed into that venv, so `PYTHONPATH=.` is
-prepended to each command. Without it, discovery imports the design files as
-top-level modules and fails:
+prepended to each of those commands. Without it, discovery imports the design
+files as top-level modules and fails:
 
 ```text
 $ $JITX find
@@ -96,9 +97,11 @@ designs on the same board and substrate, captured them, counted
 | 10.0 | 2.0 | 0.5 | 25 | not read |
 | 8.0 | 2.0 | 1.5 | 9 | not read |
 
-The grid is anchored on the region center: one via at the center, then whole
-pitches outward, so the count per axis is always odd. All four rows match the
-count law in `expected_grid_count` in `check_stitch_via.py`, which
+These pours were centred on the design origin, and the read positions sit
+symmetric about it: one via at the center, then whole pitches outward, an odd
+count per axis. The count law therefore assumes a region centred on the lattice;
+where the grid starts for an offset region is not established. All four rows
+match the count law in `expected_grid_count` in `check_stitch_via.py`, which
 `test_check_stitch_via.py` checks against these rows. The margin-then-step
 reading, `floor((pour_size - 2 * inset) / pitch)` per axis, also gives 9 for the
 reference parameters but predicts 16 where the probe measured 25.

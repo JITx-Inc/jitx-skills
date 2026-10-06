@@ -35,11 +35,13 @@ def expected_grid_count(
     ``inset`` is the measured distance from the stitched region's boundary to
     the via pad edge, so the general count per axis is
     ``2 * floor((pour_size / 2 - inset - pad_diameter / 2) / pitch) + 1``.
-    The runtime anchors one via on the region center and steps outward by whole
-    pitches, so the count per axis is odd. Read ``pad_diameter`` from the
-    selected via class, not its drill. No pad fits when the available radius
-    is negative. Discriminating measurements are recorded in the
-    ``jitxexamples.patterns.stitch_via`` module docstring.
+    The count assumes a region centred on the lattice: one via on the centre,
+    then whole pitches outward, so the count per axis is odd. The reference
+    pours are centred on the design origin; where the grid starts for an offset
+    region is not established. Read ``pad_diameter`` from the selected via
+    class, not its drill. No pad fits when the available radius is negative.
+    The measured rows, including those that separate this law from a
+    via-centre reading, are in ``test_check_stitch_via.py``.
     """
     available_radius = pour_size / 2.0 - inset - pad_diameter / 2.0
     if available_radius < 0:

@@ -24,7 +24,6 @@ inset and grid in `fanout.md`; this record has no build at that width.
   `jitx.query`.
 - Fabrication floors: read from `FabricationConstraints` on
   `JLC04161H_7628`.
-- Escape width: one `1 nm` quantum inside the narrowest selected pad.
 - Escape clearance margin: `0.010000 mm`, labeled as a skill default in the
   reference and added to the fabrication spacing floor.
 - Escape rule: priority 4, above the priority-2 power-class rule.

@@ -35,7 +35,8 @@ class StitchGridCountTests(TestCase):
                 )
 
     def test_original_measurements(self):
-        # Source: jitxexamples.patterns.stitch_via module docstring.
+        # Measured rows using StdViaPreferred; NOTES.md, "Grid anchoring", has
+        # the same four.
         pad_diameter = JLC04161H_7628.StdViaPreferred.diameter
         assert isinstance(pad_diameter, float)
         for span, pitch, inset, measured in (
@@ -50,7 +51,7 @@ class StitchGridCountTests(TestCase):
                 )
 
     def test_discriminating_measurements(self):
-        # Same source, measurements using StdViaTentedFilled.
+        # Measured rows using StdViaTentedFilled.
         # The first seven rows distinguish the pad-edge law from the center law.
         pad_diameter = JLC04161H_7628.StdViaTentedFilled.diameter
         assert isinstance(pad_diameter, float)

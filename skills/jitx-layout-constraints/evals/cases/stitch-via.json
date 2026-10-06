@@ -6,7 +6,7 @@
     "reference": "evals/cases/reference/stitch-via/stitch_via_design.py",
     "environment": "Commands run from the repository root with python3 resolving to the project interpreter that has jitx installed and a reachable runtime; the check script is run once per variant from a project that packages the reference module."
   },
-  "expected_output": "Three designs differing only in how the via class is declared, plus a control with no rule, each built and captured; the check compares the captured counts against the recorded measurements of nine for the rule variants and zero for the control. A separate regression compares the pad-edge count law against the original and discriminating measured rows recorded in the jitxexamples.patterns.stitch_via module docstring, reading pad diameter from the selected via class. Every mismatch exits nonzero.",
+  "expected_output": "Three designs differing only in how the via class is declared, plus a control with no rule, each built and captured; the check compares the captured counts against the recorded measurements of nine for the rule variants and zero for the control. A separate regression compares the pad-edge count law against the measured rows in test_check_stitch_via.py, reading pad diameter from the selected via class. Every mismatch exits nonzero.",
   "assertions": [
     {
       "text": "the reference module type-checks against the installed jitx package",
