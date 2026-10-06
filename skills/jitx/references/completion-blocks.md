@@ -166,7 +166,7 @@ Pattern 4 misses nested constructor args (e.g., `Resistor(resistance=Toleranced.
 
 ### Review-required patterns (need disposition)
 
-A review-required hit does not block, but each hit must appear in the task acceptance block with a disposition: `accepted with rationale: <why>` | `fixed` | `deferred to Pass 3 (or named follow-up)`. Bare hits without disposition fail acceptance review.
+A review-required hit does not block, but each hit must appear in the task acceptance block with a disposition: `accepted with rationale: <why>` | `fixed` | `deferred to <named follow-up task>`. Bare hits without disposition fail acceptance review.
 
 | # | Rule | Pattern | Where checked |
 |---|------|---------|----|
@@ -202,7 +202,7 @@ When the grep gates pass with no hits:
 When there are review-required hits:
 
 ```
-| Grep gates | `grep gates     PASS   0 hard-fail, 2 review-required`; `<ns>/circuits/usb.py:88`, deferred to Pass 3; `<ns>/circuits/power.py:42`, fixed with `isinstance` |
+| Grep gates | `grep gates     PASS   0 hard-fail, 2 review-required`; `<ns>/circuits/usb.py:88`, deferred to <task id>; `<ns>/circuits/power.py:42`, fixed with `isinstance` |
 ```
 
 When there are hard-fail hits, the task is not done. Fix and re-run.

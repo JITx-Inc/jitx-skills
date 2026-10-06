@@ -18,7 +18,7 @@ from its public source repo:
 pip install git+https://github.com/JITx-Inc/py-jitx-mechanical.git
 ```
 
-Do not suggest per-format commands or packages. Use
+Do not suggest standalone per-format converter tools or packages. Use
 `jitx-mechanical inspect`, `jitx-mechanical import`, and
 `jitx-mechanical export-dxf`.
 

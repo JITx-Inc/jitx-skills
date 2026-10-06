@@ -12,7 +12,7 @@ Base skill for JITX hardware design automation. JITX is a Python framework for p
 The `jitx` CLI owns project scaffolding, auth, runtime install/start, and design build for VSCode-free workflows. Drive everything through it.
 
 Verify every import with `pyright` against the installed package; where the package and
-these pages disagree, follow the package.
+these pages disagree, upgrade jitx (`pip install -U jitx`) and recheck.
 
 > **Platform note (read once).** These commands run in **your** shell on **your** OS. macOS / Linux / WSL / Git Bash use **bash**; native Windows uses **PowerShell**. Commands identical in both (all `jitx ...`, `pip ...`, `pyright`, `ruff`, every `python scripts/...`) are shown once; where they diverge, a `bash` block and a `powershell` block are given — run the one for your shell.
 >
@@ -255,7 +255,7 @@ error: Import "jitxlib.landpatterns.generators.bga" could not be resolved
 **Those errors are about the interpreter, not the code.** One pyright binary pointed at two
 interpreters gives two results on the same file: with an interpreter lacking `jitx`, the
 unresolved-import errors above; with the project's own, the imports resolve and pyright goes on to
-report type errors the other result hid. The failure mode to guard against is an agent believing the message and
+report any type errors. The failure mode to guard against is an agent believing the message and
 "fixing" correct imports — and worse, the run that reports only import errors has type-checked almost
 nothing, so a clean-looking follow-up is not evidence.
 

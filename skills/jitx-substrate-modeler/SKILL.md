@@ -659,10 +659,10 @@ because its via class and fence pattern live on the substrate.
 
 ### Substrate sharp edges (verified on real boards)
 
-- **Fenced differential structures can't use `symmetric_routing_layers`** (the
-  fence via's layer endpoints can't be mirrored, layers stay a lazy attribute,
-  and applying the DRS via a rule dies with `DesignTranslationContext is not
-  active`). Enumerate the fenced coupled layers explicitly
+- **`symmetric_routing_layers` can fail on a fenced differential structure** (the
+  fence via's layer endpoints may not mirror, layers can stay a lazy attribute,
+  and applying the DRS via a rule can die with `DesignTranslationContext is not
+  active`). Enumerating the fenced coupled layers explicitly works either way
   (`layers={0: ..., -1: ..., 1: ..., -2: ...}`); keep `symmetric_routing_layers`
   for fence-less structures. A module-scope `RoutingStructure` (not an attribute
   of a Substrate class) hits the same lazy-layers error.

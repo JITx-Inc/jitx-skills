@@ -2,7 +2,7 @@
 
 Worked counter-examples for the architectural don'ts in `jitx/SKILL.md`. The category name is "parallel-model / stringly-typed-indirection" — "string-hacking" is the shorthand.
 
-These patterns are the dominant failure mode in AI-generated JITX code. They cluster around the same root cause: the AI built a parallel data model keyed by hand-built strings (or did reflection-as-iteration on `self`) instead of letting JITX's own class/list/dict structure *be* the model. Every pattern below: a real failure pattern observed in review, and the JITX-native counter-pattern that replaces it.
+These patterns are the dominant failure mode in AI-generated JITX code. They cluster around the same root cause: the AI built a parallel data model keyed by hand-built strings (or did reflection-as-iteration on `self`) instead of letting JITX's own class/list/dict structure *be* the model. Every pattern below pairs a failure pattern an agent can fall into with the JITX-native counter-pattern that replaces it.
 
 ## Table of contents
 
