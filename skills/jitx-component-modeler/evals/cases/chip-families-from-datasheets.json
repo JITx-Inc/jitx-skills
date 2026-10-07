@@ -42,7 +42,7 @@
       "cmd": "for m in $(grep -hoE '`(APR-[0-9A-Z-]+|ACC[0-9A-Z]+)`' evals/cases/fixtures/ACME-*.md | tr -d '`' | sort -u); do grep -rq \"$m\" <output> || { echo \"ordering example not cross-checked: $m\"; exit 1; }; done"
     },
     {
-      "text": "a library-default guard test exists and passes — pytest exits 5 (no tests collected) if the runner never wrote one, which is how the 2512 termination band is caught",
+      "text": "a library-default guard test exists and passes — pytest exits 5 (no tests collected) if the runner never wrote one, which is how a disagreeing size (2512 while TABLE WATCH's condition holds) is caught",
       "check": "deterministic",
       "cmd": "cd <output> && python3 -m pytest -q -k 'standard_table or termination or chip_def or smt_table'"
     },

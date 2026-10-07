@@ -11,11 +11,21 @@ Base skill for JITX hardware design automation. JITX is a Python framework for p
 
 The `jitx` CLI owns project scaffolding, auth, runtime install/start, and design build for VSCode-free workflows. Drive everything through it.
 
-Verify every import with `pyright` against the installed package. When a name these pages
-use is missing from it, the install is older than the pages: unless the project pins jitx,
-upgrade the JITX packages together (`pip install -U jitx jitxlib-standard jitxlib-parts
-jitxlib-voltage-divider`), run `jitx runtime update`, and recheck. Where the package and
-these pages still disagree, write the code against the installed package.
+Verify every import with `pyright` against the installed package. If a name these pages use
+is missing, first check that its package is installed; an uninstalled package falls under the
+Missing-dependency rule below. If the package is installed and the name is still missing, and
+the project pins neither jitx nor its runtime version (Step 4), upgrade the JITX packages
+together (add `jitxlib-jlcpcb` when the project uses it), move the runtime to match, restart
+it, and recheck:
+
+```bash
+pip install -U jitx jitxlib-standard jitxlib-parts jitxlib-voltage-divider
+jitx runtime update
+jitx runtime stop && jitx runtime start --background
+```
+
+A name still missing after that falls under the Missing-dependency rule. Where a signature,
+default or behavior differs from these pages, write the code against the installed package.
 
 > **Platform note (read once).** These commands run in **your** shell on **your** OS. macOS / Linux / WSL / Git Bash use **bash**; native Windows uses **PowerShell**. Commands identical in both (all `jitx ...`, `pip ...`, `pyright`, `ruff`, every `python scripts/...`) are shown once; where they diverge, a `bash` block and a `powershell` block are given — run the one for your shell.
 >
