@@ -9,9 +9,9 @@ belong to the [skill verification gate](../SKILL.md#verification).
 
 Read `jitx/landpattern.py::_pad_to_copper` for composed pad frames;
 `jitx/circuit.py::_route_to_copper` and `jitx/controlpoint.py::_control_point_to_copper`
-for route/control-point frames;
-the realization checker for hole-preserving conversion, captured pours, local
-keepouts, and board geometry.
+for route/control-point frames; `jitx/shapes/shapely.py` for hole-preserving
+conversion; the realization checker for captured pours, local keepouts, and
+board geometry.
 
 Unowned measurement: a composite's second landpattern at `(5, 3)` held a pad
 authored at `(2, 0)`. Its local transform read `(2.0, 0.0)`, composed position

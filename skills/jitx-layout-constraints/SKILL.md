@@ -145,6 +145,8 @@ run with `python -m unittest my_project.checks`, following the
   priority, `AnyObject` on either side being the usual shape, that relaxes a
   specific rule below it while the build still reports `status: ok` and the
   geometry still measures clean.
+- Measure a route each rule should govern and one it should not: a rule
+  stored on a child circuit can still reach routes outside it.
 - Measure thermal relief by comparing a complete, isolated relief's copper
   against the declared gap, spoke width and count. A relief clipped by a pour
   edge cannot be certified that way.
@@ -157,7 +159,7 @@ run with `python -m unittest my_project.checks`, following the
 
 Have each test print its route counts, measured/expected pairs, and rule
 coverage tally; unittest prints none of them. The run must show those lines, a
-nonzero `Ran N tests`, and `OK`; exit 0 is required for measured completion.
+nonzero `Ran N tests`, and `OK` with no `skipped=` count; exit 0 is required for measured completion.
 Empty checks, unrealized routes, wrong widths/clearances, or unwitnessed rules
 fail.
 Record the actual command, exit code, and open items in the

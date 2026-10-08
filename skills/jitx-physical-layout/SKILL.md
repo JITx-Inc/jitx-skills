@@ -64,8 +64,9 @@ routes, and captured-geometry verification. Start environment setup with
 ## Pour realization semantics
 
 Read the [construction and placement observations](references/geometry-verification.md#construction-and-placement)
-before diagnosing missing geometry. For capture overwrites, `Empty()`, and
-hole-preserving conversion, read the realization checker.
+before diagnosing missing geometry. For capture overwrites and `Empty()`,
+read the realization checker; for hole-preserving conversion, installed
+`jitx/shapes/shapely.py`.
 Apply the
 [remaining runtime observations](#pour-and-stitch-runtime-observations), then run
 [verification](#verification); build success and emitted-via counts cannot prove
@@ -89,8 +90,8 @@ ruff format path/to/layout.py
 python -m unittest my_project.checks
 ```
 
-Require no type errors, then a nonzero `Ran N tests` and `OK` from
-`jitx.test.TestCase` capture assertions per the
+Require no type errors, then a nonzero `Ran N tests` and `OK` with no
+`skipped=` count from `jitx.test.TestCase` capture assertions per the
 [base convention](../jitx/SKILL.md#step-2--project-layout-scaffold-if-missing):
 every route/control point realized, coupled trunks
 have two traces, polarity/net membership correct, bounds and clearances measured.
@@ -118,9 +119,9 @@ board-wide spacing. Exit 1 means failed checks; exit 2 means missing capture or
 unreadable evidence. Record the exact command and checked names in task/Phase 4
 Physical realization rows; missing commands or nonzero exits block completion.
 
-For square stitch grids, also assert counts, sites, keepout exclusions, and
-coverage by every intended pour. The bundled stitch-presence check does not
-establish these.
+For square stitch grids, also run the
+[stitch-grid checks](../jitx-layout-constraints/SKILL.md#verification); the
+bundled stitch-presence check does not establish them.
 
 Use the production substrate, passive-query defaults, and board rules in any
 `SampleDesign` harness. The checker cannot validate that equivalence or placement

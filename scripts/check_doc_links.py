@@ -43,8 +43,9 @@ everything beneath it, so jitxexamples.patterns gates that package alone. Import
 30-second timeout; probe failures are findings, never a silent skip.
 
 The marker must name the exact full pointer on the same line, for example
-`jitxexamples.demos` (UNPUBLISHED:jitxexamples.demos). A bare UNPUBLISHED token
-or a marker for a parent or another pointer does not exempt it. A backticked `.name`
+`jitxexamples.patterns.stitch_via` (UNPUBLISHED:jitxexamples.patterns.stitch_via).
+A bare UNPUBLISHED token or a marker for a parent or another pointer does not
+exempt it. A backticked `.name`
 continues the parent of the most recent full pointer on its line or the line
 before: `jitxexamples.patterns.default_rules`, `.net_net_clearance` names two
 sibling modules. Mark a continuation with its expanded full path on its own
