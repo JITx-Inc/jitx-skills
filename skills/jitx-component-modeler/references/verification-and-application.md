@@ -53,7 +53,7 @@ belong at module scope, even when only one test uses them. This is the same inst
 rule as the base skill's "no subclassing JITX classes inside functions or methods"; it bites here
 because a test method is the natural place to reach for a one-off fixture.
 
-Parametrized cases, written as a `self.subTest` loop in a `jitx.test.TestCase` method, construct directly: a `SampleDesign` must be declared at module scope (the `TypeError` above), so one cannot be declared per case inside the test method. The chip land-pattern generator reads fabrication values off the active substrate — silkscreen-to-soldermask spacing, via `jitx.current.substrate.constraints` — so with no substrate active it raises instead of building. **Never rely on a context an earlier test left set**: that passes in suite order and fails when the test runs alone, which is the order a bisect or a `-k` filter uses.
+A `self.subTest` case constructs directly; a test method cannot declare a `SampleDesign` (`TypeError` above). The chip land-pattern generator reads fabrication values off the active substrate — silkscreen-to-soldermask spacing, via `jitx.current.substrate.constraints` — so with no substrate active it raises instead of building. **Never rely on a context an earlier test left set**: that passes in suite order and fails when the test runs alone, which is the order a bisect or a `-k` filter uses.
 
 **What a component test asserts,** beyond `status: ok` from the build:
 

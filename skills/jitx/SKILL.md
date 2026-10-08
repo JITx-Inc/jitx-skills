@@ -417,8 +417,8 @@ is ~10–15 s per design and needs no TTY. Details:
 
 Outside a design context (plain `unittest.TestCase` included), JITX constructors
 return `Instantiable` proxies whose attributes are not constructor values. A
-`jitx.test.TestCase` can assert authored layer, shapes, and membership as
-`any(p is port for p in net)`, never `in`
+`jitx.test.TestCase` can assert authored layer, shapes, and membership over
+`list(net)`, never `port in net`
 ([why](../jitx-circuit-builder/SKILL.md#asserting-connectivity-in-tests--iterate-the-net-dont-use-in));
 realized geometry (route copper, computed pours) needs a captured design.
 Proxy-attribute assertions are not evidence.

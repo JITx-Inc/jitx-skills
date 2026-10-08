@@ -34,7 +34,7 @@ Read your task definition from PLAN.md. Note:
 |-----------|----------------|-----------------------|
 | `component` | `jitx-component-modeler`; approved datasheet evidence | Checklists: Component Modeling, plus MCU/FPGA where the part is one. Invoke the skill. For complete-board work, use its `extract_pages.py` to read the real pinout, mechanical, and application pages, write `datasheets/<MPN>.spec.md`, then model from the note. For single-task work, model from the datasheet. Follow `jitx-component-modeler/references/verification-and-application.md` through Step 5: the application-circuit capture is mandatory in complete-board work. |
 | `circuit` | `jitx-circuit-builder` + `jitx-component-modeler`; every IC's datasheet evidence | Checklists: Power Circuit or Interface Circuit as applicable, Datasheet Compliance, General Gotcha Scrub. Answer every engineering question with cited evidence from the spec note for complete-board work or the datasheet for single-task work. The English datasheet for every IC is saved to `datasheets/<mpn>.pdf` from the manufacturer's site, not from a sourcing channel whose copy may be another language or revision; the sub-agent counts and implements every required external component without simplification and follows the component-modeler's application-circuit handoff in `jitx-component-modeler/references/verification-and-application.md` before wiring whenever that routing condition matches. Expose bundle-typed ports, use `>>` through paths constrained at top level, and place shared-bus pull-ups or termination only at the bus-aggregation level. |
-| `assembly` | `jitx-circuit-builder` + `jitx-interconnect-constraints` + `jitx-layout-constraints`; accepted subcircuits and ARCHITECTURE.md | Checklists: General Gotcha Scrub. Instantiate every subcircuit; connect power and ground with `PowerSymbol` / `GroundSymbol`; tag those nets with `PowerTag` / `GroundTag`; wire bundles with `require()`; add shared-bus parts at the aggregation level; apply every SI constraint inside `ReferencePlanes(...)`; compare each constrained span with the accepted harness that exercised it; define board geometry; set manufacturing-appropriate `capacitor_query` / `resistor_query` / `inductor_query` and document specialty refinements; set the rule set by invoking `jitx-layout-constraints` (the four defaults, the net-class rules, any escape rules; its Layout Constraints checklist applies, and its unittest command, `Ran N tests` line and exit code go in the acceptance block). A missing or mismatched harness/assembly span blocks Step 6. See `project-builder-flow.md` Phase 3. |
+| `assembly` | `jitx-circuit-builder` + `jitx-interconnect-constraints` + `jitx-layout-constraints`; accepted subcircuits and ARCHITECTURE.md | Checklists: General Gotcha Scrub. Instantiate every subcircuit; connect power and ground with `PowerSymbol` / `GroundSymbol`; tag those nets with `PowerTag` / `GroundTag`; wire bundles with `require()`; add shared-bus parts at the aggregation level; apply every SI constraint inside `ReferencePlanes(...)`; compare each constrained span with the accepted harness that exercised it; define board geometry; set manufacturing-appropriate `capacitor_query` / `resistor_query` / `inductor_query` and document specialty refinements; set the rule set by invoking `jitx-layout-constraints` (the four defaults, the net-class rules, any escape rules; its Layout Constraints checklist applies, and its unittest command and exit code go in the acceptance block). A missing or mismatched harness/assembly span blocks Step 6. See `project-builder-flow.md` Phase 3. |
 | `substrate` | `jitx-substrate-modeler` when custom; board specification | Checklists: Substrate. If JLCPCB is approved, check `JLC04161H_1080` (4L/1080, RS_50/DRS_90/DRS_100), `JLC04161H_7628` (4L/7628, RS_50/DRS_90/DRS_100), and `JLC06161H_7628` (6L/7628, RS_50/DRS_100); each includes its stackup, fab rules, and vias. Import the suitable class directly. Otherwise invoke the skill. Ensure the layer count, routing structures, and vias fit the interface speeds and component packages. |
 | `constraint` | `jitx-interconnect-constraints`; protocol spec and substrate | Checklists: Substrate, General Gotcha Scrub. Define the protocol constraint classes from the timing/impedance limits; use `ConstrainDiffPair` for differential pairs and the substrate's routing structure. Define here, but apply constraints only in top-level assembly. |
 | `pin-assignment` | `jitx-pin-assignment`; IC datasheet evidence and ARCHITECTURE.md `Interface Map` | Checklists: General Gotcha Scrub. Use the spec note for complete-board work or the datasheet for single-task work. Define the required provides and allowed mux flexibility; do not hardcode a pin choice that the provider should solve. |
@@ -91,23 +91,14 @@ and consumes little CPU, Step 3 pauses before retrying and follows the
 `jitx/SKILL.md` stalled-build check for accumulated `jitx interactive-client`
 processes.
 
-A unit test that constructs JITX objects outside a design context, or in a plain
-`unittest.TestCase`, does not satisfy Step 3 structural verification. Those
-constructors return deferred `Instantiable` proxies whose attributes are not the
-supplied values. In a `jitx.test.TestCase`, authored layer and shapes can be
-asserted directly, and membership by iterating the net
-(`any(p is port for p in net)`), never with `in`; the
-[circuit builder](../../jitx-circuit-builder/SKILL.md#asserting-connectivity-in-tests--iterate-the-net-dont-use-in)
-says why. Realized geometry (route copper, computed pours) comes from a
-submitted and captured design.
-
-Create `tests/` before the first `python -m unittest discover -s tests` run: a
-missing start directory is an import error, not an empty pass. Import shared
-test helpers as `from tests.<module> import ...`, which discovery resolves with
-or without `tests/__init__.py`. A relative import fails, because discovery
-imports each test file as a top-level module.
-
 If any line is `FAIL` or `ERROR`, fix the cause and re-run the command until every line is `PASS`. Do not proceed to Step 4 with a broken build.
+
+A unit test constructing JITX objects outside a `jitx.test.TestCase` gets
+`Instantiable` proxies, not the supplied values, and does not satisfy Step 3
+structural verification. A `jitx.test.TestCase` asserts authored layer and shapes
+directly, and membership over `list(net)`, never `port in net`
+([why](../../jitx-circuit-builder/SKILL.md#asserting-connectivity-in-tests--iterate-the-net-dont-use-in));
+realized geometry comes from a submitted and captured design.
 
 #### Step 4: Domain Checklist Review + Grep Gates (CRITICAL)
 
