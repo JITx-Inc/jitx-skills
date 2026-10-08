@@ -14,7 +14,7 @@
     {"text": "a minimum pour feature size is set and the realized pour is checked for slivers and orphaned islands rather than assumed intact", "check": "judge"},
     {"text": "the thermal pad is either direct connect or relief, declared deliberately, and the choice is measured on the captured design rather than trusted", "check": "judge"},
     {"text": "every declared rule is witnessed by a check the agent wrote", "check": "judge"},
-    {"text": "the checks are jitx.test.TestCase tests run with python -m unittest naming the test module, file or start directory, and the run shows a nonzero Ran N tests and OK", "check": "judge"},
+    {"text": "the checks are jitx.test.TestCase tests run with python -m unittest naming the test module, file or start directory, and the run shows a nonzero Ran N tests and a bare OK with no parenthesized count", "check": "judge"},
     {"text": "the checks look for a broader rule at a higher priority relaxing a specific clearance, reporting none or naming the relaxation and how it was resolved", "check": "judge"},
     {"text": "no check passes on an empty selection", "check": "judge"}
   ]

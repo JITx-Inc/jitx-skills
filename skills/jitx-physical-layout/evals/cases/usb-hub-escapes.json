@@ -26,7 +26,7 @@
       "check": "judge"
     },
     {
-      "text": "the checks are jitx.test.TestCase tests run with python -m unittest naming the test module, file or start directory, and the run shows a nonzero Ran N tests and OK",
+      "text": "the checks are jitx.test.TestCase tests run with python -m unittest naming the test module, file or start directory, and the run shows a nonzero Ran N tests and a bare OK with no parenthesized count",
       "check": "judge"
     },
     {

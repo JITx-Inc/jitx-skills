@@ -90,11 +90,12 @@ ruff format path/to/layout.py
 python -m unittest my_project.checks
 ```
 
-Require no type errors, then a nonzero `Ran N tests` and `OK` with no
-`skipped=` count from `jitx.test.TestCase` capture assertions per the
+Require no type errors, then a nonzero `Ran N tests` and a bare `OK` with no
+parenthesized count from `jitx.test.TestCase` capture assertions per the
 [base convention](../jitx/SKILL.md#step-2--project-layout-scaffold-if-missing):
 every route/control point realized, coupled trunks
 have two traces, polarity/net membership correct, bounds and clearances measured.
+A skipped or expected-failure capture test is an open item in the completion block.
 For EDB/HFSS exports, reopen `.aedb` read-only and assert copper/via presence:
 netless copper uses `<NO-NET>`, primitive bboxes are in meters, and vias are
 `layout.padstack_instances`. Objects reachable only through `Net` or
