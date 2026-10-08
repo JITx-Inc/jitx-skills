@@ -32,11 +32,6 @@
     {
       "text": "no check passes on an empty selection",
       "check": "judge"
-    },
-    {
-      "text": "the checker library the skill routes to is importable in the environment used",
-      "check": "deterministic",
-      "cmd": "python3 -c \"import jitxlib.verify\""
     }
   ]
 }

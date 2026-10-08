@@ -197,9 +197,9 @@ class ModuleImportTests(unittest.TestCase):
             "jitx/__init__.py": "",
             "jitx/core.py": "class Circuit:\n    count = 3\n",
             "jitxlib/__init__.py": "",
-            "jitxlib/verify.py": "print('module import output')\ndef rule_width():\n    pass\n",
             "jitxexamples/__init__.py": "",
             "jitxexamples/patterns/__init__.py": "",
+            "jitxexamples/patterns/fanout.py": "print('module import output')\ndef escape_width():\n    pass\n",
             "jitxexamples/patterns/default_rules.py": "raise RuntimeError('leaf body must not run')\n",
             "jitxexamples/patterns/net_net_clearance.py": "",
             "custompkg/__init__.py": "",
@@ -235,7 +235,7 @@ class ModuleImportTests(unittest.TestCase):
         return code, stdout.getvalue(), stderr.getvalue()
 
     def test_resolvable_modules_pass_without_running_leaf_bodies(self):
-        docs = self.docs("Use `jitx.core`, `jitxlib.verify`, `jitxexamples.patterns.default_rules`.\n")
+        docs = self.docs("Use `jitx.core`, `jitxexamples.patterns.fanout`, `jitxexamples.patterns.default_rules`.\n")
         self.assertEqual(check_module_imports(docs, roots=frozenset({"jitx", "jitxlib", "jitxexamples"})), [])
 
     def test_unresolvable_pointer_is_a_finding(self):
@@ -275,8 +275,8 @@ class ModuleImportTests(unittest.TestCase):
             run.assert_not_called()
 
     def test_function_and_nested_attributes_resolve(self):
-        docs = self.docs("Use `jitxlib.verify.rule_width` and `jitx.core.Circuit.count`.\n")
-        self.assertEqual(check_module_imports(docs, roots=frozenset({"jitx", "jitxlib"})), [])
+        docs = self.docs("Use `jitxexamples.patterns.fanout.escape_width` and `jitx.core.Circuit.count`.\n")
+        self.assertEqual(check_module_imports(docs, roots=frozenset({"jitx", "jitxexamples.patterns"})), [])
 
     def test_missing_attribute_is_a_finding(self):
         findings = check_module_imports(self.docs("Use `jitx.core.Circuit.missing`.\n"), roots=frozenset({"jitx"}))
@@ -311,8 +311,11 @@ class ModuleImportTests(unittest.TestCase):
         self.assertTrue(all("skills/a/SKILL.md:2" in finding for finding in findings))
 
     def test_continuation_uses_most_recent_full_pointer(self):
-        docs = self.docs("`jitx.core.Circuit`, `jitxlib.verify.rule_width`, `.missing`\n")
-        self.assertEqual(module_pointers(docs, roots=frozenset({"jitx", "jitxlib"}))[-1][2], "jitxlib.verify.missing")
+        docs = self.docs("`jitx.core.Circuit`, `jitxexamples.patterns.fanout.escape_width`, `.missing`\n")
+        self.assertEqual(
+            module_pointers(docs, roots=frozenset({"jitx", "jitxexamples.patterns"}))[-1][2],
+            "jitxexamples.patterns.fanout.missing",
+        )
 
     def test_continuation_does_not_cross_blank_lines_fences_or_files(self):
         for gap in ("\n", "```\n```\n"):
@@ -345,43 +348,43 @@ class ModuleImportTests(unittest.TestCase):
         ])
 
     def test_custom_roots_replace_defaults(self):
-        docs = self.docs("`custompkg.available`, `custompkg.missing`, `jitx.missing`, `jitxlib.verify.missing`\n")
+        docs = self.docs("`custompkg.available`, `custompkg.missing`, `jitx.missing`, `jitxexamples.patterns.missing`\n")
         findings = check_module_imports(docs, roots=frozenset({"custompkg"}))
         self.assertEqual(len(findings), 1)
         self.assertIn("custompkg.missing", findings[0])
 
     def test_default_roots_are_routing_destinations(self):
         self.assertEqual(MODULE_ROOTS, frozenset({
-            "jitxlib.verify", "jitxexamples.patterns", "jitxexamples.demos",
+            "jitxexamples.patterns", "jitxexamples.demos",
         }))
 
     def test_dotted_root_matches_children(self):
-        docs = self.docs("`jitxlib.verify.rule_width` `jitxlib.verify.nested.child`\n")
-        self.assertEqual(module_pointers(docs, roots=frozenset({"jitxlib.verify"})), [
-            ("skills/a/SKILL.md", 1, "jitxlib.verify.rule_width"),
-            ("skills/a/SKILL.md", 1, "jitxlib.verify.nested.child"),
+        docs = self.docs("`jitxexamples.patterns.fanout.escape_width` `jitxexamples.patterns.nested.child`\n")
+        self.assertEqual(module_pointers(docs, roots=frozenset({"jitxexamples.patterns"})), [
+            ("skills/a/SKILL.md", 1, "jitxexamples.patterns.fanout.escape_width"),
+            ("skills/a/SKILL.md", 1, "jitxexamples.patterns.nested.child"),
         ])
 
     def test_dotted_root_does_not_match_siblings(self):
         docs = self.docs(
-            "`jitxlib.verifier` `jitxlib.verifier.child` "
-            "`jitxlib.standard` `jitxlib.standard.child`\n"
+            "`jitxexamples.patterns_extra` `jitxexamples.patterns_extra.child` "
+            "`jitxexamples.demos` `jitxexamples.demos.child`\n"
         )
-        roots = frozenset({"jitxlib.verify"})
+        roots = frozenset({"jitxexamples.patterns"})
         self.assertEqual(module_pointers(docs, roots=roots), [])
         with mock.patch("check_doc_links.subprocess.run") as run:
             self.assertEqual(check_module_imports(docs, roots=roots), [])
             run.assert_not_called()
 
     def test_dotted_root_matches_exact_pointer(self):
-        docs = self.docs("`jitxlib.verify`\n")
-        roots = frozenset({"jitxlib.verify"})
-        self.assertEqual(module_pointers(docs, roots=roots), [("skills/a/SKILL.md", 1, "jitxlib.verify")])
+        docs = self.docs("`jitxexamples.patterns`\n")
+        roots = frozenset({"jitxexamples.patterns"})
+        self.assertEqual(module_pointers(docs, roots=roots), [("skills/a/SKILL.md", 1, "jitxexamples.patterns")])
         self.assertEqual(check_module_imports(docs, roots=roots), [])
 
     def test_pointer_shorter_than_root_does_not_match(self):
-        docs = self.docs("`jitxlib` `jitxlib.verify`\n")
-        self.assertEqual(module_pointers(docs, roots=frozenset({"jitxlib.verify.rule_width"})), [])
+        docs = self.docs("`jitxexamples` `jitxexamples.patterns`\n")
+        self.assertEqual(module_pointers(docs, roots=frozenset({"jitxexamples.patterns.fanout"})), [])
 
     def test_repeated_pointers_resolve_once_but_report_each_location(self):
         docs = self.docs("`jitx.missing`\n`jitx.missing`\n")
@@ -449,8 +452,8 @@ class ModuleImportTests(unittest.TestCase):
 
     def test_module_root_option_is_repeatable(self):
         code, _, _ = self.run_main(
-            "`custompkg.available` `jitxlib.verify` `jitx.missing`\n",
-            "--module-root", "custompkg", "--module-root", "jitxlib",
+            "`custompkg.available` `jitxexamples.patterns` `jitx.missing`\n",
+            "--module-root", "custompkg", "--module-root", "jitxexamples",
         )
         self.assertEqual(code, 0)
 
@@ -511,7 +514,7 @@ class MainTests(unittest.TestCase):
             self.assertIn(
                 main([
                     "check_doc_links.py", "--skip-module-imports",
-                    "--module-root", "jitxlib.verify",
+                    "--module-root", "jitxexamples.patterns",
                 ]),
                 (0, 1),
             )

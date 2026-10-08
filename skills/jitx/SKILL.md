@@ -125,7 +125,7 @@ succeeds and, for that JLCPCB path, `python -c "import jitxlib.jlcpcb"` succeeds
 Three things it does **not** do, each of which reads like an oversight and isn't:
 
 - **No `git init`.** It writes a `.gitignore` but creates no repository, so `git status` in a fresh project is `fatal: not a git repository`. If the work wants version control, run `git init` yourself and say that you did; don't assume a repo you were never given.
-- **No `pytest`, no `pyright`.** The seeded `pyproject.toml` lists neither; add both. `check.py` runs `pyright` and builds designs; `pytest` covers Python units.
+- **No `pyright`.** Add it; `check.py` runs it and builds designs. Test with `jitx.test.TestCase`, which activates instantiation, and `python -m unittest`, not `pytest`.
 - **The seeded `.gitignore` is a considered file — don't broaden it.** It ignores every dotfile (`.*`, with `.gitignore` and `.vscode/` whitelisted), so scratch directories are already covered, and it ignores only the *volatile* parts of `designs/` — caches and editor backups — deliberately leaving the built design directory version-controlled. Adding `designs/` wholesale reverses that choice. Append only what a task genuinely needs, and say why.
 
 ### Step 3 — Auth
@@ -766,7 +766,7 @@ Covers:
 - All rule effects: trace width, clearance, stitch and fence vias, thermal relief, pour feature size, routing structure as a rule
 - The four board-wide default rules (a Phase 3 gate item) and the net-class table
 - Power routing and decoupling per Bogatin's habits; pour rules; tag-based fanout step-down
-- After-build width, clearance, and route-realization checks (`jitxlib.verify`)
+- After-build width, clearance, and route-realization checks
 
 This skill owns rules; `jitx-substrate-modeler` owns the fab floors and structure
 definitions the rules read; `jitx-physical-layout` owns the routes and control points

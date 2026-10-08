@@ -10,9 +10,10 @@
 #
 # The skill routes to owners rather than carrying their knowledge: the rule
 # system to the published Design Constraints page, worked designs to
-# jitxexamples, checkers to jitxlib.verify, and the evidence table to its own
-# reference. The knowledge being reachable is therefore part of what is scored,
-# not a precondition assumed to hold.
+# jitxexamples, and the evidence table to its own reference. The knowledge
+# being reachable is therefore part of what is scored, not a precondition
+# assumed to hold. The checks are not routed: the skill states what each must
+# establish, and the agent writes them for the design at hand.
 goal: |
   An engineer describes a board's rails, signals, packages, and fab in plain
   terms and gets back a design-rule set in JITX Python: board-wide defaults,
@@ -24,8 +25,10 @@ goal: |
   installed runtime has, every number traces to a fab row, a cited engineering
   source, a stated derivation, or a labeled skill default, the rules are
   reachable from the design tree and out-rank the defaults they override, and
-  nothing is called done on build success alone. The skill carries routing to
-  the checks rather than the checks themselves, so a weaker agent model
+  nothing is called done on build success alone. The skill carries what each
+  check must establish, and the agent writes the checks as jitx.test.TestCase
+  tests run with python -m unittest. For the rule system and the worked designs
+  it carries routing rather than the knowledge itself, so a weaker agent model
   following it should still get there by fetching what it was pointed at, and
   should stop and say so when a pointer does not resolve rather than
   substituting recall.
@@ -35,7 +38,7 @@ dimensions:
   - "REALIZATION_VERIFIED: are widths, clearances, and route realization checked against the captured design after build; is every declared rule witnessed by a check, with unwitnessed rules counted and named rather than passed over; is each measured clearance identified as router-generated copper (the rule acting) or code-authored copper (the author's geometry, which the rule does not move); are rules the capture cannot expose (trace-to-pour clearance, thermal relief, sliver removal) named as unverified rather than closed from the fabrication export; and, when no runtime is available, is that stated as an open item instead of implied by a clean build?"
   - "FANOUT_STEPDOWN: where a class-level width cannot fit a package pad, is the step-down expressed as a specific escape tag on the route segment with its own width and clearance rules above the class rule and a control point at the transition, with the escape width derived strictly inside the narrowest selected pad at fixed precision rather than typed in or left equal to a pad width? Where a second rule contends for the same copper, such as a separation requirement pulling against an escape that must fit inside a pad, is the contention resolved and stated rather than one side silently dropped?"
   - "OWNERSHIP: do board-wide rules live on the Design, local rules on the circuit that owns the tagged objects, with tags and rules as structural attributes (no string-keyed tables, no rules built at module import time, no parallel model of the design)?"
-  - "RETRIEVAL: where the skill points at an owner instead of carrying the knowledge, does the output show the pointer was actually followed, by using what only that source supplies rather than a plausible reconstruction of it, and does it name the source and how it was reached? Knowledge the restructure moved out of the skill (the rule system, the worked pattern modules, the checker library) must be reached through the documentation as built. A locally installed package satisfying that pointer is not evidence the documentation carries it, because the reader may not have the package; reading installed jitx source to confirm a signature remains correct and is a separate thing. When a pointer does not resolve, is the failure reported as a blocking open item naming the unreachable source, with the work either stopped or continued under a stated assumption, rather than filled in from memory as though the fetch had succeeded?"
+  - "RETRIEVAL: where the skill points at an owner instead of carrying the knowledge, does the output show the pointer was actually followed, by using what only that source supplies rather than a plausible reconstruction of it, and does it name the source and how it was reached? Knowledge the restructure moved out of the skill (the rule system, the worked pattern modules) must be reached through the documentation as built. A locally installed package satisfying that pointer is not evidence the documentation carries it, because the reader may not have the package; reading installed jitx source to confirm a signature remains correct and is a separate thing. When a pointer does not resolve, is the failure reported as a blocking open item naming the unreachable source, with the work either stopped or continued under a stated assumption, rather than filled in from memory as though the fetch had succeeded?"
 hard_fails:
   - "A clearance effect on a single-condition rule, or any effect that the installed jitx.constraints module does not have."
   - "A per-route width or clearance parameter, a code-created neckdown region, or a neckdown tag presented as API."

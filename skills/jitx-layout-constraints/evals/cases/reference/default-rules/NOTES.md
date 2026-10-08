@@ -70,9 +70,10 @@ governs. A `Circuit` is a container for the rule, not a scope for it.
 
 ## Route sketch
 
-The route sketch `[(left_x, 0.0), (right_x, 0.0)]` in `RoutedChild` is inert.
-Its start point is not the pad center, because the `SMT("0402")` landpattern
-stacks its two pads along Y and `route_pad` sits about 0.51 mm above the child
-origin. The realized route still runs from the pad to the route point, so the
-widths measured above are unaffected. See the `net-net-clearance` notes for the
-measured behavior of sketch turns, which the runtime drops.
+The route sketch `[(left_x, 0.0), (right_x, 0.0)]` in `RoutedChild` is defined
+in its own frame of reference, and an affine transform matches its first and
+last points to the actual pads in the design. A two-point list becomes a sketch
+with no turns (`Route.__init__` in `jitx.circuit`), so it asks for nothing beyond
+a run from the pad to the route point. The widths above are read from the
+captured copper. See the `net-net-clearance` notes for the measured behavior of
+sketch turns, which the runtime drops.

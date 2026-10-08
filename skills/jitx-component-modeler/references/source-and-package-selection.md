@@ -33,7 +33,7 @@ A pin file's header typically gives a **device string** (`xcvp1002nfvi1369`), an
 
 **Raise it at a gate, not at the end.** Where the user is already confirming device and package, ask what to use as the MPN in the same breath, and say what the documents do and do not identify. Then set it to what was agreed, with a comment recording what it identifies.
 
-The reason this needs saying: an orderable part number is highly *guessable in shape*, which is exactly what makes a fabricated one dangerous — it looks right. And nothing downstream catches it. `pyright`, `pytest`, the build and `jitx-code-review` all pass on a wrong MPN, while every other unknown in a component (a pin, a bank, a dimension) is gated by a reconciliation or a human check. This is the one place where "estimate nothing" has no corresponding checkpoint unless you add one.
+The reason this needs saying: an orderable part number is highly *guessable in shape*, which is exactly what makes a fabricated one dangerous — it looks right. And nothing downstream catches it. `pyright`, `unittest`, the build and `jitx-code-review` all pass on a wrong MPN, while every other unknown in a component (a pin, a bank, a dimension) is gated by a reconciliation or a human check. This is the one place where "estimate nothing" has no corresponding checkpoint unless you add one.
 
 ## Environment
 

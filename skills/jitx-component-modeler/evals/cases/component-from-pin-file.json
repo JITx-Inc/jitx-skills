@@ -69,7 +69,7 @@
     {
       "text": "the generator's pure-function tests exist and pass",
       "check": "deterministic",
-      "cmd": "cd <output> && python3 -m pytest -q tests/"
+      "cmd": "cd <output> && python3 -m unittest discover -s tests"
     },
     {
       "text": "ball reference strings decode correctly past the row-letter rollover: AA1 is row 20 (not 26), and the module's coordinate for AA1 reflects that",

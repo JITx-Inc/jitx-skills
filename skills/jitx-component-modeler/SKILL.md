@@ -131,7 +131,7 @@ Value / BOM: .value renders as "<string>" — asserted in a test
         | n/a (<reason>) — AND pinned by a test asserting it is unset
 No-field walk: datasheet-stated facts with no JITX field, recorded in the docstring: <list>
 Provenance: values traceable to no datasheet page: NONE | <list + the labeled rule backing each>
-Checks: pyright <clean | N errors>; pytest <N passed | not run: <reason>>;
+Checks: pyright <clean | N errors>; unittest <N passed | not run: <reason>>;
         build <status: ok via <command> | not run: <reason>>
 Verdict: complete | open items: <list>
         Derive this line from every row above. List each unresolved or unsupported

@@ -22,21 +22,16 @@
       "check": "judge"
     },
     {
-      "text": "every declared rule is witnessed by a check, reported through rule_coverage with unwitnessed rules named rather than passed over",
+      "text": "every declared rule is witnessed by a jitx.test.TestCase check the agent wrote and ran with python -m unittest, with unwitnessed rules named rather than passed over",
       "check": "judge"
     },
     {
-      "text": "clearance_relaxations is run and reports no relaxation, or names the relaxation and how it was resolved",
+      "text": "the agent's checks look for a broader rule at a higher priority relaxing a specific clearance, and report none or name the relaxation and how it was resolved",
       "check": "judge"
     },
     {
       "text": "no check passes on an empty selection: a gate that measured nothing fails",
       "check": "judge"
-    },
-    {
-      "text": "the checker library the skill routes to is importable in the environment used",
-      "check": "deterministic",
-      "cmd": "python3 -c \"import jitxlib.verify\""
     }
   ],
   "future_cases": "A pinout change re-run, to establish that regenerating the escapes from code actually survives the pins moving, which is the reason the engineer asked for code in the first place."

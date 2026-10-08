@@ -7,7 +7,7 @@
   [manufacturable width derivation](../SKILL.md#workflow).
 - Route and control-point APIs: installed `jitx.circuit` and `jitx.controlpoint`;
   [physical-layout verification](../../jitx-physical-layout/SKILL.md#verification)
-  owns capture. Width checks belong to `jitxlib.verify` and the
+  owns capture. Width checks belong to the
   [constraint verification gate](../SKILL.md#verification).
 - `RoutingStructure.NeckDown`: installed `jitx.si` owns the substrate
   definition; use tagged route segments for code-side escapes.

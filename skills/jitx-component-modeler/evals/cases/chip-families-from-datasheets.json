@@ -24,7 +24,7 @@
     {
       "text": "the full generated test suite passes",
       "check": "deterministic",
-      "cmd": "cd <output> && python3 -m pytest -q"
+      "cmd": "cd <output> && python3 -m unittest discover -s tests"
     },
     {
       "text": "every generated source file parses as Python",
@@ -42,9 +42,9 @@
       "cmd": "for m in $(grep -hoE '`(APR-[0-9A-Z-]+|ACC[0-9A-Z]+)`' evals/cases/fixtures/ACME-*.md | tr -d '`' | sort -u); do grep -rq \"$m\" <output> || { echo \"ordering example not cross-checked: $m\"; exit 1; }; done"
     },
     {
-      "text": "a library-default guard test exists and passes — pytest exits 5 (no tests collected) if the runner never wrote one, which is how a disagreeing size (2512 while TABLE WATCH's condition holds) is caught",
+      "text": "a library-default guard test exists and passes — unittest exits 5 (NO TESTS RAN) if the runner never wrote one, which is how a disagreeing size (2512 while TABLE WATCH's condition holds) is caught",
       "check": "deterministic",
-      "cmd": "cd <output> && python3 -m pytest -q -k 'standard_table or termination or chip_def or smt_table'"
+      "cmd": "cd <output> && python3 -m unittest discover -s tests -k standard_table -k termination -k Termination -k chip_def -k smt_table"
     },
     {
       "text": "no component is constructed inside a plain unittest.TestCase — outside the JITX instantiation context __init__ never runs, so such a test asserts nothing. Validation moved into a pure classmethod and tested plainly is a legitimate design and is NOT a finding; the rule is about construction, not the base class",
@@ -54,7 +54,7 @@
     {
       "text": "a value-label test exists and passes, and no binary-float-noise magnitude was baked in as a numeric literal (a comment or docstring describing the hazard is not a finding)",
       "check": "deterministic",
-      "cmd": "cd <output> && python3 -m pytest -q -k 'value_label or label or renders' && python3 <skill>/evals/checks/float_noise.py <output>"
+      "cmd": "cd <output> && python3 -m unittest discover -s tests -k value_label -k label -k Label -k renders -k Renders && python3 <skill>/evals/checks/float_noise.py <output>"
     },
     {
       "text": "density level is addressed, not silently defaulted — the resistor fixture asks for IPC-7351 nominal (DensityLevel.B), so the code must either set it explicitly or say in the completeness block why the installed default stands",

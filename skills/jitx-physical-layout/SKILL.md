@@ -28,8 +28,7 @@ routes, and captured-geometry verification. Start environment setup with
    - Installed `jitx.run.runtime.RuntimeDesign`, `jitx.query`, and `jitx.inspect`:
      capture, query versus visit, and net lookup; the
      [realization checker](scripts/check_realization.py) demonstrates the loop.
-     `jitxlib.verify.geometry` owns shape conversion and its frame/void traps;
-     [geometry evidence](references/geometry-verification.md) retains observations
+     [Geometry evidence](references/geometry-verification.md) retains observations
      without a code owner.
    - For authored escapes, deskew fans, or insertion geometry, use installed
      `jitx.circuit.Route` and `jitx.controlpoint` for APIs and
@@ -44,8 +43,6 @@ routes, and captured-geometry verification. Start environment setup with
    - `jitxlib.landpatterns.pads`: `SMDPadConfig`, `ThermalPadGeneratorMixin`,
      `WindowSubdivide` own pad-feature generation. [Example owners](references/layout-examples.md)
      route thermal-pad CSG, custom-pad mask/paste, and the antenna example.
-   - `jitxlib.verify`: reuse `shape_geometry`, `unique_by_specificity`,
-     `min_clearance`, `holds_circle`, `centreline_length`, and rule readers.
 3. Store vias, copper, routes, and keepouts structurally on the circuit before
    connecting them. Treat the build warning about objects not assigned to a
    circuit as failure. Join ground/power vias directly to nets; reserve
@@ -68,7 +65,7 @@ routes, and captured-geometry verification. Start environment setup with
 
 Read the [construction and placement observations](references/geometry-verification.md#construction-and-placement)
 before diagnosing missing geometry. For capture overwrites, `Empty()`, and
-hole-preserving conversion, read the realization checker and `jitxlib.verify.geometry`.
+hole-preserving conversion, read the realization checker.
 Apply the
 [remaining runtime observations](#pour-and-stitch-runtime-observations), then run
 [verification](#verification); build success and emitted-via counts cannot prove
@@ -89,11 +86,12 @@ Run in the design project:
 ```bash
 pyright path/to/layout.py
 ruff format path/to/layout.py
-python -m my_project.checks
+python -m unittest my_project.checks
 ```
 
-Require no type errors and capture assertions reporting `[PASS]/[FAIL]`, with
-nonzero exit on failure: every route/control point realized, coupled trunks
+Require no type errors and capture assertions written as `jitx.test.TestCase`
+tests, following the [base convention](../jitx/SKILL.md#step-2--project-layout-scaffold-if-missing):
+every route/control point realized, coupled trunks
 have two traces, polarity/net membership correct, bounds and clearances measured.
 For EDB/HFSS exports, reopen `.aedb` read-only and assert copper/via presence:
 netless copper uses `<NO-NET>`, primitive bboxes are in meters, and vias are
@@ -103,9 +101,7 @@ For direct Python export, follow installed `jitx/_cli/design/export.py::_run_exp
 for the disposable instantiation frame and design/substrate contexts; omitting
 the active frame raises "Structure not active".
 
-Use `jitxlib.verify` for the checks it owns. If it is unavailable, name the
-missing installation and leave those checks open; do not substitute a bundled
-fallback. For pour, keepout, and edge checks it does not cover, run the
+For pour, keepout, and edge checks, run the
 bundled [realization checker](scripts/check_realization.py) from the project,
 using the resolved skill directory:
 
@@ -121,10 +117,9 @@ board-wide spacing. Exit 1 means failed checks; exit 2 means missing capture or
 unreadable evidence. Record the exact command and checked names in task/Phase 4
 Physical realization rows; missing commands or nonzero exits block completion.
 
-For square stitch grids, also use `jitxlib.verify.stitch_via_count` to check
-counts, sites, keepout exclusions, and coverage by every intended pour. Its
-docstring owns input requirements and limits; read it before selecting captured
-geometry. The bundled checker's stitch-presence check does not establish these.
+For square stitch grids, also check counts, sites, keepout exclusions, and
+coverage by every intended pour in your own tests. The bundled checker's
+stitch-presence check does not establish these.
 
 Use the production substrate, passive-query defaults, and board rules in any
 `SampleDesign` harness. The checker cannot validate that equivalence or placement

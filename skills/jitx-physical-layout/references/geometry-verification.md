@@ -2,17 +2,16 @@
 
 Capture, query/visit, and net lookup: installed `jitx.run.runtime.RuntimeDesign`,
 `jitx.query`, and `jitx.inspect`; executable loop:
-[check_realization.py](../scripts/check_realization.py). Checks belong to
-`jitxlib.verify`; export-presence checks belong to the
-[skill verification gate](../SKILL.md#verification).
+[check_realization.py](../scripts/check_realization.py). Export-presence checks
+belong to the [skill verification gate](../SKILL.md#verification).
 
 ## Coordinate frames
 
-Read `jitxlib.verify.geometry` for conversion and void preservation;
-`jitx/landpattern.py::_pad_to_copper` for composed pad frames;
+Read `jitx/landpattern.py::_pad_to_copper` for composed pad frames;
 `jitx/circuit.py::_route_to_copper` and `jitx/controlpoint.py::_control_point_to_copper`
 for route/control-point frames;
-the realization checker for captured pours, local keepouts, and board geometry.
+the realization checker for hole-preserving conversion, captured pours, local
+keepouts, and board geometry.
 
 Unowned measurement: a composite's second landpattern at `(5, 3)` held a pad
 authored at `(2, 0)`. Its local transform read `(2.0, 0.0)`, composed position

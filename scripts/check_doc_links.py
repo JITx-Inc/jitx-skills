@@ -39,12 +39,12 @@ It checks availability in that interpreter, not publication on a package index,
 and does not execute a leaf module just to verify its spec. Use --python PATH
 to select the interpreter (default: sys.executable). Repeat --module-root ROOT
 to replace the default roots; a root may be dotted, and matches itself plus
-everything beneath it, so jitxlib.verify gates that package alone. Imports run in one subprocess per check, with a
+everything beneath it, so jitxexamples.patterns gates that package alone. Imports run in one subprocess per check, with a
 30-second timeout; probe failures are findings, never a silent skip.
 
 The marker must name the exact full pointer on the same line, for example
-`jitxlib.verify` (UNPUBLISHED:jitxlib.verify). A bare UNPUBLISHED token or a
-marker for a parent or another pointer does not exempt it. A backticked `.name`
+`jitxexamples.demos` (UNPUBLISHED:jitxexamples.demos). A bare UNPUBLISHED token
+or a marker for a parent or another pointer does not exempt it. A backticked `.name`
 continues the parent of the most recent full pointer on its line or the line
 before: `jitxexamples.patterns.default_rules`, `.net_net_clearance` names two
 sibling modules. Mark a continuation with its expanded full path on its own
@@ -114,14 +114,15 @@ LINK_RE = re.compile(r"\[([^\]]*)\]\(([^)\s]+)\)")
 # **bold** or "quoted" or “smart-quoted” — the three shapes prose citations take
 CITATION_RE = re.compile(r'\*\*([^*\n]{5,90})\*\*|["“]([^"”\n]{5,90})["”]')
 # Destinations skills route knowledge to. A root is matched as a dotted
-# PREFIX, so "jitxlib.verify" gates that package without dragging in every
-# jitxlib.* name a skill mentions in passing. The default set is deliberately not
-# {jitx, jitxlib, jitxexamples}: a skill legitimately names modules that do NOT
-# exist, in anti-pattern lists ("there is no jitx.bundle, jitx.passives"), and a
-# check that cannot tell a pointer from a named counterexample buries the real
-# findings under false ones. Widen with --module-root for a one-off sweep; add a
-# line here when a skill routes to a new destination.
-MODULE_ROOTS = frozenset({"jitxlib.verify", "jitxexamples.patterns", "jitxexamples.demos"})
+# PREFIX, so "jitxexamples.patterns" gates that package without dragging in
+# every jitxexamples.* name a skill mentions in passing. The default set is
+# deliberately not {jitx, jitxlib, jitxexamples}: a skill legitimately names
+# modules that do NOT exist, in anti-pattern lists ("there is no jitx.bundle,
+# jitx.passives"), and a check that cannot tell a pointer from a named
+# counterexample buries the real findings under false ones. Widen with
+# --module-root for a one-off sweep; add a line here when a skill routes to a
+# new destination.
+MODULE_ROOTS = frozenset({"jitxexamples.patterns", "jitxexamples.demos"})
 
 
 def _under_root(pointer: str, roots: frozenset[str]) -> bool:

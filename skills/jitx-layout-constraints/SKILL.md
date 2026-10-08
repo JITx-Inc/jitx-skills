@@ -42,8 +42,6 @@ pour rules, package escapes, decoupling, and checks of applied rules.
 Working designs: `jitxexamples.patterns.default_rules`,
 `.net_net_clearance`, `.direct_connect`, `.stitch_via`, and `.complete_rules`
 (including Bogatin width tiers). Direct-connect behavior belongs to its pattern.
-Use installed `jitxlib.verify` for the checks below. Reference checkers also
-use its `CheckResult`, `check_width`, and `check_clearance`.
 
 ## Workflow
 
@@ -57,7 +55,7 @@ use its `CheckResult`, `check_width`, and `check_clearance`.
    Label each number at its declaration with a fab field, a datasheet/standard
    revision and page/table/figure, a Bogatin tier, or `skill default` and value.
    Unsourced clearances must be derived from a sourced value and labeled
-   `skill default`, or remain open items that fail the check script.
+   `skill default`, or remain open items that fail the checks.
 4. Declare tag classes at module scope. Store rules as structural attributes
    beside their objects; follow the rule reference for collection and scope.
    Share common behavior through base tags. Write the priority ladder beside
@@ -123,48 +121,45 @@ for interactive placement.
 
 After every build, follow the
 [physical-layout verification](../jitx-physical-layout/SKILL.md#verification).
-Use `jitxlib.verify` for the constraint checks;
-it is a library, not the project gate. If it is unavailable, name the missing
-installation and leave its checks open; do not substitute a bundled fallback.
+Write each check below as a `jitx.test.TestCase` against the captured design
+and run it with `python -m unittest`, following the
+[base convention](../jitx/SKILL.md#step-2--project-layout-scaffold-if-missing).
 
-- Enumerate expected routes for every override and pass them to `check_routes`.
-  Require non-empty traces before width comparisons; a losing override can
-  silently leave a route unrealized.
+- Enumerate expected routes for every override. Require non-empty traces
+  before width comparisons; a losing override can silently leave a route
+  unrealized.
 - Check every realized polyline width against its winning rule with a labeled
-  tolerance. Wider and narrower both fail. Use `check_route_width` for mixed
-  trunk/escape widths on one net/layer. For escapes, pass every selected pad's
-  measured width as `pad_widths=`; realized widths must be strictly smaller
-  than every selected pad, independently of tolerance. Empty pad selections
-  and shapes without width fields fail. A via-to-via route at the via-pad diameter
+  tolerance. Wider and narrower both fail. Check mixed trunk/escape widths on
+  one net/layer route by route. For escapes, compare every selected pad's
+  measured width: realized widths must be strictly smaller than every selected
+  pad, independently of tolerance. Empty pad selections and shapes without
+  width fields fail. A via-to-via route at the via-pad diameter
   fails if it misses the rule: use pad-to-point routing or a matching via pad.
 - Measure minimum copper distance between the two nets on the relevant
   layer; require at least the binary clearance. Authored routes need these
   checks too: rules and fab floors do not repair their geometry.
-- Read expected values from rule objects with `rule_width` and
-  `rule_clearance`; end with `rule_coverage(rules, witnessed)`. Count
+- Read expected values from the rule objects; end with rule coverage. Count
   unwitnessed rules separately. Never pass an unexercised rule or substitute
   a second table of expected values.
-- Run `clearance_relaxations(rules)` before trusting any separation. A broader
-  rule at a higher priority, `AnyObject` on either side being the usual shape,
-  relaxes a specific rule below it while the build still reports `status: ok`
-  and the geometry still measures clean. Run `rule_scope(rd)` to catch a rule
-  declared away from the objects it governs.
-- Measure thermal relief with `thermal_relief_geometry`, which compares a
-  complete, isolated relief's copper against the declared gap, spoke width and
-  count. It cannot certify a relief clipped by a pour edge, choose the governing
-  rule, establish net membership, or prove capture freshness.
-- Use `stitch_via_count` for square stitch grids, following its docstring's
-  input requirements and limits; physical layout owns capture and pour selection.
+- Before trusting any separation, look for a broader rule at a higher
+  priority, `AnyObject` on either side being the usual shape, that relaxes a
+  specific rule below it while the build still reports `status: ok` and the
+  geometry still measures clean. Catch a rule declared away from the objects
+  it governs.
+- Measure thermal relief by comparing a complete, isolated relief's copper
+  against the declared gap, spoke width and count. A relief clipped by a pour
+  edge cannot be certified that way.
+- For square stitch grids, check counts, sites, keepout exclusions, and
+  coverage by every intended pour; physical layout owns capture and pour selection.
 - For trace-to-pour clearance and sliver removal, follow
   [pour realization semantics](../jitx-physical-layout/SKILL.md#pour-realization-semantics).
   Report each as unverified from `rd.query`, with its reason; fabrication
   export cannot close those items.
 
-Run the project's check script, for example `python3 -m <project>.check`,
-ending it with `raise SystemExit(report([...]))`. Output must show
-nonzero checks, zero failures, route counts, measured/expected values, and
-rule coverage; exit 0 is required for measured completion. Empty checks,
-unrealized routes, wrong widths/clearances, or unwitnessed rules fail.
+The run must show a nonzero test count, zero failures, route counts,
+measured/expected values, and rule coverage; exit 0 is required for measured
+completion. Empty checks, unrealized routes, wrong widths/clearances, or
+unwitnessed rules fail.
 Record the actual command, exit code, and open items in the
 [completion block](../jitx/references/completion-blocks.md), including a
 missing runtime. `status: ok` never proves a rule applied.

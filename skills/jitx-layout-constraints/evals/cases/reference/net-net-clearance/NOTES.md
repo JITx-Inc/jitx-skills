@@ -67,13 +67,12 @@ The turns are serialized and sent, so the drop happens runtime-side. The claim
 is scoped to what was observed: a two-endpoint route with nothing in the way. A
 sketch may still matter where the direct path is blocked.
 
-A probe that puts the convergence in sketch turns passes vacuously. With a
-sketch start point of `(-8.0, 1.50)`, which is not the pad center (the
-`SMT("0402")` landpattern stacks its two pads along Y, so `route_pad` (pad 1)
-sits at `(-8.0, 2.0099)`), both routes realized as straight diagonals to
-`(8.0, +/-1.50)`, and the smallest `POWER` to `GROUND` distance was the 2.5197 mm
-between the two route pads, not trace to trace. Every clearance check passed
-without the two nets ever coming near the rule.
+A probe that puts the convergence in sketch turns passes vacuously. A sketch is
+defined in its own frame of reference, and an affine transform matches its first
+and last points to the actual pads in the design. Both routes realized as
+straight diagonals to `(8.0, +/-1.50)`, and the smallest `POWER` to `GROUND`
+distance was the 2.5197 mm between the two route pads, not trace to trace. Every
+clearance check passed without the two nets ever coming near the rule.
 
 ## Pour limit
 
