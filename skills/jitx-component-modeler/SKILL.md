@@ -77,7 +77,7 @@ For a machine-readable pin file, no component code is emitted until the parsed r
 
 ## Verification and halt
 
-After code exists, the agent performs these steps in order:
+After code exists, perform these steps in order:
 
 1. Tests that construct components subclass `jitx.test.TestCase`; pure helper tests may use `unittest.TestCase`. Every package variant, and every family case size, gets a pad-count check. For a land pattern `lp`, count pads with the framework's structural traversal, which does not depend on the numbering scheme:
 
@@ -88,10 +88,10 @@ After code exists, the agent performs these steps in order:
    pad_count = sum(1 for _ in visit(lp, Pad))  # every pad the landpattern owns, thermal pads included
    ```
 
-   Inside a `SubstrateContext` it counts 8 for a generated SOIC-8, equal to `len(lp.p)`, and 441 for a generated 21 by 21 BGA, where `lp.p` does not exist. Do not count by enumerating attributes: `lp.p` exists only on the linearly numbered generators, a BGA's `AlphaDictNumbering` keeps its row dictionaries outside the instance namespace, and an attribute walk over one-letter row names finds 0 for that BGA. `lp.pads` is not an accessor either. Compare `pad_count` with the datasheet's pin count plus its thermal pads. If the count cannot be established for the package at hand, the pad-count row remains open and verification stops rather than recording an unchecked number.
+   Inside a `SubstrateContext` it counts 8 for a generated SOIC-8, equal to `len(lp.p)`, and 441 for a generated 21 by 21 BGA, where `lp.p` does not exist. Do not count by enumerating attributes: `lp.p` exists only on the linearly numbered generators, a BGA's `AlphaDictNumbering` keeps its row dictionaries outside the instance namespace, and an attribute walk over one-letter row names finds 0 for that BGA. `lp.pads` is not an accessor either. Compare `pad_count` with the datasheet's pin count plus its thermal pads. If the count cannot be established for the package, the pad-count row remains open and verification stops rather than recording an unchecked number.
 
-2. Run the generated test suite and `pyright`. Tests also assert metadata, pin and pad counts, any ordering example or value encoder, the rendered `.value` or its deliberate absence, validation failures, and every relied-on library default.
-3. Run `jitx find`, take its printed build target verbatim, then build in the available virtual environment. If no environment is present, stop and ask. JITX builds run sequentially, never in parallel against one project.
+2. Run `python -m unittest discover -s tests` and `pyright`. Tests assert metadata, pin and pad counts, any ordering example or value encoder, the rendered `.value` or its deliberate absence, validation failures, and every relied-on library default.
+3. Run `jitx find`, take its printed build target verbatim, then build in the available virtual environment. If none is present, stop and ask. JITX builds run sequentially, never in parallel against one project.
 4. Write the task acceptance block from the base skill, with the complete `Component check` below embedded under `Checks run`, into `COMPLETION.md` or the project's existing equivalent.
 
 **Halt:** no filled block, no "done". Any non-clean type check, failing test, failed build, unrun available check, missing source, or unresolved row forces `Verdict: open items`. `Verdict: complete` is invalid until every row closes.
@@ -131,7 +131,7 @@ Value / BOM: .value renders as "<string>" — asserted in a test
         | n/a (<reason>) — AND pinned by a test asserting it is unset
 No-field walk: datasheet-stated facts with no JITX field, recorded in the docstring: <list>
 Provenance: values traceable to no datasheet page: NONE | <list + the labeled rule backing each>
-Checks: pyright <clean | N errors>; unittest <N passed | not run: <reason>>;
+Checks: pyright <clean | N errors>; unittest <Ran N, K skipped, OK | not run: <reason>>;
         build <status: ok via <command> | not run: <reason>>
 Verdict: complete | open items: <list>
         Derive this line from every row above. List each unresolved or unsupported

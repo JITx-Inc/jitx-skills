@@ -63,6 +63,16 @@ S_single_diagonal_turn: authored_sketch=[(-8.0, 0.0), (0.0, 4.0), (8.0, 0.0)]
     realized=[[(-8.0, 0.0), (8.0, 0.0)]]
 ```
 
+Two more cases write the turns in the sketch's own frame, with the route
+endpoints at `(-8.0, y)` and `(8.0, y)`:
+
+```text
+C_own_frame_detour: authored_sketch=[(0.0, 0.0), (0.0, 4.0), (16.0, 4.0), (16.0, 0.0)]
+    realized=[[(-8.0, 0.0), (8.0, 0.0)]]
+D_unit_frame_turn: authored_sketch=[(0.0, 0.0), (0.5, 0.25), (1.0, 0.0)]
+    realized=[[(-8.0, 12.0), (8.0, 12.0)]]
+```
+
 The turns drop whether they are written in board coordinates or in the sketch's
 own frame, which an affine transform maps onto the pads.
 

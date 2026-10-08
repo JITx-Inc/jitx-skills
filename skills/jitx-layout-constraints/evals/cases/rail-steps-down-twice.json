@@ -9,7 +9,11 @@
   "expected_output": "A rule set, layout code carrying routes and tags, and checks, all three. The design builds and the checks assert on the captured design rather than on the authored input.",
   "assertions": [
     {
-      "text": "every declared rule is witnessed by a jitx.test.TestCase check the agent wrote and ran with python -m unittest, naming the test module, file or start directory, to a nonzero Ran N tests and OK, with the unwitnessed count named",
+      "text": "every declared rule is witnessed by a check the agent wrote, with the unwitnessed count named",
+      "check": "judge"
+    },
+    {
+      "text": "the checks are jitx.test.TestCase tests run with python -m unittest naming the test module, file or start directory, and the run shows a nonzero Ran N tests and OK",
       "check": "judge"
     },
     {

@@ -10,6 +10,11 @@
   "expected_output": "A design module with module-scope power and ground tags, four structural board defaults, a priority 2 two-condition clearance rule, and two pad-to-point routes authored closer together than the rule (and, in a variant, closer than the fabrication floor). A check script submits and captures each design, verifies route realization and trace widths, measures power-to-ground copper clearance, and asserts the observed behavior: realized clearance equals the authored gap, the clearance rule does not move code-authored routes, and the floor is not enforced on them either, all with status ok. NOTES.md records the real commands and output.",
   "assertions": [
     {
+      "text": "the reference checker fails an empty route selection and an empty check list",
+      "check": "deterministic",
+      "cmd": "cd skills/jitx-layout-constraints/evals/cases/reference/net-net-clearance && python3 -B -c \"import check; assert not check._routes_check([]); assert check._summary([]) == 1\""
+    },
+    {
       "text": "the reference design and checker type-check against the installed JITX packages",
       "check": "deterministic",
       "cmd": "python3 -m pyright --pythonpath \"$(command -v python3)\" skills/jitx-layout-constraints/evals/cases/reference/net-net-clearance/design.py skills/jitx-layout-constraints/evals/cases/reference/net-net-clearance/check.py"

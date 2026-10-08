@@ -17,9 +17,11 @@ or none ran.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import Any
 
 import jitx
+from jitx.shapes.primitive import Empty
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import unary_union
 
@@ -83,9 +85,32 @@ def _summary(results: list[bool]) -> int:
     return 1 if failures or not results else 0
 
 
+def _real(shapes: Iterable[Any]) -> list[Any]:
+    """The shapes that carry geometry; an ``Empty`` shape is no copper."""
+    return [shape for shape in shapes if not isinstance(shape.geometry, Empty)]
+
+
 def _shapes(route: Any) -> list[Any]:
-    """Every captured shape of a route; empty for a route with no traces."""
-    return [shape for trace in route.traces or () for shape in trace.shapes]
+    """Every non-empty captured shape of a route; empty for a route with no traces."""
+    return [shape for trace in route.traces or () for shape in _real(trace.shapes)]
+
+
+def _realized(route: Any) -> bool:
+    """True when the route has traces and every trace has a non-empty shape."""
+    traces = route.traces or ()
+    return bool(traces) and all(_real(trace.shapes) for trace in traces)
+
+
+def _routes_check(routes: list[Any]) -> bool:
+    """Exactly the two routes, each realized; an empty selection fails."""
+    unrealized = [route for route in routes if not _realized(route)]
+    return _check(
+        "routes",
+        len(routes) == 2 and not unrealized,
+        len(unrealized),
+        0,
+        f"checked={len(routes)} unrealized={len(unrealized)}",
+    )
 
 
 def _copper(route: Any) -> BaseGeometry:
@@ -108,20 +133,7 @@ def _clearance(rd: Any) -> float | None:
 def _common_checks(rd: Any) -> list[bool]:
     """Both routes realized, and every shape on each at the tagged width."""
     routes = list(rd.root.circuit.routes)
-    unrealized = [
-        route
-        for route in routes
-        if not route.traces or not all(trace.shapes for trace in route.traces)
-    ]
-    results = [
-        _check(
-            "routes",
-            len(routes) == 2 and not unrealized,
-            len(unrealized),
-            0,
-            f"checked={len(routes)} unrealized={len(unrealized)}",
-        )
-    ]
+    results = [_routes_check(routes)]
     for net, route in zip(("POWER", "GROUND"), routes):
         widths = [getattr(shape.geometry, "width", None) for shape in _shapes(route)]
         known = [w for w in widths if w is not None]

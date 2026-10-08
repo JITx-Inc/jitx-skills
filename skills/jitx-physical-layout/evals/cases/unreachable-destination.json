@@ -1,9 +1,9 @@
 {
   "name": "unreachable-destination",
-  "prompt": "Use the sources this skill points at to verify my board after the build.",
+  "prompt": "Use the worked designs this skill points at to author my BGA escapes and deskew fan.",
   "inputs": {
-    "notes": "This case exists because the skill routes to owners instead of carrying their knowledge. A pointer that does not resolve is the failure mode that routing creates and that a word count cannot detect. This skill names its own references, installed jitx source, and the si_bga_optimization demos.",
-    "environment": "Commands run from the repository root. The reachability assertion needs an interpreter that has the product and the jitxexamples modules installed, passed with --python, because a pointer's reachability is a property of the environment and not of the text. The missing-source regression uses isolated module fixtures and needs no product installation."
+    "notes": "This case exists because the skill routes to owners instead of carrying their knowledge. A pointer that does not resolve is the failure mode that routing creates and that a word count cannot detect. This skill names its own references, installed jitx source, and the si_bga_optimization demos. The prompt asks for BGA escapes and a deskew fan, which the skill routes to jitxexamples.patterns.control_points and jitxexamples.demos.si_bga_optimization.",
+    "environment": "Commands run from the repository root. The task runs with jitx installed, without the jitxexamples modules, and without network access, so the worked designs the prompt asks for cannot be imported, read, or fetched. The reachability assertion runs separately and needs an interpreter that has the product and the jitxexamples modules installed, passed with --python, because a pointer's reachability is a property of the environment and not of the text. The missing-source regression uses isolated module fixtures and needs no product installation."
   },
   "expected_output": "Either the work completed using what the pointer supplies, or an explicit report naming the unreachable source, what was needed from it, and whether the work stopped or continued under a stated assumption. Content presented as fetched when the fetch failed is the failure this case catches, and it is indistinguishable from success on every other assertion, which is why the assertion is here rather than folded into another case.",
   "assertions": [

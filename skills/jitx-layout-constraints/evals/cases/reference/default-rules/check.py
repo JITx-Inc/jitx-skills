@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import Any
 
 import jitx
+from jitx.shapes.primitive import Empty
 
 try:  # Package import in a scratch project, direct import when run beside design.py.
     from .design import (
@@ -29,9 +30,12 @@ except ImportError:
 
 
 def _realized(route: Any) -> bool:
-    """True when the route has captured traces and every trace has shapes."""
+    """True when the route has traces and every trace has a non-empty shape."""
     traces = route.traces or ()
-    return bool(traces) and all(trace.shapes for trace in traces)
+    return bool(traces) and all(
+        any(not isinstance(shape.geometry, Empty) for shape in trace.shapes)
+        for trace in traces
+    )
 
 
 def _widths(route: Any) -> list[float | None]:
@@ -66,13 +70,31 @@ def _check(name: str, passed: bool, measured: str, expected: str, detail: str) -
     return passed
 
 
+def _routes_check(routes: list[Any]) -> bool:
+    """At least one route, each realized; an empty selection fails."""
+    unrealized = [route for route in routes if not _realized(route)]
+    return _check(
+        "routes",
+        bool(routes) and not unrealized,
+        str(len(unrealized)),
+        "0",
+        f"checked={len(routes)} unrealized={len(unrealized)}",
+    )
+
+
+def _summary(results: list[bool]) -> int:
+    """Print the totals; 1 when any check failed or none ran."""
+    failures = results.count(False)
+    print(f"summary: checks={len(results)} failures={failures}")
+    return 1 if failures or not results else 0
+
+
 def main() -> int:
     with jitx.runtime as runtime:
         rd = runtime.submit(DefaultRulesDesign)
         rd.capture()
         circuit = rd.root.circuit
         routes = [*circuit.rule_owner.routes, *circuit.sibling.routes]
-        unrealized = [route for route in routes if not _realized(route)]
         owner = circuit.rule_owner.routes[0]
         sibling = circuit.sibling.routes[0]
         board_wide = _width_is(sibling, CHILD_RULE_WIDTH)
@@ -85,13 +107,7 @@ def main() -> int:
             outcome = "ambiguous"
         print("child-rule scope probe, result classified from captured copper")
         results = [
-            _check(
-                "routes",
-                bool(routes) and not unrealized,
-                str(len(unrealized)),
-                "0",
-                f"checked={len(routes)} unrealized={len(unrealized)}",
-            ),
+            _routes_check(routes),
             _check(
                 "width-rule-owner",
                 _width_is(owner, CHILD_RULE_WIDTH),
@@ -107,9 +123,7 @@ def main() -> int:
                 f"observed={outcome}",
             ),
         ]
-        failures = results.count(False)
-        print(f"summary: checks={len(results)} failures={failures}")
-        return 1 if failures or not results else 0
+        return _summary(results)
 
 
 if __name__ == "__main__":

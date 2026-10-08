@@ -22,7 +22,11 @@
       "check": "judge"
     },
     {
-      "text": "every declared rule is witnessed by a jitx.test.TestCase check the agent wrote and ran with python -m unittest, naming the test module, file or start directory, to a nonzero Ran N tests and OK, with unwitnessed rules named rather than passed over",
+      "text": "every declared rule is witnessed by a check the agent wrote, with unwitnessed rules named rather than passed over",
+      "check": "judge"
+    },
+    {
+      "text": "the checks are jitx.test.TestCase tests run with python -m unittest naming the test module, file or start directory, and the run shows a nonzero Ran N tests and OK",
       "check": "judge"
     },
     {

@@ -415,12 +415,13 @@ r: rd = r.submit(DesignClass); rd.capture()` gives python the *realized* design
 is ~10–15 s per design and needs no TTY. Details:
 `jitx-physical-layout/references/geometry-verification.md`.
 
-Outside a design context, plain `unittest.TestCase` included, a JITX constructor
-returns an `Instantiable` proxy whose attributes are accessors, not constructor
-values. In a `jitx.test.TestCase`, assert authored structure (layer, connection
-membership, authored shapes) directly; realized geometry (route copper, computed
-pours) needs a submitted and captured design. The verification step rejects
-proxy-attribute assertions as evidence.
+Outside a design context (plain `unittest.TestCase` included), JITX constructors
+return `Instantiable` proxies whose attributes are not constructor values. A
+`jitx.test.TestCase` can assert authored layer, shapes, and membership as
+`any(p is port for p in net)`, never `in`
+([why](../jitx-circuit-builder/SKILL.md#asserting-connectivity-in-tests--iterate-the-net-dont-use-in));
+realized geometry (route copper, computed pours) needs a captured design.
+Proxy-attribute assertions are not evidence.
 
 Exports are **plugins** (entry-point group `jitx-plugin`), invoked as:
 
