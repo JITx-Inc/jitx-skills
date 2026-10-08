@@ -121,8 +121,8 @@ for interactive placement.
 
 After every build, follow the
 [physical-layout verification](../jitx-physical-layout/SKILL.md#verification).
-Write each check below as a `jitx.test.TestCase` against the captured design
-and run it with `python -m unittest`, following the
+Write each check below as a `jitx.test.TestCase` against the captured design,
+run with `python -m unittest my_project.checks`, following the
 [base convention](../jitx/SKILL.md#step-2--project-layout-scaffold-if-missing).
 
 - Enumerate expected routes for every override. Require non-empty traces
@@ -156,7 +156,7 @@ and run it with `python -m unittest`, following the
   Report each as unverified from `rd.query`, with its reason; fabrication
   export cannot close those items.
 
-The run must show a nonzero test count, zero failures, route counts,
+The run must show a nonzero `Ran N tests`, `OK`, route counts,
 measured/expected values, and rule coverage; exit 0 is required for measured
 completion. Empty checks, unrealized routes, wrong widths/clearances, or
 unwitnessed rules fail.

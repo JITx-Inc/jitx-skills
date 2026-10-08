@@ -91,11 +91,12 @@ and consumes little CPU, Step 3 pauses before retrying and follows the
 `jitx/SKILL.md` stalled-build check for accumulated `jitx interactive-client`
 processes.
 
-A unit test that constructs JITX objects outside a design context does not
-satisfy Step 3 structural verification. Those constructors return deferred
-`Instantiable` proxies whose attributes are not the supplied values. Unit tests
-cover plain-data helpers; layer, rank, shape, and connectivity claims come from a
-submitted and captured design.
+A unit test that constructs JITX objects outside a design context, or in a plain
+`unittest.TestCase`, does not satisfy Step 3 structural verification. Those
+constructors return deferred `Instantiable` proxies whose attributes are not the
+supplied values. In a `jitx.test.TestCase`, authored structure (layer, connection
+membership, authored shapes) can be asserted directly; realized geometry (route
+copper, computed pours) comes from a submitted and captured design.
 
 If any line is `FAIL` or `ERROR`, fix the cause and re-run the command until every line is `PASS`. Do not proceed to Step 4 with a broken build.
 

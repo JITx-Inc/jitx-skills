@@ -14,7 +14,7 @@
     {"text": "a rule is scoped to a layer where the requirement is layer-specific, rather than applied board-wide and left to chance on the inner plane", "check": "judge"},
     {"text": "trace-to-pour clearance is expressed, and reported as unverified from capture if it cannot be measured, rather than silently dropped", "check": "judge"},
     {"text": "decoupling placement is decided by loop inductance between the power and return pins and the capacitor, with count and value left to the datasheet", "check": "judge"},
-    {"text": "every declared rule is witnessed by a jitx.test.TestCase check the agent wrote and ran with python -m unittest, and those checks look for a broader rule at a higher priority relaxing a specific clearance, reporting none or naming the relaxation and how it was resolved", "check": "judge"},
+    {"text": "every declared rule is witnessed by a jitx.test.TestCase check the agent wrote and ran with python -m unittest, naming the test module, file or start directory, to a nonzero Ran N tests and OK, and those checks look for a broader rule at a higher priority relaxing a specific clearance, reporting none or naming the relaxation and how it was resolved", "check": "judge"},
     {"text": "no check passes on an empty selection", "check": "judge"}
   ]
 }

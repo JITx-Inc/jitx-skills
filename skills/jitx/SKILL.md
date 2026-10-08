@@ -125,7 +125,7 @@ succeeds and, for that JLCPCB path, `python -c "import jitxlib.jlcpcb"` succeeds
 Three things it does **not** do, each of which reads like an oversight and isn't:
 
 - **No `git init`.** It writes a `.gitignore` but creates no repository, so `git status` in a fresh project is `fatal: not a git repository`. If the work wants version control, run `git init` yourself and say that you did; don't assume a repo you were never given.
-- **No `pyright`.** Add it; `check.py` runs it and builds designs. Test with `jitx.test.TestCase`, which activates instantiation, and `python -m unittest`, not `pytest`.
+- **No `pyright`.** Add it; `check.py` runs it and builds designs. Test with `jitx.test.TestCase`, which activates instantiation, and `python -m unittest discover -s tests`, not `pytest`.
 - **The seeded `.gitignore` is a considered file — don't broaden it.** It ignores every dotfile (`.*`, with `.gitignore` and `.vscode/` whitelisted), so scratch directories are already covered, and it ignores only the *volatile* parts of `designs/` — caches and editor backups — deliberately leaving the built design directory version-controlled. Adding `designs/` wholesale reverses that choice. Append only what a task genuinely needs, and say why.
 
 ### Step 3 — Auth
@@ -415,12 +415,12 @@ r: rd = r.submit(DesignClass); rd.capture()` gives python the *realized* design
 is ~10–15 s per design and needs no TTY. Details:
 `jitx-physical-layout/references/geometry-verification.md`.
 
-Constructing a JITX object outside a design context returns a deferred
-`Instantiable` proxy. Its attributes are accessors, not the constructor values.
-Unit tests therefore cover plain-data helpers and arithmetic only; structural
-facts such as layer, rank, shape, and connection membership require assertions on
-a submitted and captured design. The verification step rejects proxy-attribute
-assertions as evidence.
+Outside a design context, plain `unittest.TestCase` included, a JITX constructor
+returns an `Instantiable` proxy whose attributes are accessors, not constructor
+values. In a `jitx.test.TestCase`, assert authored structure (layer, connection
+membership, authored shapes) directly; realized geometry (route copper, computed
+pours) needs a submitted and captured design. The verification step rejects
+proxy-attribute assertions as evidence.
 
 Exports are **plugins** (entry-point group `jitx-plugin`), invoked as:
 

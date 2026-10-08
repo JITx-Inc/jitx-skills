@@ -13,7 +13,7 @@
     {"text": "copper-to-hole clearance is declared against the non-plated mounting holes, and the heatsink holes are not treated as ordinary clearance holes without saying why", "check": "judge"},
     {"text": "a minimum pour feature size is set and the realized pour is checked for slivers and orphaned islands rather than assumed intact", "check": "judge"},
     {"text": "the thermal pad is either direct connect or relief, declared deliberately, and the choice is measured on the captured design rather than trusted", "check": "judge"},
-    {"text": "every declared rule is witnessed by a jitx.test.TestCase check the agent wrote and ran with python -m unittest, and those checks look for a broader rule at a higher priority relaxing a specific clearance, reporting none or naming the relaxation and how it was resolved", "check": "judge"},
+    {"text": "every declared rule is witnessed by a jitx.test.TestCase check the agent wrote and ran with python -m unittest, naming the test module, file or start directory, to a nonzero Ran N tests and OK, and those checks look for a broader rule at a higher priority relaxing a specific clearance, reporting none or naming the relaxation and how it was resolved", "check": "judge"},
     {"text": "no check passes on an empty selection", "check": "judge"}
   ]
 }

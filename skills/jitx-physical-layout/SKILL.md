@@ -89,8 +89,9 @@ ruff format path/to/layout.py
 python -m unittest my_project.checks
 ```
 
-Require no type errors and capture assertions written as `jitx.test.TestCase`
-tests, following the [base convention](../jitx/SKILL.md#step-2--project-layout-scaffold-if-missing):
+Require no type errors, then a nonzero `Ran N tests` and `OK` from
+`jitx.test.TestCase` capture assertions per the
+[base convention](../jitx/SKILL.md#step-2--project-layout-scaffold-if-missing):
 every route/control point realized, coupled trunks
 have two traces, polarity/net membership correct, bounds and clearances measured.
 For EDB/HFSS exports, reopen `.aedb` read-only and assert copper/via presence:
@@ -117,9 +118,9 @@ board-wide spacing. Exit 1 means failed checks; exit 2 means missing capture or
 unreadable evidence. Record the exact command and checked names in task/Phase 4
 Physical realization rows; missing commands or nonzero exits block completion.
 
-For square stitch grids, also check counts, sites, keepout exclusions, and
-coverage by every intended pour in your own tests. The bundled checker's
-stitch-presence check does not establish these.
+For square stitch grids, also assert counts, sites, keepout exclusions, and
+coverage by every intended pour. The bundled stitch-presence check does not
+establish these.
 
 Use the production substrate, passive-query defaults, and board rules in any
 `SampleDesign` harness. The checker cannot validate that equivalence or placement

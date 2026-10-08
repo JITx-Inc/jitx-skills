@@ -63,16 +63,19 @@ S_single_diagonal_turn: authored_sketch=[(-8.0, 0.0), (0.0, 4.0), (8.0, 0.0)]
     realized=[[(-8.0, 0.0), (8.0, 0.0)]]
 ```
 
+The turns drop whether they are written in board coordinates or in the sketch's
+own frame, which an affine transform maps onto the pads.
+
 The turns are serialized and sent, so the drop happens runtime-side. The claim
 is scoped to what was observed: a two-endpoint route with nothing in the way. A
 sketch may still matter where the direct path is blocked.
 
-A probe that puts the convergence in sketch turns passes vacuously. A sketch is
-defined in its own frame of reference, and an affine transform matches its first
-and last points to the actual pads in the design. Both routes realized as
-straight diagonals to `(8.0, +/-1.50)`, and the smallest `POWER` to `GROUND`
-distance was the 2.5197 mm between the two route pads, not trace to trace. Every
-clearance check passed without the two nets ever coming near the rule.
+A probe that puts the convergence in sketch turns passes vacuously. The turns
+drop, so each route ran straight from its pad to its endpoint and the nets never
+converged: both routes realized as straight diagonals to `(8.0, +/-1.50)`, and
+the smallest `POWER` to `GROUND` distance was the 2.5197 mm between the two route
+pads, not trace to trace. Every clearance check passed without the two nets ever
+coming near the rule.
 
 ## Pour limit
 
