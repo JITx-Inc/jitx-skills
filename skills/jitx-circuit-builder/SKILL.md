@@ -5,8 +5,8 @@ description: "This skill should be used when the user asks to \"wire up\", \"con
 
 # JITX Circuit Builder
 
-JITX was rewritten from Stanza to Python. Do not rely on prior JITX knowledge —
-verify all imports with `pyright` before outputting code.
+Do not rely on remembered JITX APIs; verify all imports with `pyright` before
+outputting code.
 
 ## Package Architecture
 
@@ -160,7 +160,7 @@ self.assertIn(self.u1.VCCINT[0], list(circuit.V1V0))   # RIGHT
 self.assertIn(self.u1.VCCINT[0], circuit.V1V0)         # can false-negative
 ```
 
-`Net.__contains__` disagrees with `Net.__iter__` on any net that has absorbed **another net**: a port reachable by iteration reports `False` for `in`. Verified on 4.4.0 — `__contains__` walks the net's members and, on reaching the first nested net, *returns* that sub-net's answer instead of continuing, so every member after the first nested net is invisible to `in`. What decides it is position, not hierarchy: the same net built in the other order answers correctly, and a merge inside a single circuit breaks exactly like a cross-circuit one. Iterating is correct in every case, so there is no reason to reach for `in` here.
+`Net.__contains__` disagrees with `Net.__iter__` on any net that has absorbed **another net**: a port reachable by iteration reports `False` for `in`. `__contains__` walks the net's members and, on reaching the first nested net, *returns* that sub-net's answer instead of continuing, so every member after the first nested net is invisible to `in`. What decides it is position, not hierarchy: the same net built in the other order answers correctly, and a merge inside a single circuit breaks exactly like a cross-circuit one. Iterating is correct in every case, so there is no reason to reach for `in` here.
 
 Count as well as contain — `len(list(net))` against the number of ports you expect is what catches a rail that lost half its balls, and a membership check on its own cannot.
 
@@ -209,7 +209,7 @@ A `Capacitor(...)` / `Resistor(...)` query returns *some* part matching what you
 - **`tolerance=`** — every passive takes it as a scalar that selects one tolerance grade exactly (`tolerance=0.01` is the ±1 % grade); unstated, a ±20 % part satisfies a query written for a ±1 % job. For "this tolerance or better" use the two bounds `tolerance_min=AtLeast(-x)`, `tolerance_max=AtMost(x)` (below).
 - **`temperature_coefficient_code=`** (`"X7R"`, `"X5R"`, `"C0G"`) — **capacitors only**; unstated, a decoupling query can return **Y5V or Z5U**, which lose most of their capacitance across temperature and DC bias. A 100 nF Y5V at half its rated voltage is not a 100 nF cap.
 
-The temperature axis is not one field across the passives — it is named per part type, so the second bullet does not transfer. On 4.4.0, `tolerance` sits on the shared passive query; `temperature_coefficient_code` sits on the capacitor query alone, and a resistor's temperature behaviour is `tcr_pos` / `tcr_neg` in ppm/°C. Inductors have neither. Passing a capacitor's field to a resistor query states nothing and constrains nothing.
+The temperature axis is not one field across the passives — it is named per part type, so the second bullet does not transfer. `tolerance` sits on the shared passive query; `temperature_coefficient_code` sits on the capacitor query alone, and a resistor's temperature behaviour is `tcr_pos` / `tcr_neg` in ppm/°C. Inductors have neither. Passing a capacitor's field to a resistor query states nothing and constrains nothing.
 
 So: state a tolerance on every passive whose value matters (a grade with `tolerance=`, or bounds with `tolerance_min`/`tolerance_max`), add `temperature_coefficient_code=` to every ceramic, and add `tcr_pos=` / `tcr_neg=` to a resistor whose drift is part of the design (a divider setting a regulator's feedback, a current-sense shunt). Rate ceramics with derating in mind — a 6.3 V X7R on a 3.3 V rail has already lost a third of its capacitance to DC bias, so 10 V or 16 V is the honest choice.
 
@@ -252,15 +252,15 @@ A scalar on a numeric query field is an exact match, not a floor: the serializer
 a bare value as an equality test and an interval as `min-<field>`/`max-<field>`.
 Minimum ratings use `AtLeast(value)`.
 
-What a bound cannot do is filter on a rating the catalogue does not record. Resistor rows
-have been observed carrying `rated_power: None`, and an inductor `saturation_current`
-bound has been observed returning nothing at values real parts meet. A field the database
+What a bound cannot do is filter on a rating the catalogue does not record. Some resistor rows
+carry `rated_power: None`, and an inductor `saturation_current` bound can return
+nothing at values real parts meet. A field the database
 leaves null cannot be compared against, so the bound narrows nothing there rather than
 being ignored. Express the requirement in the query anyway, and additionally verify
 dissipation and saturation against the resolved MPN's datasheet: the query is a filter
 over catalogue scalars with no min/typ/max provenance, not a substitute for reading the
 part's rating. `case` and `mounting` filter reliably. A maximum magnitude tolerance does not use `tolerance=AtMost(...)`
-or `precision=...`; on 4.4.0 those fields take only a scalar and select one grade exactly. It uses both bounds:
+or `precision=...`; those fields take only a scalar and select one grade exactly. It uses both bounds:
 
 ```python
 from jitx.interval import AtLeast, AtMost
@@ -453,7 +453,7 @@ read-only query probe therefore lives in a throwaway `SampleDesign` or `Circuit`
 and runs as a build:
 
 ```bash
-PYTHONPATH=/tmp jitx build /tmp/probe.py --project <project-root>
+PYTHONPATH=<probe-dir> jitx build <probe-dir>/probe.py --project <project-root>
 ```
 
 The probe directory must be on `PYTHONPATH`. The first resolved row remains useful for

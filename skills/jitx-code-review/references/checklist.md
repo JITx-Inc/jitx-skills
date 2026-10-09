@@ -175,7 +175,7 @@ Hygiene patterns. Lower priority on their own but they accumulate.
 
 ### `vestigial-construct`
 
-**Look for:** `from __future__ import annotations` on projects pinned to Python 3.14+ (where PEP 649 defers annotations by default — on 3.12/3.13 the import still changes annotation semantics, so don't flag it there); `LEGACY` / `DORMANT` / `OLD` in names that haven't been cleaned up; commented-out code blocks.
+**Look for:** `from __future__ import annotations` on a project whose minimum supported Python (`requires-python`) defers annotation evaluation under PEP 649, so every interpreter it supports does (if any supported interpreter does not, the import still changes annotation semantics, so don't flag it); `LEGACY` / `DORMANT` / `OLD` in names that haven't been cleaned up; commented-out code blocks.
 
 **Severity:** NOTE.
 

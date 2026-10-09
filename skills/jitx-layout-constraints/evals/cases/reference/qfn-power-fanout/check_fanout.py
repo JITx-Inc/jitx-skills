@@ -20,21 +20,20 @@ import jitx
 
 
 DESIGN_TARGET = "qfn_power_fanout.qfn_power_fanout.QfnPowerFanoutDesign"
-WIDTH_TOLERANCE_MM = 1e-7  # one decade below the 1e-6 mm width quantum
-# The comparison tolerance must be tighter than the quantum the escape width is
-# stepped by. At 1e-6 it equals that quantum, so a trace realized at the full pad
-# width separates from the intended one-quantum-inside value only by floating-point
-# error, and the assertion written to catch that case decides it on rounding.
+WIDTH_TOLERANCE_MM = 1e-7  # far below the 0.01 mm escape-width grid
+# The escape width is rounded down to a 0.01 mm grid, so the comparison
+# tolerance only has to absorb floating-point error. A trace realized one grid
+# step off, or at the full pad width, misses the expected width by at least
+# 0.01 mm and fails.
 PYPROJECT = """\
 [build-system]
-requires = ["hatchling>=1.27.0,<2.0"]
+requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
 name = "qfn-power-fanout-reference"
 version = "0.1"
-dependencies = ["jitx>=4.4.0rc2,<5", "jitxlib-standard>=4.4.0rc2,<5"]
-requires-python = ">=3.12"
+dependencies = ["jitx", "jitxlib-standard"]
 """
 
 

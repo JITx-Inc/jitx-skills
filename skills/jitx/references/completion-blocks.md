@@ -34,7 +34,7 @@ The first decision in any JITX work is which tier applies. The tier names which 
 
 ### Why no "small-board" middle tier
 
-Earlier revisions of this skill defined a small-board tier as a lighter-weight middle ground for "trivially decomposable" projects. It turned out to be a footgun: agents used "this is just a small board" as an escape hatch from Phase 0 ceremony, and the numeric heuristics (2–8 components, ≤2 power rails) excluded boards that genuinely needed the full process. The cost of Phase 0–4 on a small project is a few extra block emissions; the cost of skipping it on a real project is shipping with required features missing.
+A small-board tier, a lighter-weight middle ground for "trivially decomposable" projects, is a footgun: agents use "this is just a small board" as an escape hatch from Phase 0 ceremony, and numeric heuristics (2–8 components, ≤2 power rails) exclude boards that genuinely need the full process. The cost of Phase 0–4 on a small project is a few extra block emissions; the cost of skipping it on a real project is shipping with required features missing.
 
 If you're tempted to call something "small" or "trivial" to avoid the workflow, classify it as complete-board. Phase 0 will be brief; that's fine.
 
@@ -166,12 +166,12 @@ Pattern 4 misses nested constructor args (e.g., `Resistor(resistance=Toleranced.
 
 ### Review-required patterns (need disposition)
 
-A review-required hit does not block, but each hit must appear in the task acceptance block with a disposition: `accepted with rationale: <why>` | `fixed` | `deferred to Pass 3 (or named follow-up)`. Bare hits without disposition fail acceptance review.
+A review-required hit does not block, but each hit must appear in the task acceptance block with a disposition: `accepted with rationale: <why>` | `fixed` | `deferred to <named follow-up task>`. Bare hits without disposition fail acceptance review.
 
 | # | Rule | Pattern | Where checked |
 |---|------|---------|----|
 | 5 | Module-scope `for` loop — anti-string-hacking theme 9. Module-import-time logic that *might* populate a global table; legitimate uses (dispatch registration, static data generation) exist. Disposition: `fix (move into function)` or `accept (legitimate import-time logic: <reason>)`. See `jitx/SKILL.md` Don'ts and `references/architectural-patterns.md` § "No code at module-import time". | `^for\s+\w+\s+in\s+` | anywhere in `<ns>/` |
-| 6 | `Pour(..., isolate=...)` — legacy parameter (Pass 3 deprecates in favor of `design_constraint(...)` with Tags) | `\bPour\s*\([^)]*\bisolate\s*=` | anywhere in `<ns>/` |
+| 6 | `Pour(..., isolate=...)` — legacy parameter (use `design_constraint(...)` with Tags instead) | `\bPour\s*\([^)]*\bisolate\s*=` | anywhere in `<ns>/` |
 | 7 | Bare net/topology expression (silent-drop pattern 2 — `self.a + self.b` or `self.a >> self.b` with no LHS assignment) | `^\s*self\.\w+(\.\w+\|\[[^]]+\])*\s*(\+\|>>)\s*self\.\w+(\.\w+\|\[[^]]+\])*(\s*#.*)?$` | anywhere in `<ns>/` |
 | 8 | `type(...)` call — verify not used for runtime type construction (use `isinstance` for type checks) | `\btype\s*\(` | anywhere in `<ns>/` |
 | 9 | Tag-like f-string — anti-string-hacking theme 1. f-strings (single- or double-quoted, lowercase or uppercase `f`/`F`) starting with an uppercase letter and building names via brace-substitution (`f"TX_b{i}"`, `f'L{n}_via'`, `F"GND_via_{n}"`) are the canonical string-keyed-name failure mode. See `jitx/SKILL.md` Don'ts and `references/architectural-patterns.md` § "String-keyed dicts → structural objects". Disposition: `fix (use structural object)` or `accept (legitimate use: <reason>)`. | `[fF]["'][A-Z][A-Za-z0-9_]*\{` | anywhere in `<ns>/` |
@@ -202,7 +202,7 @@ When the grep gates pass with no hits:
 When there are review-required hits:
 
 ```
-| Grep gates | `grep gates     PASS   0 hard-fail, 2 review-required`; `<ns>/circuits/usb.py:88`, deferred to Pass 3; `<ns>/circuits/power.py:42`, fixed with `isinstance` |
+| Grep gates | `grep gates     PASS   0 hard-fail, 2 review-required`; `<ns>/circuits/usb.py:88`, deferred to <task id>; `<ns>/circuits/power.py:42`, fixed with `isinstance` |
 ```
 
 When there are hard-fail hits, the task is not done. Fix and re-run.

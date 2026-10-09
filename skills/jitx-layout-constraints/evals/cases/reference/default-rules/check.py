@@ -1,39 +1,17 @@
 #!/usr/bin/env python3
 """Build, capture, and check the child-Circuit rule-scope reference.
 
-The runtime adapter and capture entry point are in
-``jitx/run/runtime.py:404`` and ``jitx/run/runtime.py:593``.
+The runtime adapter and capture entry point are ``jitx.runtime`` and
+``jitx.run.runtime.SyncRuntimeDesign.capture``. Each check prints one PASS or
+FAIL line; the exit status is 1 when any check fails or none ran.
 """
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
+from typing import Any
 
 import jitx
-
-
-def _load_layout_checks() -> None:
-    for parent in Path(__file__).resolve().parents:
-        candidates = (
-            parent / "scripts" / "layout_checks.py",
-            parent / "layout_checks.py",
-        )
-        for candidate in candidates:
-            if candidate.is_file():
-                sys.path.insert(0, str(candidate.parent))
-                return
-    raise RuntimeError("could not locate layout_checks.py from the reference tree")
-
-
-_load_layout_checks()
-
-from layout_checks import (  # pyright: ignore[reportMissingImports]
-    CheckResult,
-    check_routes,
-    run_checks,
-    trace_widths,
-)
+from jitx.shapes.primitive import Empty
 
 try:  # Package import in a scratch project, direct import when run beside design.py.
     from .design import (
@@ -51,26 +29,64 @@ except ImportError:
     )
 
 
-def _route_widths(route: object) -> tuple[float, ...]:
-    shapes = []
-    for trace in route.traces or ():  # type: ignore[attr-defined]
-        for shape in trace.shapes:
-            shapes.append(getattr(shape, "geometry", shape))
-    return tuple(sorted(trace_widths(shapes)))
+def _realized(route: Any) -> bool:
+    """True when the route has traces and every trace has a non-empty shape."""
+    traces = route.traces or ()
+    return bool(traces) and all(
+        any(not isinstance(shape.geometry, Empty) for shape in trace.shapes)
+        for trace in traces
+    )
 
 
-def _route_width_result(label: str, route: object, expected: float) -> CheckResult:
-    widths = _route_widths(route)
-    passed = bool(widths) and all(
-        abs(width - expected) <= WIDTH_TOLERANCE for width in widths
+def _widths(route: Any) -> list[float | None]:
+    """The width of every captured shape in a route; None where a shape has none."""
+    return [
+        getattr(shape.geometry, "width", None)
+        for trace in route.traces or ()
+        for shape in trace.shapes
+    ]
+
+
+def _width_is(route: Any, expected: float) -> bool:
+    """Every captured shape has a width within tolerance of expected."""
+    widths = _widths(route)
+    return (
+        _realized(route)
+        and bool(widths)
+        and all(w is not None and abs(w - expected) <= WIDTH_TOLERANCE for w in widths)
     )
-    return CheckResult(
-        name=f"width-{label}",
-        passed=passed,
-        measured=widths if widths else None,
-        expected=expected,
-        detail=f"tol={WIDTH_TOLERANCE:.4f} mm",
+
+
+def _show(widths: list[float | None]) -> str:
+    """Distinct widths at fixed precision, for the printed line."""
+    shown = ("none" if w is None else f"{w:.4f}" for w in widths)
+    return ",".join(dict.fromkeys(shown)) or "none"
+
+
+def _check(name: str, passed: bool, measured: str, expected: str, detail: str) -> bool:
+    """Print one result line and return whether the check passed."""
+    status = "PASS" if passed else "FAIL"
+    print(f"{status} {name}: measured={measured} expected={expected} {detail}")
+    return passed
+
+
+def _routes_check(routes: list[Any]) -> bool:
+    """At least one route, each realized; an empty selection fails."""
+    unrealized = [route for route in routes if not _realized(route)]
+    return _check(
+        "routes",
+        bool(routes) and not unrealized,
+        str(len(unrealized)),
+        "0",
+        f"checked={len(routes)} unrealized={len(unrealized)}",
     )
+
+
+def _summary(results: list[bool]) -> int:
+    """Print the totals; 1 when any check failed or none ran."""
+    failures = results.count(False)
+    print(f"summary: checks={len(results)} failures={failures}")
+    return 1 if failures or not results else 0
 
 
 def main() -> int:
@@ -79,35 +95,35 @@ def main() -> int:
         rd.capture()
         circuit = rd.root.circuit
         routes = [*circuit.rule_owner.routes, *circuit.sibling.routes]
-        sibling_widths = _route_widths(circuit.sibling.routes[0])
-        board_wide = bool(sibling_widths) and all(
-            abs(width - CHILD_RULE_WIDTH) <= WIDTH_TOLERANCE for width in sibling_widths
-        )
-        child_local = bool(sibling_widths) and all(
-            abs(width - DEFAULT_TRACE_WIDTH) <= WIDTH_TOLERANCE
-            for width in sibling_widths
-        )
+        owner = circuit.rule_owner.routes[0]
+        sibling = circuit.sibling.routes[0]
+        board_wide = _width_is(sibling, CHILD_RULE_WIDTH)
+        child_local = _width_is(sibling, DEFAULT_TRACE_WIDTH)
         if board_wide:
             outcome = "board-wide"
         elif child_local:
             outcome = "child-local"
         else:
             outcome = "ambiguous"
-        checks = [
-            check_routes(routes),
-            _route_width_result(
-                "rule-owner", circuit.rule_owner.routes[0], CHILD_RULE_WIDTH
+        print("child-rule scope probe, result classified from captured copper")
+        results = [
+            _routes_check(routes),
+            _check(
+                "width-rule-owner",
+                _width_is(owner, CHILD_RULE_WIDTH),
+                _show(_widths(owner)),
+                f"{CHILD_RULE_WIDTH:.4f}",
+                f"tol={WIDTH_TOLERANCE:.4f} mm",
             ),
-            CheckResult(
-                name="child-rule-scope",
-                passed=board_wide or child_local,
-                measured=sibling_widths if sibling_widths else None,
-                expected=None,
-                detail=f"observed={outcome}",
+            _check(
+                "child-rule-scope",
+                board_wide or child_local,
+                _show(_widths(sibling)),
+                "none",
+                f"observed={outcome}",
             ),
         ]
-        print("child-rule scope probe, result classified from captured copper")
-        return run_checks(checks)
+        return _summary(results)
 
 
 if __name__ == "__main__":

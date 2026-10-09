@@ -17,10 +17,10 @@ package demonstrates is shape, not content:
 - ``compact_value`` wrapping ``PlainQuantity.to_compact`` to keep binary-float
   noise out of the BOM value label;
 - a standard-chip-table override scoped to the single case size that disagrees
-  with the datasheet, pinned by a test that fails once the library is corrected
-  (``vishay_crcw._STANDARD_TABLE_OVERRIDES``);
+  with the datasheet, pinned by a test that fails once the installed table
+  agrees with the datasheet (``vishay_crcw._STANDARD_TABLE_OVERRIDES``);
 - ``insert_two_pin`` giving family classes ``.insert()`` parity with the queried
   passives in ``jitxlib.parts``;
-- the shared module's own name recording that it was renamed once a non-resistor
-  family started using it.
+- a shared module named for chip SMT parts rather than resistors, because a
+  non-resistor family uses it.
 """

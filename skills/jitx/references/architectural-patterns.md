@@ -2,7 +2,7 @@
 
 Worked counter-examples for the architectural don'ts in `jitx/SKILL.md`. The category name is "parallel-model / stringly-typed-indirection" — "string-hacking" is the shorthand.
 
-These patterns are the dominant failure mode in AI-generated JITX code. They cluster around the same root cause: the AI built a parallel data model keyed by hand-built strings (or did reflection-as-iteration on `self`) instead of letting JITX's own class/list/dict structure *be* the model. Every pattern below: a real failure pattern observed in review, and the JITX-native counter-pattern that replaces it.
+These patterns are the dominant failure mode in AI-generated JITX code. They cluster around the same root cause: the AI built a parallel data model keyed by hand-built strings (or did reflection-as-iteration on `self`) instead of letting JITX's own class/list/dict structure *be* the model. Every pattern below pairs a failure pattern an agent can fall into with the JITX-native counter-pattern that replaces it.
 
 ## Table of contents
 
@@ -442,7 +442,7 @@ class AmpCircuit(Circuit):
 
 The class-attribute form is fine when the contents are static (`class MyX(Container): xyz = <something>`); build in `__init__` when construction is parameterized. Use a `Circuit` subclass instead of `Container` when the group has ports/nets of its own — § 3's dataclass / Container / Composite / Circuit triage picks the right base.
 
-**Why.** Every structural member of a circuit belongs *on the circuit* — class body or `self.` in `__init__` — the single place the structural walk and a human reader both look. A mutating helper is an imperative side door around that declaration point. Compose objects; don't bolt them on. (Build-verified on 4.2.1: `Container` members are traversed and the composed-vias form builds clean.)
+**Why.** Every structural member of a circuit belongs *on the circuit* — class body or `self.` in `__init__` — the single place the structural walk and a human reader both look. A mutating helper is an imperative side door around that declaration point. Compose objects; don't bolt them on. `Container` members are traversed, and the composed-vias form builds clean.
 
 ---
 

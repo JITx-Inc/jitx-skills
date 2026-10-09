@@ -3,16 +3,15 @@
 from __future__ import annotations
 
 import argparse
+from math import floor
+
+from jitx.via import Via
 
 import jitx
-from jitx.design import Design
-from jitx.via import Via
 
 try:
     from .stitch_via_design import (
         POUR_SIZE,
-        STITCH_INSET,
-        STITCH_PITCH,
         ControlNoRuleDesign,
         DirectAttributeViaDesign,
         MixinViaDesign,
@@ -21,8 +20,6 @@ try:
 except ImportError:
     from stitch_via_design import (  # type: ignore[no-redef]
         POUR_SIZE,
-        STITCH_INSET,
-        STITCH_PITCH,
         ControlNoRuleDesign,
         DirectAttributeViaDesign,
         MixinViaDesign,
@@ -30,29 +27,41 @@ except ImportError:
     )
 
 
-def expected_grid_count(pour_size: float, pitch: float, inset: float) -> int:
+def expected_grid_count(
+    pour_size: float, pitch: float, inset: float, pad_diameter: float
+) -> int:
     """Vias per axis on a center-anchored square grid, squared.
 
-    The docstring defines ``inset`` as the distance from the stitched region's
-    boundary to "the outermost via centers" (``jitx/constraints.py:145``). Measured
-    on the 4.4.0 runtime it is the distance to the via *pad edge*, so the general
-    count per axis is ``2 * floor((pour_size / 2 - inset - pad_diameter / 2) / pitch) + 1``.
-    The runtime anchors one via on the region center and steps outward by whole
-    pitches, so the count per axis is odd. At this case's ``inset=0.5`` with a
-    0.45 mm pad both readings give 3 per axis, so the formula below omits the pad
-    term; see ``jitx-physical-layout/SKILL.md``, "Pour realization semantics".
+    ``inset`` is the measured distance from the stitched region's boundary to
+    the via pad edge, so the general count per axis is
+    ``2 * floor((pour_size / 2 - inset - pad_diameter / 2) / pitch) + 1``.
+    The count assumes a region centred on the lattice: one via on the centre,
+    then whole pitches outward, so the count per axis is odd. The reference
+    pours are centred on the design origin; where the grid starts for an offset
+    region is not established. Read ``pad_diameter`` from the selected via
+    class, not its drill. No pad fits when the available radius is negative.
+    The measured rows, including those that separate this law from a
+    via-centre reading, are in ``test_check_stitch_via.py``.
     """
-    rings = int((pour_size / 2.0 - inset) // pitch)
+    available_radius = pour_size / 2.0 - inset - pad_diameter / 2.0
+    if available_radius < 0:
+        return 0
+    rings = floor(available_radius / pitch)
     per_axis = 2 * rings + 1
     return per_axis * per_axis
 
 
-EXPECTED = expected_grid_count(POUR_SIZE, STITCH_PITCH, STITCH_INSET)  # 9 for an 8 mm pour, 2 mm pitch, 0.5 mm inset
-
-VARIANTS: dict[str, tuple[type[Design], int]] = {
-    "mixin": (MixinViaDesign, EXPECTED),
-    "direct": (DirectAttributeViaDesign, EXPECTED),
-    "module": (ModuleScopeViaDesign, EXPECTED),
+# Measured counts in NOTES.md, independent of the helper under test.
+StitchDesign = (
+    MixinViaDesign
+    | DirectAttributeViaDesign
+    | ModuleScopeViaDesign
+    | ControlNoRuleDesign
+)
+VARIANTS: dict[str, tuple[type[StitchDesign], int]] = {
+    "mixin": (MixinViaDesign, 9),
+    "direct": (DirectAttributeViaDesign, 9),
+    "module": (ModuleScopeViaDesign, 9),
     "control": (ControlNoRuleDesign, 0),
 }
 
@@ -65,6 +74,18 @@ def main() -> None:
 
     with jitx.runtime as runtime:
         runtime_design = runtime.submit(design_class)
+        if runtime_design.root.rules:
+            stitch = runtime_design.root.rules[0].stitch_via_constraint
+            assert stitch is not None
+            pad_diameter = stitch.definition.diameter
+            if not isinstance(pad_diameter, float):
+                raise TypeError("this reference requires a circular via pad diameter")
+            predicted = expected_grid_count(
+                POUR_SIZE, stitch.pattern.pitch, stitch.pattern.inset, pad_diameter
+            )
+            if predicted != expected:
+                print(f"FAIL grid_count={predicted} measured_reference={expected}")
+                raise SystemExit(1)
         runtime_design.capture()
         vias = list(runtime_design.query(Via))
 

@@ -4,12 +4,12 @@
   "expected_output": "Exactly one edit site per fact. The rail current changes only in ARCHITECTURE.md's Power Tree; the routing structure changes only in the Interface Map. PLAN.md's Requirements Lock points at those sections rather than carrying its own copy, so no second edit is needed and no drift is possible.",
   "assertions": [
     {
-      "text": "regression case for the observed drift: a real board's PLAN.md and ARCHITECTURE.md each carried a power tree and the two revisions diverged. The plan template must point at ARCHITECTURE.md rather than restate it.",
+      "text": "the plan template points at ARCHITECTURE.md rather than restating it, so PLAN.md and ARCHITECTURE.md never carry two power trees that can diverge.",
       "check": "deterministic",
       "cmd": "grep -q 'Never write a value a table already owns' skills/jitx/references/plan-template.md"
     },
     {
-      "text": "the Requirements Lock is a provenance ledger, not a value table: each row names who settled the item and points at the owner where a table holds the realization. This supersedes two earlier shapes, a bare 'locked, see ARCHITECTURE.md' that asserted nothing about who decided and was met by any self-consistent design, and a verbatim quote of the request that reproduced dimensions, layer count, impedances and fab house that ARCHITECTURE.md owns.",
+      "text": "the Requirements Lock is a provenance ledger, not a value table: each row names who settled the item and points at the owner where a table holds the realization. A bare 'locked, see ARCHITECTURE.md' asserts nothing about who decided and is met by any self-consistent design; a verbatim quote of the request reproduces dimensions, layer count, impedances and fab house that ARCHITECTURE.md owns.",
       "check": "deterministic",
       "cmd": "grep -q 'Each row records \\*\\*who settled the item\\*\\*' skills/jitx/references/plan-template.md && grep -q '| Item | Source | Where it lives |' skills/jitx/references/plan-template.md"
     },
@@ -23,7 +23,7 @@
       "check": "judge"
     },
     {
-      "text": "a design fact a datasheet settles is an open question, never an assumption. Guards the affordance added for genuinely unstated requirements from absorbing values nobody has looked up.",
+      "text": "a design fact a datasheet settles is an open question, never an assumption. Keeps the affordance for genuinely unstated requirements from absorbing values nobody has looked up.",
       "check": "deterministic",
       "cmd": "grep -q 'never an assumption' skills/jitx/references/plan-template.md"
     }

@@ -199,7 +199,7 @@ from jitxlib.landpatterns.pads import SMDPadConfig, WindowSubdivide
 
 `BoxSymbol` accepts `BoxConfig` field overrides as keyword arguments — e.g.
 `BoxSymbol(rows=..., orientation=90)` rotates the box symbol (an int multiple
-of 90 degrees; other values raise `ValueError`; jitxlib 4.2+).
+of 90 degrees; other values raise `ValueError`).
 
 **Prefer partitioning large symbols into several smaller boxes.** A single box
 with dozens of pins is unreadable; as a rule of thumb, **once a part exceeds

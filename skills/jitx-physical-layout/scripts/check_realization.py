@@ -356,7 +356,7 @@ def _require_computed_pour(
 
 
 def _geometry(shape: object, transform: object) -> tuple[object | None, bool]:
-    """Convert captured JITX geometry globally while preserving PolygonSet holes."""
+    """Preserve holes and apply the caller's surface-specific frame transform."""
 
     import shapely
     from jitx.shapes.primitive import Empty, PolygonSet
@@ -516,7 +516,9 @@ def _capture_checks(
             captured_pours.get(id(pour)),
             authored_shape_ids[id(pour)],
         )
-        geometry, empty = _geometry(captured.shape, trace.transform)
+        # Reverse-flow apply_pours copies computed_shape in design-global XY.
+        # Placement still supplies the authored layer's side, but not shape XY.
+        geometry, empty = _geometry(captured.shape, IDENTITY)
         runtime_net = rd.nets.find(captured)
         net_name = (
             "<unresolved>" if runtime_net is None else runtime_net.name or "<unnamed>"
@@ -554,6 +556,7 @@ def _capture_checks(
     for trace, keepout in _unique_visits(rd.root, KeepOut):
         if not keepout.pour:
             continue
+        # Keepouts remain owner-local, including reverse-flow area regions.
         geometry, empty = _geometry(keepout.shape, trace.transform)
         if empty or geometry is None:
             raise ValueError(f"pour keepout {trace.path} has empty geometry")
@@ -593,12 +596,13 @@ def _capture_checks(
         if sample is None:
             raise ValueError(f"board-wide target {label!r} is not an authored Pour")
         # No row is emitted for resolving the target. It is a precondition, not a
-        # check: it passed unconditionally once the path resolved to a Pour, which
-        # inflated the passing count with a row that tested nothing. What the caller
-        # actually wants proved about a board-wide pour is its edge spacing, which
-        # check_board_edge does below and which now carries the target's name.
+        # check: a row for it would pass whenever the path resolves to a Pour and
+        # inflate the passing count while testing nothing. What the caller wants
+        # proved about a board-wide pour is its edge spacing, which
+        # check_board_edge does below under the target's name.
         board_wide_labels[sample.label] = label
     if pours:
+        # The root board outline already occupies the design frame.
         board_geometry, empty = _geometry(rd.root.board.shape, IDENTITY)
         if empty or board_geometry is None:
             raise ValueError("captured board profile is empty")

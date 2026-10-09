@@ -26,10 +26,9 @@
 # Scanning model: line-oriented — one regex search per source line, reproducing the
 # line semantics of `grep -rEn` / `rg -n`: `^`/`$` anchor per source line, and the hit
 # count is the number of matching LINES (a line matching twice counts once). File
-# SELECTION is a deliberate contract change from the old script: it scans every *.py
-# and does NOT honor .gitignore (the rg branch did, the grep branch didn't — so the
-# old gate's coverage depended on whether rg was installed; this removes that drift).
-# The file list is sorted, so output is deterministic.
+# SELECTION scans every *.py and does NOT honor .gitignore, so coverage does not
+# depend on which search tool is installed. The file list is sorted, so output is
+# deterministic.
 
 import os
 import re
@@ -165,7 +164,7 @@ def is_si_definition_site(path):
 
 
 def report_insert(hits, quiet):
-    # Special case keeps the .sh's two slightly different labels (ok vs HIT line).
+    # Special case: this check words its ok line and its HIT line differently.
     global review
     if not hits:
         if not quiet:
@@ -281,9 +280,9 @@ def main():
         quiet,
     )
 
-    # Pour(..., isolate=...) — legacy parameter, Pass 3 deprecates in favor of design_constraint with Tags
+    # Pour(..., isolate=...) is a legacy parameter; use design_constraint with Tags instead
     run_check(
-        "Pour(..., isolate=...) — legacy parameter (see Pass 3 deprecation)",
+        "Pour(..., isolate=...) — legacy parameter (use design_constraint with Tags)",
         r"\bPour\s*\([^)]*\bisolate\s*=",
         False,
         "review",

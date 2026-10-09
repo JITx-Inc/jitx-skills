@@ -21,8 +21,8 @@ standard EIA/metric size codes (05 = 0402/1005, 10 = 0603/1608,
 the size — the same path as the Vishay CRCW resistor family. As there, that is a
 choice rather than an absence of data: the catalog's own "Structure and
 Dimensions" tables are transcribed below as :data:`CL_DIMENSIONS` and asserted
-against the standard table per size in ``tests/test_js1_samsung_cl.py``, so a
-wrong default cannot pass unnoticed.
+against the standard table per size in the family's tests, so a wrong default
+cannot pass unnoticed.
 
 Datasheet (Samsung MLCC catalog, Dec 2025 revision; the filename is dated per
 revision — the newest is linked from

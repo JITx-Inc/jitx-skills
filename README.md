@@ -25,7 +25,7 @@ Claude plugin skills are namespaced. For example, invoke the base workflow with 
 
 Codex uses `.codex-plugin/plugin.json` and the shared `skills/` directory. The repo ships its Codex marketplace at `.agents/plugins/marketplace.json`, so the repo itself is a marketplace named `jitx`.
 
-This GitHub marketplace layout requires Codex CLI 0.142.0 or newer.
+This GitHub marketplace layout requires a Codex CLI with plugin marketplace support.
 
 Install from GitHub:
 
@@ -52,7 +52,7 @@ Claude Code:
 claude plugin update jitx-skills@jitx
 ```
 
-Restart Claude Code or run `/reload-plugins` after local plugin edits. If you previously added this marketplace under the old `jitx-skills` name, migrate it with:
+Restart Claude Code or run `/reload-plugins` after local plugin edits. If this repository is registered as a marketplace named `jitx-skills`, replace it with:
 
 ```text
 /plugin marketplace remove jitx-skills
@@ -163,7 +163,7 @@ Example triggers:
 
 ### jitx-mechanical
 
-Mechanical CAD interface for JITX designs: inspect/import DXF, EMN, IDF, IDX, and BDF data; export DXF; attach STEP models; export a full board STEP via the JITX UI (no CLI in py-jitx 4.2.x).
+Mechanical CAD interface for JITX designs: inspect/import DXF, EMN, IDF, IDX, and BDF data; export DXF; attach STEP models; export a full board STEP with `jitx design export legacy-step` or the JITX UI.
 
 Example triggers:
 
@@ -209,7 +209,7 @@ jitx-skills/
 ## Requirements
 
 - A JITX Python project with `pyproject.toml` containing a JITX dependency
-- Python 3.12+
+- A Python version the `jitx` package supports
 - For datasheet processing: `pip install pymupdf`
 
 ## Usage Examples

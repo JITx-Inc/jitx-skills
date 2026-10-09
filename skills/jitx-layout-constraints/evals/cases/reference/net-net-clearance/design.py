@@ -1,8 +1,9 @@
 """Reference designs for net-to-net clearance and fabrication-floor behavior.
 
-API claims are checked against ``jitx/constraints.py:71``,
-``jitx/constraints.py:910``, ``jitx/constraints.py:1160``, and
-``jitx/substrate.py:161`` in the installed JITX package.
+API claims are checked against ``jitx.constraints.design_constraint``,
+``jitx.constraints.UnaryDesignConstraint.trace_width``,
+``jitx.constraints.BinaryDesignConstraint.clearance``, and
+``jitx.substrate.FabricationConstraints`` in the installed JITX package.
 """
 
 from jitx import Board, Circuit, Component, Design, Net, Port, RoutePoint
@@ -21,7 +22,7 @@ from jitxlib.jlcpcb import JLC04161H_7628
 from jitxlib.landpatterns.twopin.smt import SMT
 from jitxlib.symbols.resistor import ResistorSymbol
 
-TOP_LAYER = 0  # JLC04161H_7628 top conductor index, jitxlib/jlcpcb/JLC04161H_7628.py:27
+TOP_LAYER = 0  # JLC04161H_7628 top conductor index
 DEFAULT_TRACE_WIDTH = 0.20  # skill default: 0.20 mm trace width
 DEFAULT_TAGGED_WIDTH = 0.20  # skill default: 0.20 mm tagged power and ground width
 THERMAL_SPOKE_WIDTH = 0.20  # skill default: 0.20 mm thermal spoke width
@@ -61,10 +62,9 @@ class ParallelRoutes(Circuit):
     """Two pad-to-point routes whose right-hand endpoints converge side by side.
 
     The convergence is authored into the ``RoutePoint`` coordinates, not into a
-    ``Route`` sketch. Measured on runtime 4.4.0-rc.9: a sketch's intermediate
-    turns are dropped and the realized copper is a straight line between the two
-    route endpoints, so a sketch cannot bring two nets close together. See
-    ``NOTES.md``.
+    ``Route`` sketch. A sketch's intermediate turns are dropped and the realized
+    copper is a straight line between the two route endpoints, so a sketch cannot
+    bring two nets close together. See ``NOTES.md``.
     """
 
     authored_gap = 0.10  # skill test geometry: 0.10 mm authored edge-to-edge gap

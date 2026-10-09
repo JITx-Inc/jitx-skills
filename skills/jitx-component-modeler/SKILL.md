@@ -1,6 +1,6 @@
 ---
 name: jitx-component-modeler
-description: "Create JITX Python component code from datasheets, KiCad footprints, or user specifications. ALWAYS use this skill when user asks to \"create a component\", \"model a part\", \"generate a component\", \"add a component\", or \"make a JITX component\" - even without a datasheet. Also triggers on part numbers (NE555, LM1117, RP2040, etc.), package types (SOIC, QFN, BGA, SON, SOT), and two-terminal chip sizes (0402, 0603, 2512). Supports user-provided data, JITX generators for standard packages, and optional LCSC/EasyEDA fallback for non-standard footprints. Supports multi-unit symbols, thermal pads, and complex pin mappings. Also covers parameterized catalog families — one class standing in for a manufacturer's whole series (chip resistors, MLCCs) with the part number computed per instance and no parts-database query — and verifying a component against its datasheet with jitx.test.TestCase. Also covers generating a component from a vendor's machine-readable package pinout file rather than a drawing (\"generate the FPGA from the pin file\", \"parse the package pinout file\", \"model this 1000-ball BGA\"): parse-don't-transcribe, reconcile the ball inventory before emitting, and a committed generator with a regenerate-and-diff check. For choosing and placing an ordinary queried passive, use jitx-circuit-builder instead."
+description: "Create JITX Python component code from datasheets, KiCad footprints, vendor pin files, or user specifications. ALWAYS use this skill when the user asks to \"create a component\", \"model a part\", \"generate a component\", \"add a component\", or \"make a JITX component\" - even without a datasheet. Also triggers on part numbers (NE555, LM1117, RP2040), package types (SOIC, QFN, BGA, SON, SOT), two-terminal chip sizes (0402, 0603, 2512), LCSC/EasyEDA footprint fallback, multi-unit symbols, thermal pads, and explicit pin mappings. Covers parameterized catalog families - one class for a manufacturer's whole series (chip resistors, MLCCs) with the part number computed per instance; verifying a component against its datasheet with jitx.test.TestCase; and generating from a machine-readable package pinout file rather than a drawing (\"generate the FPGA from the pin file\", \"parse the package pinout file\", \"model this 1000-ball BGA\"). For choosing and placing an ordinary queried passive, use jitx-circuit-builder instead."
 ---
 
 # JITX Component Generation Skill
@@ -41,8 +41,8 @@ wrong part, package variant or revision, and which it is changes what they want.
 source as unreachable, try the manufacturer URL, the named sourcing channel and the local
 project directories; a statement in the request that no datasheet exists is a belief about
 the environment, not a fact about it. If a probe succeeds, the source gate applies as
-normal. If every probe fails, the completion artifact records what was tried and what each
-attempt returned, so a reader can tell an unreachable source from an unattempted one.
+normal. If every probe fails, the completion artifact records each probe and what it
+returned, so a reader can tell an unreachable source from an unattempted one.
 
 A real component with no source is blocked before land-pattern or pin code is written. The only exception is an explicitly authorized non-MPN generic placeholder; the completion artifact records that authorization under `Notes`. A parameterized family may compute its MPN from the source's ordering grammar, but every table and range still traces to that source and a generated MPN reproduces its worked example.
 
@@ -77,7 +77,7 @@ For a machine-readable pin file, no component code is emitted until the parsed r
 
 ## Verification and halt
 
-After code exists, the agent performs these steps in order:
+After code exists, perform these steps in order:
 
 1. Tests that construct components subclass `jitx.test.TestCase`; pure helper tests may use `unittest.TestCase`. Every package variant, and every family case size, gets a pad-count check. For a land pattern `lp`, count pads with the framework's structural traversal, which does not depend on the numbering scheme:
 
@@ -88,10 +88,10 @@ After code exists, the agent performs these steps in order:
    pad_count = sum(1 for _ in visit(lp, Pad))  # every pad the landpattern owns, thermal pads included
    ```
 
-   Verified on jitx 4.4.0 inside a `SubstrateContext`: 8 for a generated SOIC-8, equal to `len(lp.p)`, and 441 for a generated 21 by 21 BGA, where `lp.p` does not exist. Do not count by enumerating attributes: `lp.p` exists only on the linearly numbered generators, a BGA's `AlphaDictNumbering` keeps its row dictionaries outside the instance namespace, and an attribute walk over one-letter row names returned 0 for that BGA. `lp.pads` is not an accessor either. Compare `pad_count` with the datasheet's pin count plus its thermal pads. If the count cannot be established for the package at hand, the pad-count row remains open and verification stops rather than recording an unchecked number.
+   Inside a `SubstrateContext` it counts 8 for a generated SOIC-8, equal to `len(lp.p)`, and 441 for a generated 21 by 21 BGA, where `lp.p` does not exist. Do not count by enumerating attributes: `lp.p` exists only on the linearly numbered generators, a BGA's `AlphaDictNumbering` keeps its row dictionaries outside the instance namespace, and an attribute walk over one-letter row names finds 0 for that BGA. `lp.pads` is not an accessor either. Compare `pad_count` with the datasheet's pin count plus its thermal pads. If the count cannot be established for the package, the pad-count row remains open and verification stops rather than recording an unchecked number.
 
-2. Run the generated test suite and `pyright`. Tests also assert metadata, pin and pad counts, any ordering example or value encoder, the rendered `.value` or its deliberate absence, validation failures, and every relied-on library default.
-3. Run `jitx find`, take its printed build target verbatim, then build in the available virtual environment. If no environment is present, stop and ask. JITX builds run sequentially, never in parallel against one project.
+2. Run `python -m unittest discover -s tests` and `pyright`. Tests assert metadata, pin and pad counts, any ordering example or value encoder, the rendered `.value` or its deliberate absence, validation failures, and every relied-on library default.
+3. Run `jitx find`, take its printed build target verbatim, then build in the available virtual environment. If none is present, stop and ask. JITX builds run sequentially, never in parallel against one project.
 4. Write the task acceptance block from the base skill, with the complete `Component check` below embedded under `Checks run`, into `COMPLETION.md` or the project's existing equivalent.
 
 **Halt:** no filled block, no "done". Any non-clean type check, failing test, failed build, unrun available check, missing source, or unresolved row forces `Verdict: open items`. `Verdict: complete` is invalid until every row closes.
@@ -105,8 +105,8 @@ A component is judged by whether every value in it traces back to a source — t
 Source: <manufacturer + document number + revision/date>; page/figure cited per claim below
         (+ channel evidence where the user named a sourcing channel)
         Source reached by: <fetched from <url> | supplied by the user as <path> | local <path>>
-        Probes, when any source was recorded unreachable: <what was tried, and what each
-        attempt returned> | n/a (a source was reached)
+        Probes, when any source was recorded unreachable: <each probe, and what it
+        returned> | n/a (a source was reached)
         User-typed facts checked against it: <each typed pin name, number, package or count,
         and whether the document confirms it> | none (the user typed no part facts)
         Disagreements found: NONE | <each, with the document's value, and confirmation that
@@ -131,7 +131,7 @@ Value / BOM: .value renders as "<string>" — asserted in a test
         | n/a (<reason>) — AND pinned by a test asserting it is unset
 No-field walk: datasheet-stated facts with no JITX field, recorded in the docstring: <list>
 Provenance: values traceable to no datasheet page: NONE | <list + the labeled rule backing each>
-Checks: pyright <clean | N errors>; pytest <N passed | not run: <reason>>;
+Checks: pyright <clean | N errors>; unittest <Ran N, K skipped, OK | not run: <reason>>;
         build <status: ok via <command> | not run: <reason>>
 Verdict: complete | open items: <list>
         Derive this line from every row above. List each unresolved or unsupported
@@ -149,7 +149,7 @@ Row-by-row intent — the *why*, so the block stays evidence rather than ceremon
 - **Landpattern** — dimensions come from the mechanical drawing, not the overview page or the ordering table, and carry the drawing's tolerances. Where the generator could not express the package, the fallback and its reason belong here.
 - **Library defaults** — a generator default is a convenience, not an authority. Wherever the datasheet publishes the same dimension, transcribe it anyway and check the two against each other; where they disagree, override from the datasheet and say so. The whole risk of taking a default is that nobody transcribed the number that would have caught a bad one. A default you took without checking is indistinguishable, in the output, from one you verified.
 
-  **Defaults are not only dimensions.** The one that gets missed is **density level**, because it never appears as a number in your code; on 4.4.0 the installed default is `B` (`jitxlib/landpatterns/ipc.py`), earlier lines defaulted to `C`, and the choice moves real copper. Read what the source asks for, check what your installed `DensityLevelContext` defaults to, and either set the level explicitly (`DensityLevel` from `jitxlib.landpatterns.ipc`) or record in this row that the default already matches. The IPC-7351 levels and their fillets are in `references/parameterized-families.md`.
+  **Defaults are not only dimensions.** The one that gets missed is **density level**, because it never appears as a number in your code, and the choice moves real copper. jitxlib's default is `B`; check what your installed `DensityLevelContext` defaults to, read what the source asks for, and either set the level explicitly (`DensityLevel` from `jitxlib.landpatterns.ipc`) or record in this row that the default already matches. The IPC-7351 levels and their fillets are in `references/parameterized-families.md`.
 - **Value / BOM** — no build, type check or land-pattern test looks at the rendered value string. If this row says anything other than an asserted literal, nothing is checking what the BOM will print.
 
   **`n/a` is a claim, and it needs a test like any other.** For an IC there is often no value in the passive sense, and leaving `.value` unset is right — but "right" and "checked" are different, and an unpinned `n/a` is indistinguishable from having forgotten the field. Treat it exactly as you would any other deliberate absence: a component that deliberately ships without a land pattern gets a test asserting no land pattern is present, so a component that deliberately ships without a value gets a test asserting `value is None`. Then the decision cannot silently rot when someone later sets it.

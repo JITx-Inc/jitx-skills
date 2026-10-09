@@ -16,8 +16,9 @@ JITX's standard chip dimensions for the size rather than vendor-specific
 overrides. That is a deliberate choice, not an absence of data -- the datasheet's
 DIMENSIONS AND MASS table (doc page 11) is transcribed below as
 :data:`CRCW_DIMENSIONS` and asserted against the standard table per size in
-``tests/test_js1_vishay_crcw.py``, which is how the one size that disagrees
-(2512) was found and overridden.
+the family's tests, which is how a size that disagrees is found. 2512 is
+overridden for an installed table whose lead length disagrees with the
+datasheet's T1.
 
 Datasheet (doc 20035): https://www.vishay.com/docs/20035/dcrcwe3.pdf
 
@@ -76,13 +77,14 @@ CRCW_DIMENSIONS: dict[str, ChipDims] = {
 # Sizes where JITX's standard chip table disagrees with the datasheet badly
 # enough to build the wrong land pattern, so we override it with the datasheet.
 #
-# 2512: SMT_CHIP_DEFS["2512"].lead_length is 2.0 +/- 0.5 mm. The datasheet's T1
-# is 0.6 +/- 0.20, and Yageo's RC_L Table 1 gives 0.60 +/- 0.20 for the same case
-# (see yageo_rc.RC_DIMENSIONS). A 2.0 mm band on a 6.35 mm body is a third of the
-# part's length and sizes the pads from a termination roughly three times too
-# long. Every other size in this family agrees within 0.2 mm. Filed upstream as a
-# jitxlib data bug; drop this override once the table is corrected -- the test
-# below fails when that happens, so it will not be forgotten.
+# 2512: the datasheet's T1 is 0.6 +/- 0.20, and Yageo's RC_L Table 1 gives
+# 0.60 +/- 0.20 for the same case (see yageo_rc.RC_DIMENSIONS). The override
+# applies the datasheet band while SMT_CHIP_DEFS["2512"].lead_length disagrees
+# with it: a 2.0 mm band on a 6.35 mm body would be a third of the part's length
+# and size the pads from a termination roughly three times too long. Every other
+# size in this family agrees within 0.2 mm. The test below fails once the
+# installed table agrees with the datasheet, which is the signal to drop this
+# override.
 _STANDARD_TABLE_OVERRIDES = ("2512",)
 
 # Rated dissipation P70 (W) per size (datasheet Technical Specifications).

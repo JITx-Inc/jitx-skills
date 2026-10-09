@@ -1,25 +1,26 @@
-"""Reference designs for stitch-via class discovery on JITX 4.4.
+"""Reference designs for stitch-via class discovery.
 
 Each design applies one unary rule to the same tagged ground pour. The via
 definition is reached through the predefined substrate's mixin, declared as a
 direct nested attribute of a substrate subclass, or declared at module scope.
 The rule and its condition remain structural attributes under each Design, as
-required by the traversal at ``jitx/_translate/design.py:187``.
+the design-rule traversal requires.
 """
 
 from __future__ import annotations
 
-from jitx import Circuit, Net, Pour
 from jitx.board import Board
 from jitx.constraints import SquareViaStitchGrid, Tag, design_constraint
 from jitx.design import Design
 from jitx.shapes.composites import rectangle
 from jitxlib.jlcpcb import JLC04161H_7628
 
+from jitx import Circuit, Net, Pour
+
 BOARD_SIZE = 12.0  # skill default: 12.0 mm board width and height for this probe.
 POUR_SIZE = 8.0  # skill default: 8.0 mm pour width and height for this probe.
 STITCH_PITCH = 2.0  # skill default: 2.0 mm stitch-via center pitch.
-STITCH_INSET = 0.5  # skill default: 0.5 mm boundary-to-center inset.
+STITCH_INSET = 0.5  # skill default: 0.5 mm boundary-to-pad-edge inset.
 EDGE_SPACE = JLC04161H_7628.constraints.min_copper_edge_space
 
 

@@ -7,19 +7,22 @@ source. Escape geometry is read from the emitted pads with ``jitx.query``.
 
 Verified API surfaces:
 
-* tag assignment and supported targets: ``jitx/constraints.py:344-630``
-* unary trace width and binary clearance: ``jitx/constraints.py:871-922`` and
-  ``jitx/constraints.py:1135-1172``
-* ``Route``, ``sketch=``, and captured traces: ``jitx/circuit.py:466-599``
-* ``RoutePoint.pad``: ``jitx/controlpoint.py:61-76``
-* Pad to Copper transform composition: ``jitx/landpattern.py:173-206``
-* query transform behavior: ``jitx/query.py:187-263``
+* tag assignment and supported targets: ``jitx.constraints.Tag`` and
+  ``jitx.constraints.Tags.assign``
+* unary trace width and binary clearance:
+  ``jitx.constraints.UnaryDesignConstraint.trace_width`` and
+  ``jitx.constraints.BinaryDesignConstraint.clearance``
+* ``Route``, ``sketch=``, and captured traces: ``jitx.circuit.Route``
+* ``RoutePoint.pad``: ``jitx.controlpoint.RoutePoint``
+* Pad to Copper transform composition and query transform behavior:
+  ``jitx.query.query``
 """
 
 from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from decimal import Decimal, ROUND_FLOOR
 from math import isclose
 
 from shapely.geometry.base import BaseGeometry
@@ -82,8 +85,8 @@ POWER_CLASS_WIDTH_MM = 0.5  # skill default: 0.5 mm power-class width
 ESCAPE_CLEARANCE_MARGIN_MM = 0.01  # skill default: 0.01 mm above the fab floor
 ESCAPE_RUN_MM = 1.0  # skill default: 1.0 mm from pad edge to transition
 GEOMETRY_TOLERANCE_MM = 1e-6  # skill default: 1e-6 mm geometry comparison
-WIDTH_QUANTUM_MM = 1e-6  # skill default: 1 nm fixed width quantum
-WIDTH_DECIMAL_PLACES = 6  # skill default: fixed precision matching WIDTH_QUANTUM_MM
+ESCAPE_PAD_INSET = Decimal("0.02")  # complete_rules guideline default, mm
+FANOUT_WIDTH_GRID = Decimal("0.01")  # complete_rules guideline default, mm
 
 
 class PowerTag(Tag):
@@ -297,12 +300,13 @@ def derive_qfn_escape_geometry(
         g_radial_is_x = abs(gdelta[0]) >= abs(gdelta[1])
         rule_pad_widths.append(gy1 - gy0 if g_radial_is_x else gx1 - gx0)
     narrowest_rule_pad_width = min(rule_pad_widths)
-    escape_width = (
-        round(narrowest_rule_pad_width, WIDTH_DECIMAL_PLACES) - WIDTH_QUANTUM_MM
-    )
+    # A 1 nm subtraction is not a manufacturable margin. Subtract the pad inset
+    # and round down to the fabrication grid, the single policy in fanout.md.
+    steps = (Decimal(str(narrowest_rule_pad_width)) - ESCAPE_PAD_INSET) / FANOUT_WIDTH_GRID
+    escape_width = float(steps.to_integral_value(rounding=ROUND_FLOOR) * FANOUT_WIDTH_GRID)
     if not escape_width < narrowest_rule_pad_width:
         raise ValueError(
-            "quantized QFN escape is not strictly inside every selected pad"
+            "derived QFN escape is not strictly inside every selected pad"
         )
     if escape_width < fab.min_copper_width:
         raise ValueError(

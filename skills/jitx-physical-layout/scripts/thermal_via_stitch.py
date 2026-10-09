@@ -4,23 +4,24 @@ Copy this module into the JITX project that owns the component. The landpattern
 call site uses :func:`grid_thermal_via_positions` and
 :func:`soldermask_defined_thermal_pad_config`. The circuit call site stores a
 :class:`ThermalViaField` as a structural attribute and adds each via to the pad's
-net. Containers participate in structural traversal at ``jitx/container.py:27``.
+net. Containers (``jitx.container.Container``) participate in structural
+traversal.
 
 The module deliberately ships no via definition. Pass a class supplied by the
-substrate or the fabrication library; on 4.4 the same class works with
+substrate or the fabrication library; the same class works with
 ``design_constraint(...).stitch_via(...)`` whether it is reached through the
 substrate's mixin, re-declared as a substrate attribute, or declared at module
-scope (see ``jitx-layout-constraints/SKILL.md``, "Why a rule did not fire",
-item 8). The rule API accepts a via class at ``jitx/constraints.py:924``.
+scope. The rule API, ``jitx.constraints.UnaryDesignConstraint.stitch_via``,
+accepts a via class.
 
 Fabrication values come from :class:`FabricationConstraints`
-(``min_soldermask_bridge`` at ``jitx/substrate.py:202``, ``solder_mask_registration``
-at ``jitx/substrate.py:198``). The via-rim-to-pad-edge margin has no fab field:
+(``min_soldermask_bridge`` and ``solder_mask_registration``). The
+via-rim-to-pad-edge margin has no fab field:
 :meth:`StitchParams.from_substrate` uses bridge plus registration as a labeled
 skill default (the mask dam must fit inside the pad copper) unless the caller
-supplies one. ``min_copper_edge_space`` is copper to board edge and is not used. A via's pad diameter is its ``diameter`` field at
-``jitx/via.py:60``. The geometry functions take plain numbers so they can be
-tested without a JITX runtime.
+supplies one. ``min_copper_edge_space`` is copper to board edge and is not used.
+A via's pad diameter is its ``jitx.via.Via.diameter`` field. The geometry
+functions take plain numbers so they can be tested without a JITX runtime.
 """
 
 from __future__ import annotations
@@ -62,12 +63,12 @@ class StitchParams:
 
         ``min_soldermask_bridge`` supplies web width and
         ``solder_mask_registration`` supplies radial mask overlap around each
-        tented via (``jitx/substrate.py:202`` and ``:198``). The via-pad rim
+        tented via. The via-pad rim
         inset from the exposed-pad edge is ``edge_margin`` when given, else the
         skill default bridge plus registration, which keeps each dam inside the
         pad copper; there is no fab field for it.
         ``Via.diameter`` may be a float or a :class:`ViaDiameter`; the latter
-        exposes its pad size as ``pad`` at ``jitx/via.py:309``.
+        exposes its pad size as ``pad``.
         """
 
         diameter = via_cls.diameter
@@ -140,8 +141,7 @@ def soldermask_thermal_pad_opening(
 
     Shapely is optional in the JITX package, so it is imported only here. The
     result is checked before it reaches a fabrication feature because
-    ``ShapelyGeometry`` serializes only polygonal geometry
-    (``jitx/shapes/shapely.py:64``).
+    ``ShapelyGeometry`` serializes only polygonal geometry.
     """
 
     try:
@@ -234,7 +234,8 @@ def soldermask_defined_thermal_pad_config(
 ) -> SMDPadConfig:
     """Use one validated CSG opening for both paste and soldermask.
 
-    Both fields accept a ``Shape`` at ``jitxlib/landpatterns/pads.py:372``.
+    ``SMDPadConfig.soldermask`` and ``SMDPadConfig.paste`` both accept a
+    ``Shape``.
     """
 
     opening = soldermask_thermal_pad_opening(
@@ -252,8 +253,8 @@ class ThermalViaField(Container):
     """Structural collection of placed thermal vias.
 
     Store this container on the circuit and add every member of ``vias`` to the
-    thermal-pad net. Plain power and ground membership uses ``Net += via``
-    (``jitx/net.py:748``), not ``PortAttachment``.
+    thermal-pad net. Plain power and ground membership uses ``Net += via``,
+    not ``PortAttachment``.
     """
 
     def __init__(

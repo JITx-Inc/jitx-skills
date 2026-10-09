@@ -10,14 +10,14 @@
   "expected_output": "A design module with four structural board defaults, a module-scope tag, two child circuits carrying one tagged net, and a priority 2 width rule stored only on one child. A check script submits and captures the design, verifies all routes, checks each realized width, and exits nonzero on failure. NOTES.md records the real commands, output, and the observed scope of the child rule.",
   "assertions": [
     {
-      "text": "the pure helper unit tests pass",
+      "text": "the reference checker fails an empty route selection and an empty check list",
       "check": "deterministic",
-      "cmd": "python3 skills/jitx-layout-constraints/scripts/test_layout_checks.py"
+      "cmd": "cd skills/jitx-layout-constraints/evals/cases/reference/default-rules && python3 -B -c \"import check; assert not check._routes_check([]); assert check._summary([]) == 1\""
     },
     {
-      "text": "the shipped helper and reference module type-check against the installed JITX package",
+      "text": "the reference design and checker type-check against the installed JITX packages",
       "check": "deterministic",
-      "cmd": "python3 -m pyright --pythonpath \"$(command -v python3)\" skills/jitx-layout-constraints/scripts/layout_checks.py skills/jitx-layout-constraints/evals/cases/reference/default-rules/design.py skills/jitx-layout-constraints/evals/cases/reference/default-rules/check.py"
+      "cmd": "python3 -m pyright --pythonpath \"$(command -v python3)\" skills/jitx-layout-constraints/evals/cases/reference/default-rules/design.py skills/jitx-layout-constraints/evals/cases/reference/default-rules/check.py"
     },
     {
       "text": "the built and captured reference checks pass",

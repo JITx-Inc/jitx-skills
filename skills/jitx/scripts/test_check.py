@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Tests for check.py's build witness.
 
-The witness exists because a jitx command has been observed exiting 0 while
-printing a failure, so a zero exit alone is not evidence the build succeeded.
+The witness exists because a jitx command can exit 0 while printing a
+failure, so a zero exit alone is not evidence the build succeeded.
 """
 
 import contextlib
