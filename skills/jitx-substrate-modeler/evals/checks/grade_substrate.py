@@ -4,11 +4,12 @@
 Usage:
   grade_substrate.py BOARD_PY CSV [-k SELECTION]
 
-First imports BOARD_PY on its own, with this interpreter. A candidate that
-does not import (a module or name that does not exist, an error at class
-definition) is a red: "FAIL  candidate does not import: <module>". Only a
-missing jitx or pytest, which no candidate can fix, is reported in Python's
-own "No module named" wording.
+First imports BOARD_PY on its own, with this interpreter, through
+import_candidate.py. A candidate that does not import (a module or name that
+does not exist, an error at class definition) is a red: "FAIL  candidate
+does not import: <what>". A grader dependency that is missing, or an import
+that fails inside a library rather than in the candidate, is reported in
+Python's own wording, which eval harnesses read as an environment problem.
 
 Then runs ``pytest -q -W always`` on substrate_grader.py, beside this script,
 with this interpreter, SUBSTRATE_FILE=BOARD_PY and FAB_CSV=CSV, and passes
@@ -20,7 +21,7 @@ only when all of these hold:
 - the grader's ``GradedTarget`` warning names BOARD_PY as the substrate file
   and CSV as the fab report.
 
-The second condition makes the case fail closed: a run that graded some other
+The last condition makes the case fail closed: a run that graded some other
 file, or graded nothing, is not a pass. SUBSTRATE_CLASS and PYTEST_ADDOPTS
 are removed from the environment, so a stray value cannot pick a class or
 deselect tests.
@@ -46,36 +47,8 @@ GREEN_OUTCOMES = {"passed", "subtests passed", "warning", "warnings", "deselecte
 """Summary outcomes a green run may report. Anything else (skipped, xfailed,
 xpassed, subtests skipped, and the failures) means a test went ungraded."""
 
-PREFLIGHT = """
-import importlib.util, sys, traceback
-from pathlib import Path
-for needed in ("jitx", "pytest"):
-    if importlib.util.find_spec(needed) is None:
-        print(f"No module named {needed!r}")
-        sys.exit(3)
-board = Path(sys.argv[1]).resolve()
-sys.path.insert(0, str(board.parent))
-spec = importlib.util.spec_from_file_location("_candidate_preflight", board)
-module = importlib.util.module_from_spec(spec)
-try:
-    spec.loader.exec_module(module)
-except BaseException as error:
-    if isinstance(error, ImportError) and error.name:
-        what = error.name
-    else:
-        what = f"{type(error).__name__}: {error}"
-    lines = [
-        f"{Path(frame.filename).name}:{frame.lineno}"
-        for frame in traceback.extract_tb(error.__traceback__)
-        if Path(frame.filename).resolve() == board
-    ]
-    where = f" (at {lines[-1]})" if lines else ""
-    print(f"FAIL  candidate does not import: {what}{where}")
-    sys.exit(1)
-"""
-"""Imports the candidate in a child interpreter. Exit 3 names a missing jitx
-or pytest; exit 1 is a candidate that does not import, reported without
-Python's own wording so a harness does not read it as an environment error."""
+PREFLIGHT = Path(__file__).resolve().parent / "import_candidate.py"
+"""Imports the candidate in a child interpreter first; see its docstring."""
 
 
 def same_file(reported: str, given: Path) -> bool:
@@ -115,7 +88,7 @@ def main(argv: list[str]) -> int:
         print(f"FAIL  {board} does not exist")
         return 1
     preflight = subprocess.run(
-        [sys.executable, "-c", PREFLIGHT, str(board)],
+        [sys.executable, str(PREFLIGHT), str(board)],
         capture_output=True,
         text=True,
         check=False,
@@ -140,6 +113,7 @@ def main(argv: list[str]) -> int:
         "always",
         "-p",
         "no:cacheprovider",
+        "--color=no",
         str(GRADER),
     ]
     if args.selection:

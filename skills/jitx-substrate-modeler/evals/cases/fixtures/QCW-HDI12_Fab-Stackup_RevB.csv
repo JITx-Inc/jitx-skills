@@ -17,7 +17,7 @@ Thickness tolerance,+/-8,%,
 Surface finish,ENEPIG,,Ni 3-5 um / Pd 0.05-0.10 um / Au 0.03-0.05 um
 Soldermask,LPI matte black,,Both sides
 Copper plating class,IPC-6012 Class 2,,20 um average wall in plated holes
-Impedance tolerance,+/-7,%,All controlled structures
+Impedance tolerance,+/-7,%,All controlled structures except the uncoupled region of a pair (+/-10 %) - see IMPEDANCE Tolerance_pct
 Impedance model,QCW cross-section solver,,2D field solver - see NOTES
 Impedance test frequency,8.0,GHz,Insertion loss quoted at this frequency
 Dk/Df reference frequency,5.0,GHz,Per laminate manufacturer datasheet
@@ -88,8 +88,8 @@ SE-60,Yes,Single-ended,60,7,L1;L12,Coated microstrip,3.98,0.1010,,0.2020,L2 for 
 SE-60,Yes,Single-ended,60,7,L3;L10,Asymmetric stripline,2.13,0.0540,,0.1080,L2+L4; L11+L9,59.94,3.3520,6.1070,0.01104,,,,
 DIFF-90,Yes,Differential,90,7,L1;L12,Coated microstrip edge-coupled,4.53,0.1150,0.1250,0.4600,L2 for L1; L11 for L12,90.12,2.5730,5.3506,0.00843,0.0900,0.1000,0.1800,96.40
 DIFF-90,Yes,Differential,90,7,L3;L10,Asymmetric stripline edge-coupled,2.76,0.0700,0.1000,0.2800,L2+L4; L11+L9,89.87,3.3520,6.1070,0.01212,0.0550,0.0800,0.1100,95.10
-DIFF-90-UNC,Yes,Single-ended,52,7,L1;L12,Coated microstrip,4.53,0.1150,,0.4600,L2 for L1; L11 for L12,56.60,2.5730,5.3506,0.00731,,,,
-DIFF-90-UNC,Yes,Single-ended,52,7,L3;L10,Asymmetric stripline,2.76,0.0700,,0.2800,L2+L4; L11+L9,51.85,3.3520,6.1070,0.01019,,,,
+DIFF-90-UNC,Yes,Single-ended,52,10,L1;L12,Coated microstrip,4.53,0.1150,,0.4600,L2 for L1; L11 for L12,56.60,2.6182,5.3974,0.00757,,,,
+DIFF-90-UNC,Yes,Single-ended,52,10,L3;L10,Asymmetric stripline,2.76,0.0700,,0.2800,L2+L4; L11+L9,51.85,3.3520,6.1070,0.01019,,,,
 STANDARD,No,Single-ended,,,All routing layers,Default line/space,3.54,0.0900,,0.0900,,44.72 stripline / 63.41 microstrip,,,,,,,
 
 SECTION,FAB_RULES
@@ -138,7 +138,7 @@ Note
 "Dk and Df are quoted at 5 GHz per the laminate datasheet. Insertion loss is quoted at 8 GHz. Both figures are frequency dependent; ask us to re-model if your channel operates elsewhere."
 "Insertion loss is total, comprising conductor loss (including a surface-roughness correction for the stated Rz) and dielectric loss. It excludes via and connector discontinuities."
 "Eps_eff is the solver's effective permittivity for that geometry. For the coated microstrip it folds in the soldermask and the air above it; for the asymmetric stripline it blends the build-up ply and the core. Neither equals any single material's Dk."
-"DIFF-90-UNC is the uncoupled region of DIFF-90, where the pair splits. Each trace keeps the pair's line width and clearance, so its impedance is what that width gives on each geometry. The 52 ohm target is the stripline figure; on the surface microstrip the same width models at 56.60 ohm, outside the 7 % tolerance, so keep uncoupled runs on L1 and L12 short."
+"DIFF-90-UNC is the uncoupled region of DIFF-90, where the pair splits. Each trace keeps the pair's line width and clearance, so its impedance is what that width gives on each geometry. The 52 ohm target is the stripline figure; on the surface microstrip the same width models at 56.60 ohm. The uncoupled region is therefore held to +/-10 %, not the 7 % of the other controlled structures, so keep uncoupled runs on L1 and L12 short."
 "STANDARD is our default line and space for nets with no impedance target. It is one geometry applied on every routing layer, so it does not hold a single impedance - it models 44.72 ohm on the inner stripline layers and 63.41 ohm on the surface microstrip layers. Do not use it for impedance-critical nets."
 "L5 and L8 are signal-capable stripline layers with no controlled-impedance structure specified in this revision. They are reachable only through BV-1 and TH-1."
 "All dimensions are nominal unless a tolerance is stated. Primary units are millimetres; mil values are given alongside for reference and the millimetre value controls where the two disagree."

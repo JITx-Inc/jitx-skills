@@ -25,6 +25,7 @@ import os
 import re
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 import fabcsv
@@ -119,82 +120,115 @@ def differential_name(source: str) -> str:
     return found.group(1)
 
 
-KIT_DIFF_DOC_END = 'when the pair splits.\n    """\n'
-"""The end of the kit differential structure's docstring, the last statement
-in the kit substrate's class body, where a mutant adds a class attribute."""
+# Mutations are written against the kit board's code and values, never its
+# comments or docstrings, so rewording the kit's prose does not break them.
+
+Mutation = Callable[[str], str]
+
+
+def replace_once(old: str, new: str) -> Mutation:
+    def mutate(source: str) -> str:
+        assert old in source, old
+        return source.replace(old, new, 1)
+
+    return mutate
+
+
+def sub_once(pattern: str, replacement: str) -> Mutation:
+    def mutate(source: str) -> str:
+        assert re.search(pattern, source), pattern
+        return re.sub(pattern, replacement, source, count=1)
+
+    return mutate
+
+
+def add_to_substrate(statement: str) -> Mutation:
+    """Append a class-body statement to the kit's ``Substrate`` subclass.
+    ``{diff}`` names its differential structure attribute."""
+
+    def mutate(source: str) -> str:
+        header = re.search(r"^class \w+\(Substrate\):\n", source, re.MULTILINE)
+        assert header is not None
+        after = re.search(r"^\S", source[header.end() :], re.MULTILINE)
+        assert after is not None
+        at = header.end() + after.start()
+        text = statement.replace("{diff}", differential_name(source))
+        return source[:at] + text + "\n\n" + source[at:]
+
+    return mutate
+
+
+STANDARD_STRUCTURE = """    standard = RoutingStructure(
+        name="standard",
+        impedance=60.99 * ohm,
+        layers=_se_layers(
+            MICROSTRIP_LAYERS,
+            width=0.1500,
+            clearance=0.1500,
+            eps_eff=2.4316,
+            insertion_loss=0.00907,
+        ),
+    )
+"""
+"""A structure for the JS1 STANDARD row, at its microstrip Modelled_Z_ohm."""
 
 
 @needs_kit
 @pytest.mark.parametrize(
-    ("old", "new", "owner"),
+    ("mutate", "owner"),
     [
         (
-            "hole_diameter = 0.125",
-            "hole_diameter = 0.130",
+            replace_once("hole_diameter = 0.125", "hole_diameter = 0.130"),
             "TestVias::test_geometry_matches_csv",
         ),
         (
-            "thickness = 0.8000",
-            "thickness = 0.8100",
+            replace_once("thickness = 0.8000", "thickness = 0.8100"),
             "TestStackup::test_thickness_totals_match_document",
         ),
         (
-            "REF_PLANE_WIDTH = 3 * 0.1000",
-            "REF_PLANE_WIDTH = 3 * 0.1100",
+            replace_once(
+                "REF_PLANE_WIDTH = 3 * 0.1000", "REF_PLANE_WIDTH = 3 * 0.1100"
+            ),
             "TestRoutingStructures::test_reference_plane_widths_are_the_skill_default",
         ),
         (
-            "min_copper_width = 0.050",
-            "min_copper_width = 0.060",
+            replace_once("min_copper_width = 0.050", "min_copper_width = 0.060"),
             "TestFabRules::test_all_required_constraints_present_and_match_csv",
         ),
         (
             # D-BU's Dk in place of the report's Eps_eff on SE-DEFAULT L1/L20.
-            "eps_eff=2.4316,",
-            "eps_eff=2.96,",
+            replace_once("eps_eff=2.4316,", "eps_eff=2.96,"),
             "TestRoutingStructures::test_geometry_matches_csv",
         ),
         (
             # UV-6 is drilled from L20; this one starts on L19.
-            "start_layer = -1\n        stop_layer = -2\n",
-            "start_layer = -2\n        stop_layer = -1\n",
+            replace_once(
+                "start_layer = -1\n        stop_layer = -2\n",
+                "start_layer = -2\n        stop_layer = -1\n",
+            ),
             "TestVias::test_geometry_matches_csv",
         ),
         (
-            KIT_DIFF_DOC_END,
-            KIT_DIFF_DOC_END + "\n    hoisted = {diff}.uncoupled_region\n",
+            add_to_substrate("    hoisted = {diff}.uncoupled_region\n"),
             "TestRoutingStructures::test_uncoupled_rows_are_not_standalone_structures",
         ),
         (
-            'material_name = "Isola Astra MT77 prepreg 1035"',
-            'material_name = "Isola prepreg 1035"',
+            sub_once(r'(material_name = "[^"]*?)Astra MT77 ', r"\1"),
             "TestStackup::test_material_names_carry_the_csv_product",
         ),
         (
-            KIT_DIFF_DOC_END,
-            KIT_DIFF_DOC_END
-            + "\n    standard = RoutingStructure(\n"
-            + '        name="standard",\n'
-            + "        impedance=60.99 * ohm,\n"
-            + "        layers=_se_layers(\n"
-            + "            MICROSTRIP_LAYERS,\n"
-            + "            width=0.1500,\n"
-            + "            clearance=0.1500,\n"
-            + "            eps_eff=2.4316,\n"
-            + "            insertion_loss=0.00907,\n"
-            + "        ),\n"
-            + "    )\n",
+            add_to_substrate(STANDARD_STRUCTURE),
             "TestRoutingStructures::test_uncontrolled_rows_are_not_modelled",
         ),
         (
-            'name="L1-Signal"',
-            'name="L10-Signal"',
+            sub_once(r'name="L1(?!\d)', 'name="L10'),
             "TestStackup::test_copper_layers_named_by_function",
         ),
         (
-            # No roughness scalar, and a docstring without the drum-side Rz.
-            "    roughness = 0.0060\n",
-            "",
+            # No roughness scalar, and a docstring that states no Rz.
+            replace_once(
+                "    roughness = 0.0060\n", '    __doc__ = "No roughness stated."\n'
+            ),
             "TestStackup::test_material_properties_match_csv",
         ),
     ],
@@ -213,47 +247,62 @@ in the kit substrate's class body, where a mutant adds a class attribute."""
     ],
 )
 def test_renamed_kit_board_with_one_wrong_value_fails(
-    capsys: pytest.CaptureFixture[str], tmp_path: Path, old: str, new: str, owner: str
+    capsys: pytest.CaptureFixture[str], tmp_path: Path, mutate: Mutation, owner: str
 ) -> None:
-    source = renamed_kit_source()
-    assert old in source
-    new = new.replace("{diff}", differential_name(source))
-    code, out = grade(capsys, write(tmp_path, source.replace(old, new, 1)), KIT_CSV)
+    source = mutate(renamed_kit_source())
+    code, out = grade(capsys, write(tmp_path, source), KIT_CSV)
     assert code == 1, out[-3000:]
     assert owner in out
 
 
+def rz_on_a_foil_base_class(source: str) -> str:
+    """The CU-PLN class built on a foil base class that states its Rz, with no
+    roughness scalar anywhere."""
+    pattern = re.compile(
+        r"^class (\w+)\(Conductor\):\n(?=(?:(?:    .*)?\n)*?    roughness = 0\.0060\n)",
+        re.MULTILINE,
+    )
+    assert len(pattern.findall(source)) == 1
+    base = 'class RoughFoil(Conductor):\n    """Rz matte 6.0 um, drum 3.5 um."""\n\n\n'
+    source = pattern.sub(lambda m: base + f"class {m.group(1)}(RoughFoil):\n", source)
+    return source.replace("    roughness = 0.0060\n", "", 1)
+
+
 @needs_kit
 @pytest.mark.parametrize(
-    ("pattern", "replacement", "drop"),
+    "mutate",
     [
-        (r'name="L(\d+)-', r'name="L\1 ', ""),
-        (r'name="L(\d+)-', r'name="L\1_', ""),
-        (
-            r"(\n    Finished 35\.0 um = 0\.0350 mm\.)",
-            r"\1 Rz matte 6.0 um, drum 3.5 um.",
+        sub_once(r'name="L(\d+)-', r'name="L\1 '),
+        sub_once(r'name="L(\d+)-', r'name="L\1_'),
+        # The CU-PLN Rz values from testdata, stated in the docstring in place
+        # of the roughness scalar.
+        replace_once(
             "    roughness = 0.0060\n",
+            '    __doc__ = "Rz matte 6.0 um, drum 3.5 um."\n',
         ),
+        rz_on_a_foil_base_class,
     ],
     ids=[
         "layer names with a space",
         "layer names with an underscore",
         "Rz in the docstring and no roughness scalar",
+        "Rz on a foil base class and no roughness scalar",
     ],
 )
 def test_renamed_kit_board_written_another_way_passes(
-    capsys: pytest.CaptureFixture[str],
-    tmp_path: Path,
-    pattern: str,
-    replacement: str,
-    drop: str,
+    capsys: pytest.CaptureFixture[str], tmp_path: Path, mutate: Mutation
 ) -> None:
-    source = renamed_kit_source()
-    assert re.search(pattern, source)
-    assert drop in source
-    source = re.sub(pattern, replacement, source).replace(drop, "")
-    code, out = grade(capsys, write(tmp_path, source), KIT_CSV)
+    code, out = grade(capsys, write(tmp_path, mutate(renamed_kit_source())), KIT_CSV)
     assert code == 0, out[-3000:]
+
+
+def via_class_blocks(source: str) -> list[re.Match[str]]:
+    """Each nested ``Via`` class in the kit substrate, header to last body line."""
+    return list(
+        re.finditer(
+            r"^    class \w+\(Via\):\n(?:(?:        .*)?\n)*", source, re.MULTILINE
+        )
+    )
 
 
 KIT_TH_VIA = """        start_layer = Side.Top
@@ -295,12 +344,19 @@ def test_kit_report_and_board_edited_together_pass(
     source = renamed_kit_source()
     lines = KIT_CSV.read_text(encoding="utf-8").splitlines()
     if edit == "one laser via dropped":
+        row = next(line for line in lines if line.startswith("UV-5,"))
+        assert ",Laser,L5,L6," in row
         lines = edit_report(lines, "UV-5", None)
-        block = re.compile(
-            r'    class \w+\(Via\):\n        """UV-5 .*?(?=\n    class )', re.DOTALL
-        )
-        assert len(block.findall(source)) == 1
-        source = block.sub("", source)
+        # UV-5 is the laser via from L5 to L6: signed indices 4 and 5.
+        blocks = [
+            block
+            for block in via_class_blocks(source)
+            if "LaserDrill\n" in block.group()
+            and "start_layer = 4\n" in block.group()
+            and "stop_layer = 5\n" in block.group()
+        ]
+        assert len(blocks) == 1
+        source = source[: blocks[0].start()] + source[blocks[0].end() :]
     else:
         th_row = next(line for line in lines if line.startswith("TH-1,"))
         assert ",Resin,Yes,Both," in th_row
@@ -414,6 +470,112 @@ def test_grader_refuses_unset_or_blank_settings(
     assert message in done.stdout + done.stderr
 
 
+# A two-layer report and board, small enough to read at a glance. Graded on
+# the stackup tests alone, they show that the grader takes the layer count
+# from the report: a 20-layer pin from the JS1 report turns them red.
+
+TOY_REPORT = """SECTION,DOCUMENT
+Field,Value,Unit,Notes
+Layer count,2,copper layers,
+Overall thickness,1.070,mm,
+Finished thickness,1.070,mm,
+
+SECTION,STACKUP
+Seq,Type,Layer,Function,Material_ID,Thickness_mil,Thickness_mm,Dk,Df
+1,Copper,L1,Signal,CU,1.38,0.0350,,
+2,Dielectric,,Core,D-CORE,39.37,1.0000,4.00,0.0200
+3,Copper,L2,Plane - GND,CU,1.38,0.0350,,
+"""
+
+TOY_BOARD = """
+from jitx.stackup import Conductor, Dielectric, Stackup
+from jitx.substrate import Substrate
+
+
+class Core(Dielectric):
+    dielectric_coefficient = 4.00
+    loss_tangent = 0.0200
+    thickness = 1.0000
+
+
+class Foil(Conductor):
+    thickness = 0.0350
+
+
+class ToyStackup(Stackup):
+    top = Foil(name="L1-Signal")
+    core = Core(name="Core")
+    bottom = Foil(name="L2-GND")
+
+
+class Toy(Substrate):
+    stackup = ToyStackup()
+"""
+
+TOY_DATACLASS = (
+    """from __future__ import annotations
+
+from dataclasses import dataclass
+"""
+    + TOY_BOARD
+    + """
+
+@dataclass(frozen=True)
+class Note:
+    text: str
+"""
+)
+"""The toy board with string annotations and a dataclass, which is how a
+correct board imports differently from a plain module."""
+
+TOY_TESTS = (
+    "test_layer_count_and_order or test_copper_layers_named_by_function"
+    " or test_thickness_totals_match_document"
+)
+
+
+def grade_toy(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path, board_source: str
+) -> tuple[int, str]:
+    report = tmp_path / "toy.csv"
+    report.write_text(TOY_REPORT, encoding="utf-8")
+    board = write(tmp_path, board_source)
+    argv = ["grade_substrate.py", str(board), str(report), "-k", TOY_TESTS]
+    code = grade_substrate.main(argv)
+    return code, capsys.readouterr().out
+
+
+@needs_jitx
+def test_grader_reads_the_layer_count_from_the_report(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    code, out = grade_toy(capsys, tmp_path, TOY_BOARD)
+    assert code == 0, out[-3000:]
+    assert "3 passed" in out
+
+
+@needs_jitx
+def test_coloured_pytest_output_still_grades(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PY_COLORS", "1")
+    code, out = grade_toy(capsys, tmp_path, TOY_BOARD)
+    assert code == 0, out[-3000:]
+
+
+@needs_jitx
+def test_board_with_string_annotations_and_a_dataclass_imports(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """Dataclasses under ``from __future__ import annotations`` look their
+    module up in ``sys.modules``; the pre-flight must register it."""
+    code, out = grade_toy(capsys, tmp_path, TOY_DATACLASS)
+    assert code == 0, out[-3000:]
+    assert "does not import" not in out
+
+
 @needs_jitx
 def test_candidate_that_does_not_import_is_red(
     capsys: pytest.CaptureFixture[str], tmp_path: Path
@@ -427,6 +589,63 @@ def test_candidate_that_does_not_import_is_red(
     assert code == 1
     assert "FAIL  candidate does not import: jitx.dielectric (at board.py:1)" in out
     assert "No module named" not in out
+
+
+@needs_jitx
+def test_a_name_that_does_not_exist_is_red(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    board = write(tmp_path, "from jitx.units import kiloohm_typo\n" + MINIMAL_SUBSTRATE)
+    code, out = grade(capsys, board, CASE_CSV)
+    assert code == 1
+    assert (
+        "FAIL  candidate does not import: cannot import name 'kiloohm_typo' "
+        "from 'jitx.units' (at board.py:1)"
+    ) in out
+    assert "ImportError: cannot import name" not in out
+
+
+@needs_jitx
+def test_an_import_that_fails_inside_a_library_is_the_environment(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Nothing in the candidate's own files is wrong, so it is not a red."""
+    library = tmp_path / "library"
+    library.mkdir()
+    (library / "brokenlib.py").write_text(
+        "import a_dependency_that_is_not_installed\n", encoding="utf-8"
+    )
+    monkeypatch.setenv("PYTHONPATH", str(library))
+    candidate = tmp_path / "candidate"
+    candidate.mkdir()
+    board = write(candidate, "import brokenlib\n" + MINIMAL_SUBSTRATE)
+    code, out = grade(capsys, board, CASE_CSV)
+    assert code == 1
+    assert "ERROR  a library the candidate imports does not import" in out
+    assert "No module named 'a_dependency_that_is_not_installed'" in out
+    assert "candidate does not import" not in out
+
+
+@needs_jitx
+def test_a_missing_grader_dependency_is_the_environment(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """jitxlib is the grader's dependency, not jitx's, so it is checked too."""
+    shadow = tmp_path / "shadow"
+    shadow.mkdir()
+    (shadow / "jitxlib.py").write_text(
+        "raise ModuleNotFoundError(\"No module named 'jitxlib'\", name='jitxlib')\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("PYTHONPATH", str(shadow))
+    code, out = grade(capsys, write(tmp_path, MINIMAL_SUBSTRATE), CASE_CSV)
+    assert code == 1
+    assert "ERROR  the grader needs jitxlib.physics" in out
+    assert "No module named 'jitxlib'" in out
 
 
 def test_a_skipped_grader_test_is_red(

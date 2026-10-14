@@ -14,8 +14,10 @@ Every expected value is read from the report at test time. Layer count, via
 inventory, impedance targets, routing layers and fab-rule count all come from
 the CSV; none is pinned here. The grader does assume the report is in the
 JITX fab-report SECTION layout (DOCUMENT, MATERIALS_DIELECTRIC,
-MATERIALS_COPPER, STACKUP, VIAS, IMPEDANCE, FAB_RULES, NOTES, with that
-layout's column headers) and that it holds these:
+MATERIALS_COPPER, STACKUP, VIAS, IMPEDANCE, FAB_RULES, NOTES), with at least
+the column headers it reads. Columns are read by name, so a report may carry
+more; the case report adds Manufacturer and Product to MATERIALS_COPPER. It
+also assumes the report holds these:
 
 - FAB_RULES has exactly one capability row (no JITX field) for each of the
   mechanical drill minimum, the mechanical aspect-ratio maximum and the laser
@@ -61,7 +63,6 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
-import inspect
 import os
 import re
 import sys
@@ -79,10 +80,6 @@ import fabcsv
 # the loader needs it once at import to see the candidate's stackup and rules.
 from jitx._instantiation import instantiation
 
-# `Proxy` is private; `decompose` hands back proxies, and `Proxy.type` is how
-# jitx.inspect itself reads the class behind one, here to read its docstring.
-from jitx._structural import Proxy
-
 # `package_design` is private; jitx.test.TestCase supplies the instantiation
 # context but exposes no public translate entry point.
 from jitx._translate.design import package_design
@@ -90,6 +87,7 @@ from jitx.board import Board
 from jitx.circuit import Circuit
 from jitx.design import Design
 from jitx.inspect import decompose
+from jitx.proxy import typeof
 from jitx.shapes import Shape
 from jitx.shapes.composites import rectangle
 
@@ -830,18 +828,26 @@ class TestStackup(TestCase):
                 translated_roughness, expected, places=6, msg=f"{where} Rz_matte_um"
             )
             return
-        klass = Proxy.type(conductor)
-        doc = inspect.getdoc(klass) or ""
-        # Numbers standing on their own: the 5 in a product code like "AF-R5"
+        # `decompose` hands back proxies; `typeof` is the class behind one.
+        klass = typeof(conductor)
+        # The candidate's own classes along the MRO, so Rz stated once on a
+        # foil base class counts for every class built on it.
+        docs = [
+            vars(cls).get("__doc__") or ""
+            for cls in klass.__mro__
+            if cls.__module__.split(".")[0] not in ("jitx", "builtins")
+        ]
+        # Numbers standing on their own: the 5 in a product code like "WF-R5"
         # is not a roughness.
-        numbers = re.findall(r"(?<![\w.])\d+(?:\.\d+)?", doc)
+        numbers = re.findall(r"(?<![\w.])\d+(?:\.\d+)?", "\n".join(docs))
         stated = {float(number) for number in numbers}
         for column in ("Rz_matte_um", "Rz_drum_um"):
             self.assertIn(
                 float(declared[column]),
                 stated,
                 f"{where} {column} {declared[column]} um: {klass.__name__} sets "
-                "no roughness scalar, so its docstring must state this value",
+                "no roughness scalar, so its docstring, or a docstring of a "
+                "class it is built on, must state this value",
             )
 
     def test_distinct_dielectrics_are_not_collapsed(self) -> None:
