@@ -10,20 +10,32 @@ Run it through ``grade_substrate.py``, or directly as
 - ``SUBSTRATE_CLASS``: optional. Picks the ``Substrate`` subclass when the
   file defines several. Set but blank is an error.
 
-Every expected value is read from the report at test time. Nothing about any
-one report is pinned here: layer count, via inventory, impedance targets,
-routing layers and fab-rule count all come from the CSV, so the same grader
-grades a substrate for any report written in the JITX fab-report SECTION
-layout (DOCUMENT, MATERIALS_DIELECTRIC, MATERIALS_COPPER, STACKUP, VIAS,
-IMPEDANCE, FAB_RULES, NOTES, with that layout's column headers). The
-capability-limit rows are found by their Rule text (a mechanical drill
-minimum, a mechanical and a laser aspect-ratio maximum).
+Every expected value is read from the report at test time. Layer count, via
+inventory, impedance targets, routing layers and fab-rule count all come from
+the CSV; none is pinned here. The grader does assume the report is in the
+JITX fab-report SECTION layout (DOCUMENT, MATERIALS_DIELECTRIC,
+MATERIALS_COPPER, STACKUP, VIAS, IMPEDANCE, FAB_RULES, NOTES, with that
+layout's column headers) and that it holds these:
+
+- FAB_RULES has exactly one capability row (no JITX field) for each of the
+  mechanical drill minimum, the mechanical aspect-ratio maximum and the laser
+  aspect-ratio maximum, found by their Rule text, and the mechanical drill
+  minimum is above ``min_drill_diameter``, which holds the laser minimum.
+- Every inner routing layer has two reference planes, one on each side, and
+  an outer routing layer has one.
+- A reference plane's height is summed over the STACKUP rows between line and
+  plane. For a plane that is not adjacent to its line, that sum includes the
+  copper between them, where SKILL.md sums the dielectric only; the two agree
+  wherever every plane is adjacent, as in both reports the self-tests use.
 
 What it checks, against the report:
 
 - Stackup: one entry per STACKUP row in order, copper or dielectric as the
-  row says, thickness, Dk, Df and matte-side roughness, both thickness totals
-  in DOCUMENT, copper layers named for their layer id, distinct dielectric
+  row says, thickness, Dk and Df, copper roughness (the deprecated
+  ``roughness`` scalar equal to matte Rz in mm, or, where it is not set, matte
+  and drum Rz in the copper class's docstring), both thickness totals in
+  DOCUMENT, copper
+  layers named for their layer id, distinct dielectric
   rows kept distinct, each dielectric's ``material_name`` carrying its
   MATERIALS_DIELECTRIC Product, and mirrored rows mirrored in the design.
 - Vias: exactly the VIAS inventory, found by drill type and span rather than
@@ -49,6 +61,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import inspect
 import os
 import re
 import sys
@@ -65,6 +78,10 @@ import fabcsv
 # `instantiation` is private; it is the context jitx.test.TestCase enters, and
 # the loader needs it once at import to see the candidate's stackup and rules.
 from jitx._instantiation import instantiation
+
+# `Proxy` is private; `decompose` hands back proxies, and `Proxy.type` is how
+# jitx.inspect itself reads the class behind one, here to read its docstring.
+from jitx._structural import Proxy
 
 # `package_design` is private; jitx.test.TestCase supplies the instantiation
 # context but exposes no public translate entry point.
@@ -717,11 +734,14 @@ class TestStackup(TestCase):
         copper_rows = [r for r in sections()["STACKUP"] if r["Type"] == "Copper"]
         for row, layer in zip(copper_rows, conductors, strict=True):
             with self.subTest(layer=row["Layer"]):
-                # "L3-Signal" / "L2-GND": the CSV layer id leads the name so
-                # the UI cross-section reads in the report's own terms.
-                self.assertTrue(
-                    (layer.name or "").startswith(row["Layer"] + "-"),
-                    f"{layer.name!r} should start with {row['Layer']!r}",
+                # "L3-Signal", "L3 Signal", "L3_GND": the CSV layer id leads the
+                # name so the UI cross-section reads in the report's own terms.
+                # The id must end there, so "L10-Signal" does not name L1.
+                self.assertRegex(
+                    layer.name or "",
+                    rf"^{re.escape(row['Layer'])}(?!\d)",
+                    f"{layer.name!r} should start with {row['Layer']!r}, "
+                    "not followed by another digit",
                 )
 
     def test_thickness_totals_match_document(self) -> None:
@@ -754,6 +774,7 @@ class TestStackup(TestCase):
         rows = sections()["STACKUP"]
         self.assertEqual(len(proto_layers), len(rows))
 
+        conductors = iter(decompose(candidate().stackup, Conductor))
         for row, proto in zip(rows, proto_layers, strict=True):
             material = by_id[proto.material]
             declared = materials()[row["Material_ID"]]
@@ -761,13 +782,10 @@ class TestStackup(TestCase):
                 seq=row["Seq"], material=row["Material_ID"], candidate=proto.name
             ):
                 if row["Type"] == "Copper":
-                    # Rz is quoted in um on the matte side; JITX wants mm.
-                    self.assertAlmostEqual(
-                        material.roughness,
-                        float(declared["Rz_matte_um"]) / 1000.0,
-                        places=6,
-                        msg=f"MATERIALS_COPPER {row['Material_ID']} Rz_matte_um",
-                    )
+                    conductor = next(conductors, None)
+                    if conductor is None:
+                        self.fail("fewer Conductor entries than STACKUP copper rows")
+                    self.assert_roughness(conductor, material.roughness, row)
                     # oz is nominal; the electrical model uses finished thickness.
                     self.assertAlmostEqual(
                         proto.thickness,
@@ -789,6 +807,42 @@ class TestStackup(TestCase):
                         places=6,
                         msg=f"STACKUP seq {row['Seq']} Df",
                     )
+
+    def assert_roughness(
+        self, conductor: Conductor, translated_roughness: float, row: dict[str, str]
+    ) -> None:
+        """Copper roughness, on the convention SKILL.md sets.
+
+        The ``roughness`` scalar is slated for deprecation, so it is optional.
+        Where it is set, it is matte Rz in mm, and it reaches the translated
+        material. Where it is not, the class docstring, the durable record,
+        must carry the matte and drum Rz in um as the report writes them.
+        """
+        declared = materials()[row["Material_ID"]]
+        where = f"MATERIALS_COPPER {row['Material_ID']}"
+        if conductor.roughness is not None:
+            # Rz is quoted in um on the matte side; the scalar is read as mm.
+            expected = float(declared["Rz_matte_um"]) / 1000.0
+            self.assertAlmostEqual(
+                conductor.roughness, expected, places=6, msg=f"{where} Rz_matte_um"
+            )
+            self.assertAlmostEqual(
+                translated_roughness, expected, places=6, msg=f"{where} Rz_matte_um"
+            )
+            return
+        klass = Proxy.type(conductor)
+        doc = inspect.getdoc(klass) or ""
+        # Numbers standing on their own: the 5 in a product code like "AF-R5"
+        # is not a roughness.
+        numbers = re.findall(r"(?<![\w.])\d+(?:\.\d+)?", doc)
+        stated = {float(number) for number in numbers}
+        for column in ("Rz_matte_um", "Rz_drum_um"):
+            self.assertIn(
+                float(declared[column]),
+                stated,
+                f"{where} {column} {declared[column]} um: {klass.__name__} sets "
+                "no roughness scalar, so its docstring must state this value",
+            )
 
     def test_distinct_dielectrics_are_not_collapsed(self) -> None:
         """Every declared (Dk, Df) pair survives into the design, and there are

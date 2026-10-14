@@ -4,11 +4,19 @@
 Usage:
   grade_substrate.py BOARD_PY CSV [-k SELECTION]
 
-Runs ``pytest -q -W always`` on substrate_grader.py, beside this script, with
-this interpreter, SUBSTRATE_FILE=BOARD_PY and FAB_CSV=CSV, and passes only
-when both hold:
+First imports BOARD_PY on its own, with this interpreter. A candidate that
+does not import (a module or name that does not exist, an error at class
+definition) is a red: "FAIL  candidate does not import: <module>". Only a
+missing jitx or pytest, which no candidate can fix, is reported in Python's
+own "No module named" wording.
+
+Then runs ``pytest -q -W always`` on substrate_grader.py, beside this script,
+with this interpreter, SUBSTRATE_FILE=BOARD_PY and FAB_CSV=CSV, and passes
+only when all of these hold:
 
 - pytest exits 0, with at least one test selected;
+- every selected test passed: a skipped, xfailed or xpassed test is not a
+  graded one, so any of those is a red;
 - the grader's ``GradedTarget`` warning names BOARD_PY as the substrate file
   and CSV as the fab report.
 
@@ -32,11 +40,57 @@ from pathlib import Path
 
 GRADER = Path(__file__).resolve().parent / "substrate_grader.py"
 GRADED = re.compile(r"GradedTarget: substrate (\S+) from (.+); fab report (.+)$")
-PASSED = re.compile(r"\b(\d+) passed\b")
+SUMMARY = re.compile(r"^=*\s*(\d+ [\w ]+?(?:, \d+ [\w ]+?)*) in [\d.]+s\b")
+COUNT = re.compile(r"(\d+) ([\w ]+)")
+GREEN_OUTCOMES = {"passed", "subtests passed", "warning", "warnings", "deselected"}
+"""Summary outcomes a green run may report. Anything else (skipped, xfailed,
+xpassed, subtests skipped, and the failures) means a test went ungraded."""
+
+PREFLIGHT = """
+import importlib.util, sys, traceback
+from pathlib import Path
+for needed in ("jitx", "pytest"):
+    if importlib.util.find_spec(needed) is None:
+        print(f"No module named {needed!r}")
+        sys.exit(3)
+board = Path(sys.argv[1]).resolve()
+sys.path.insert(0, str(board.parent))
+spec = importlib.util.spec_from_file_location("_candidate_preflight", board)
+module = importlib.util.module_from_spec(spec)
+try:
+    spec.loader.exec_module(module)
+except BaseException as error:
+    if isinstance(error, ImportError) and error.name:
+        what = error.name
+    else:
+        what = f"{type(error).__name__}: {error}"
+    lines = [
+        f"{Path(frame.filename).name}:{frame.lineno}"
+        for frame in traceback.extract_tb(error.__traceback__)
+        if Path(frame.filename).resolve() == board
+    ]
+    where = f" (at {lines[-1]})" if lines else ""
+    print(f"FAIL  candidate does not import: {what}{where}")
+    sys.exit(1)
+"""
+"""Imports the candidate in a child interpreter. Exit 3 names a missing jitx
+or pytest; exit 1 is a candidate that does not import, reported without
+Python's own wording so a harness does not read it as an environment error."""
 
 
 def same_file(reported: str, given: Path) -> bool:
     return Path(reported.strip()).expanduser().resolve() == given.resolve()
+
+
+def summary_counts(output: str) -> dict[str, int]:
+    """Outcome -> count, from the last pytest summary line in ``output``."""
+    found = [m for line in output.splitlines() if (m := SUMMARY.match(line.strip()))]
+    if not found:
+        return {}
+    return {
+        outcome.strip(): int(number)
+        for number, outcome in COUNT.findall(found[-1].group(1))
+    }
 
 
 def main(argv: list[str]) -> int:
@@ -59,6 +113,15 @@ def main(argv: list[str]) -> int:
         return 2
     if not board.is_file():
         print(f"FAIL  {board} does not exist")
+        return 1
+    preflight = subprocess.run(
+        [sys.executable, "-c", PREFLIGHT, str(board)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if preflight.returncode != 0:
+        print(preflight.stdout.strip() or f"FAIL  {board} does not import")
         return 1
     # Absolute, because the grader runs from its own directory.
     env = {
@@ -92,10 +155,15 @@ def main(argv: list[str]) -> int:
     output = done.stdout + done.stderr
     print(output, end="" if output.endswith("\n") else "\n")
     problems: list[str] = []
+    counts = summary_counts(output)
     if done.returncode != 0:
         problems.append(f"the grader exited {done.returncode}")
-    elif not PASSED.search(output):
+    elif not counts.get("passed"):
         problems.append("the grader selected no tests")
+    ungraded = {k: v for k, v in counts.items() if k not in GREEN_OUTCOMES}
+    if done.returncode == 0 and ungraded:
+        listed = ", ".join(f"{v} {k}" for k, v in ungraded.items())
+        problems.append(f"the grader reported {listed}; only a passed test is graded")
     graded = [match for line in output.splitlines() if (match := GRADED.search(line))]
     if not graded:
         problems.append(

@@ -1,7 +1,7 @@
 """Read a fab stackup report CSV in the JITX SECTION layout.
 
-Shared by the substrate eval checks. Stdlib only, so the checks that need no
-JITX install (check_csv_edit.py) can use it too.
+Shared by the substrate eval checks. Stdlib only, so a check that needs no
+JITX install can use it too.
 """
 
 from __future__ import annotations
