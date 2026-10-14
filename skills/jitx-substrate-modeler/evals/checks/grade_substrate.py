@@ -2,7 +2,7 @@
 """Grade a candidate substrate against a fab report, and fail unless it graded it.
 
 Usage:
-  grade_substrate.py BOARD_PY CSV [-k SELECTION]
+  grade_substrate.py BOARD_PY CSV [-k SELECTION] [--timeout SECONDS]
 
 First imports BOARD_PY on its own, with this interpreter, through
 import_candidate.py. A candidate that does not import (a module or name that
@@ -28,6 +28,11 @@ file, or graded nothing, is not a pass. SUBSTRATE_CLASS and PYTEST_ADDOPTS
 are removed from the environment, so a stray value cannot pick a class or
 deselect tests.
 
+Each child (the pre-flight, then pytest) runs in its own process group and
+has --timeout seconds (default 300). A child that runs longer, such as a
+board that hangs at import, is a red: the whole group is killed, so nothing
+it started keeps running, and the FAIL line says which stage did not finish.
+
 Exit codes: 0 graded and green / 1 red, or not graded / 2 usage error (a
 missing or blank argument, or a CSV that is not a file).
 """
@@ -37,9 +42,11 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import signal
 import subprocess
 import sys
 from pathlib import Path
+from types import FrameType
 
 GRADER = Path(__file__).resolve().parent / "substrate_grader.py"
 GRADED = re.compile(r"GradedTarget: substrate (\S+) from (.+); fab report (.+)$")
@@ -51,6 +58,51 @@ xpassed, subtests skipped, and the failures) means a test went ungraded."""
 
 PREFLIGHT = Path(__file__).resolve().parent / "import_candidate.py"
 """Imports the candidate in a child interpreter first; see its docstring."""
+
+TIMEOUT_S = 300.0
+"""Seconds each child may run. Grading a correct board takes a few."""
+
+
+def kill_group(child: subprocess.Popen[str]) -> None:
+    """Kill the child's whole process group, then reap the child."""
+    try:
+        os.killpg(child.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    child.wait()
+    for stream in (child.stdout, child.stderr):
+        if stream is not None:
+            stream.close()
+
+
+def run_child(
+    command: list[str],
+    *,
+    timeout: float,
+    env: dict[str, str] | None = None,
+    cwd: Path | None = None,
+) -> subprocess.CompletedProcess[str] | None:
+    """Run a child in its own process group and capture its output. None when
+    it outlives ``timeout``; the group is killed first, and also when this
+    process is interrupted or terminated while it waits."""
+    child = subprocess.Popen(
+        command,
+        env=env,
+        cwd=cwd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
+    try:
+        stdout, stderr = child.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        kill_group(child)
+        return None
+    except BaseException:
+        kill_group(child)
+        raise
+    return subprocess.CompletedProcess(command, child.returncode, stdout, stderr)
 
 
 def same_file(reported: str, given: Path) -> bool:
@@ -75,12 +127,16 @@ def main(argv: list[str]) -> int:
     parser.add_argument("board")
     parser.add_argument("csv")
     parser.add_argument("-k", dest="selection")
+    parser.add_argument("--timeout", type=float, default=TIMEOUT_S)
     try:
         args = parser.parse_args(argv[1:])
     except SystemExit as error:
         return 2 if error.code else 0
     if not args.board.strip() or not args.csv.strip():
         print("error: BOARD_PY and CSV must not be blank", file=sys.stderr)
+        return 2
+    if not args.timeout > 0:
+        print("error: --timeout must be a positive number of seconds", file=sys.stderr)
         return 2
     board, csv_file = Path(args.board.strip()), Path(args.csv.strip())
     if not csv_file.is_file():
@@ -89,12 +145,15 @@ def main(argv: list[str]) -> int:
     if not board.is_file():
         print(f"FAIL  {board} does not exist")
         return 1
-    preflight = subprocess.run(
-        [sys.executable, str(PREFLIGHT), str(board)],
-        capture_output=True,
-        text=True,
-        check=False,
+    preflight = run_child(
+        [sys.executable, str(PREFLIGHT), str(board)], timeout=args.timeout
     )
+    if preflight is None:
+        print(
+            f"FAIL  the import pre-flight did not finish within {args.timeout:g} s: "
+            f"importing {board} hangs or takes too long"
+        )
+        return 1
     if preflight.returncode != 0:
         verdict = preflight.stdout.strip()
         if not verdict:
@@ -127,14 +186,13 @@ def main(argv: list[str]) -> int:
     ]
     if args.selection:
         command += ["-k", args.selection]
-    done = subprocess.run(
-        command,
-        env=env,
-        cwd=GRADER.parent,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    done = run_child(command, timeout=args.timeout, env=env, cwd=GRADER.parent)
+    if done is None:
+        print(
+            f"FAIL  the grader did not finish within {args.timeout:g} s, so it "
+            f"did not grade {board}"
+        )
+        return 1
     output = done.stdout + done.stderr
     print(output, end="" if output.endswith("\n") else "\n")
     problems: list[str] = []
@@ -166,5 +224,11 @@ def main(argv: list[str]) -> int:
     return 1 if problems else 0
 
 
+def stop(signum: int, frame: FrameType | None) -> None:
+    """SIGTERM as an exception, so a child's process group is killed too."""
+    raise SystemExit(128 + signum)
+
+
 if __name__ == "__main__":
+    signal.signal(signal.SIGTERM, stop)
     sys.exit(main(sys.argv))

@@ -25,6 +25,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from collections.abc import Callable
 from pathlib import Path
 
@@ -222,7 +223,7 @@ STANDARD_STRUCTURE = """    standard = RoutingStructure(
         ),
         (
             sub_once(r'name="L1(?!\d)', 'name="L10'),
-            "TestStackup::test_copper_layers_named_by_function",
+            "TestStackup::test_copper_layer_names_start_with_the_layer_id",
         ),
         (
             # No roughness scalar, and a docstring that states no Rz.
@@ -591,7 +592,7 @@ class Note:
 correct board imports differently from a plain module."""
 
 TOY_TESTS = (
-    "test_layer_count_and_order or test_copper_layers_named_by_function"
+    "test_layer_count_and_order or test_copper_layer_names_start_with_the_layer_id"
     " or test_thickness_totals_match_document"
     " or test_inventory_is_exactly_the_csv_via_table"
     " or test_laser_vias_are_exactly_the_laser_rows"
@@ -640,6 +641,66 @@ def test_board_with_string_annotations_and_a_dataclass_imports(
     code, out = grade_toy(capsys, tmp_path, TOY_DATACLASS)
     assert code == 0, out[-3000:]
     assert "does not import" not in out
+
+
+@needs_jitx
+def test_a_board_that_silences_warnings_still_grades(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """The grader reports what it graded through a warning; a board that
+    filters warnings at import must not hide it."""
+    source = 'import warnings\nwarnings.filterwarnings("ignore")\n' + TOY_BOARD
+    code, out = grade_toy(capsys, tmp_path, source)
+    assert code == 0, out[-3000:]
+
+
+HANG = """
+import os, subprocess, sys
+from pathlib import Path
+
+if {when}:
+    sleeper = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(120)"])
+    Path(__file__).with_name("pids.txt").write_text(f"{{os.getpid()}} {{sleeper.pid}}")
+{board}
+if {when}:
+    # Iterating a stackup outside an instantiation context never returns.
+    assert len(list(ToyStackup().conductors)) == 2
+"""
+
+
+def gone(pid: int) -> bool:
+    """Whether no process has this id, allowing a moment for reaping."""
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return True
+        time.sleep(0.1)
+    return False
+
+
+@needs_jitx
+@pytest.mark.parametrize(
+    ("when", "stage"),
+    [("True", "the import pre-flight"), ('os.environ.get("FAB_CSV")', "the grader")],
+    ids=["hangs at import", "hangs under the grader"],
+)
+def test_a_board_that_hangs_is_red_and_leaves_nothing_running(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path, when: str, stage: str
+) -> None:
+    report = tmp_path / "toy.csv"
+    report.write_text(TOY_REPORT, encoding="utf-8")
+    board = write(tmp_path, HANG.format(when=when, board=TOY_BOARD))
+    argv = ["grade_substrate.py", str(board), str(report), "--timeout", "10"]
+    code = grade_substrate.main(argv)
+    out = capsys.readouterr().out
+    assert code == 1, out[-3000:]
+    assert f"FAIL  {stage} did not finish within 10 s" in out
+    pids = (tmp_path / "pids.txt").read_text(encoding="utf-8").split()
+    assert len(pids) == 2
+    for pid in pids:
+        assert gone(int(pid)), f"process {pid} is still running"
 
 
 @needs_jitx
@@ -838,7 +899,7 @@ def test_a_preflight_that_prints_no_verdict_shows_its_stderr(
         crash = "Traceback (most recent call last):\nRuntimeError: pre-flight broke\n"
         return subprocess.CompletedProcess(command, 1, "", crash)
 
-    monkeypatch.setattr(grade_substrate.subprocess, "run", fake_run)
+    monkeypatch.setattr(grade_substrate, "run_child", fake_run)
     code, out = grade(capsys, board, CASE_CSV)
     assert code == 1
     assert "RuntimeError: pre-flight broke" in out
@@ -858,10 +919,55 @@ def test_a_skipped_grader_test_is_red(
         summary = "31 passed, 1 skipped, 1 warning, 260 subtests passed in 0.40s"
         return subprocess.CompletedProcess(command, 0, f"{graded}\n{summary}\n", "")
 
-    monkeypatch.setattr(grade_substrate.subprocess, "run", fake_run)
+    monkeypatch.setattr(grade_substrate, "run_child", fake_run)
     code, out = grade(capsys, board, CASE_CSV)
     assert code == 1, out
     assert "FAIL  the grader reported 1 skipped" in out
+
+
+GREEN_SUMMARY = "32 passed, 1 warning, 260 subtests passed in 0.40s"
+
+
+@pytest.mark.parametrize(
+    ("graded", "verdict"),
+    [
+        (
+            "GradedTarget: substrate Minimal from {board}; fab report {csv}",
+            "PASS  the grader graded {board} against {csv}",
+        ),
+        (
+            "GradedTarget: substrate Minimal from {other}; fab report {csv}",
+            "FAIL  the grader graded {other}, not {board}",
+        ),
+        (
+            "GradedTarget: substrate Minimal from {board}; fab report {other}",
+            "FAIL  the grader read the fab report {other}, not {csv}",
+        ),
+        ("", "FAIL  the grader printed no GradedTarget line"),
+    ],
+    ids=["the right files", "another board", "another report", "no GradedTarget"],
+)
+def test_a_green_run_passes_only_if_it_graded_the_given_files(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    graded: str,
+    verdict: str,
+) -> None:
+    """The fail-closed guard: an all-green summary is not a pass unless the
+    grader says it graded this board against this report."""
+    board = write(tmp_path, MINIMAL_SUBSTRATE)
+    other = tmp_path / "other.py"
+    names = {"board": board, "csv": CASE_CSV, "other": other}
+
+    def fake_run(command: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        output = f"{graded.format(**names)}\n{GREEN_SUMMARY}\n"
+        return subprocess.CompletedProcess(command, 0, output, "")
+
+    monkeypatch.setattr(grade_substrate, "run_child", fake_run)
+    code, out = grade(capsys, board, CASE_CSV)
+    assert verdict.format(**names) in out
+    assert code == (0 if verdict.startswith("PASS") else 1), out
 
 
 @pytest.mark.parametrize(
