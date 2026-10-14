@@ -7,9 +7,11 @@ Usage:
 First imports BOARD_PY on its own, with this interpreter, through
 import_candidate.py. A candidate that does not import (a module or name that
 does not exist, an error at class definition) is a red: "FAIL  candidate
-does not import: <what>". A grader dependency that is missing, or an import
-that fails inside a library rather than in the candidate, is reported in
-Python's own wording, which eval harnesses read as an environment problem.
+does not import: <what>". A grader dependency that does not import, or an
+import that fails inside a library rather than in the candidate's own files,
+is an ``ERROR  `` line in Python's own wording: an environment problem, not
+the candidate's. A pre-flight that crashes without a verdict is shown with
+its stderr.
 
 Then runs ``pytest -q -W always`` on substrate_grader.py, beside this script,
 with this interpreter, SUBSTRATE_FILE=BOARD_PY and FAB_CSV=CSV, and passes
@@ -94,7 +96,14 @@ def main(argv: list[str]) -> int:
         check=False,
     )
     if preflight.returncode != 0:
-        print(preflight.stdout.strip() or f"FAIL  {board} does not import")
+        verdict = preflight.stdout.strip()
+        if not verdict:
+            # The pre-flight crashed before judging the candidate: show why.
+            verdict = (
+                f"ERROR  the import pre-flight gave no verdict (exit "
+                f"{preflight.returncode}):\n{preflight.stderr.strip()}"
+            )
+        print(verdict)
         return 1
     # Absolute, because the grader runs from its own directory.
     env = {

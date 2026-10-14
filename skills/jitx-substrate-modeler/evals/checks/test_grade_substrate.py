@@ -471,12 +471,15 @@ def test_grader_refuses_unset_or_blank_settings(
 
 
 # A two-layer report and board, small enough to read at a glance. Graded on
-# the stackup tests alone, they show that the grader takes the layer count
-# from the report: a 20-layer pin from the JS1 report turns them red.
+# the stackup, via and reference-plane tests, they show that the grader takes
+# the layer count from the report: a 20-layer count from the JS1 report, in
+# the stackup tests or in the layer arithmetic that numbers a bottom-side via
+# end or a plane written as a negative index, turns them red.
 
 TOY_REPORT = """SECTION,DOCUMENT
 Field,Value,Unit,Notes
 Layer count,2,copper layers,
+Board size,20.0 x 10.0,mm,1.0 mm corner radius
 Overall thickness,1.070,mm,
 Finished thickness,1.070,mm,
 
@@ -485,11 +488,24 @@ Seq,Type,Layer,Function,Material_ID,Thickness_mil,Thickness_mm,Dk,Df
 1,Copper,L1,Signal,CU,1.38,0.0350,,
 2,Dielectric,,Core,D-CORE,39.37,1.0000,4.00,0.0200
 3,Copper,L2,Plane - GND,CU,1.38,0.0350,,
+
+SECTION,VIAS
+Via_ID,Structure,Drill,From_layer,To_layer,Finished_hole_mil,Finished_hole_mm,Pad_mil,Pad_mm,Depth_mm,Aspect_ratio,Annular_ring_mm,Fill,Capped,Tented,Via_in_pad,Notes
+TH-1,Through,Mechanical,L1,L2,11.81,0.300,23.62,0.600,1.070,3.57,0.150,None,No,Both,No,
+
+SECTION,IMPEDANCE
+Structure_ID,Controlled,Type,Target_Z_ohm,Tolerance_pct,Layers,Geometry,Line_width_mil,Line_width_mm,Pair_gap_mm,Clearance_mm,Ref_layers,Modelled_Z_ohm,Eps_eff,Delay_ps_per_mm,Loss_dB_per_mm,Neck_width_mm,Neck_gap_mm,Neck_clearance_mm,Neck_modelled_Z_ohm
+SE-50,Yes,Single-ended,50,10,L1,Microstrip,7.87,0.2000,,0.4000,L2 for L1,50.00,3.0000,5.7775,0.01000,,,,
 """
 
 TOY_BOARD = """
+from jitx.layerindex import Side
+from jitx.si import RoutingStructure
 from jitx.stackup import Conductor, Dielectric, Stackup
-from jitx.substrate import Substrate
+from jitx.substrate import FabricationConstraints, Substrate
+from jitx.units import ohm
+from jitx.via import Via, ViaType
+from jitxlib.physics import phase_velocity
 
 
 class Core(Dielectric):
@@ -508,8 +524,54 @@ class ToyStackup(Stackup):
     bottom = Foil(name="L2-GND")
 
 
+class ToyRules(FabricationConstraints):
+    min_copper_width = 0.100
+    min_copper_copper_space = 0.100
+    min_copper_hole_space = 0.200
+    min_copper_edge_space = 0.300
+    min_annular_ring = 0.100
+    min_drill_diameter = 0.200
+    min_pitch_leaded = 0.500
+    min_pitch_bga = 0.500
+    max_board_width = 400.0
+    max_board_height = 400.0
+    min_silkscreen_width = 0.150
+    min_silk_solder_mask_space = 0.150
+    min_silkscreen_text_height = 0.800
+    solder_mask_registration = 0.050
+    min_soldermask_opening = 0.100
+    min_soldermask_bridge = 0.100
+    min_th_pad_expand_outer = 0.100
+    min_hole_to_hole = 0.300
+    min_pth_pin_solder_clearance = 0.200
+
+
 class Toy(Substrate):
     stackup = ToyStackup()
+    constraints = ToyRules()
+
+    class Through(Via):
+        type = ViaType.MechanicalDrill
+        start_layer = Side.Top
+        stop_layer = Side.Bottom
+        diameter = 0.600
+        hole_diameter = 0.300
+        filled = False
+        tented = True
+
+    # The plane is written as -1, which only the report's layer count makes L2.
+    fifty = RoutingStructure(
+        name="50 ohm",
+        impedance=50 * ohm,
+        layers={
+            0: RoutingStructure.Layer(
+                trace_width=0.2000,
+                clearance=0.4000,
+                velocity=phase_velocity(3.0000),
+                insertion_loss=0.01000,
+            ).reference({-1: 3.0})
+        },
+    )
 """
 
 TOY_DATACLASS = (
@@ -531,6 +593,10 @@ correct board imports differently from a plain module."""
 TOY_TESTS = (
     "test_layer_count_and_order or test_copper_layers_named_by_function"
     " or test_thickness_totals_match_document"
+    " or test_inventory_is_exactly_the_csv_via_table"
+    " or test_laser_vias_are_exactly_the_laser_rows"
+    " or test_geometry_matches_csv or test_layer_coverage"
+    " or test_reference_planes_match_csv_ref_layers"
 )
 
 
@@ -551,7 +617,7 @@ def test_grader_reads_the_layer_count_from_the_report(
 ) -> None:
     code, out = grade_toy(capsys, tmp_path, TOY_BOARD)
     assert code == 0, out[-3000:]
-    assert "3 passed" in out
+    assert "9 passed" in out
 
 
 @needs_jitx
@@ -648,6 +714,137 @@ def test_a_missing_grader_dependency_is_the_environment(
     assert "No module named 'jitxlib'" in out
 
 
+@needs_jitx
+def test_a_helper_beside_the_board_with_a_wrong_import_is_red(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """A file beside the board is the candidate's own, wherever the import
+    fails inside it."""
+    (tmp_path / "helpers.py").write_text(
+        "from jitx.dielectric import Laminate\n", encoding="utf-8"
+    )
+    board = write(tmp_path, "import helpers\n" + MINIMAL_SUBSTRATE)
+    code, out = grade(capsys, board, CASE_CSV)
+    assert code == 1
+    assert "FAIL  candidate does not import: jitx.dielectric (at board.py:1)" in out
+
+
+@needs_jitx
+def test_a_helper_the_board_puts_on_the_path_is_the_candidates(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """A directory the board adds to sys.path holds the candidate's own files,
+    even outside the board's directory."""
+    shared = tmp_path / "shared"
+    shared.mkdir()
+    (shared / "shared_materials.py").write_text(
+        "from jitx.dielectric import Laminate\n", encoding="utf-8"
+    )
+    candidate = tmp_path / "candidate"
+    candidate.mkdir()
+    board = write(
+        candidate,
+        "import sys, pathlib\n"
+        "sys.path.insert(0, str(pathlib.Path(__file__).parent.parent / 'shared'))\n"
+        "import shared_materials\n" + MINIMAL_SUBSTRATE,
+    )
+    code, out = grade(capsys, board, CASE_CSV)
+    assert code == 1
+    assert "FAIL  candidate does not import: jitx.dielectric (at board.py:3)" in out
+
+
+@needs_jitx
+def test_the_boards_own_import_module_call_is_red(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """importlib's own frames are machinery, not a library at fault."""
+    board = write(
+        tmp_path,
+        "import importlib\nimportlib.import_module('jitx.dielectric')\n"
+        + MINIMAL_SUBSTRATE,
+    )
+    code, out = grade(capsys, board, CASE_CSV)
+    assert code == 1
+    assert "FAIL  candidate does not import: jitx.dielectric (at board.py:2)" in out
+
+
+@needs_jitx
+def test_a_library_on_the_path_under_the_boards_directory_is_the_environment(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A virtual environment that happens to sit beside the board is still a
+    library, not the candidate's own files."""
+    site = tmp_path / ".venv" / "lib" / "python3" / "site-packages"
+    site.mkdir(parents=True)
+    (site / "brokenlib.py").write_text(
+        "import a_dependency_that_is_not_installed\n", encoding="utf-8"
+    )
+    monkeypatch.setenv("PYTHONPATH", str(site))
+    board = write(tmp_path, "import brokenlib\n" + MINIMAL_SUBSTRATE)
+    code, out = grade(capsys, board, CASE_CSV)
+    assert code == 1
+    assert "ERROR  a library the candidate imports does not import" in out
+    assert "candidate does not import" not in out
+
+
+@needs_jitx
+def test_an_error_the_board_causes_inside_a_library_is_red(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """Only an import that fails inside a library is the environment's; any
+    other error a library raises was caused by the candidate's call."""
+    board = write(tmp_path, "import json\njson.loads('not json')\n" + MINIMAL_SUBSTRATE)
+    code, out = grade(capsys, board, CASE_CSV)
+    assert code == 1
+    assert "FAIL  candidate does not import: JSONDecodeError:" in out
+    assert "(at board.py:2)" in out
+
+
+@needs_jitx
+def test_a_grader_dependency_that_raises_is_the_environment(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Whatever a grader dependency raises, no candidate can fix it."""
+    shadow = tmp_path / "shadow"
+    shadow.mkdir()
+    (shadow / "jitxlib.py").write_text(
+        "raise RuntimeError('jitxlib built for another jitx')\n", encoding="utf-8"
+    )
+    monkeypatch.setenv("PYTHONPATH", str(shadow))
+    code, out = grade(capsys, write(tmp_path, MINIMAL_SUBSTRATE), CASE_CSV)
+    assert code == 1
+    assert (
+        "ERROR  the grader needs jitxlib.physics: RuntimeError: "
+        "jitxlib built for another jitx"
+    ) in out
+    assert "does not import" not in out
+
+
+def test_a_preflight_that_prints_no_verdict_shows_its_stderr(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A pre-flight that crashes has judged nothing, so the board is not
+    blamed and the reason is shown."""
+    board = write(tmp_path, MINIMAL_SUBSTRATE)
+
+    def fake_run(command: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        assert str(grade_substrate.PREFLIGHT) in command
+        crash = "Traceback (most recent call last):\nRuntimeError: pre-flight broke\n"
+        return subprocess.CompletedProcess(command, 1, "", crash)
+
+    monkeypatch.setattr(grade_substrate.subprocess, "run", fake_run)
+    code, out = grade(capsys, board, CASE_CSV)
+    assert code == 1
+    assert "RuntimeError: pre-flight broke" in out
+    assert "does not import" not in out
+
+
 def test_a_skipped_grader_test_is_red(
     capsys: pytest.CaptureFixture[str],
     tmp_path: Path,
@@ -658,8 +855,6 @@ def test_a_skipped_grader_test_is_red(
     graded = f"GradedTarget: substrate Minimal from {board}; fab report {CASE_CSV}"
 
     def fake_run(command: list[str], **_: object) -> subprocess.CompletedProcess[str]:
-        if "-c" in command:
-            return subprocess.CompletedProcess(command, 0, "", "")
         summary = "31 passed, 1 skipped, 1 warning, 260 subtests passed in 0.40s"
         return subprocess.CompletedProcess(command, 0, f"{graded}\n{summary}\n", "")
 
