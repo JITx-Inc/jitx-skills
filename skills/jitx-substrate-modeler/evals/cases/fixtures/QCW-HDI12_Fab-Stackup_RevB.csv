@@ -1,0 +1,143 @@
+SECTION,DOCUMENT
+Field,Value,Unit,Notes
+Document type,Impedance-Controlled Stackup Report,,CSV export of the stackup report issued with the quote
+Fabricator,Quillmere Circuit Works,,Fictional fabricator - see NOTES
+Facility,Line 3 / sequential build-up,,
+Quote number,QCW-2611-0388,,
+Revision,B,,Supersedes Rev A - see REVISION_HISTORY
+Issue date,2026-09-22,,
+Customer part number,SBU-12L-RF2,,
+Board size,64.0 x 48.0,mm,3.0 mm corner radius
+Layer count,12,copper layers,
+Construction,2 + 8 + 2,,2 sequential build-up laminations per side on an 8-layer sub-composite
+Sequential laminations,2,per side,
+Overall thickness,1.432,mm,56.38 mil - including soldermask both sides
+Finished thickness,1.402,mm,"55.20 mil - copper + dielectric, excluding soldermask"
+Thickness tolerance,+/-8,%,
+Surface finish,ENEPIG,,Ni 3-5 um / Pd 0.05-0.10 um / Au 0.03-0.05 um
+Soldermask,LPI matte black,,Both sides
+Copper plating class,IPC-6012 Class 2,,20 um average wall in plated holes
+Impedance tolerance,+/-7,%,All controlled structures
+Impedance model,QCW cross-section solver,,2D field solver - see NOTES
+Impedance test frequency,8.0,GHz,Insertion loss quoted at this frequency
+Dk/Df reference frequency,5.0,GHz,Per laminate manufacturer datasheet
+Primary units,mm,,mil given alongside for reference only
+
+SECTION,REVISION_HISTORY
+Revision,Date,Change
+A,2026-09-02,Initial issue.
+B,2026-09-22,"Sub-composite bonding prepreg changed from 1067 to 1086 glass (Dk 3.30 -> 3.38) for dimensional stability; stripline widths re-solved. TH-1 left open on the bottom side for test-probe access."
+
+SECTION,MATERIALS_DIELECTRIC
+Material_ID,Manufacturer,Product,Type,Glass_style,Resin_pct,Thickness_mil,Thickness_mm,Dk,Df,Tg_C,Usage
+D-SM,Halsey Coatings,HC-77 LPI,Soldermask,,,0.59,0.0150,3.50,0.0250,,Outer surfaces both sides
+D-BU,Brannock Laminates,BL-330 prepreg,Prepreg,1067,72,3.15,0.0800,3.30,0.0021,210,"Build-up laminations - L1-L2, L2-L3 and mirrors. Spread glass for laser microvia formation."
+D-PP,Brannock Laminates,BL-330 prepreg,Prepreg,1086,66,3.15,0.0800,3.38,0.0021,210,"Sub-composite bonding laminations - L4-L5, L6-L7, L8-L9"
+D-CORE,Brannock Laminates,BL-340 core,Laminate core,2x1080,58,5.00,0.1270,3.42,0.0023,210,"Sub-composite cores - L3-L4, L5-L6, L7-L8, L9-L10"
+
+SECTION,MATERIALS_COPPER
+Copper_ID,Foil_type,Nominal_weight_oz,Base_thickness_um,Plating_um,Finished_thickness_um,Finished_thickness_mm,Rz_matte_um,Rz_drum_um,Usage
+CU-OUT,Ardent AF-H1 HVLP,0.33,12.0,20.0,32.0,0.0320,1.6,0.6,Outer layers L1 and L12 - base foil plus panel plating
+CU-SIG,Ardent AF-H1 HVLP,0.5,18.0,0.0,18.0,0.0180,1.6,0.6,Inner signal layers L3 L5 L8 L10
+CU-PLN,Ardent AF-R5 RTF,1.0,33.0,0.0,33.0,0.0330,5.0,3.0,Inner plane layers L2 L4 L6 L7 L9 L11
+
+SECTION,STACKUP
+Seq,Type,Layer,Function,Material_ID,Thickness_mil,Thickness_mm,Dk,Df
+1,Soldermask,,Soldermask top,D-SM,0.59,0.0150,3.50,0.0250
+2,Copper,L1,Signal - surface microstrip,CU-OUT,1.26,0.0320,,
+3,Dielectric,,Build-up 2,D-BU,3.15,0.0800,3.30,0.0021
+4,Copper,L2,Plane - GND,CU-PLN,1.30,0.0330,,
+5,Dielectric,,Build-up 1,D-BU,3.15,0.0800,3.30,0.0021
+6,Copper,L3,Signal - stripline,CU-SIG,0.71,0.0180,,
+7,Dielectric,,Core,D-CORE,5.00,0.1270,3.42,0.0023
+8,Copper,L4,Plane - GND,CU-PLN,1.30,0.0330,,
+9,Dielectric,,Sub-composite bond,D-PP,3.15,0.0800,3.38,0.0021
+10,Copper,L5,Signal - stripline,CU-SIG,0.71,0.0180,,
+11,Dielectric,,Core,D-CORE,5.00,0.1270,3.42,0.0023
+12,Copper,L6,Plane - PWR,CU-PLN,1.30,0.0330,,
+13,Dielectric,,Sub-composite bond,D-PP,3.15,0.0800,3.38,0.0021
+14,Copper,L7,Plane - GND,CU-PLN,1.30,0.0330,,
+15,Dielectric,,Core,D-CORE,5.00,0.1270,3.42,0.0023
+16,Copper,L8,Signal - stripline,CU-SIG,0.71,0.0180,,
+17,Dielectric,,Sub-composite bond,D-PP,3.15,0.0800,3.38,0.0021
+18,Copper,L9,Plane - GND,CU-PLN,1.30,0.0330,,
+19,Dielectric,,Core,D-CORE,5.00,0.1270,3.42,0.0023
+20,Copper,L10,Signal - stripline,CU-SIG,0.71,0.0180,,
+21,Dielectric,,Build-up 1,D-BU,3.15,0.0800,3.30,0.0021
+22,Copper,L11,Plane - GND,CU-PLN,1.30,0.0330,,
+23,Dielectric,,Build-up 2,D-BU,3.15,0.0800,3.30,0.0021
+24,Copper,L12,Signal - surface microstrip,CU-OUT,1.26,0.0320,,
+25,Soldermask,,Soldermask bottom,D-SM,0.59,0.0150,3.50,0.0250
+
+SECTION,VIAS
+Via_ID,Structure,Drill,From_layer,To_layer,Finished_hole_mil,Finished_hole_mm,Pad_mil,Pad_mm,Depth_mm,Aspect_ratio,Annular_ring_mm,Fill,Capped,Tented,Via_in_pad,Notes
+UV-1,Microvia,Laser,L1,L2,3.94,0.100,9.45,0.240,0.080,0.80,0.070,Copper,Yes,Both,Yes,Build-up level 2 - drilled from the top
+UV-2,Microvia,Laser,L2,L3,3.94,0.100,9.45,0.240,0.080,0.80,0.070,Copper,Yes,Both,Yes,Build-up level 1 - drilled from the top
+UV-3,Microvia,Laser,L12,L11,3.94,0.100,9.45,0.240,0.080,0.80,0.070,Copper,Yes,Both,Yes,Mirror of UV-1 - drilled from the bottom
+UV-4,Microvia,Laser,L11,L10,3.94,0.100,9.45,0.240,0.080,0.80,0.070,Copper,Yes,Both,Yes,Mirror of UV-2 - drilled from the bottom
+BV-1,Buried,Mechanical,L3,L10,7.87,0.200,17.72,0.450,0.952,4.76,0.125,Resin,Yes,Both,No,Sub-composite through-drill - drilled and filled before build-up
+TH-1,Through,Mechanical,L1,L12,9.84,0.250,21.65,0.550,1.402,5.61,0.150,None,No,Top,No,Full-stack plated through hole - drilled last; open on the bottom for test probing
+
+SECTION,IMPEDANCE
+Structure_ID,Controlled,Type,Target_Z_ohm,Tolerance_pct,Layers,Geometry,Line_width_mil,Line_width_mm,Pair_gap_mm,Clearance_mm,Ref_layers,Modelled_Z_ohm,Eps_eff,Delay_ps_per_mm,Loss_dB_per_mm,Neck_width_mm,Neck_gap_mm,Neck_clearance_mm,Neck_modelled_Z_ohm
+SE-50,Yes,Single-ended,50,7,L1;L12,Coated microstrip,5.79,0.1470,,0.2940,L2 for L1; L11 for L12,49.96,2.6420,5.4218,0.00712,0.1000,,0.1000,60.31
+SE-50,Yes,Single-ended,50,7,L3;L10,Asymmetric stripline,2.99,0.0760,,0.1520,L2+L4; L11+L9,50.03,3.3520,6.1070,0.00981,0.0600,,0.0600,55.12
+SE-42,Yes,Single-ended,42,7,L1;L12,Coated microstrip,7.48,0.1900,,0.3800,L2 for L1; L11 for L12,42.05,2.6810,5.4617,0.00664,0.1000,,0.1000,60.31
+SE-42,Yes,Single-ended,42,7,L3;L10,Asymmetric stripline,3.98,0.1010,,0.2020,L2+L4; L11+L9,41.97,3.3520,6.1070,0.00893,0.0600,,0.0600,55.12
+SE-60,Yes,Single-ended,60,7,L1;L12,Coated microstrip,3.98,0.1010,,0.2020,L2 for L1; L11 for L12,60.08,2.6050,5.3837,0.00781,,,,
+SE-60,Yes,Single-ended,60,7,L3;L10,Asymmetric stripline,2.13,0.0540,,0.1080,L2+L4; L11+L9,59.94,3.3520,6.1070,0.01104,,,,
+DIFF-90,Yes,Differential,90,7,L1;L12,Coated microstrip edge-coupled,4.53,0.1150,0.1250,0.4600,L2 for L1; L11 for L12,90.12,2.5730,5.3506,0.00843,0.0900,0.1000,0.1800,96.40
+DIFF-90,Yes,Differential,90,7,L3;L10,Asymmetric stripline edge-coupled,2.76,0.0700,0.1000,0.2800,L2+L4; L11+L9,89.87,3.3520,6.1070,0.01212,0.0550,0.0800,0.1100,95.10
+DIFF-90-UNC,Yes,Single-ended,52,7,L1;L12,Coated microstrip,4.53,0.1150,,0.4600,L2 for L1; L11 for L12,53.40,2.5730,5.3506,0.00731,,,,
+DIFF-90-UNC,Yes,Single-ended,52,7,L3;L10,Asymmetric stripline,2.76,0.0700,,0.2800,L2+L4; L11+L9,51.85,3.3520,6.1070,0.01019,,,,
+STANDARD,No,Single-ended,,,All routing layers,Default line/space,3.54,0.0900,,0.0900,,44.72 stripline / 63.41 microstrip,,,,,,,
+
+SECTION,FAB_RULES
+Rule,Value_mil,Value_mm,JITX_attribute,Notes
+Minimum copper width,1.77,0.045,min_copper_width,Engine-enforced
+Minimum copper to copper space,1.77,0.045,min_copper_copper_space,Engine-enforced
+Minimum copper to hole space,3.54,0.090,min_copper_hole_space,Engine-enforced
+Minimum copper to board edge,11.81,0.300,min_copper_edge_space,Engine-enforced
+Minimum annular ring,2.36,0.060,min_annular_ring,
+Minimum drill diameter,2.95,0.075,min_drill_diameter,Laser minimum - see mechanical minimum below
+Minimum pitch - leaded package,13.78,0.350,min_pitch_leaded,
+Minimum pitch - BGA,11.81,0.300,min_pitch_bga,
+Maximum board width,,457.200,max_board_width,Panel limit - quoted in mm only (18.00 in)
+Maximum board height,,609.600,max_board_height,Panel limit - quoted in mm only (24.00 in)
+Minimum silkscreen width,4.72,0.120,min_silkscreen_width,
+Minimum silkscreen to soldermask space,3.94,0.100,min_silk_solder_mask_space,
+Minimum silkscreen text height,27.56,0.700,min_silkscreen_text_height,
+Soldermask registration,1.50,0.038,solder_mask_registration,
+Minimum soldermask opening,3.15,0.080,min_soldermask_opening,
+Minimum soldermask bridge,3.54,0.090,min_soldermask_bridge,
+Minimum through-hole pad expansion outer,3.94,0.100,min_th_pad_expand_outer,
+Minimum hole to hole,9.84,0.250,min_hole_to_hole,
+Minimum PTH pin to soldermask clearance,7.87,0.200,min_pth_pin_solder_clearance,
+Minimum mechanical drill diameter,5.91,0.150,,No JITX field - capability limit only
+Maximum mechanical drill aspect ratio,,8.0:1,,No JITX field - depth divided by finished hole
+Maximum laser microvia aspect ratio,,0.80:1,,No JITX field - depth divided by finished hole
+Maximum stacked microvia levels,2,,,"No JITX field - stacking permitted, stagger not required"
+Minimum dielectric between adjacent copper layers,2.52,0.064,,No JITX field - this quote uses 0.080 mm build-up; 0.064 mm is available on request
+
+SECTION,NOTES
+Note
+"This is a synthetic example document. Quillmere Circuit Works is a fictional fabricator, and Halsey Coatings, Brannock Laminates and Ardent, with every product named here (HC-77 LPI, BL-330 prepreg, BL-340 core, AF-H1 HVLP, AF-R5 RTF), are fictional too. The Dk, Df and roughness figures are illustrative and describe no real material."
+"Construction is 2 + 8 + 2. An 8-layer sub-composite (L3 to L10) is laminated first from four cores and three bonding plies, then through-drilled L3 to L10 (BV-1), plated, filled and capped. Two sequential build-up laminations are then added per side, each adding one copper layer and one laser microvia level. The full-stack through hole (TH-1) is drilled last."
+"Only the six structures in the VIAS table may be placed. The sub-composite cores carry no designer-available drill of their own."
+"Laser microvias are drilled from the outer surface inward. UV-1 and UV-2 are drilled from the top, UV-3 and UV-4 from the bottom, so the bottom-side vias start on L12 and L11 respectively."
+"Depth_mm is stated on the convention normal to each drill type, and the two conventions differ. For the laser microvias it is the ablated dielectric alone - one build-up lamination, 0.080 mm - excluding the copper at either end, and the aspect ratio is that dielectric depth over the finished hole. For the mechanical drills it is the full drilled depth including the copper at both ends: BV-1 is the L3 to L10 sub-composite including both end foils, and TH-1 is the finished board thickness. Check every aspect ratio on the basis that matches its drill."
+"Every FAB_RULES limit is INCLUSIVE. A minimum is met by a value equal to it, and a maximum is met by a value equal to it, so a laser microvia at exactly 0.80:1 is inside our capability. Our build-up is designed to that ratio - 0.080 mm of dielectric on a 0.100 mm laser hole - so every microvia in the VIAS table sits on the limit by construction."
+"TH-1 is not filled and not capped. It is tented on the top side only and left open on the bottom so the bottom side can be probed."
+"Layer numbering in this document is 1-based from the top (L1 = top copper, L12 = bottom copper). Dielectric and soldermask layers are not numbered."
+"Stacked microvias are permitted up to 2 levels. To reach L3 from L1, stack UV-1 on UV-2."
+"Differential pair gap is stated EDGE TO EDGE, not centre to centre. Line width plus pair gap gives the pitch."
+"Clearance is stated edge to edge to the nearest adjacent net, and is the isolation assumed in the impedance model. Single-ended structures assume clearance = 2x line width; differential structures assume clearance = 4x line width, and the uncoupled region of a pair keeps its pair's clearance. Neck-down regions relax to 1x and 2x respectively. Impedance is only guaranteed where the stated clearance is met."
+"Ref_layers names the planes each controlled line is referenced to. Microstrip rows name the routing layer explicitly (L2 for L1); stripline rows list one plane pair per entry of the Layers column, in the same order. The L3 and L10 striplines are asymmetric: the build-up ply on one side is 0.080 mm and the core on the other is 0.127 mm."
+"Copper roughness is stated as Rz in MICROMETRES, matte (bonding) side and drum (resist) side separately. The matte side faces the dielectric and dominates conductor loss."
+"Copper weight in oz is nominal foil weight before plating. Use the finished thickness column for any electrical model. Outer layers include panel plating and are thicker than the base foil."
+"Dk and Df are quoted at 5 GHz per the laminate datasheet. Insertion loss is quoted at 8 GHz. Both figures are frequency dependent; ask us to re-model if your channel operates elsewhere."
+"Insertion loss is total, comprising conductor loss (including a surface-roughness correction for the stated Rz) and dielectric loss. It excludes via and connector discontinuities."
+"Eps_eff is the solver's effective permittivity for that geometry. For the coated microstrip it folds in the soldermask and the air above it; for the asymmetric stripline it blends the build-up ply and the core. Neither equals any single material's Dk."
+"STANDARD is our default line and space for nets with no impedance target. It is one geometry applied on every routing layer, so it does not hold a single impedance - it models 44.72 ohm on the inner stripline layers and 63.41 ohm on the surface microstrip layers. Do not use it for impedance-critical nets."
+"L5 and L8 are signal-capable stripline layers with no controlled-impedance structure specified in this revision. They are reachable only through BV-1 and TH-1."
+"All dimensions are nominal unless a tolerance is stated. Primary units are millimetres; mil values are given alongside for reference and the millimetre value controls where the two disagree."
