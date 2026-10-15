@@ -21,10 +21,12 @@ the copy, so a change to one without the other turns these tests red.
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import re
 import subprocess
 import sys
+import sysconfig
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -238,7 +240,19 @@ STANDARD_STRUCTURE = """    standard = RoutingStructure(
         ),
         (
             sub_once(r'name="L1(?!\d)', 'name="L10'),
-            "TestStackup::test_copper_layer_names_start_with_the_layer_id",
+            "TestStackup::test_copper_layer_names_carry_the_layer_id",
+        ),
+        (
+            replace_once('name="L1-Signal"', 'name="L12"'),
+            "TestStackup::test_copper_layer_names_carry_the_layer_id",
+        ),
+        (
+            replace_once('name="L1-Signal"', 'name="Top Signal"'),
+            "TestStackup::test_copper_layer_names_carry_the_layer_id",
+        ),
+        (
+            replace_once('name="L1-Signal"', 'name="TopL1"'),
+            "TestStackup::test_copper_layer_names_carry_the_layer_id",
         ),
         (
             # No roughness scalar, and a docstring that states no Rz.
@@ -259,6 +273,9 @@ STANDARD_STRUCTURE = """    standard = RoutingStructure(
         "a material name without its Product",
         "the STANDARD row modelled",
         "L1 named as L10",
+        "L1 named as L12",
+        "L1 named with no layer id",
+        "L1 named with a letter before its id",
         "roughness in neither scalar nor docstring",
     ],
 )
@@ -290,6 +307,10 @@ def rz_on_a_foil_base_class(source: str) -> str:
     [
         sub_once(r'name="L(\d+)-', r'name="L\1 '),
         sub_once(r'name="L(\d+)-', r'name="L\1_'),
+        # The layer id anywhere in the name, with no letter or digit before it.
+        replace_once('name="L1-Signal"', 'name="Top (L1)"'),
+        replace_once('name="L2-GND"', 'name="GND L2"'),
+        replace_once('name="L3-Signal"', 'name="L3_GND"'),
         # The CU-PLN Rz values from testdata, stated in the docstring in place
         # of the roughness scalar.
         replace_once(
@@ -301,6 +322,9 @@ def rz_on_a_foil_base_class(source: str) -> str:
     ids=[
         "layer names with a space",
         "layer names with an underscore",
+        "the layer id in brackets after a function word",
+        "the layer id after a function word",
+        "the layer id before an underscore",
         "Rz in the docstring and no roughness scalar",
         "Rz on a foil base class and no roughness scalar",
     ],
@@ -607,7 +631,7 @@ class Note:
 correct board imports differently from a plain module."""
 
 TOY_TESTS = (
-    "test_layer_count_and_order or test_copper_layer_names_start_with_the_layer_id"
+    "test_layer_count_and_order or test_copper_layer_names_carry_the_layer_id"
     " or test_thickness_totals_match_document"
     " or test_inventory_is_exactly_the_csv_via_table"
     " or test_laser_vias_are_exactly_the_laser_rows"
@@ -904,6 +928,335 @@ def test_a_helper_the_board_puts_on_the_path_is_the_candidates(
     code, out = grade(capsys, board, CASE_CSV)
     assert code == 1
     assert "FAIL  candidate does not import: jitx.dielectric (at board.py:3)" in out
+
+
+def outside_root_board(tmp_path: Path) -> Path:
+    """A board in tmp_path/candidate that loads, by path, a module in
+    tmp_path/outside whose import fails. Returns the board."""
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "loose_materials.py").write_text(
+        "from jitx.dielectric import Laminate\n", encoding="utf-8"
+    )
+    candidate = tmp_path / "candidate"
+    candidate.mkdir()
+    return write(
+        candidate,
+        "import importlib.util, pathlib\n"
+        "path = pathlib.Path(__file__).parent.parent / 'outside' / 'loose_materials.py'\n"
+        "spec = importlib.util.spec_from_file_location('loose_materials', path)\n"
+        "assert spec is not None and spec.loader is not None\n"
+        "spec.loader.exec_module(importlib.util.module_from_spec(spec))\n"
+        + MINIMAL_SUBSTRATE,
+    )
+
+
+@needs_jitx
+def test_a_file_outside_every_root_is_the_candidates(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """A file under none of the roots the pre-flight knows (the board's
+    directory, a directory the board added to sys.path, sys.path before the
+    board ran, the interpreter's library directories, an editable install's
+    project directory) is counted as the candidate's: here the board loaded it
+    by path, so an import that fails in it is a red."""
+    board = outside_root_board(tmp_path)
+    code, out = grade(capsys, board, CASE_CSV)
+    assert code == 1
+    assert "FAIL  candidate does not import: jitx.dielectric (at board.py:5)" in out
+    assert "ERROR" not in out
+    preflight = subprocess.run(
+        [sys.executable, str(grade_substrate.PREFLIGHT), str(board)],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+    assert preflight.returncode == 1, preflight.stdout + preflight.stderr
+
+
+EDITABLE_FINDER = """import sys
+from importlib.util import spec_from_file_location
+
+MAPPING = {mapping!r}
+
+
+class _EditableFinder:
+    @classmethod
+    def find_spec(cls, fullname, path=None, target=None):
+        if fullname not in MAPPING:
+            return None
+        package = MAPPING[fullname]
+        return spec_from_file_location(
+            fullname, package + "/__init__.py", submodule_search_locations=[package]
+        )
+
+
+def install():
+    sys.meta_path.append(_EditableFinder)
+"""
+"""The import hook setuptools writes for an editable install: the project
+directory is never put on sys.path, so only this finder knows where it is."""
+
+
+def editable_install(tmp_path: Path) -> Path:
+    """A virtual environment holding an editable install of ``brokenlib``,
+    laid out as pip and setuptools write one (a dist-info with
+    direct_url.json, a .pth that installs a meta-path finder), whose package
+    imports a dependency that is not installed. It also sees this
+    interpreter's site-packages, for jitx and pytest. Returns its python.
+
+    The files are written here rather than by ``pip install -e``, which needs
+    setuptools and a network this test may not have."""
+    project = tmp_path / "brokenproj"
+    (project / "brokenlib").mkdir(parents=True)
+    (project / "brokenlib" / "__init__.py").write_text(
+        "import a_dependency_that_is_not_installed\n", encoding="utf-8"
+    )
+    venv = tmp_path / "venv"
+    subprocess.run(
+        [sys.executable, "-m", "venv", "--without-pip", str(venv)],
+        check=True,
+        timeout=120,
+    )
+    python = venv / "bin" / "python"
+    found = subprocess.run(
+        [
+            str(python),
+            "-c",
+            "import sysconfig; print(sysconfig.get_paths()['purelib'])",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=60,
+    )
+    site = Path(found.stdout.strip())
+    ours = sysconfig.get_paths()["purelib"]
+    (site / "inherit.pth").write_text(
+        f"import site; site.addsitedir({ours!r})\n", encoding="utf-8"
+    )
+    mapping = {"brokenlib": str(project / "brokenlib")}
+    (site / "__editable___brokenlib_0_0_1_finder.py").write_text(
+        EDITABLE_FINDER.format(mapping=mapping), encoding="utf-8"
+    )
+    (site / "__editable__.brokenlib-0.0.1.pth").write_text(
+        "import __editable___brokenlib_0_0_1_finder; "
+        "__editable___brokenlib_0_0_1_finder.install()\n",
+        encoding="utf-8",
+    )
+    info = site / "brokenlib-0.0.1.dist-info"
+    info.mkdir()
+    (info / "METADATA").write_text(
+        "Metadata-Version: 2.1\nName: brokenlib\nVersion: 0.0.1\n", encoding="utf-8"
+    )
+    (info / "direct_url.json").write_text(
+        json.dumps({"url": project.as_uri(), "dir_info": {"editable": True}}),
+        encoding="utf-8",
+    )
+    return python
+
+
+@needs_jitx
+def test_an_editable_library_outside_every_sys_path_entry_is_the_environment(
+    tmp_path: Path,
+) -> None:
+    """An editable install reached through an import hook keeps its files in
+    its project directory, which is on no sys.path entry; it is still a
+    library, so its broken import is the environment's."""
+    python = editable_install(tmp_path)
+    candidate = tmp_path / "candidate"
+    candidate.mkdir()
+    board = write(candidate, "import brokenlib\n" + MINIMAL_SUBSTRATE)
+    environment = {
+        key: value
+        for key, value in os.environ.items()
+        if key not in ("PYTHONPATH", "PYTHONHOME")
+    }
+    preflight = subprocess.run(
+        [str(python), str(grade_substrate.PREFLIGHT), str(board)],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+        env=environment,
+    )
+    assert preflight.returncode == 3, preflight.stdout + preflight.stderr
+    assert "ERROR  a library the candidate imports does not import" in preflight.stdout
+    graded = subprocess.run(
+        [str(python), str(GRADE), str(board), str(CASE_CSV)],
+        capture_output=True,
+        text=True,
+        timeout=300,
+        check=False,
+        env=environment,
+    )
+    assert graded.returncode == 1, graded.stdout + graded.stderr
+    assert "ERROR  a library the candidate imports does not import" in graded.stdout
+    assert "candidate does not import" not in graded.stdout
+
+
+def library_on_the_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str, source: str
+) -> Path:
+    """A module ``name`` with this source in a directory on PYTHONPATH, and a
+    board in its own directory that imports it. Returns the board."""
+    site = tmp_path / "site"
+    site.mkdir(exist_ok=True)
+    (site / f"{name}.py").write_text(source, encoding="utf-8")
+    monkeypatch.setenv("PYTHONPATH", str(site))
+    candidate = tmp_path / "candidate"
+    candidate.mkdir()
+    return write(candidate, f"import {name}\n" + MINIMAL_SUBSTRATE)
+
+
+def preflight_code(board: Path) -> int:
+    """import_candidate.py's own exit code for a board, in this environment."""
+    return subprocess.run(
+        [sys.executable, str(grade_substrate.PREFLIGHT), str(board)],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    ).returncode
+
+
+@needs_jitx
+def test_a_symlinked_library_file_is_the_environment(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A library file that is a symlink to somewhere outside its sys.path
+    entry, as some installers lay out site-packages, is still a library."""
+    target = tmp_path / "elsewhere" / "brokensym.py"
+    target.parent.mkdir()
+    target.write_text("import a_dependency_that_is_not_installed\n", encoding="utf-8")
+    board = library_on_the_path(tmp_path, monkeypatch, "placeholder", "")
+    (tmp_path / "site" / "brokensym.py").symlink_to(target)
+    board.write_text("import brokensym\n" + MINIMAL_SUBSTRATE, encoding="utf-8")
+    code, out = grade(capsys, board, CASE_CSV)
+    assert code == 1
+    assert "ERROR  a library the candidate imports does not import" in out
+    assert "candidate does not import" not in out
+    assert preflight_code(board) == 3
+
+
+@needs_jitx
+@pytest.mark.parametrize(
+    "source",
+    [
+        'exec("import a_dependency_that_is_not_installed")\n',
+        (
+            'exec(compile("import a_dependency_that_is_not_installed", '
+            '"compiledlib/_speedups.pyx", "exec"))\n'
+        ),
+    ],
+    ids=["a pseudo-filename frame", "a relative build-time filename frame"],
+)
+def test_a_frame_that_is_not_a_file_does_not_decide(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    source: str,
+) -> None:
+    """Code a library runs under a name that is not an absolute file path
+    (exec's "<string>", or a compiled module's relative source name such as a
+    Cython .pyx) is skipped, so the library's own file decides and its broken
+    import is the environment's."""
+    monkeypatch.chdir(tmp_path)
+    board = library_on_the_path(tmp_path, monkeypatch, "compiledlib", source)
+    code, out = grade(capsys, board, CASE_CSV)
+    assert code == 1
+    assert "ERROR  a library the candidate imports does not import" in out
+    assert "candidate does not import" not in out
+    assert preflight_code(board) == 3
+
+
+def distribution_record(site: Path, name: str, record: bytes) -> None:
+    """A dist-info for ``name`` in ``site`` whose direct_url.json holds these
+    bytes."""
+    info = site / f"{name}-0.dist-info"
+    info.mkdir(parents=True)
+    (info / "METADATA").write_text(
+        f"Metadata-Version: 2.1\nName: {name}\nVersion: 0\n", encoding="utf-8"
+    )
+    (info / "direct_url.json").write_bytes(record)
+
+
+@needs_kit
+@pytest.mark.parametrize(
+    "record",
+    [
+        b'\xff\xfe{"url": "file:///x"}',
+        b'{"url": "file:///a\\u0000b", "dir_info": {"editable": true}}',
+        b'{"url": "file:outside", "dir_info": {"editable": true}}',
+        b'{"url": "file:///", "dir_info": {"editable": true}}',
+    ],
+    ids=[
+        "not UTF-8",
+        "a NUL in the path",
+        "a relative path",
+        "the filesystem root",
+    ],
+)
+def test_a_broken_install_record_does_not_change_a_grade(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    record: bytes,
+) -> None:
+    """A corrupt or hand-made direct_url.json anywhere on sys.path is
+    ignored: a correct board still grades green, and a board whose own file
+    fails to import still grades red."""
+    site = tmp_path / "site"
+    distribution_record(site, "brokenrecord", record)
+    monkeypatch.setenv("PYTHONPATH", str(site))
+    # "file:outside" would name tmp_path/outside, where the red board's file is.
+    monkeypatch.chdir(tmp_path)
+    assert KIT_BOARD is not None
+    code, out = grade(capsys, KIT_BOARD, KIT_CSV)
+    assert code == 0, out[-3000:]
+    board = outside_root_board(tmp_path)
+    code, out = grade(capsys, board, CASE_CSV)
+    assert code == 1
+    assert "FAIL  candidate does not import: jitx.dielectric (at board.py:5)" in out
+    assert preflight_code(board) == 1
+
+
+@needs_jitx
+@pytest.mark.parametrize("how", ["editable record", "PYTHONPATH entry"])
+def test_a_library_root_holding_the_boards_directory_leaves_its_files_red(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    how: str,
+) -> None:
+    """A board usually sits inside its own project, which may be an editable
+    install or on sys.path. The board's directory is the deeper root, so a
+    broken helper beside the board is still the candidate's."""
+    project = tmp_path / "project"
+    candidate = project / "candidate"
+    candidate.mkdir(parents=True)
+    (candidate / "helpers.py").write_text(
+        "from jitx.dielectric import Laminate\n", encoding="utf-8"
+    )
+    board = write(candidate, "import helpers\n" + MINIMAL_SUBSTRATE)
+    if how == "editable record":
+        site = tmp_path / "site"
+        url = project.as_uri()
+        distribution_record(
+            site,
+            "userproject",
+            json.dumps({"url": url, "dir_info": {"editable": True}}).encode(),
+        )
+        monkeypatch.setenv("PYTHONPATH", str(site))
+    else:
+        monkeypatch.setenv("PYTHONPATH", str(project))
+    code, out = grade(capsys, board, CASE_CSV)
+    assert code == 1
+    assert "FAIL  candidate does not import: jitx.dielectric (at board.py:1)" in out
+    assert preflight_code(board) == 1
 
 
 @needs_jitx

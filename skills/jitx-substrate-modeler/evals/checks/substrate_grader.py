@@ -37,7 +37,7 @@ What it checks, against the report:
   ``roughness`` scalar equal to matte Rz in mm, or, where it is not set, matte
   and drum Rz in the copper class's docstring), both thickness totals in
   DOCUMENT, copper
-  layers named for their layer id, distinct dielectric
+  layer names that carry their layer id, distinct dielectric
   rows kept distinct, each dielectric's ``material_name`` carrying its
   MATERIALS_DIELECTRIC Product, and mirrored rows mirrored in the design.
 - Vias: exactly the VIAS inventory, found by drill type and span rather than
@@ -731,9 +731,12 @@ class TestStackup(TestCase):
                     layer.thickness or 0.0, float(row["Thickness_mm"]), places=6
                 )
 
-    def test_copper_layer_names_start_with_the_layer_id(self) -> None:
-        """Each conductor's name starts with its STACKUP layer id. What follows
-        the id (a function word or anything else) is not checked here."""
+    def test_copper_layer_names_carry_the_layer_id(self) -> None:
+        """Each conductor's name contains its STACKUP layer id anywhere, with no
+        letter or digit just before it and no digit just after it, so
+        "Top (L1)" and "L1Signal" name L1 while "TopL1" and "L12" do not. The
+        rest of the name (a function word or anything else) is not checked
+        here."""
         conductors = list(decompose(candidate().stackup, Conductor))
         self.assertEqual(int(document()["Layer count"]), n_copper())
         self.assertEqual(len(conductors), n_copper())
@@ -741,14 +744,15 @@ class TestStackup(TestCase):
         copper_rows = [r for r in sections()["STACKUP"] if r["Type"] == "Copper"]
         for row, layer in zip(copper_rows, conductors, strict=True):
             with self.subTest(layer=row["Layer"]):
-                # "L3-Signal", "L3 Signal", "L3_GND": the CSV layer id leads the
-                # name so the UI cross-section reads in the report's own terms.
-                # The id must end there, so "L10-Signal" does not name L1.
+                # "L3-Signal", "Top (L1)", "GND L2", "L3_GND": the CSV layer id
+                # is in the name, so the UI cross-section reads in the report's
+                # own terms. No letter or digit may come before the id and no
+                # digit after it, so "L10-Signal" and "L12" do not name L1.
                 self.assertRegex(
                     layer.name or "",
-                    rf"^{re.escape(row['Layer'])}(?!\d)",
-                    f"{layer.name!r} should start with {row['Layer']!r}, "
-                    "not followed by another digit",
+                    rf"(?<![A-Za-z0-9]){re.escape(row['Layer'])}(?!\d)",
+                    f"{layer.name!r} should contain {row['Layer']!r}, with no "
+                    "letter or digit before it and no digit after it",
                 )
 
     def test_thickness_totals_match_document(self) -> None:
