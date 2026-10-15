@@ -732,9 +732,11 @@ class TestStackup(TestCase):
                 )
 
     def test_copper_layer_names_carry_the_layer_id(self) -> None:
-        """Each conductor's name carries its STACKUP layer id as a token of its
-        own, anywhere in the name. The rest of the name (a function word or
-        anything else) is not checked here."""
+        """Each conductor's name contains its STACKUP layer id anywhere, with no
+        letter or digit just before it and no digit just after it, so
+        "Top (L1)" and "L1Signal" name L1 while "TopL1" and "L12" do not. The
+        rest of the name (a function word or anything else) is not checked
+        here."""
         conductors = list(decompose(candidate().stackup, Conductor))
         self.assertEqual(int(document()["Layer count"]), n_copper())
         self.assertEqual(len(conductors), n_copper())
