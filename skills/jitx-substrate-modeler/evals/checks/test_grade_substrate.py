@@ -930,6 +930,27 @@ def test_a_helper_the_board_puts_on_the_path_is_the_candidates(
     assert "FAIL  candidate does not import: jitx.dielectric (at board.py:3)" in out
 
 
+def outside_root_board(tmp_path: Path) -> Path:
+    """A board in tmp_path/candidate that loads, by path, a module in
+    tmp_path/outside whose import fails. Returns the board."""
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "loose_materials.py").write_text(
+        "from jitx.dielectric import Laminate\n", encoding="utf-8"
+    )
+    candidate = tmp_path / "candidate"
+    candidate.mkdir()
+    return write(
+        candidate,
+        "import importlib.util, pathlib\n"
+        "path = pathlib.Path(__file__).parent.parent / 'outside' / 'loose_materials.py'\n"
+        "spec = importlib.util.spec_from_file_location('loose_materials', path)\n"
+        "assert spec is not None and spec.loader is not None\n"
+        "spec.loader.exec_module(importlib.util.module_from_spec(spec))\n"
+        + MINIMAL_SUBSTRATE,
+    )
+
+
 @needs_jitx
 def test_a_file_outside_every_root_is_the_candidates(
     capsys: pytest.CaptureFixture[str], tmp_path: Path
@@ -939,22 +960,7 @@ def test_a_file_outside_every_root_is_the_candidates(
     board ran, the interpreter's library directories, an editable install's
     project directory) is counted as the candidate's: here the board loaded it
     by path, so an import that fails in it is a red."""
-    outside = tmp_path / "outside"
-    outside.mkdir()
-    (outside / "loose_materials.py").write_text(
-        "from jitx.dielectric import Laminate\n", encoding="utf-8"
-    )
-    candidate = tmp_path / "candidate"
-    candidate.mkdir()
-    board = write(
-        candidate,
-        "import importlib.util, pathlib\n"
-        "path = pathlib.Path(__file__).parent.parent / 'outside' / 'loose_materials.py'\n"
-        "spec = importlib.util.spec_from_file_location('loose_materials', path)\n"
-        "assert spec is not None and spec.loader is not None\n"
-        "spec.loader.exec_module(importlib.util.module_from_spec(spec))\n"
-        + MINIMAL_SUBSTRATE,
-    )
+    board = outside_root_board(tmp_path)
     code, out = grade(capsys, board, CASE_CSV)
     assert code == 1
     assert "FAIL  candidate does not import: jitx.dielectric (at board.py:5)" in out
@@ -1165,6 +1171,92 @@ def test_a_frame_that_is_not_a_file_does_not_decide(
     assert "ERROR  a library the candidate imports does not import" in out
     assert "candidate does not import" not in out
     assert preflight_code(board) == 3
+
+
+def distribution_record(site: Path, name: str, record: bytes) -> None:
+    """A dist-info for ``name`` in ``site`` whose direct_url.json holds these
+    bytes."""
+    info = site / f"{name}-0.dist-info"
+    info.mkdir(parents=True)
+    (info / "METADATA").write_text(
+        f"Metadata-Version: 2.1\nName: {name}\nVersion: 0\n", encoding="utf-8"
+    )
+    (info / "direct_url.json").write_bytes(record)
+
+
+@needs_kit
+@pytest.mark.parametrize(
+    "record",
+    [
+        b'\xff\xfe{"url": "file:///x"}',
+        b'{"url": "file:///a\\u0000b", "dir_info": {"editable": true}}',
+        b'{"url": "file:outside", "dir_info": {"editable": true}}',
+        b'{"url": "file:///", "dir_info": {"editable": true}}',
+    ],
+    ids=[
+        "not UTF-8",
+        "a NUL in the path",
+        "a relative path",
+        "the filesystem root",
+    ],
+)
+def test_a_broken_install_record_does_not_change_a_grade(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    record: bytes,
+) -> None:
+    """A corrupt or hand-made direct_url.json anywhere on sys.path is
+    ignored: a correct board still grades green, and a board whose own file
+    fails to import still grades red."""
+    site = tmp_path / "site"
+    distribution_record(site, "brokenrecord", record)
+    monkeypatch.setenv("PYTHONPATH", str(site))
+    # "file:outside" would name tmp_path/outside, where the red board's file is.
+    monkeypatch.chdir(tmp_path)
+    assert KIT_BOARD is not None
+    code, out = grade(capsys, KIT_BOARD, KIT_CSV)
+    assert code == 0, out[-3000:]
+    board = outside_root_board(tmp_path)
+    code, out = grade(capsys, board, CASE_CSV)
+    assert code == 1
+    assert "FAIL  candidate does not import: jitx.dielectric (at board.py:5)" in out
+    assert preflight_code(board) == 1
+
+
+@needs_jitx
+@pytest.mark.parametrize("how", ["editable record", "PYTHONPATH entry"])
+def test_a_library_root_holding_the_boards_directory_leaves_its_files_red(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    how: str,
+) -> None:
+    """A board usually sits inside its own project, which may be an editable
+    install or on sys.path. The board's directory is the deeper root, so a
+    broken helper beside the board is still the candidate's."""
+    project = tmp_path / "project"
+    candidate = project / "candidate"
+    candidate.mkdir(parents=True)
+    (candidate / "helpers.py").write_text(
+        "from jitx.dielectric import Laminate\n", encoding="utf-8"
+    )
+    board = write(candidate, "import helpers\n" + MINIMAL_SUBSTRATE)
+    if how == "editable record":
+        site = tmp_path / "site"
+        url = project.as_uri()
+        distribution_record(
+            site,
+            "userproject",
+            json.dumps({"url": url, "dir_info": {"editable": True}}).encode(),
+        )
+        monkeypatch.setenv("PYTHONPATH", str(site))
+    else:
+        monkeypatch.setenv("PYTHONPATH", str(project))
+    code, out = grade(capsys, board, CASE_CSV)
+    assert code == 1
+    assert "FAIL  candidate does not import: jitx.dielectric (at board.py:1)" in out
+    assert preflight_code(board) == 1
 
 
 @needs_jitx

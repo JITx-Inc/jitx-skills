@@ -25,7 +25,9 @@ whose fault the failure is:
   cover how an installed library is normally found, so a file outside them
   is most likely one the board loaded by path. A library installed some
   other way (a custom import hook with no direct_url.json, a zip outside
-  sys.path) would be misread as the candidate's.
+  sys.path) would be misread as the candidate's, and a file the board loads
+  by path from inside an editable project's directory, but outside the
+  board's own directory, grades as the environment's.
   The innermost frame in a real file decides. A real file has an absolute
   filename: pseudo-filenames (starting with "<", such as a frozen module or
   exec's "<string>") and relative build-time names (such as a Cython module's
@@ -103,27 +105,46 @@ def roots(entries: list[str]) -> set[Path]:
 def editable_projects() -> list[str]:
     """The project directory of each installed editable distribution, from
     the direct_url.json pip records. An editable install reached through an
-    import hook keeps its files there, on no sys.path entry."""
+    import hook keeps its files there, on no sys.path entry.
+
+    A record that cannot be read or parsed, or whose path is not absolute,
+    cannot be resolved, or is the filesystem root, is skipped: a broken
+    install record must never stop a board from being graded."""
     found: list[str] = []
-    for distribution in importlib.metadata.distributions():
-        text = distribution.read_text("direct_url.json")
-        if not text:
-            continue
+    try:
+        distributions = list(importlib.metadata.distributions())
+    except (ValueError, OSError):
+        return found
+    for distribution in distributions:
         try:
+            text = distribution.read_text("direct_url.json")
+            if not text:
+                continue
             record: object = json.loads(text)
-        except ValueError:
+        except (ValueError, OSError):
+            # UnicodeDecodeError and json's errors are ValueErrors.
             continue
         if not isinstance(record, dict):
             continue
         url = record.get("url")
         info = record.get("dir_info")
-        if (
+        if not (
             isinstance(url, str)
             and url.startswith("file:")
             and isinstance(info, dict)
             and info.get("editable") is True
         ):
-            found.append(url2pathname(urlparse(url).path))
+            continue
+        path = url2pathname(urlparse(url).path)
+        if not os.path.isabs(path):
+            continue
+        try:
+            project = Path(path).resolve()
+        except (ValueError, OSError):
+            continue
+        if project.parent == project:
+            continue
+        found.append(path)
     return found
 
 
