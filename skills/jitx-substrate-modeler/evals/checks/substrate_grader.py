@@ -99,6 +99,7 @@ from jitx.substrate import FabricationConstraints, Substrate
 from jitx.test import TestCase
 from jitx.units import ohm
 from jitxlib.physics import phase_velocity
+from parent_watch import watch_parent
 
 if TYPE_CHECKING:
     # Annotation-only: the protobuf message types of the translated design.
@@ -166,7 +167,10 @@ def _load_module() -> ModuleType:
     # The candidate's own directory is importable only while it loads.
     sys.path.insert(0, str(file.parent))
     try:
-        spec.loader.exec_module(module)
+        # A candidate's own warning filters stay inside its import, so they
+        # cannot hide the GradedTarget warning the wrapper reads.
+        with warnings.catch_warnings():
+            spec.loader.exec_module(module)
     except BaseException:
         del sys.modules[name]
         raise
@@ -269,6 +273,9 @@ def fab_csv() -> Path:
     return path
 
 
+# Launched by grade_substrate.py: end with it, even if it is killed outright,
+# before the candidate runs.
+watch_parent()
 SUBSTRATE = load_substrate_class()
 FAB_CSV = fab_csv()
 
@@ -724,7 +731,9 @@ class TestStackup(TestCase):
                     layer.thickness or 0.0, float(row["Thickness_mm"]), places=6
                 )
 
-    def test_copper_layers_named_by_function(self) -> None:
+    def test_copper_layer_names_start_with_the_layer_id(self) -> None:
+        """Each conductor's name starts with its STACKUP layer id. What follows
+        the id (a function word or anything else) is not checked here."""
         conductors = list(decompose(candidate().stackup, Conductor))
         self.assertEqual(int(document()["Layer count"]), n_copper())
         self.assertEqual(len(conductors), n_copper())
