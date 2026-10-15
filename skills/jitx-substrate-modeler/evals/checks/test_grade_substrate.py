@@ -238,7 +238,19 @@ STANDARD_STRUCTURE = """    standard = RoutingStructure(
         ),
         (
             sub_once(r'name="L1(?!\d)', 'name="L10'),
-            "TestStackup::test_copper_layer_names_start_with_the_layer_id",
+            "TestStackup::test_copper_layer_names_carry_the_layer_id",
+        ),
+        (
+            replace_once('name="L1-Signal"', 'name="L12"'),
+            "TestStackup::test_copper_layer_names_carry_the_layer_id",
+        ),
+        (
+            replace_once('name="L1-Signal"', 'name="Top Signal"'),
+            "TestStackup::test_copper_layer_names_carry_the_layer_id",
+        ),
+        (
+            replace_once('name="L1-Signal"', 'name="TopL1"'),
+            "TestStackup::test_copper_layer_names_carry_the_layer_id",
         ),
         (
             # No roughness scalar, and a docstring that states no Rz.
@@ -259,6 +271,9 @@ STANDARD_STRUCTURE = """    standard = RoutingStructure(
         "a material name without its Product",
         "the STANDARD row modelled",
         "L1 named as L10",
+        "L1 named as L12",
+        "L1 named with no layer id",
+        "L1 named with a letter before its id",
         "roughness in neither scalar nor docstring",
     ],
 )
@@ -290,6 +305,10 @@ def rz_on_a_foil_base_class(source: str) -> str:
     [
         sub_once(r'name="L(\d+)-', r'name="L\1 '),
         sub_once(r'name="L(\d+)-', r'name="L\1_'),
+        # The layer id anywhere in the name, as a token of its own.
+        replace_once('name="L1-Signal"', 'name="Top (L1)"'),
+        replace_once('name="L2-GND"', 'name="GND L2"'),
+        replace_once('name="L3-Signal"', 'name="L3_GND"'),
         # The CU-PLN Rz values from testdata, stated in the docstring in place
         # of the roughness scalar.
         replace_once(
@@ -301,6 +320,9 @@ def rz_on_a_foil_base_class(source: str) -> str:
     ids=[
         "layer names with a space",
         "layer names with an underscore",
+        "the layer id in brackets after a function word",
+        "the layer id after a function word",
+        "the layer id before an underscore",
         "Rz in the docstring and no roughness scalar",
         "Rz on a foil base class and no roughness scalar",
     ],
@@ -607,7 +629,7 @@ class Note:
 correct board imports differently from a plain module."""
 
 TOY_TESTS = (
-    "test_layer_count_and_order or test_copper_layer_names_start_with_the_layer_id"
+    "test_layer_count_and_order or test_copper_layer_names_carry_the_layer_id"
     " or test_thickness_totals_match_document"
     " or test_inventory_is_exactly_the_csv_via_table"
     " or test_laser_vias_are_exactly_the_laser_rows"
@@ -904,6 +926,43 @@ def test_a_helper_the_board_puts_on_the_path_is_the_candidates(
     code, out = grade(capsys, board, CASE_CSV)
     assert code == 1
     assert "FAIL  candidate does not import: jitx.dielectric (at board.py:3)" in out
+
+
+@needs_jitx
+def test_a_file_outside_every_root_is_the_candidates(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """Only the candidate can load code from a file that is neither beside the
+    board, nor on a path the board added, nor in a library, so an import that
+    fails in it is a red."""
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "loose_materials.py").write_text(
+        "from jitx.dielectric import Laminate\n", encoding="utf-8"
+    )
+    candidate = tmp_path / "candidate"
+    candidate.mkdir()
+    board = write(
+        candidate,
+        "import importlib.util, pathlib\n"
+        "path = pathlib.Path(__file__).parent.parent / 'outside' / 'loose_materials.py'\n"
+        "spec = importlib.util.spec_from_file_location('loose_materials', path)\n"
+        "assert spec is not None and spec.loader is not None\n"
+        "spec.loader.exec_module(importlib.util.module_from_spec(spec))\n"
+        + MINIMAL_SUBSTRATE,
+    )
+    code, out = grade(capsys, board, CASE_CSV)
+    assert code == 1
+    assert "FAIL  candidate does not import: jitx.dielectric (at board.py:5)" in out
+    assert "ERROR" not in out
+    preflight = subprocess.run(
+        [sys.executable, str(grade_substrate.PREFLIGHT), str(board)],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+    assert preflight.returncode == 1, preflight.stdout + preflight.stderr
 
 
 @needs_jitx

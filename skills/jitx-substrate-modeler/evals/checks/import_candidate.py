@@ -13,13 +13,16 @@ whose fault the failure is:
   pytest) do not import, whatever they raise: an environment problem, exit 3,
   in Python's wording.
 - An import fails inside a library rather than in the candidate's own files:
-  an environment problem, exit 3, in Python's wording. The candidate's own
-  files are those under the board's directory or under a directory the board
-  adds to sys.path. A library is a file under a sys.path entry that was there
-  before the board ran, or under the interpreter's stdlib, purelib or platlib,
-  even where that sits under the board's directory: the deepest of these
-  roots decides. importlib's own frames are machinery and are skipped, so a
-  board's own ``importlib.import_module`` call is the board's.
+  an environment problem, exit 3, in Python's wording. A library is a file
+  under a sys.path entry that was there before the board ran, or under the
+  interpreter's stdlib, purelib or platlib, even where that sits under the
+  board's directory: the deepest root holding the file decides. The
+  candidate's own files are those under the board's directory, under a
+  directory the board adds to sys.path, or under none of these roots, since
+  only the candidate can load code from there. The innermost frame in a real
+  file decides: frames with a pseudo-filename (one starting with "<", such as
+  a frozen module) are skipped, and so are importlib's own frames, which are
+  machinery, so a board's own ``importlib.import_module`` call is the board's.
 - Anything else the candidate's import raises (a module or name that does not
   exist, an error at class definition, an error a library raises because of
   the candidate's call): a red, exit 1, as
@@ -86,12 +89,14 @@ def library_roots(before: list[str]) -> set[Path]:
 
 
 def in_candidate(filename: str, own: set[Path], library: set[Path]) -> bool:
-    """Whether a file is the candidate's own: the deepest root holding it is
-    one of the candidate's, and a tie goes to the candidate."""
+    """Whether a file is the candidate's own: no root holds it, or the deepest
+    root holding it is one of the candidate's, and a tie goes to the
+    candidate."""
     path = Path(filename).resolve()
     holding = [root for root in own | library if path.is_relative_to(root)]
     if not holding:
-        return False
+        # Outside every root, only the candidate can have loaded it.
+        return True
     deepest = max(len(root.parts) for root in holding)
     return any(root in own for root in holding if len(root.parts) == deepest)
 
