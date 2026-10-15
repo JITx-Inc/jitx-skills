@@ -38,6 +38,8 @@ import sysconfig
 import traceback
 from pathlib import Path
 
+from parent_watch import watch_parent
+
 NEEDED = ("jitx", "jitx.proxy", "jitxlib.physics", "pytest")
 """What the grader itself imports. No candidate can fix these. Older jitx
 releases have no ``jitx.proxy``; one of those is reported here, not as a red."""
@@ -108,6 +110,7 @@ def main(argv: list[str]) -> int:
     if len(argv) != 2:
         print(__doc__, file=sys.stderr)
         return 2
+    watch_parent()
     problem = missing_dependency()
     if problem is not None:
         print(problem)

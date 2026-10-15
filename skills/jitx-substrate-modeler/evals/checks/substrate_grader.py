@@ -99,6 +99,7 @@ from jitx.substrate import FabricationConstraints, Substrate
 from jitx.test import TestCase
 from jitx.units import ohm
 from jitxlib.physics import phase_velocity
+from parent_watch import watch_parent
 
 if TYPE_CHECKING:
     # Annotation-only: the protobuf message types of the translated design.
@@ -272,6 +273,9 @@ def fab_csv() -> Path:
     return path
 
 
+# Launched by grade_substrate.py: end with it, even if it is killed outright,
+# before the candidate runs.
+watch_parent()
 SUBSTRATE = load_substrate_class()
 FAB_CSV = fab_csv()
 

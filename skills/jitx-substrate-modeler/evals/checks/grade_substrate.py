@@ -32,6 +32,9 @@ Each child (the pre-flight, then pytest) runs in its own process group and
 has --timeout seconds (default 300). A child that runs longer, such as a
 board that hangs at import, is a red: the whole group is killed, so nothing
 it started keeps running, and the FAIL line says which stage did not finish.
+SIGTERM, SIGHUP and SIGINT to this process kill the child's group the same
+way. If this process is killed outright, each child sees its parent gone and
+kills its own group (parent_watch.py).
 
 Exit codes: 0 graded and green / 1 red, or not graded / 2 usage error (a
 missing or blank argument, or a CSV that is not a file).
@@ -47,6 +50,8 @@ import subprocess
 import sys
 from pathlib import Path
 from types import FrameType
+
+from parent_watch import PARENT
 
 GRADER = Path(__file__).resolve().parent / "substrate_grader.py"
 GRADED = re.compile(r"GradedTarget: substrate (\S+) from (.+); fab report (.+)$")
@@ -64,11 +69,12 @@ TIMEOUT_S = 300.0
 
 
 def kill_group(child: subprocess.Popen[str]) -> None:
-    """Kill the child's whole process group, then reap the child."""
+    """Kill the child's whole process group, then reap the child. Without a
+    group of its own, the child alone is killed."""
     try:
         os.killpg(child.pid, signal.SIGKILL)
     except ProcessLookupError:
-        pass
+        child.kill()
     child.wait()
     for stream in (child.stdout, child.stderr):
         if stream is not None:
@@ -145,8 +151,12 @@ def main(argv: list[str]) -> int:
     if not board.is_file():
         print(f"FAIL  {board} does not exist")
         return 1
+    # Each child ends itself if this process dies; see parent_watch.py.
+    watched = {**os.environ, PARENT: str(os.getpid())}
     preflight = run_child(
-        [sys.executable, str(PREFLIGHT), str(board)], timeout=args.timeout
+        [sys.executable, str(PREFLIGHT), str(board)],
+        timeout=args.timeout,
+        env=watched,
     )
     if preflight is None:
         print(
@@ -166,7 +176,7 @@ def main(argv: list[str]) -> int:
         return 1
     # Absolute, because the grader runs from its own directory.
     env = {
-        **os.environ,
+        **watched,
         "SUBSTRATE_FILE": str(board.resolve()),
         "FAB_CSV": str(csv_file.resolve()),
     }
@@ -225,10 +235,12 @@ def main(argv: list[str]) -> int:
 
 
 def stop(signum: int, frame: FrameType | None) -> None:
-    """SIGTERM as an exception, so a child's process group is killed too."""
+    """SIGTERM or SIGHUP as an exception, so a child's process group is
+    killed too."""
     raise SystemExit(128 + signum)
 
 
 if __name__ == "__main__":
     signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGHUP, stop)
     sys.exit(main(sys.argv))

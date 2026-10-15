@@ -35,6 +35,7 @@ import pytest
 
 CHECKS = Path(__file__).resolve().parent
 GRADER = CHECKS / "substrate_grader.py"
+GRADE = CHECKS / "grade_substrate.py"
 KIT_CSV = CHECKS / "testdata" / "JS1_Part1_Fab-Stackup.csv"
 CASE_CSV = CHECKS.parent / "cases" / "fixtures" / "QCW-HDI12_Fab-Stackup_RevB.csv"
 KIT_MODULE = "jitxexamples.jumpstart_kits.js1_stackup_components.hdi_stackup.board"
@@ -77,6 +78,20 @@ def renamed_kit_source() -> str:
     return re.sub(
         r'name="\d+ ohm[^"]*"', lambda _: f'name="structure {next(counter)}"', source
     )
+
+
+@pytest.fixture(autouse=True)
+def no_grader_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The grader's own settings, exported in the shell that runs these tests,
+    must not change what they see."""
+    for name in (
+        "SUBSTRATE_FILE",
+        "SUBSTRATE_CLASS",
+        "FAB_CSV",
+        "PYTEST_ADDOPTS",
+        "GRADE_SUBSTRATE_PID",
+    ):
+        monkeypatch.delenv(name, raising=False)
 
 
 def grade(
@@ -680,6 +695,23 @@ def gone(pid: int) -> bool:
     return False
 
 
+def recorded_pids(directory: Path) -> list[int]:
+    """The board's process and its sleeper, as the board wrote them."""
+    record = directory / "pids.txt"
+    if not record.is_file():
+        return []
+    return [int(pid) for pid in record.read_text(encoding="utf-8").split()]
+
+
+def survivors(pids: list[int]) -> list[int]:
+    """The recorded processes still running, each killed so none outlives the
+    test; the caller asserts on the list."""
+    alive = [pid for pid in pids if not gone(pid)]
+    for pid in alive:
+        os.kill(pid, 9)
+    return alive
+
+
 @needs_jitx
 @pytest.mark.parametrize(
     ("when", "stage"),
@@ -687,20 +719,80 @@ def gone(pid: int) -> bool:
     ids=["hangs at import", "hangs under the grader"],
 )
 def test_a_board_that_hangs_is_red_and_leaves_nothing_running(
-    capsys: pytest.CaptureFixture[str], tmp_path: Path, when: str, stage: str
+    tmp_path: Path, when: str, stage: str
 ) -> None:
+    """Run in its own interpreter under a bound of its own, so a broken
+    timeout fails this test instead of hanging the suite."""
     report = tmp_path / "toy.csv"
     report.write_text(TOY_REPORT, encoding="utf-8")
     board = write(tmp_path, HANG.format(when=when, board=TOY_BOARD))
-    argv = ["grade_substrate.py", str(board), str(report), "--timeout", "10"]
-    code = grade_substrate.main(argv)
-    out = capsys.readouterr().out
-    assert code == 1, out[-3000:]
-    assert f"FAIL  {stage} did not finish within 10 s" in out
-    pids = (tmp_path / "pids.txt").read_text(encoding="utf-8").split()
-    assert len(pids) == 2
-    for pid in pids:
-        assert gone(int(pid)), f"process {pid} is still running"
+    command = [sys.executable, str(GRADE), str(board), str(report), "--timeout", "10"]
+    try:
+        done = subprocess.run(
+            command, capture_output=True, text=True, timeout=60, check=False
+        )
+    except subprocess.TimeoutExpired:
+        done = None
+    left = survivors(recorded_pids(tmp_path))
+    assert done is not None, "grade_substrate.py did not stop within 60 s"
+    assert done.returncode == 1, done.stdout[-3000:]
+    assert f"FAIL  {stage} did not finish within 10 s" in done.stdout
+    assert len(recorded_pids(tmp_path)) == 2
+    assert left == [], f"processes {left} were still running"
+
+
+SIGNALLED = """
+import os, subprocess, sys, time
+from pathlib import Path
+
+if {when}:
+    sleeper = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(120)"])
+    Path(__file__).with_name("pids.txt").write_text(f"{{os.getpid()}} {{sleeper.pid}}")
+    time.sleep(120)
+"""
+
+
+@needs_jitx
+@pytest.mark.parametrize(
+    "when",
+    ["True", 'os.environ.get("FAB_CSV")'],
+    ids=["hanging at import", "hanging under the grader"],
+)
+@pytest.mark.parametrize(
+    ("signum", "to_group"),
+    [(15, False), (1, False), (9, False), (9, True)],
+    ids=["SIGTERM", "SIGHUP", "SIGKILL", "SIGKILL to its group"],
+)
+def test_no_child_outlives_a_signalled_grader(
+    tmp_path: Path, when: str, signum: int, to_group: bool
+) -> None:
+    """However grade_substrate.py is stopped, what it started stops too."""
+    board = write(tmp_path, SIGNALLED.format(when=when))
+    grader = subprocess.Popen(
+        [sys.executable, str(GRADE), str(board), str(CASE_CSV)],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    try:
+        deadline = time.monotonic() + 60
+        while len(recorded_pids(tmp_path)) < 2 and time.monotonic() < deadline:
+            time.sleep(0.1)
+        assert len(recorded_pids(tmp_path)) == 2, "the board never started"
+        if to_group:
+            os.killpg(grader.pid, signum)
+        else:
+            os.kill(grader.pid, signum)
+        grader.wait(timeout=30)
+    finally:
+        if grader.poll() is None:
+            grader.kill()
+            grader.wait()
+        left = survivors(recorded_pids(tmp_path))
+    assert left == [], f"processes {left} outlived grade_substrate.py"
+    # A signal it can catch, it handles: it cleans up and exits 128 + signum,
+    # rather than dying and leaving the cleanup to its children.
+    assert grader.returncode == (-signum if signum == 9 else 128 + signum)
 
 
 @needs_jitx
