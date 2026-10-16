@@ -115,19 +115,21 @@ class FR4_Prepreg(Dielectric):
     # Name and numbers move together: a product name over generic FR-4 constants
     # is a mislabel that now ships. Generic constants get a generic name.
     material_name = "FR-4 2116 prepreg"
-    dielectric_coefficient = 4.4   # Dk (dielectric constant / relative permittivity)
-    loss_tangent = 0.0168          # Df (dissipation factor)
+    # Dk (relative permittivity) and Df (dissipation factor). With no datasheet,
+    # each example constant is labelled where it is used, as these are:
+    dielectric_coefficient = 4.4   # skill default: example value, no datasheet
+    loss_tangent = 0.0168          # skill default: example value, no datasheet
 
 class FR408HR_2116(Dielectric):
     # Named product, so the constants are that product's: take them, and the
     # frequency they are quoted at, from the manufacturer's current datasheet.
     material_name = "Isola FR408HR 2116 prepreg"
-    dielectric_coefficient = 3.68  # Dk
-    loss_tangent = 0.0092          # Df
+    dielectric_coefficient = 3.68  # Dk: the datasheet value at your frequency
+    loss_tangent = 0.0092          # Df: the datasheet value at your frequency
 
 class FR4_Core(Dielectric):
-    dielectric_coefficient = 4.6   # Dk
-    loss_tangent = 0.0168          # Df
+    dielectric_coefficient = 4.6   # skill default: example value, no datasheet
+    loss_tangent = 0.0168          # skill default: example value, no datasheet
 
 class Copper1oz(Conductor):
     """RTF foil. Rz matte 6.0 µm / drum 3.5 µm — docstring is the durable record."""
@@ -409,6 +411,8 @@ RoutingStructure.Layer(
 ### Layer with Geometry and Reference
 
 ```python
+H_L1_L3 = 0.100 + 0.150  # the two dielectric rows between L1 and L3
+
 RoutingStructure.Layer(
     trace_width=0.12, clearance=0.08,
     velocity=phase_velocity(3.26), insertion_loss=0.08,
@@ -417,7 +421,7 @@ RoutingStructure.Layer(
 .geometry(KeepOut, 1.2, layers=LayerSet(1), pour=True)  # keepout on layer 1
 .reference(
     {
-        2: 3 * 0.100,  # skill default: 3x dielectric height
+        2: 3 * H_L1_L3,  # skill default: 3x dielectric height
     }
 )
 .fence(FenceViaClass, ViaFencePattern(pitch=0.5, offset=0.35, num_rows=1),

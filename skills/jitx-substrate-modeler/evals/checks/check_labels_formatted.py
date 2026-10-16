@@ -57,6 +57,12 @@ def formatted(path: Path) -> str | None:
     return proc.stdout
 
 
+def trailing_label(line: str) -> bool:
+    """A ``skill default`` label trailing code, not a docstring or comment line."""
+    code, _, comment = line.partition("#")
+    return bool(code.strip()) and bool(LABEL.search(comment))
+
+
 def split_entries(text: str) -> list[tuple[int, str]]:
     """Each (line number, description) where a label is split or detached."""
     lines = text.splitlines()
@@ -79,7 +85,7 @@ def main(argv: list[str]) -> int:
     if text is None:
         return 2
     found = split_entries(text)
-    labels = sum(1 for line in text.splitlines() if LABEL.search(line))
+    labels = sum(1 for line in text.splitlines() if trailing_label(line))
     if labels == 0 and ".reference(" in text:
         print("no skill-default label found, though the file calls .reference(")
         return 1

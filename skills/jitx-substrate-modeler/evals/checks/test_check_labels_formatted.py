@@ -82,6 +82,16 @@ class Script(unittest.TestCase):
         text = "    1: 3 * 0.080,\n)  # Skill default: 3x dielectric height\n"
         self.assertEqual([n for n, _ in split_entries(text)], [2])
 
+    def test_label_only_in_a_docstring_or_comment_fails(self) -> None:
+        body = "            ).reference(\n                {\n                    1: 0.240,\n"
+        tail = "                }\n            ),\n        }\n    )\n"
+        for head in (
+            '"""Widths use the skill default."""\n',
+            "# Widths below: skill default, 3x dielectric height\n",
+        ):
+            with self.subTest(head=head):
+                self.assertEqual(run(head + PREFIX + body + tail).returncode, 1)
+
     def test_unparseable_file_could_not_run(self) -> None:
         self.assertEqual(run("x = (\n").returncode, 2)
 
