@@ -81,7 +81,7 @@ Everything goes in **one Python file** per substrate:
 
 ## Source Documents
 
-When the substrate comes from a source document — a fab's stackup report or quote, a laminate datasheet, a written spec — the document is **ground truth**: transcribe it, and trace every value in the substrate to a row, table cell, or field of the source. The only derived values are this skill's named engineering defaults (e.g. the reference-plane width default), each labeled at its call site and in the completeness check's Provenance row; anything else the source doesn't state is a question for the user, not an estimate. With no document at all, a named laminate's or generic FR-4's Dk and Df, and the frequency they are quoted at, come from a datasheet: ask for it, and list any value used without one, this skill's example constants included, under Provenance as an open item. Parse the document and restate it to the user before writing code — layer count and construction, each dielectric's Dk/Df and their quoted frequency, foil weights and Rz, the via inventory, the impedance targets, the fab rules — and flag anything ambiguous; everything downstream is a transcription of that reading. A format not listed below (a PDF report, an HFSS 3D Layout stackup XML) gets the same treatment: find the document's own structure, then map it onto the sections of this skill.
+When the substrate comes from a source document — a fab's stackup report or quote, a laminate datasheet, a written spec — the document is **ground truth**: transcribe it, and trace every value in the substrate to a row, table cell, or field of the source. The only derived values are this skill's named engineering defaults (e.g. the reference-plane width default), each labeled at its call site and in the completeness check's Provenance row; anything else the source doesn't state is a question for the user, not an estimate. With no document at all, a named laminate's or generic FR-4's Dk and Df, and the frequency they are quoted at, come from a datasheet: ask for it, and list any value used without one, this skill's example constants included, under Provenance as an open item and label it at its call site (`# skill default: example value, no datasheet`). Parse the document and restate it to the user before writing code — layer count and construction, each dielectric's Dk/Df and their quoted frequency, foil weights and Rz, the via inventory, the impedance targets, the fab rules — and flag anything ambiguous; everything downstream is a transcription of that reading. A format not listed below (a PDF report, an HFSS 3D Layout stackup XML) gets the same treatment: find the document's own structure, then map it onto the sections of this skill.
 
 ### Fab stackup report CSV
 
@@ -119,8 +119,8 @@ class FR4_Prepreg(Dielectric):
     loss_tangent = 0.0168          # Df (dissipation factor)
 
 class FR408HR_2116(Dielectric):
-    # Named product, so the constants are that product's: confirm them
-    # against the manufacturer's current datasheet.
+    # Named product, so the constants are that product's: take them, and the
+    # frequency they are quoted at, from the manufacturer's current datasheet.
     material_name = "Isola FR408HR 2116 prepreg"
     dielectric_coefficient = 3.68  # Dk
     loss_tangent = 0.0092          # Df
@@ -415,14 +415,18 @@ RoutingStructure.Layer(
 )
 .geometry(Soldermask, 0.25, side=Side.Top)        # soldermask opening
 .geometry(KeepOut, 1.2, layers=LayerSet(1), pour=True)  # keepout on layer 1
-.reference({2: 1.0})                               # plane on layer 2 (illustrative width)
+.reference(
+    {
+        2: 3 * 0.100,  # skill default: 3x dielectric height
+    }
+)
 .fence(FenceViaClass, ViaFencePattern(pitch=0.5, offset=0.35, num_rows=1),
        reference_layer=2)
 ```
 
 **Reference planes of unstated width:** source documents usually say *which* planes reference each line (a `Ref_layers` column) and never how wide they are. Carry the column: it is part of the impedance model, not decoration, and it applies to every layer entry it names, the `uncoupled_region`'s included (a `*-UNC` row has its own `Ref_layers`). For the width, use the skill's engineering default: **desired width = 3 × the dielectric thickness between the signal layer and that reference plane** (return current concentrates within a few dielectric heights of the trace; 3× captures it). Each plane gets 3× its *own* separation — a stripline's two references can differ — and a reference more than one dielectric away sums the dielectric thicknesses between. Label the value as the skill default at the point of use, and record it in the completeness check's Provenance row as `skill default (3× dielectric height)` — a named, rule-backed default is not an invented number, but an unlabeled one is:
 
-**Label every call site.** Write each width as its derivation with the label on the same line — a section comment above the block is not enough; a reviewer reads the call site, and the summary's claim "labeled at every call site" must be literally true. Use the mapping form even for one plane, one entry per line, with the label as that entry's trailing comment, and keep the label short. `ruff format` counts the comment toward the configured line length (88 unless the project sets `line-length`), and a reference entry sits 24 to 28 columns deep inside a Substrate class: an entry that runs past the limit is split, leaving `3` on a line with no label. For a plane more than one dielectric away, name the summed separation first (`H_L1_L3 = 0.080 + 0.127  # D-BU + D-CORE rows`) and write `3: 3 * H_L1_L3,  # skill default: 3x dielectric height`; the inline sum does not fit at that depth. A label after the closing parenthesis is worse, since it ends up on a different line from every value. This is the shape `ruff format` leaves:
+**Label every call site.** Write each width as its derivation with the label on the same line — a section comment above the block is not enough; a reviewer reads the call site, and the summary's claim "labeled at every call site" must be literally true. Use the mapping form even for one plane, one entry per line, with the label as that entry's trailing comment, and keep the label short. `ruff format` counts the comment toward the configured line length (88 unless the project sets `line-length`), and a reference entry sits deep inside a Substrate class: an entry that runs past the limit is split, leaving `3` on a line with no label. For a plane more than one dielectric away, name the summed separation first (`H_L1_L3 = 0.100 + 0.150  # the two dielectric rows between L1 and L3`) and write `2: 3 * H_L1_L3,  # skill default: 3x dielectric height` (index 2 is L3: conductor indices start at 0); an inline sum can push the entry past the limit. A label after the closing parenthesis is worse, since it ends up on a different line from every value. This is the shape `ruff format` leaves:
 
 ```python
 ).reference(
@@ -587,7 +591,7 @@ because its via class and fence pattern live on the substrate.
   of a Substrate class) hits the same lazy-layers error.
 - **Cannonball-Huray roughness tuples don't fit `Conductor.roughness`** (scalar
   only, `TypeError: must be real number, not tuple`). Keep a scalar on the
-  substrate; carry the Huray pair as a simulation-side surface-roughness override
+  substrate; carry any roughness-model parameters the SI tool needs as a simulation-side surface-roughness override
   (e.g. the SI tool's stackup override), not on the jitx stackup.
 
 ## Fenced Pour Outlines (Antipads, RF Cavities, BGA Breakouts)
@@ -732,7 +736,7 @@ A suite that zipped a full report against an empty layer list and compared nothi
 5. **Define vias** — all via types needed (through, micro, stacked, blind, buried, backdrilled)
 6. **Add routing structures** — `RoutingStructure` and `DifferentialRoutingStructure` for each impedance target
 7. **Add substrate-side rules** — the fenced pour outline rule when the design needs one; board design rules (defaults, clearances, net classes, escapes) are the `jitx-layout-constraints` skill's step, not the substrate's
-8. **Verify** — the base `jitx` skill's `scripts/check.py` on the directory holding the substrate (ruff check, ruff format, pyright, grep gates), then `jitx build` with a test design (sequence builds — don't parallelize against the same project; see [Build Safety — Don't Parallelize Same-Design Work](../jitx/SKILL.md#build-safety--dont-parallelize-same-design-work)); for a report-driven substrate add source-driven tests (see "Verifying a Substrate Against Its Source"); then fill [Substrate completeness check — run before calling it done](#substrate-completeness-check--run-before-calling-it-done). No filled block, no "done".
+8. **Verify** — the base `jitx` skill's [`check.py`](../jitx/scripts/check.py) on the directory holding the substrate (ruff check, ruff format, pyright, grep gates), then `jitx build` with a test design (sequence builds — don't parallelize against the same project; see [Build Safety — Don't Parallelize Same-Design Work](../jitx/SKILL.md#build-safety--dont-parallelize-same-design-work)); for a report-driven substrate add source-driven tests (see "Verifying a Substrate Against Its Source"); then fill [Substrate completeness check — run before calling it done](#substrate-completeness-check--run-before-calling-it-done). No filled block, no "done".
 
 ## Substrate completeness check — run before calling it done
 
@@ -785,4 +789,4 @@ Row-by-row intent — the *why*, so the block stays evidence rather than ceremon
 - **Vias** — every `Via` class on a substrate registers on the board automatically, so define exactly the source's inventory and nothing speculative. Fab reports state drill depth on different bases for laser vs mechanical drills — check each aspect ratio on the basis that matches its drill, not one convention for all.
 - **Routing structures** — the same impedance target usually needs a different width on each geometry (surface microstrip vs inner stripline); carry every layer the source lists. A source's default line/space row with no impedance target is documentation, not a `RoutingStructure` — modelling it means inventing the numbers it doesn't quote.
 - **Fab rules** — mandatory `FabricationConstraints` fields fail translation when missing; capability limits with no JITX field are recorded as documentation, never force-fit through the same numeric parsing as the mappable rules.
-- **Provenance** — if the source doesn't state a value, ask the user or document the omission. Never invent a number to satisfy a type checker or complete a struct, and do not silence the type error either: translation needs the number. An optional call such as `.reference()` is omitted and named as an open item; a `FabricationConstraints` field the source does not state is a question for the user, and the build stays an open item until it is answered.
+- **Provenance** — if the source doesn't state a value, ask the user or document the omission. Never invent a number to satisfy a type checker or complete a struct, and do not silence the type error either: translation needs the number. An optional call with neither a source value nor a named skill default is omitted and named as an open item; a `FabricationConstraints` field the source does not state is a question for the user, and the build stays an open item until it is answered.

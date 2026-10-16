@@ -11,9 +11,9 @@ internal consistency without any board. Unset or blank settings are errors,
 never defaults. Tests that need the kit board or jitx skip, with the reason,
 when they are not installed.
 
-testdata/JS1_Part1_Fab-Stackup.csv is a verbatim copy of the JS1 Jumpstart
-kit's part1-stackup/JS1_Part1_Fab-Stackup.csv in <py-components>
-(jumpstart-kits/js1-stackup-components/part1-stackup/). The copy and the
+testdata/JS1_Part1_Fab-Stackup.csv is a verbatim copy of the fab stackup
+report that ships with the JS1 Jumpstart kit
+(part1-stackup/JS1_Part1_Fab-Stackup.csv in the kit). The copy and the
 installed kit board must be updated together: the kit board is graded against
 the copy, so a change to one without the other turns these tests red.
 """
@@ -1524,6 +1524,14 @@ def test_report_reference_planes_are_adjacent_plane_rows(report: Path) -> None:
                 first, last = sorted((position[plane], position[line]))
                 between = [r for r in rows[first + 1 : last] if r["Type"] == "Copper"]
                 assert between == [], f"{plane} is not adjacent to {line}"
+
+
+def test_dielectric_between_skips_the_copper_between() -> None:
+    """A skip-layer plane's height is the dielectric alone, as SKILL.md sums it."""
+    stackup = report_sections(CASE_CSV)["STACKUP"]
+    assert fabcsv.dielectric_between_mm(stackup, "L1", "L3") == pytest.approx(0.160)
+    assert fabcsv.dielectric_between_mm(stackup, "L3", "L1") == pytest.approx(0.160)
+    assert fabcsv.dielectric_between_mm(stackup, "L3", "L4") == pytest.approx(0.127)
 
 
 @REPORTS

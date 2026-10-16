@@ -68,3 +68,19 @@ def sections(path: Path) -> dict[str, Rows]:
 def layer_number(name: str) -> int:
     """'L7' -> 7."""
     return int(name.strip().removeprefix("L"))
+
+
+def dielectric_between_mm(stackup: Rows, from_layer: str, to_layer: str) -> float:
+    """Dielectric thickness between two copper layers, from the STACKUP rows.
+
+    The copper of any layer in between is not counted.
+    """
+    position = {
+        row["Layer"]: index for index, row in enumerate(stackup) if row["Layer"]
+    }
+    first, last = sorted((position[from_layer], position[to_layer]))
+    return sum(
+        float(row["Thickness_mm"])
+        for row in stackup[first + 1 : last]
+        if row["Type"] == "Dielectric"
+    )

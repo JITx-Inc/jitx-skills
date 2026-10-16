@@ -25,10 +25,9 @@ also assumes the report holds these:
   minimum is above ``min_drill_diameter``, which holds the laser minimum.
 - Every inner routing layer has two reference planes, one on each side, and
   an outer routing layer has one.
-- A reference plane's height is summed over the STACKUP rows between line and
-  plane. For a plane that is not adjacent to its line, that sum includes the
-  copper between them, where SKILL.md sums the dielectric only; the two agree
-  wherever every plane is adjacent, as in both reports the self-tests use.
+- A reference plane's height is the dielectric between line and plane, summed
+  over the STACKUP Dielectric rows between them, as SKILL.md defines it; the
+  copper of a layer in between is not counted.
 
 What it checks, against the report:
 
@@ -1400,8 +1399,8 @@ class TestRoutingStructures(TestCase):
                 ):
                     self.assertEqual(sorted(widths), sorted(named.get(number, ())))
                     for plane, width in widths.items():
-                        height = stackup_span_mm(
-                            f"L{number}", f"L{plane}", include_end_foils=False
+                        height = fabcsv.dielectric_between_mm(
+                            sections()["STACKUP"], f"L{number}", f"L{plane}"
                         )
                         self.assertAlmostEqual(
                             width,
