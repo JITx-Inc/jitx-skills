@@ -29,6 +29,11 @@
       "cmd": "python3 skills/jitx-substrate-modeler/evals/checks/grade_substrate.py <output>/board.py skills/jitx-substrate-modeler/evals/cases/fixtures/QCW-HDI12_Fab-Stackup_RevB.csv"
     },
     {
+      "text": "ruff format leaves every labeled derivation in board.py whole, on the line with its label (the judges read the unformatted file)",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-substrate-modeler/evals/checks/check_labels_formatted.py <output>/board.py"
+    },
+    {
       "text": "no invented numbers: every value in board.py that no report row backs (the reference-plane widths, and anything else) carries a skill-default label on the same line at its call site, naming the rule it follows",
       "check": "judge"
     },

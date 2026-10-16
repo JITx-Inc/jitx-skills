@@ -55,10 +55,6 @@ from jitx.container import inline
 
 ```
 
-**These DO NOT EXIST — never import:**
-`jitx.material`, `jitx.layer`, `jitx.routing`, `jitx.impedance`, `jitx.pcb`,
-`jitx.dielectric`, `jitx.conductor`, `jitxlib.stackup`, `jitxlib.substrate`
-
 ## Anti-string-hacking — read before adding per-layer / per-via tables
 
 Substrate-shaped data (layer-to-via maps, layer-pair tables, per-layer trace widths) belongs **on the substrate**, queried by the design — not duplicated as design-level constants. The design should write `self.substrate.via[(a, b)]`, not maintain its own `_SIGNAL_LAYER_TO_VIA` dict. See `jitx/references/architectural-patterns.md` § "Substrate-shaped tables live on the substrate" before adding per-layer constant tables. Also: instantiate generic substrates (`stackup = Generic_Stackup()`), don't inline-subclass them (`@inline class stackup(Generic_Stackup): pass`) — § "Instantiate, don't inline-subclass".
@@ -85,7 +81,7 @@ Everything goes in **one Python file** per substrate:
 
 ## Source Documents
 
-When the substrate comes from a source document — a fab's stackup report or quote, a laminate datasheet, a written spec — the document is **ground truth**: transcribe it, and trace every value in the substrate to a row, table cell, or field of the source. The only derived values are this skill's named engineering defaults (e.g. the reference-plane width default), each labeled at its call site and in the completeness check's Provenance row; anything else the source doesn't state is a question for the user, not an estimate. Parse the document and restate it to the user before writing code — layer count and construction, each dielectric's Dk/Df and their quoted frequency, foil weights and Rz, the via inventory, the impedance targets, the fab rules — and flag anything ambiguous; everything downstream is a transcription of that reading. Where the source disagrees with this skill's reference tables (a Dk, an Rz), the source wins. A format not listed below (a PDF report, an HFSS 3D Layout stackup XML) gets the same treatment: find the document's own structure, then map it onto the sections of this skill.
+When the substrate comes from a source document — a fab's stackup report or quote, a laminate datasheet, a written spec — the document is **ground truth**: transcribe it, and trace every value in the substrate to a row, table cell, or field of the source. The only derived values are this skill's named engineering defaults (e.g. the reference-plane width default), each labeled at its call site and in the completeness check's Provenance row; anything else the source doesn't state is a question for the user, not an estimate. With no document at all, a named laminate's or generic FR-4's Dk and Df, and the frequency they are quoted at, come from a datasheet: ask for it, and list any value used without one, this skill's example constants included, under Provenance as an open item. Parse the document and restate it to the user before writing code — layer count and construction, each dielectric's Dk/Df and their quoted frequency, foil weights and Rz, the via inventory, the impedance targets, the fab rules — and flag anything ambiguous; everything downstream is a transcription of that reading. A format not listed below (a PDF report, an HFSS 3D Layout stackup XML) gets the same treatment: find the document's own structure, then map it onto the sections of this skill.
 
 ### Fab stackup report CSV
 
@@ -123,8 +119,8 @@ class FR4_Prepreg(Dielectric):
     loss_tangent = 0.0168          # Df (dissipation factor)
 
 class FR408HR_2116(Dielectric):
-    # Named product, so the constants are that product's -- see the laminate
-    # table below, and confirm against the manufacturer's current datasheet.
+    # Named product, so the constants are that product's: confirm them
+    # against the manufacturer's current datasheet.
     material_name = "Isola FR408HR 2116 prepreg"
     dielectric_coefficient = 3.68  # Dk
     loss_tangent = 0.0092          # Df
@@ -153,72 +149,6 @@ class CopperHalfOz(Conductor):
 - **Rz (µm) → mm**: ÷ 1000, matte side, if setting the deprecated `roughness` scalar (see above).
 
 **Terminology:** `dielectric_coefficient` is the JITX attribute name for Dk (dielectric constant, also called relative permittivity or Er). `loss_tangent` is the JITX attribute name for Df (dissipation factor). Datasheets typically specify Dk and Df at a given frequency (e.g., 1 GHz or 10 GHz).
-
-### Common Dielectric Materials
-
-Reference table of common PCB dielectric materials. Values are typical at 10 GHz unless noted. Always confirm with the manufacturer's datasheet for your specific construction.
-
-| Material | Manufacturer | Family | Dk | Df | Notes |
-|----------|-------------|--------|----|----|-------|
-| **Standard FR-4** |
-| FR408HR | Isola | High-Tg epoxy | 3.68 | 0.0092 | Workhorse high-Tg FR-4; widely available |
-| I-Speed | Isola | Low-loss epoxy | 3.64 | 0.0060 | Step down in loss vs standard FR-4 |
-| N4000-13 EP | AGC/Nelco | High-speed epoxy | 3.60 | 0.0090 | High-speed digital backplanes |
-| N7000-2HT | AGC/Nelco | High-speed laminate | 3.50 | 0.0090 | Dk/Df available at 2.5 and 10 GHz |
-| **Low-Loss** |
-| I-Tera MT40 | Isola | Very low-loss epoxy | 3.45 | 0.0031 | High-speed digital/RF |
-| Megtron 6 | Panasonic | Low-loss multilayer | 3.34 | 0.0037 | Common in high-speed digital (at 13 GHz) |
-| RO4350B | Rogers | Hydrocarbon/ceramic | 3.48 | 0.0037 | Popular RF laminate; FR-4 processable |
-| RO4003C | Rogers | Hydrocarbon/ceramic | 3.38 | 0.0027 | Standard RF laminate |
-| 25N | Arlon | Ceramic-filled woven glass | 3.38 | 0.0025 | Low loss with standard FR-4 processes |
-| **Ultra-Low-Loss** |
-| Astra MT77 | Isola | Ultra-low-loss | 3.00 | 0.0017 | RF/microwave and very-high-speed |
-| Tachyon 100G | Isola | Ultra-low-loss | ~3.05 | ~0.0017 | Values vary by construction |
-| Megtron 7 | Panasonic | Ultra-low-loss | varies | varies | Capture exact row for glass style/resin |
-| **PTFE / RF** |
-| RT/duroid 5880 | Rogers | Glass microfiber PTFE | 2.20 | 0.0009 | Ultra-low loss; microwave/RF |
-| RT/duroid 5870 | Rogers | Glass microfiber PTFE | 2.33 | 0.0012 | Low Dk/loss; antennas/stripline |
-| RO3003 | Rogers | Ceramic-filled PTFE | 3.00 | 0.0010 | Low loss PTFE; common RF choice |
-| RO3035 | Rogers | Ceramic-filled PTFE | 3.50 | 0.0015 | PTFE with Dk ~3.5 |
-| TLY-5A | Taconic/AGC | Low-loss PTFE | 2.17–2.40 | ~0.0009 | Selectable Dk range |
-| TLX-0 | Taconic/AGC | Fiberglass PTFE | 2.45 | 0.0012 | Lowest Dk in TLX series |
-| **High-Dk (miniaturization)** |
-| RO3006 | Rogers | Ceramic-filled PTFE | 6.15 | 0.0020 | Higher Dk for size reduction |
-| RO3010 | Rogers | Ceramic-filled PTFE | 10.20 | 0.0022 | High Dk for compact RF |
-| CER-10 | Taconic/AGC | Organic-ceramic | 10.0 | 0.0035 | High Dk; check tolerances per lot |
-
-### Copper Foil Types
-
-Copper surface roughness affects insertion loss at high frequencies. Choose foil type based on your frequency range.
-
-Rz values below are for the **matte/bonding side** (the side laminated to the dielectric core), which is the surface that dominates conductor loss. The drum/resist side is typically 2–5× smoother; use its Ra value when modelling the top surface of a trace.
-
-| Copper Type | Rz — Matte/Bonding Side | Rz — Drum/Resist Side | Use Case |
-|-------------|-------------------------|-----------------------|----------|
-| Standard HTE (STD) | 5–10 μm | 3–5 μm | <1 GHz, general FR-4 inner layers |
-| Reverse Treated Foil (RTF) | 5–10 μm | 3–5 μm | <5 GHz; adhesion treatment moves to drum side |
-| Low Profile (LP / LoPro) | 2–4 μm | 1–2 μm | 1–10 GHz signal layers |
-| Very Low Profile (VLP) | 2.5–5 μm | 1–2 μm | 5–25 Gbps; Megtron 6, Isola IS415/FR408HR |
-| Hyper VLP (HVLP / SVLP) | 1–3 μm | 0.5–1 μm | 25–56 Gbps; high-speed SerDes |
-| Ultra Low Profile (ULP) | 0.5–1.5 μm | 0.3–0.5 μm | >56 Gbps, mmWave (>24 GHz) |
-| Rolled Annealed (RA) | 0.3–0.8 μm | 0.3–0.8 μm | RF/microwave, flex circuits; both sides smooth |
-
-**Rule of thumb:** For signals above 5 GHz, use LP or smoother. Above 10 GHz, use VLP. For 25 Gbps+, use HVLP. For mmWave (>24 GHz) or >56 Gbps, use ULP or RA.
-
-**Cannonball-Huray parameters** (for HFSS/EM simulation using the average HCPES+SCPES model):
-- Nodule radius: `a = 0.0573 × Rz` (µm)
-- Surface ratio: `Sr = 5.117` (constant, independent of foil type)
-- Use matte-side roughness for the bottom surface of a trace; drum-side for the top. The matte side is the rougher of the two — typical Ra range 0.18–0.51 µm for standard foils; the drum side is much smoother — Ra ≈ Rz × 0.0573 (matches the Cannonball-Huray nodule-radius formula, ≈ 0.18 µm at Rz = 3.05 µm).
-
-| Copper Type | Representative Rz (µm) | Nodule radius a (µm) |
-|-------------|------------------------|----------------------|
-| STD HTE | 8.0 | 0.458 |
-| RTF | 6.0 | 0.344 |
-| LP / LoPro | 3.0 | 0.172 |
-| VLP | 3.5 | 0.201 |
-| HVLP | 2.0 | 0.115 |
-| ULP | 1.0 | 0.057 |
-| RA | 0.5 | 0.029 |
 
 ## Stackup
 
@@ -295,7 +225,7 @@ class THViaFilled(Via):
     stop_layer = Side.Bottom
     diameter = 0.45
     hole_diameter = 0.3
-    tented = True
+    tented = True             # or Side.Top / Side.Bottom for one side only
     filled = True
     via_in_pad = True
 ```
@@ -362,16 +292,7 @@ class BackdrilledVia_L3(Via):
     backdrill = BackdrillSet(bottom=bd)  # backdrill from opposite side
 ```
 
-**Dual backdrill (both sides) — incredibly uncommon, almost never needed:**
-
-```python
-    backdrill = BackdrillSet(
-        top=Backdrill(diameter=0.5, startpad_diameter=0.7,
-                      solder_mask_opening=0.8, copper_clearance=0.6),
-        bottom=Backdrill(diameter=0.5, startpad_diameter=0.7,
-                         solder_mask_opening=0.8, copper_clearance=0.6),
-    )
-```
+`BackdrillSet(top=..., bottom=...)` backdrills both sides, with `start_layer` setting the top-side depth as `stop_layer` sets the bottom; it is rarely needed.
 
 ### Per-Layer Pad Diameter (NFP Removal)
 
@@ -435,14 +356,6 @@ vel_mixed = phase_velocity((Dk_pp + Dk_core) / 2)  # mixed dielectric
 
 **`velocity` must be in mm/s, NOT m/s.** `phase_velocity()` returns mm/s. Passing a raw m/s value will be 1000x too small, producing wrong timing constraints.
 
-```python
-# WRONG — velocity in m/s (1000x too small, timing constraints will be wrong)
-velocity = 1.5e8  # m/s — DO NOT USE
-
-# CORRECT — always use phase_velocity() which returns mm/s
-velocity = phase_velocity(4.2)  # returns ~1.46e11 mm/s
-```
-
 **Other routing-structure units:** `insertion_loss` is dB/mm; `pair_spacing` (differential) is the edge-to-edge gap between P and N.
 
 ### From a fab impedance table
@@ -502,21 +415,25 @@ RoutingStructure.Layer(
 )
 .geometry(Soldermask, 0.25, side=Side.Top)        # soldermask opening
 .geometry(KeepOut, 1.2, layers=LayerSet(1), pour=True)  # keepout on layer 1
-.reference(2, 1.0)                                 # reference plane on layer 2
+.reference({2: 1.0})                               # plane on layer 2 (illustrative width)
 .fence(FenceViaClass, ViaFencePattern(pitch=0.5, offset=0.35, num_rows=1),
        reference_layer=2)
 ```
 
-**Reference planes of unstated width:** source documents usually say *which* planes reference each line (a `Ref_layers` column) and never how wide they are. Carry the column — it is part of the impedance model, not decoration. For the width, use the skill's engineering default: **desired width = 3 × the dielectric thickness between the signal layer and that reference plane** (return current concentrates within a few dielectric heights of the trace; 3× captures it). Each plane gets 3× its *own* separation — a stripline's two references can differ — and a reference more than one dielectric away sums the dielectric thicknesses between. Label the value as the skill default at the point of use, and record it in the completeness check's Provenance row as `skill default (3× dielectric height)` — a named, rule-backed default is not an invented number, but an unlabeled one is:
+**Reference planes of unstated width:** source documents usually say *which* planes reference each line (a `Ref_layers` column) and never how wide they are. Carry the column: it is part of the impedance model, not decoration, and it applies to every layer entry it names, the `uncoupled_region`'s included (a `*-UNC` row has its own `Ref_layers`). For the width, use the skill's engineering default: **desired width = 3 × the dielectric thickness between the signal layer and that reference plane** (return current concentrates within a few dielectric heights of the trace; 3× captures it). Each plane gets 3× its *own* separation — a stripline's two references can differ — and a reference more than one dielectric away sums the dielectric thicknesses between. Label the value as the skill default at the point of use, and record it in the completeness check's Provenance row as `skill default (3× dielectric height)` — a named, rule-backed default is not an invented number, but an unlabeled one is:
 
-**Label every call site.** Write the width as its derivation with the label on the same line — a section comment above the block is not enough; a reviewer reads the call site, and the summary's claim "labeled at every call site" must be literally true:
+**Label every call site.** Write each width as its derivation with the label on the same line — a section comment above the block is not enough; a reviewer reads the call site, and the summary's claim "labeled at every call site" must be literally true. Use the mapping form even for one plane, one entry per line, with the label as that entry's trailing comment, and keep the label short. `ruff format` counts the comment toward the configured line length (88 unless the project sets `line-length`), and a reference entry sits 24 to 28 columns deep inside a Substrate class: an entry that runs past the limit is split, leaving `3` on a line with no label. For a plane more than one dielectric away, name the summed separation first (`H_L1_L3 = 0.080 + 0.127  # D-BU + D-CORE rows`) and write `3: 3 * H_L1_L3,  # skill default: 3x dielectric height`; the inline sum does not fit at that depth. A label after the closing parenthesis is worse, since it ends up on a different line from every value. This is the shape `ruff format` leaves:
 
 ```python
-# Ref planes L2 (above) and L4 (below), each across one 0.100 mm build-up:
-.reference({1: 3 * 0.100, 3: 3 * 0.100})  # skill default: 3× dielectric height, not a source value
+).reference(
+    {
+        1: 3 * 0.100,  # skill default: 3x dielectric height
+        3: 3 * 0.100,  # skill default: 3x dielectric height
+    }
+),
 ```
 
-Do **not** pass `None` widths (`.reference(dict.fromkeys(...))`): construction accepts the mapping, but translation assigns `desired_width` straight into a protobuf float and **fails at build time** — a trap, not a fallback (verified on jitx 4.4.0: `_translate/routing.py` assigns `desired_width` straight into a protobuf float, unguarded). If the user insists on strict source-only transcription with no defaults, record the `Ref_layers` identities in the docstring, omit `.reference()`, and name the omission as an open item in the completeness check. The scalar form `reference(layer)` without a width raises `TypeError: Must specify desired_width if layer is not a mapping`. Either way, never silently fill in a width nothing backs — the unlabeled invented number is exactly the failure the completeness check exists to catch.
+If the user insists on strict source-only transcription with no defaults, record the `Ref_layers` identities in the docstring, omit `.reference()`, and name the omission as an open item in the completeness check. Do not pass `None` widths instead: pyright rejects them, and silencing that error fails at build, where translation needs a number. Never silently fill in a width nothing backs: the unlabeled invented number is exactly the failure the completeness check exists to catch.
 
 ### Differential Routing Structure
 
@@ -780,7 +697,7 @@ class MyDesign(Design):
     circuit = MyCircuit()  # an empty Circuit suffices for a substrate smoke test
 ```
 
-**With no runtime, `jitx build --dry --no-dependency-check` still translates.** It answers "does this substrate translate at all" offline — stackup, vias and fab rules all reach the payload and a structural error surfaces. Both flags are needed: `--dry` skips the runtime probe, but the pyproject dependency sync is gated on `--no-dependency-check` alone and runs regardless of `--dry`, so `--dry` by itself still reaches the network and fails offline for a reason that has nothing to do with your substrate. The CLI's own `--dry` help text claims it skips the dependency check; it does not — read the behaviour, not the help string. It needs a project, which is often the only thing missing: a minimal `pyproject.toml` is four lines away, and "no project, so no build" is not the same claim as "cannot be translated". Run it and record the real message. It does **not** satisfy a build gate — see the base `jitx` skill — but reporting a substrate unverified when `--dry` was available is a check skipped, not a check unavailable.
+**With no runtime, `jitx build --dry --no-dependency-check` still translates.** It answers "does this substrate translate at all" offline — stackup, vias and fab rules all reach the payload and a structural error surfaces. Both flags are needed: `--dry` skips the runtime probe, but the pyproject dependency sync is gated on `--no-dependency-check` alone and runs regardless of `--dry`, so `--dry` by itself still reaches the network and fails offline for a reason that has nothing to do with your substrate. If `jitx build --help` says `--dry` also skips the dependency check, it does not: pass both flags. It needs a project, which is often the only thing missing: a minimal `pyproject.toml` is four lines away, and "no project, so no build" is not the same claim as "cannot be translated". Run it and record the real message. It does **not** satisfy a build gate — see the base `jitx` skill — but reporting a substrate unverified when `--dry` was available is a check skipped, not a check unavailable.
 
 **This design, not the scaffold's seeded one, is what a substrate task builds to be done.** `jitx project layout init` seeds a design that subclasses `SampleDesign` and overrides only `circuit`, so it binds **`SampleSubstrate`** — a two-layer sample stackup — and never yours. That build is green and meaningless for your work: it exercises none of your substrate file, which could be empty. Bind your own substrate on your own `Design` and build that. It proves the toolchain, which is worth doing before you write code, and proves nothing about your work afterwards. Add the design above as a **new** class rather than editing the seeded one: the scaffold's smoke target stays intact, and a fresh target has no previously-built design directory to diff against, so the runtime does not stop to ask about the component instances that vanished.
 
@@ -797,7 +714,7 @@ class MyDesign(Design):
 
 For a report-driven substrate, back the completeness check with tests that **parse the source at test time and compare it to the built design**. Re-typing the report's numbers into `EXPECTED_*` constants beside the test is not this: it compares one transcription against another, so a re-issued report needs *both* files edited and the suite goes green either way. The entire value is that the source moves and the suite notices; read the file. Cover layer order and names, thicknesses, Dk/Df, via spans and geometry, every `FabricationConstraints` field, per-layer widths and reference planes, so a re-issued report fails the suite instead of drifting past it. Compare reference-plane *identities* against the source; assert any skill-default widths against the default's own formula (3× dielectric height) — the source never stated them, so testing them against the source would be circular.
 
-**Tests must subclass `jitx.test.TestCase`, never plain `unittest.TestCase`** (verified on jitx 4.4.0). It activates the JITX instantiation context, and needs no runtime — instantiating a design works offline. Without the context the design does not error, it **reads as empty**: `decompose(stackup, Material)` returns zero layers and raises nothing, and iterating `stackup.conductors` hangs. Defend in depth:
+**Tests must subclass `jitx.test.TestCase`, never plain `unittest.TestCase`**. It activates the JITX instantiation context, and needs no runtime — instantiating a design works offline. Without the context the design does not error, it **reads as empty**: `decompose(stackup, Material)` returns zero layers and raises nothing, and iterating `stackup.conductors` hangs. Defend in depth:
 
 - assert the layer count against the source's row count **before** any per-row comparison, and
 - pass `strict=True` to every `zip` of source rows against design elements.
@@ -815,7 +732,7 @@ A suite that zipped a full report against an empty layer list and compared nothi
 5. **Define vias** — all via types needed (through, micro, stacked, blind, buried, backdrilled)
 6. **Add routing structures** — `RoutingStructure` and `DifferentialRoutingStructure` for each impedance target
 7. **Add substrate-side rules** — the fenced pour outline rule when the design needs one; board design rules (defaults, clearances, net classes, escapes) are the `jitx-layout-constraints` skill's step, not the substrate's
-8. **Verify** — `pyright` type check, then `jitx build` with a test design (sequence builds — don't parallelize against the same project; see [Build Safety — Don't Parallelize Same-Design Work](../jitx/SKILL.md#build-safety--dont-parallelize-same-design-work)); for a report-driven substrate add source-driven tests (see "Verifying a Substrate Against Its Source"); then fill [Substrate completeness check — run before calling it done](#substrate-completeness-check--run-before-calling-it-done). No filled block, no "done".
+8. **Verify** — the base `jitx` skill's `scripts/check.py` on the directory holding the substrate (ruff check, ruff format, pyright, grep gates), then `jitx build` with a test design (sequence builds — don't parallelize against the same project; see [Build Safety — Don't Parallelize Same-Design Work](../jitx/SKILL.md#build-safety--dont-parallelize-same-design-work)); for a report-driven substrate add source-driven tests (see "Verifying a Substrate Against Its Source"); then fill [Substrate completeness check — run before calling it done](#substrate-completeness-check--run-before-calling-it-done). No filled block, no "done".
 
 ## Substrate completeness check — run before calling it done
 
@@ -844,7 +761,8 @@ No-field walk: every source section walked (document-level tolerances, surface f
       plating class, quote metadata included) — stated values with no JITX field
       docstringed: <list>
 Provenance: values traceable to no source row: NONE | <list + the labeled rule backing each>
-Checks: pyright <clean | N errors>; build <clean | not run: <reason>>
+Checks: check.py's ruff check, ruff format, pyright and grep gates lines verbatim;
+      source-driven tests <N passed | failures | n/a: no source file>; build <clean | not run: <reason>>
 Verdict: complete | open items: <list>
       Derive this line from every row above. List each unresolved or unsupported
       claim, mismatch, and failed, skipped, or unavailable check as an open item.
@@ -867,14 +785,4 @@ Row-by-row intent — the *why*, so the block stays evidence rather than ceremon
 - **Vias** — every `Via` class on a substrate registers on the board automatically, so define exactly the source's inventory and nothing speculative. Fab reports state drill depth on different bases for laser vs mechanical drills — check each aspect ratio on the basis that matches its drill, not one convention for all.
 - **Routing structures** — the same impedance target usually needs a different width on each geometry (surface microstrip vs inner stripline); carry every layer the source lists. A source's default line/space row with no impedance target is documentation, not a `RoutingStructure` — modelling it means inventing the numbers it doesn't quote.
 - **Fab rules** — mandatory `FabricationConstraints` fields fail translation when missing; capability limits with no JITX field are recorded as documentation, never force-fit through the same numeric parsing as the mappable rules.
-- **Provenance** — if the source doesn't state a value, ask the user or document the omission. Never invent a number to satisfy a type checker or complete a struct; suppress the type error with a comment saying why instead.
-
-## API Reference
-
-For complete class definitions, all parameters, method signatures, and additional examples, see [JITX Documentation](https://docs.jitx.com).
-
-## Formatting
-
-```bash
-ruff format path/to/substrate.py
-```
+- **Provenance** — if the source doesn't state a value, ask the user or document the omission. Never invent a number to satisfy a type checker or complete a struct, and do not silence the type error either: translation needs the number. An optional call such as `.reference()` is omitted and named as an open item; a `FabricationConstraints` field the source does not state is a question for the user, and the build stays an open item until it is answered.
