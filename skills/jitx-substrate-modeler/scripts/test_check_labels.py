@@ -68,6 +68,23 @@ class SplitEntries(unittest.TestCase):
         )
         self.assertEqual([n for n, _ in split_entries(text)], [1])
 
+    def test_label_anywhere_in_the_comment_is_a_label(self) -> None:
+        for text in (
+            "        1: 3\n        * 0.068,  # 3x dielectric height (skill default)\n",
+            "        loss=3\n        * 0.006,  # example value, skill default\n",
+            "    ),  # widths below: skill default\n",
+        ):
+            with self.subTest(text=text):
+                self.assertEqual(len(split_entries(text)), 1)
+
+    def test_split_before_floor_division_or_power_is_reported(self) -> None:
+        for text in (
+            "        1: 3\n        * 0.068\n        // 1,  # skill default: 3x height\n",
+            "        1: 3\n        ** 2,  # skill default: 3x height\n",
+        ):
+            with self.subTest(text=text):
+                self.assertEqual([n for n, _ in split_entries(text)], [1])
+
     def test_split_under_a_comment_that_is_not_a_label_is_clean(self) -> None:
         for text in (
             "        trace_width=3.5\n        * 0.0254,  # 3.5 mil finished, IMPEDANCE row\n",
@@ -80,7 +97,6 @@ class SplitEntries(unittest.TestCase):
         for text in (
             "            ).reference(  # Ref_layers column: L2\n",
             "            ).reference(  # REF_WIDTH column, not a skill default\n",
-            "    ),  # widths below: skill default\n",
         ):
             with self.subTest(text=text):
                 self.assertEqual(split_entries(text), [])
