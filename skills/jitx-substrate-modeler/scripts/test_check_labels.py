@@ -9,6 +9,10 @@ from pathlib import Path
 from check_labels import split_entries
 
 SCRIPT = Path(__file__).with_name("check_labels.py")
+NOTHING = (
+    "check_labels: no skill-default label, nothing to check "
+    "(a value no source row backs needs one)\n"
+)
 PREFIX = "class S:\n    x = f(\n        {\n            2: g(\n                a=1,\n"
 
 
@@ -53,6 +57,18 @@ class SplitEntries(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertEqual(split_entries(text), [])
 
+    def test_split_keyword_derivation_is_reported(self) -> None:
+        text = "        loss=3\n        * 0.006,  # skill default: example value\n"
+        self.assertEqual([n for n, _ in split_entries(text)], [1])
+
+    def test_label_on_an_opening_bracket_is_detached(self) -> None:
+        for text in (
+            "            ).reference(  # skill default: 3x dielectric height\n",
+            "                {  # skill default: 3x dielectric height\n",
+        ):
+            with self.subTest(text=text):
+                self.assertEqual([n for n, _ in split_entries(text)], [1])
+
     def test_standalone_comment_is_not_a_label(self) -> None:
         text = "    # skill default: 3x dielectric height, not a source value\n"
         self.assertEqual(split_entries(text), [])
@@ -86,7 +102,7 @@ class Script(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(
             result.stdout,
-            "check_labels: no skill-default label, nothing to check\n",
+            NOTHING,
         )
 
     def test_missing_file_could_not_run(self) -> None:
@@ -99,7 +115,7 @@ class Script(unittest.TestCase):
                 text=True,
             )
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
-        self.assertEqual(result.stdout, f"check_labels: no file at {missing}\n")
+        self.assertEqual(result.stderr, f"check_labels: no file at {missing}\n")
 
     def test_project_line_length_is_honoured(self) -> None:
         label = "# skill default: 3x dielectric height, not a source value"
@@ -115,9 +131,7 @@ class Script(unittest.TestCase):
         source = PREFIX + body + "                }\n            ),\n        }\n    )\n"
         result = run(source)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual(
-            result.stdout, "check_labels: no skill-default label, nothing to check\n"
-        )
+        self.assertEqual(result.stdout, NOTHING)
 
     def test_mixed_case_detached_label_is_reported(self) -> None:
         text = "    1: 3 * 0.080,\n)  # Skill default: 3x dielectric height\n"
