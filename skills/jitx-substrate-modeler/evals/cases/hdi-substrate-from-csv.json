@@ -5,7 +5,7 @@
     "csv": "evals/cases/fixtures/QCW-HDI12_Fab-Stackup_RevB.csv",
     "notes": "A synthetic Quillmere Circuit Works stackup report (fictional fabricator and products): 12-layer HDI, 2+8+2 sequential build-up, 6-via inventory, 11 IMPEDANCE rows, 19 mappable fab rules plus 5 capability limits."
   },
-  "notes": "For whoever reads the grader's output, not for the runner. SKILL.md shows one-sided tenting only as a comment on its through-hole example (`Side.Top / Side.Bottom`), so a red on TH-1's Tented cell is more likely a skill gap than a grader defect. The grader command, like every assertion command here, runs from the repository root. Whoever launches the runner passes runner_artifacts to it verbatim, with the prompt; no script reads it. Judges get <output>/board.py, <output>/COMPLETION.md and a copy of the fixture CSV, each as --artifact. The CSV is the source report the runner was given, not output under judgment: the first judge assertion needs the CSV to tell a value some report row backs from an invented one, and the second reads the completeness check block in COMPLETION.md. The grader's own self-tests run with `python -m pytest -q skills/jitx-substrate-modeler/evals/checks` from the repository root; run them after any edit to the grader or the fixture. They need jitx, jitxlib, pytest and ruff (importable as a module), run on a POSIX system (grade_substrate.py and parent_watch.py use process groups and POSIX signals), and the kit-board tests also need jitxexamples (they skip, with the reason, without it).",
+  "notes": "For whoever reads the grader's output, not for the runner. SKILL.md shows one-sided tenting only as a comment on its through-hole example (`Side.Top / Side.Bottom`), so a red on TH-1's Tented cell is more likely a skill gap than a grader defect. The grader command, like every assertion command here, runs from the repository root. Whoever launches the runner passes runner_artifacts to it verbatim, with the prompt; no script reads it. Judges get <output>/board.py, <output>/COMPLETION.md and a copy of the fixture CSV, each as --artifact. The CSV is the source report the runner was given, not output under judgment: the first judge assertion needs the CSV to tell a value some report row backs from an invented one, and the second reads the completeness check block in COMPLETION.md. The self-tests of the grader and of the label check (scripts/check_labels.py) run with `python -m pytest -q skills/jitx-substrate-modeler` from the repository root; run them after any edit to either or to the fixture. They need jitx, jitxlib, pytest and ruff (importable as a module), run on a POSIX system (grade_substrate.py and parent_watch.py use process groups and POSIX signals), and the kit-board tests also need jitxexamples (they skip, with the reason, without it).",
   "runner_models": [
     "sonnet"
   ],
@@ -31,7 +31,7 @@
     {
       "text": "ruff format leaves every labeled derivation in board.py whole, on the line with its label (the judges read the unformatted file)",
       "check": "deterministic",
-      "cmd": "python3 skills/jitx-substrate-modeler/evals/checks/check_labels_formatted.py <output>/board.py"
+      "cmd": "python3 skills/jitx-substrate-modeler/scripts/check_labels.py <output>/board.py"
     },
     {
       "text": "no invented numbers: every value in board.py that no report row backs (the reference-plane widths, and anything else) carries a skill-default label on the same line at its call site, naming the rule it follows",

@@ -1,9 +1,12 @@
 """Fail when ``ruff format`` would split a labeled derivation from its label.
 
-Usage: ``python3 check_labels_formatted.py <board.py>``
+Usage: ``python scripts/check_labels.py <substrate.py>``
 
-Formats a copy of the file in memory, with the ruff configuration that applies
-to the file's own directory, and reports two shapes:
+Run it with the project's own Python interpreter, the one its ``ruff`` is
+installed in, on the file that holds the substrate. It formats a copy of the
+file in memory, with the ruff configuration that applies to the file's own
+directory, so a project that sets ``line-length`` is checked at that length.
+It reports two shapes:
 
 - a derivation split from its label: ``1: 3 * 0.080,  # skill default: ...``
   broken into ``1: 3`` and ``* 0.080,  # skill default: ...``;
@@ -11,10 +14,13 @@ to the file's own directory, and reports two shapes:
   such as ``}),  # skill default: ...`` after a wrapped call.
 
 A file that calls ``.reference(`` but carries no ``skill default`` label at
-all is also reported, since there is nothing to check.
+all is also reported, since its plane widths are unlabeled.
 
-Exit 0 clean, 1 found (each printed), 2 could not run (ruff missing or the
-file does not parse).
+Exit 0 clean, with one summary line to quote: ``check_labels: <n> labeled
+values, none split from their label``, or, for a file with no ``.reference(``
+call and no label, a line saying there was nothing to check. Exit 1 found:
+each finding is printed, then a summary line. Exit 2 could not run: ruff does
+not import in this interpreter, or the file does not parse.
 """
 
 import itertools
@@ -23,7 +29,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-USAGE = "usage: python3 check_labels_formatted.py <board.py>"
+USAGE = "usage: python scripts/check_labels.py <substrate.py>"
 LABEL = re.compile(r"skill default", re.IGNORECASE)
 SPLIT_HEAD = re.compile(r"^\s*-?\d+:\s*[^#,]*[\w.)]\s*$")
 CONTINUATION = re.compile(r"^\s*[*/+-]\s")
@@ -87,12 +93,18 @@ def main(argv: list[str]) -> int:
     found = split_entries(text)
     labels = sum(1 for line in text.splitlines() if trailing_label(line))
     if labels == 0 and ".reference(" in text:
-        print("no skill-default label found, though the file calls .reference(")
+        print("check_labels: no skill-default label, though the file calls .reference(")
         return 1
     for number, description in found:
         print(f"line {number}: {description}")
-    print(f"{labels} labeled lines checked, {len(found)} split or detached")
-    return 1 if found else 0
+    if found:
+        print(f"check_labels: {labels} labeled lines, {len(found)} split or detached")
+        return 1
+    if labels == 0:
+        print("check_labels: no .reference( call and no label, nothing to check")
+        return 0
+    print(f"check_labels: {labels} labeled values, none split from their label")
+    return 0
 
 
 if __name__ == "__main__":

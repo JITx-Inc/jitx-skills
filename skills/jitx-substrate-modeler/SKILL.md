@@ -582,17 +582,16 @@ skill. This skill owns what those rules read from: `FabricationConstraints`
 substrate-side rule still declared here is the fenced pour outline below,
 because its via class and fence pattern live on the substrate.
 
-### Substrate sharp edges (verified on real boards)
+### Substrate sharp edges
 
-- **Fenced differential structures can't use `symmetric_routing_layers`** (the
-  fence via's layer endpoints can't be mirrored, layers stay a lazy attribute,
-  and applying the DRS via a rule dies with `DesignTranslationContext is not
-  active`. Last measured on the 4.2 line and **not re-measured on 4.4.0** — the
-  workaround below is cheap and correct either way, so it stands; if you have a
-  fenced DRS on 4.4, try `symmetric_routing_layers` once and tell us). Enumerate the fenced coupled layers explicitly
-  (`layers={0: ..., -1: ..., 1: ..., -2: ...}`); keep `symmetric_routing_layers`
-  for fence-less structures. A module-scope `RoutingStructure` (not an attribute
-  of a Substrate class) hits the same lazy-layers error.
+- **Fenced differential structures: enumerate the coupled layers.**
+  `symmetric_routing_layers` has failed on fenced structures (the fence via's
+  layer endpoints can't be mirrored, layers stay a lazy attribute, and applying
+  the DRS via a rule dies with `DesignTranslationContext is not active`).
+  Enumerate the fenced coupled layers (`layers={0: ..., -1: ..., 1: ..., -2: ...}`),
+  which works either way, and keep `symmetric_routing_layers` for fence-less
+  structures. A module-scope `RoutingStructure` (not an attribute of a Substrate
+  class) has hit the same lazy-layers error.
 - **Cannonball-Huray roughness tuples don't fit `Conductor.roughness`** (scalar
   only, `TypeError: must be real number, not tuple`). Keep a scalar on the
   substrate; carry any roughness-model parameters the SI tool needs as a simulation-side surface-roughness override
@@ -740,7 +739,7 @@ A suite that zipped a full report against an empty layer list and compared nothi
 5. **Define vias** — all via types needed (through, micro, stacked, blind, buried, backdrilled)
 6. **Add routing structures** — `RoutingStructure` and `DifferentialRoutingStructure` for each impedance target
 7. **Add substrate-side rules** — the fenced pour outline rule when the design needs one; board design rules (defaults, clearances, net classes, escapes) are the `jitx-layout-constraints` skill's step, not the substrate's
-8. **Verify** — the base `jitx` skill's [`check.py`](../jitx/scripts/check.py) on the directory holding the substrate (ruff check, ruff format, pyright, grep gates), then `jitx build` with a test design (sequence builds — don't parallelize against the same project; see [Build Safety — Don't Parallelize Same-Design Work](../jitx/SKILL.md#build-safety--dont-parallelize-same-design-work)); for a report-driven substrate add source-driven tests (see "Verifying a Substrate Against Its Source"); then fill [Substrate completeness check — run before calling it done](#substrate-completeness-check--run-before-calling-it-done). No filled block, no "done".
+8. **Verify** — the base `jitx` skill's [`check.py`](../jitx/scripts/check.py) on the directory holding the substrate (ruff check, ruff format, pyright, grep gates); [`check_labels.py`](scripts/check_labels.py) on the substrate file with the project's interpreter, `python scripts/check_labels.py <substrate.py>`, where exit 1 lists each label `ruff format` would split from its value; then `jitx build` with a test design (sequence builds — don't parallelize against the same project; see [Build Safety — Don't Parallelize Same-Design Work](../jitx/SKILL.md#build-safety--dont-parallelize-same-design-work)); for a report-driven substrate add source-driven tests (see "Verifying a Substrate Against Its Source"); then fill [Substrate completeness check — run before calling it done](#substrate-completeness-check--run-before-calling-it-done). No filled block, no "done".
 
 ## Substrate completeness check — run before calling it done
 
@@ -770,13 +769,14 @@ No-field walk: every source section walked (document-level tolerances, surface f
       docstringed: <list>
 Provenance: values traceable to no source row: NONE | <list + the labeled rule backing each>
 Checks: check.py's ruff check, ruff format, pyright and grep gates lines verbatim;
-      source-driven tests <N passed | failures | n/a: no source file>; build <clean | not run: <reason>>
+      check_labels.py's line verbatim; source-driven tests <N passed | failures | n/a: no source file>; build <clean | not run: <reason>>
 Verdict: complete | open items: <list>
       Derive this line from every row above. List each unresolved or unsupported
       claim, mismatch, and failed, skipped, or unavailable check as an open item.
       Any open item requires "open items"; "complete" is valid only when every
       row is supported and resolved and every check ran clean.
       An unavailable environment is an open item, not an exemption.
+      There is no third form: a "complete" qualified by assumptions or caveats is "open items".
 ```
 
 Row-by-row intent — the *why*, so the block stays evidence rather than ceremony:

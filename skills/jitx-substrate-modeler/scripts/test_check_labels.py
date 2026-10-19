@@ -1,4 +1,4 @@
-"""Tests for check_labels_formatted: each shape it reports, and the clean one."""
+"""Tests for check_labels: each shape it reports, and the clean one."""
 
 import subprocess
 import sys
@@ -6,9 +6,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from check_labels_formatted import split_entries
+from check_labels import split_entries
 
-SCRIPT = Path(__file__).with_name("check_labels_formatted.py")
+SCRIPT = Path(__file__).with_name("check_labels.py")
 PREFIX = "class S:\n    x = f(\n        {\n            2: g(\n                a=1,\n"
 
 
@@ -65,6 +65,19 @@ class Script(unittest.TestCase):
         source = PREFIX + body + "                }\n            ),\n        }\n    )\n"
         result = run(source)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        # The completion block quotes this line, so a clean run prints exactly it.
+        self.assertEqual(
+            result.stdout,
+            "check_labels: 1 labeled values, none split from their label\n",
+        )
+
+    def test_file_with_no_reference_call_has_nothing_to_check(self) -> None:
+        result = run("class S:\n    x = 1\n")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(
+            result.stdout,
+            "check_labels: no .reference( call and no label, nothing to check\n",
+        )
 
     def test_project_line_length_is_honoured(self) -> None:
         label = "# skill default: 3x dielectric height, not a source value"
