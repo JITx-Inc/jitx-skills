@@ -4,37 +4,17 @@
 Usage:
   grade_substrate.py BOARD_PY CSV [-k SELECTION] [--timeout SECONDS]
 
-First imports BOARD_PY on its own, with this interpreter, through
-import_candidate.py. A candidate that does not import (a module or name that
-does not exist, an error at class definition) is a red: "FAIL  candidate
-does not import: <what>". A grader dependency that does not import, or an
-import that fails inside a library rather than in the candidate's own files,
-is an ``ERROR  `` line in Python's own wording: an environment problem, not
-the candidate's. A pre-flight that crashes without a verdict is shown with
-its stderr.
-
-Then runs ``pytest -q -W always`` on substrate_grader.py, beside this script,
-with this interpreter, SUBSTRATE_FILE=BOARD_PY and FAB_CSV=CSV, and passes
-only when all of these hold:
-
-- pytest exits 0, with at least one test selected;
-- every selected test passed: a skipped, xfailed or xpassed test is not a
-  graded one, so any of those is a red;
-- the grader's ``GradedTarget`` warning names BOARD_PY as the substrate file
-  and CSV as the fab report.
-
-The last condition makes the case fail closed: a run that graded some other
-file, or graded nothing, is not a pass. SUBSTRATE_CLASS and PYTEST_ADDOPTS
-are removed from the environment, so a stray value cannot pick a class or
-deselect tests.
-
-Each child (the pre-flight, then pytest) runs in its own process group and
-has --timeout seconds (default 300). A child that runs longer, such as a
-board that hangs at import, is a red: the whole group is killed, so nothing
-it started keeps running, and the FAIL line says which stage did not finish.
-SIGTERM, SIGHUP and SIGINT to this process kill the child's group the same
-way. If this process is killed outright, each child sees its parent gone and
-kills its own group (parent_watch.py).
+Runs substrate_grader.py, beside this script, on BOARD_PY, with every expected
+value read from CSV. It passes only when the candidate imports and every
+selected grader test passed on BOARD_PY against CSV; a run that graded some
+other file, or graded nothing, is not a pass. A candidate that does not import
+is a red ("FAIL  candidate does not import: <what>"). A grader dependency that
+does not import, or an import that fails inside a library rather than in the
+candidate's own files, is an ``ERROR  `` line in Python's own wording: an
+environment problem, not the candidate's. A stage that runs past --timeout
+seconds (default 300), such as a board that hangs at import, is a red, and
+nothing it started keeps running. POSIX only: it uses process groups and POSIX
+signals.
 
 Exit codes: 0 graded and green / 1 red, or not graded / 2 usage error (a
 missing or blank argument, or a CSV that is not a file).
@@ -91,6 +71,9 @@ def run_child(
     """Run a child in its own process group and capture its output. None when
     it outlives ``timeout``; the group is killed first, and also when this
     process is interrupted or terminated while it waits."""
+    # Killing the whole group means nothing the child started keeps running.
+    # SIGINT arrives as KeyboardInterrupt, and SIGTERM and SIGHUP as the
+    # SystemExit that stop() raises, so each kills the group the same way.
     child = subprocess.Popen(
         command,
         env=env,
@@ -151,8 +134,11 @@ def main(argv: list[str]) -> int:
     if not board.is_file():
         print(f"FAIL  {board} does not exist")
         return 1
-    # Each child ends itself if this process dies; see parent_watch.py.
+    # Each child ends itself if this process dies; see parent_watch.py. That
+    # covers a SIGKILL to this process, which no handler here can catch.
     watched = {**os.environ, PARENT: str(os.getpid())}
+    # Import BOARD_PY on its own first, with this interpreter, so a board that
+    # does not import is a red or an environment problem before pytest runs.
     preflight = run_child(
         [sys.executable, str(PREFLIGHT), str(board)],
         timeout=args.timeout,
@@ -180,6 +166,7 @@ def main(argv: list[str]) -> int:
         "SUBSTRATE_FILE": str(board.resolve()),
         "FAB_CSV": str(csv_file.resolve()),
     }
+    # Removed so a stray value cannot pick a class or deselect tests.
     env.pop("SUBSTRATE_CLASS", None)
     env.pop("PYTEST_ADDOPTS", None)
     command = [
@@ -205,6 +192,11 @@ def main(argv: list[str]) -> int:
         return 1
     output = done.stdout + done.stderr
     print(output, end="" if output.endswith("\n") else "\n")
+    # Green needs all three: pytest exits 0 with at least one test selected;
+    # every selected test passed, since a skipped, xfailed or xpassed test is
+    # not a graded one; and the grader's GradedTarget warning names BOARD_PY as
+    # the substrate file and CSV as the fab report. The last makes the case
+    # fail closed.
     problems: list[str] = []
     counts = summary_counts(output)
     if done.returncode != 0:
