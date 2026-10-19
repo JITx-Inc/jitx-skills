@@ -5,8 +5,10 @@ Usage:
 
 grade_substrate.py runs this in a child interpreter before it grades, so a
 board that does not import is graded as the candidate's red or reported as an
-environment problem, and the grader never runs on it. POSIX only: it ends
-itself through parent_watch.py, which uses process groups.
+environment problem, and the grader never runs on it. POSIX only when
+grade_substrate.py starts it: it then ends itself through parent_watch.py,
+which uses process groups. Run by hand, with GRADE_SUBSTRATE_PID unset, it
+makes no POSIX call.
 
 Exit codes:
   0  the candidate imports
@@ -61,10 +63,9 @@ def last_real_frame(error: BaseException) -> traceback.FrameSummary | None:
     filename, so pseudo-filenames such as ``<frozen ...>`` and ``<string>``
     and relative build-time names such as ``pkg/_mod.pyx`` are skipped, and
     so are importlib's own frames."""
-    # This frame decides whose fault a failure is. Pseudo-filenames start with
-    # "<" (a frozen module, exec's "<string>"); a relative name is a build-time
-    # one, such as a Cython module's. Skipping importlib's frames as machinery
-    # makes a board's own ``importlib.import_module`` call the board's.
+    # This frame decides whose fault a failure is. Skipping importlib's frames
+    # as machinery makes a board's own ``importlib.import_module`` call the
+    # board's.
     frames = [
         frame
         for frame in traceback.extract_tb(error.__traceback__)

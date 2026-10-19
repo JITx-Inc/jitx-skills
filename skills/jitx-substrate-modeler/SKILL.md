@@ -589,9 +589,10 @@ because its via class and fence pattern live on the substrate.
   layer endpoints can't be mirrored, layers stay a lazy attribute, and applying
   the DRS via a rule dies with `DesignTranslationContext is not active`).
   Enumerate the fenced coupled layers (`layers={0: ..., -1: ..., 1: ..., -2: ...}`),
-  which works either way, and keep `symmetric_routing_layers` for fence-less
-  structures. A module-scope `RoutingStructure` (not an attribute of a Substrate
-  class) has hit the same lazy-layers error.
+  which works whether or not that failure still occurs, and keep
+  `symmetric_routing_layers` for fence-less structures. A module-scope
+  `RoutingStructure` (not an attribute of a Substrate class) has hit the same
+  lazy-layers error.
 - **Cannonball-Huray roughness tuples don't fit `Conductor.roughness`** (scalar
   only, `TypeError: must be real number, not tuple`). Keep a scalar on the
   substrate; carry any roughness-model parameters the SI tool needs as a simulation-side surface-roughness override
@@ -739,7 +740,7 @@ A suite that zipped a full report against an empty layer list and compared nothi
 5. **Define vias** — all via types needed (through, micro, stacked, blind, buried, backdrilled)
 6. **Add routing structures** — `RoutingStructure` and `DifferentialRoutingStructure` for each impedance target
 7. **Add substrate-side rules** — the fenced pour outline rule when the design needs one; board design rules (defaults, clearances, net classes, escapes) are the `jitx-layout-constraints` skill's step, not the substrate's
-8. **Verify** — the base `jitx` skill's [`check.py`](../jitx/scripts/check.py) on the directory holding the substrate (ruff check, ruff format, pyright, grep gates); [`check_labels.py`](scripts/check_labels.py) on the substrate file with the project's interpreter, `python scripts/check_labels.py <substrate.py>`, where exit 1 lists each label `ruff format` would split from its value; then `jitx build` with a test design (sequence builds — don't parallelize against the same project; see [Build Safety — Don't Parallelize Same-Design Work](../jitx/SKILL.md#build-safety--dont-parallelize-same-design-work)); for a report-driven substrate add source-driven tests (see "Verifying a Substrate Against Its Source"); then fill [Substrate completeness check — run before calling it done](#substrate-completeness-check--run-before-calling-it-done). No filled block, no "done".
+8. **Verify** — the base `jitx` skill's [`check.py`](../jitx/scripts/check.py) on the directory holding the substrate (ruff check, ruff format, pyright, grep gates); [`check_labels.py`](scripts/check_labels.py) on the substrate file with the project's interpreter, `python <this skill's directory>/scripts/check_labels.py <substrate.py>`, where exit 1 lists each label `ruff format` would split from its value; then `jitx build` with a test design (sequence builds — don't parallelize against the same project; see [Build Safety — Don't Parallelize Same-Design Work](../jitx/SKILL.md#build-safety--dont-parallelize-same-design-work)); for a report-driven substrate add source-driven tests (see "Verifying a Substrate Against Its Source"); then fill [Substrate completeness check — run before calling it done](#substrate-completeness-check--run-before-calling-it-done). No filled block, no "done".
 
 ## Substrate completeness check — run before calling it done
 

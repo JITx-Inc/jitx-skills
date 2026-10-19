@@ -6,8 +6,10 @@ and anything it started, then does not outlive the grader. The watch is on
 only when GRADE_SUBSTRATE_PID names the parent, so a child run by hand is left
 alone.
 
-Exit code: a child whose parent is gone ends with exit 1, after killing its
-process group. POSIX only: it uses process groups and SIGKILL.
+Exit code: a child whose parent is gone and that leads its own process group,
+as each child grade_substrate.py starts does, dies with the group by SIGKILL;
+one that leads no group exits 1. POSIX only: it uses process groups and
+SIGKILL.
 """
 
 from __future__ import annotations
