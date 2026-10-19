@@ -641,12 +641,17 @@ TOY_TESTS = (
 
 
 def grade_toy(
-    capsys: pytest.CaptureFixture[str], tmp_path: Path, board_source: str
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    board_source: str,
+    *,
+    report_source: str = TOY_REPORT,
+    tests: str = TOY_TESTS,
 ) -> tuple[int, str]:
     report = tmp_path / "toy.csv"
-    report.write_text(TOY_REPORT, encoding="utf-8")
+    report.write_text(report_source, encoding="utf-8")
     board = write(tmp_path, board_source)
-    argv = ["grade_substrate.py", str(board), str(report), "-k", TOY_TESTS]
+    argv = ["grade_substrate.py", str(board), str(report), "-k", tests]
     code = grade_substrate.main(argv)
     return code, capsys.readouterr().out
 
@@ -658,6 +663,89 @@ def test_grader_reads_the_layer_count_from_the_report(
     code, out = grade_toy(capsys, tmp_path, TOY_BOARD)
     assert code == 0, out[-3000:]
     assert "9 passed" in out
+
+
+SKIP_LAYER_REPORT_EDITS = [
+    ("Layer count,2,", "Layer count,3,"),
+    ("Overall thickness,1.070,", "Overall thickness,1.205,"),
+    ("Finished thickness,1.070,", "Finished thickness,1.205,"),
+    (
+        (
+            "2,Dielectric,,Core,D-CORE,39.37,1.0000,4.00,0.0200\n"
+            "3,Copper,L2,Plane - GND,CU,1.38,0.0350,,\n"
+        ),
+        (
+            "2,Dielectric,,Prepreg,D-PP,3.94,0.1000,4.00,0.0200\n"
+            "3,Copper,L2,Signal,CU,1.38,0.0350,,\n"
+            "4,Dielectric,,Core,D-CORE,39.37,1.0000,4.00,0.0200\n"
+            "5,Copper,L3,Plane - GND,CU,1.38,0.0350,,\n"
+        ),
+    ),
+    (
+        ",L1,L2,11.81,0.300,23.62,0.600,1.070,3.57,",
+        ",L1,L3,11.81,0.300,23.62,0.600,1.205,4.02,",
+    ),
+    (",L2 for L1,", ",L3 for L1,"),
+]
+"""Edits that move the toy report's L1 reference plane to L3: a 0.1000 mm
+prepreg, L2's 0.0350 mm copper, then the 1.0000 mm core."""
+
+
+@needs_jitx
+@pytest.mark.parametrize(
+    ("height", "code"),
+    [(0.1000 + 1.0000, 0), (0.1000 + 0.0350 + 1.0000, 1)],
+    ids=["the two dielectrics", "the copper between counted too"],
+)
+def test_a_plane_two_dielectrics_away_is_3x_the_dielectric_alone(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path, height: float, code: int
+) -> None:
+    """The skill sums the dielectric rows between a line and a plane further
+    than one away; the grader holds the board to that sum, not to the full
+    distance with the copper between."""
+    board_edits = [
+        (
+            "class Foil(Conductor):",
+            (
+                "class Prepreg(Dielectric):\n"
+                "    dielectric_coefficient = 4.00\n"
+                "    loss_tangent = 0.0200\n"
+                "    thickness = 0.1000\n\n\n"
+                "class Foil(Conductor):"
+            ),
+        ),
+        (
+            '    core = Core(name="Core")\n    bottom = Foil(name="L2-GND")\n',
+            (
+                '    prepreg = Prepreg(name="Prepreg")\n'
+                '    middle = Foil(name="L2-Signal")\n'
+                '    core = Core(name="Core")\n'
+                '    bottom = Foil(name="L3-GND")\n'
+            ),
+        ),
+        (
+            "    # The plane is written as -1, which only the report's layer count makes L2.\n",
+            "    # L3 is two dielectrics below L1, with L2's copper between.\n",
+        ),
+        (".reference({-1: 3.0})", f".reference({{2: {3 * height:.4f}}})"),
+    ]
+    report, board = TOY_REPORT, TOY_BOARD
+    for old, new in SKIP_LAYER_REPORT_EDITS:
+        report = replace_once(old, new)(report)
+    for old, new in board_edits:
+        board = replace_once(old, new)(board)
+    result, out = grade_toy(
+        capsys,
+        tmp_path,
+        board,
+        report_source=report,
+        tests="test_reference_plane_widths_are_the_skill_default",
+    )
+    assert result == code, out[-3000:]
+    if code == 0:
+        assert "1 passed" in out
+    else:
+        assert "L1 to plane L3: STACKUP Thickness_mm puts 1.1000 mm" in out
 
 
 @needs_jitx
