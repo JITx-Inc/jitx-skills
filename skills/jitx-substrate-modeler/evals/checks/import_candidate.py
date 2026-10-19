@@ -3,43 +3,22 @@
 Usage:
   import_candidate.py BOARD_PY
 
-grade_substrate.py runs this in a child interpreter before it grades. The
-output is read by people and by eval harnesses, which treat Python's own
-"No module named" and "ImportError: cannot import name" wording as an
-environment problem rather than a skill failure. So the wording is chosen by
-whose fault the failure is:
+grade_substrate.py runs this in a child interpreter before it grades, so a
+board that does not import is graded as the candidate's red or reported as an
+environment problem, and the grader never runs on it. POSIX only when
+grade_substrate.py starts it: it then ends itself through parent_watch.py,
+which uses process groups. Run by hand, with GRADE_SUBSTRATE_PID unset, it
+makes no POSIX call.
 
-- The grader's own dependencies (jitx with jitx.proxy, jitxlib.physics,
-  pytest) do not import, whatever they raise: an environment problem, exit 3,
-  in Python's wording.
-- An import fails inside a library rather than in the candidate's own files:
-  an environment problem, exit 3, in Python's wording. A library is a file
-  under a library root: a sys.path entry that was there before the board ran,
-  the interpreter's stdlib, purelib or platlib, or the project directory of
-  an editable install (pip's direct_url.json), even where that sits under the
-  board's directory. The candidate's own roots are the board's directory and
-  any directory the board adds to sys.path. The deepest root holding the file
-  decides, a tie going to the candidate. A file is tested both as named and
-  with symlinks resolved, so a symlink inside a library root stays library.
-  A file under none of these roots counts as the candidate's: those roots
-  cover how an installed library is normally found, so a file outside them
-  is most likely one the board loaded by path. A library installed some
-  other way (a custom import hook with no direct_url.json, a zip outside
-  sys.path) would be misread as the candidate's, and a file the board loads
-  by path from inside an editable project's directory, but outside the
-  board's own directory, grades as the environment's.
-  The innermost frame in a real file decides. A real file has an absolute
-  filename: pseudo-filenames (starting with "<", such as a frozen module or
-  exec's "<string>") and relative build-time names (such as a Cython module's
-  ``pkg/_mod.pyx``) are skipped. importlib's own frames are machinery and are
-  skipped too, so a board's own ``importlib.import_module`` call is the
-  board's.
-- Anything else the candidate's import raises (a module or name that does not
-  exist, an error at class definition, an error a library raises because of
-  the candidate's call): a red, exit 1, as
-  ``FAIL  candidate does not import: <what>``, without Python's wording.
-
-Exit 0 when the candidate imports.
+Exit codes:
+  0  the candidate imports
+  1  a red, the candidate's own import failed:
+     ``FAIL  candidate does not import: <what>``, without Python's wording
+  2  usage error
+  3  an environment problem, as an ``ERROR  `` line in Python's own wording:
+     a grader dependency (jitx with jitx.proxy, jitxlib.physics, pytest) does
+     not import, or an import fails inside a library rather than in the
+     candidate's own files
 """
 
 from __future__ import annotations
@@ -84,6 +63,9 @@ def last_real_frame(error: BaseException) -> traceback.FrameSummary | None:
     filename, so pseudo-filenames such as ``<frozen ...>`` and ``<string>``
     and relative build-time names such as ``pkg/_mod.pyx`` are skipped, and
     so are importlib's own frames."""
+    # This frame decides whose fault a failure is. Skipping importlib's frames
+    # as machinery makes a board's own ``importlib.import_module`` call the
+    # board's.
     frames = [
         frame
         for frame in traceback.extract_tb(error.__traceback__)
@@ -163,6 +145,13 @@ def in_candidate(filename: str, own: set[Path], library: set[Path]) -> bool:
     """Whether a file is the candidate's own: the deepest root holding it, as
     named or resolved, is one of the candidate's (a tie goes to the
     candidate), or no root holds it at all."""
+    # Testing the resolved form too keeps a symlink inside a library root a
+    # library file. A library root wins even where it sits under the board's
+    # directory, as an editable project can. Known misreads: a library
+    # installed some other way (a custom import hook with no direct_url.json,
+    # a zip outside sys.path) reads as the candidate's, and a file the board
+    # loads by path from inside an editable project's directory, but outside
+    # the board's own directory, grades as the environment's.
     paths = forms(filename)
     holding = [
         root
@@ -170,8 +159,9 @@ def in_candidate(filename: str, own: set[Path], library: set[Path]) -> bool:
         if any(path.is_relative_to(root) for path in paths)
     ]
     if not holding:
-        # No library root holds it, so it was most likely loaded by the board
-        # from a path of its own choosing.
+        # No library root holds it. The roots cover how an installed library
+        # is normally found, so it was most likely loaded by the board from a
+        # path of its own choosing.
         return True
 
     def depth(root: Path) -> int:
@@ -183,6 +173,10 @@ def in_candidate(filename: str, own: set[Path], library: set[Path]) -> bool:
 
 def describe(error: BaseException) -> str:
     """What failed, in words that do not repeat Python's own import wording."""
+    # People and eval harnesses read this output, and the harnesses treat
+    # Python's "No module named" and "ImportError: cannot import name" wording
+    # as an environment problem rather than a skill failure. So a red never
+    # carries that wording, and an environment problem (exit 3) keeps it.
     if isinstance(error, ModuleNotFoundError) and error.name:
         return error.name
     if isinstance(error, ImportError) and error.msg:
@@ -215,6 +209,10 @@ def main(argv: list[str]) -> int:
     try:
         spec.loader.exec_module(module)
     except BaseException as error:  # noqa: BLE001 - any failure is reported
+        # An ImportError whose innermost real frame is in a library is the
+        # environment's. Anything else is a red: a module or name that does not
+        # exist, an error at class definition, or an error a library raises
+        # because of the candidate's call.
         frame = last_real_frame(error)
         # The board's directory, and any directory the board put on sys.path.
         own = {board.parent} | (roots(sys.path) - roots(before))

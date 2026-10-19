@@ -1,4 +1,4 @@
-"""Tests for check_labels_formatted: each shape it reports, and the clean one."""
+"""Tests for check_labels: each shape it reports, and the clean one."""
 
 import subprocess
 import sys
@@ -6,9 +6,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from check_labels_formatted import split_entries
+from check_labels import split_entries
 
-SCRIPT = Path(__file__).with_name("check_labels_formatted.py")
+SCRIPT = Path(__file__).with_name("check_labels.py")
 PREFIX = "class S:\n    x = f(\n        {\n            2: g(\n                a=1,\n"
 
 
@@ -43,6 +43,16 @@ class SplitEntries(unittest.TestCase):
         text = "    1: 3 * 0.080,\n)  # skill default: 3x dielectric height\n"
         self.assertEqual([n for n, _ in split_entries(text)], [2])
 
+    def test_label_after_code_that_is_not_only_closers_is_attached(self) -> None:
+        # A labeled keyword or attribute is attached to its value even with no
+        # digit on the line.
+        for text in (
+            "                velocity=VEL,  # skill default: eps_eff\n",
+            "        filled = False  # skill default: unfilled unless stated\n",
+        ):
+            with self.subTest(text=text):
+                self.assertEqual(split_entries(text), [])
+
     def test_standalone_comment_is_not_a_label(self) -> None:
         text = "    # skill default: 3x dielectric height, not a source value\n"
         self.assertEqual(split_entries(text), [])
@@ -65,6 +75,31 @@ class Script(unittest.TestCase):
         source = PREFIX + body + "                }\n            ),\n        }\n    )\n"
         result = run(source)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        # The completion block quotes this line, so a clean run prints exactly it.
+        self.assertEqual(
+            result.stdout,
+            "check_labels: 1 labeled lines, none split from their label\n",
+        )
+
+    def test_file_with_no_reference_call_has_nothing_to_check(self) -> None:
+        result = run("class S:\n    x = 1\n")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(
+            result.stdout,
+            "check_labels: no skill-default label, nothing to check\n",
+        )
+
+    def test_missing_file_could_not_run(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            missing = Path(tmp) / "board.py"
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT), str(missing)],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertEqual(result.stdout, f"check_labels: no file at {missing}\n")
 
     def test_project_line_length_is_honoured(self) -> None:
         label = "# skill default: 3x dielectric height, not a source value"
@@ -73,16 +108,22 @@ class Script(unittest.TestCase):
         result = run(source, "[tool.ruff]\nline-length = 120\n")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
-    def test_reference_with_no_label_fails(self) -> None:
+    def test_reference_with_no_label_has_nothing_to_check(self) -> None:
+        # A width from a source row needs no default label; a missing label on
+        # a default is the eval's judge assertion, not this check.
         body = "            ).reference(\n                {\n                    1: 0.240,\n"
         source = PREFIX + body + "                }\n            ),\n        }\n    )\n"
-        self.assertEqual(run(source).returncode, 1)
+        result = run(source)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(
+            result.stdout, "check_labels: no skill-default label, nothing to check\n"
+        )
 
     def test_mixed_case_detached_label_is_reported(self) -> None:
         text = "    1: 3 * 0.080,\n)  # Skill default: 3x dielectric height\n"
         self.assertEqual([n for n, _ in split_entries(text)], [2])
 
-    def test_label_only_in_a_docstring_or_comment_fails(self) -> None:
+    def test_label_only_in_a_docstring_or_comment_is_not_a_label(self) -> None:
         body = "            ).reference(\n                {\n                    1: 0.240,\n"
         tail = "                }\n            ),\n        }\n    )\n"
         for head in (
@@ -90,7 +131,9 @@ class Script(unittest.TestCase):
             "# Widths below: skill default, 3x dielectric height\n",
         ):
             with self.subTest(head=head):
-                self.assertEqual(run(head + PREFIX + body + tail).returncode, 1)
+                result = run(head + PREFIX + body + tail)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn("nothing to check", result.stdout)
 
     def test_unparseable_file_could_not_run(self) -> None:
         self.assertEqual(run("x = (\n").returncode, 2)
