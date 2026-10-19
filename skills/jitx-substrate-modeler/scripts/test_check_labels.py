@@ -61,6 +61,30 @@ class SplitEntries(unittest.TestCase):
         text = "        loss=3\n        * 0.006,  # skill default: example value\n"
         self.assertEqual([n for n, _ in split_entries(text)], [1])
 
+    def test_split_over_three_lines_is_reported(self) -> None:
+        text = (
+            "        loss=0.018\n        * 1.1\n"
+            "        * 1.05,  # skill default: example value\n"
+        )
+        self.assertEqual([n for n, _ in split_entries(text)], [1])
+
+    def test_split_under_a_comment_that_is_not_a_label_is_clean(self) -> None:
+        for text in (
+            "        trace_width=3.5\n        * 0.0254,  # 3.5 mil finished, IMPEDANCE row\n",
+            "        1: 3\n        * 0.080,  # dielectric height from the table\n",
+        ):
+            with self.subTest(text=text):
+                self.assertEqual(split_entries(text), [])
+
+    def test_comment_that_is_not_a_label_is_never_detached(self) -> None:
+        for text in (
+            "            ).reference(  # Ref_layers column: L2\n",
+            "            ).reference(  # REF_WIDTH column, not a skill default\n",
+            "    ),  # widths below: skill default\n",
+        ):
+            with self.subTest(text=text):
+                self.assertEqual(split_entries(text), [])
+
     def test_label_on_an_opening_bracket_is_detached(self) -> None:
         for text in (
             "            ).reference(  # skill default: 3x dielectric height\n",
