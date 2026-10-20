@@ -29,7 +29,7 @@
       "cmd": "python3 skills/jitx-substrate-modeler/evals/checks/grade_substrate.py <output>/board.py skills/jitx-substrate-modeler/evals/cases/fixtures/QCW-HDI12_Fab-Stackup_RevB.csv"
     },
     {
-      "text": "ruff format leaves every labeled derivation in board.py whole, on the line with its label (the judges read the unformatted file)",
+      "text": "ruff format leaves every labeled derivation in board.py whole, on the line with its label, and no label sits on a bracket over unlabeled entries (the judges read the unformatted file)",
       "check": "deterministic",
       "cmd": "python3 skills/jitx-substrate-modeler/scripts/check_labels.py <output>/board.py"
     },
