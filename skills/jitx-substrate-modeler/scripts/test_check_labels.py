@@ -43,12 +43,11 @@ SUMMARY = (
 def run(
     source: str | bytes,
     pyproject: str = "",
-    flags: tuple[str, ...] = (),
     path: str | None = None,
     python: str = sys.executable,
 ) -> subprocess.CompletedProcess[str]:
-    """Run the script with ``python`` on ``source``; ``flags`` go to the
-    interpreter, and ``path`` replaces PATH in the script's environment."""
+    """Run the script with ``python`` on ``source``; ``path`` replaces PATH in
+    the script's environment."""
     env = dict(os.environ) if path is None else {**os.environ, "PATH": path}
     with tempfile.TemporaryDirectory() as tmp:
         board = Path(tmp) / "board.py"
@@ -59,7 +58,7 @@ def run(
         if pyproject:
             (Path(tmp) / "pyproject.toml").write_text(pyproject)
         return subprocess.run(
-            [python, *flags, str(SCRIPT), str(board)],
+            [python, str(SCRIPT), str(board)],
             check=False,
             capture_output=True,
             text=True,
@@ -288,6 +287,35 @@ class Script(unittest.TestCase):
             result.stdout,
             "check_labels: 1 labeled lines, none split from their label\n",
         )
+
+    def test_label_text_inside_a_docstring_is_never_split(self) -> None:
+        # A docstring heading then a bullet looks like a head and a
+        # continuation, and the bullet names the skill default after a "#".
+        body = (
+            "class S:\n    x = f(\n        {\n            2: g(\n"
+            "                a=1,\n            ).reference(\n                {\n"
+            "                    1: 3 * 0.080," + ENTRY_LABEL + "\n"
+            "                }\n            ),\n        }\n    )\n"
+        )
+        for docstring in (
+            (
+                '"""Reference widths\n'
+                "- Structure #2 uses the skill default, 3x the dielectric height.\n"
+                '"""\n\n\n'
+            ),
+            (
+                '"""Board.\n\nLabel convention\n'
+                "- a value no source row backs carries `# skill default: why`.\n"
+                '"""\n\n\n'
+            ),
+        ):
+            with self.subTest(docstring=docstring):
+                result = run(docstring + body)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual(
+                    result.stdout,
+                    "check_labels: 1 labeled lines, none split from their label\n",
+                )
 
     def test_missing_file_could_not_run(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

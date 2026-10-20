@@ -36,11 +36,13 @@ path, the file is not UTF-8, ruff neither imports in this interpreter nor is on
 """
 
 import importlib.util
+import io
 import itertools
 import re
 import shutil
 import subprocess
 import sys
+import tokenize
 from pathlib import Path
 
 USAGE = "usage: python <this skill's directory>/scripts/check_labels.py <substrate.py>"
@@ -48,12 +50,17 @@ LABEL = re.compile(r"\bskill[- ]defaults?\b", re.IGNORECASE)
 NEGATED = re.compile(r"\b(?:no|not(?:\s+(?:a|the|any))?)\s+$", re.IGNORECASE)
 CLOSERS = re.compile(r"[\s)\]},]+")
 OPENS = re.compile(r"[(\[{]\s*$")
-# A line whose value goes on to the next: it ends in a value, not in a comma or
-# an opening bracket. ruff starts a line with a binary operator only when it
-# breaks an expression, so CONTINUATION on the next line is what marks a split.
+# A line of code whose value goes on to the next: it ends in a value, not in a
+# comma or an opening bracket. Outside a string, ruff starts a line with a
+# binary operator only when it breaks an expression, so CONTINUATION on the
+# next line is what marks a split. String contents are masked before either
+# pattern sees a line.
 HEAD_END = re.compile(r"[^\s,(\[{]\s*$")
 CONTINUATION = re.compile(r"^\s*(?:\*\*|//|[*/+-])\s")
-STRING = re.compile(r"\"(?:[^\"\\]|\\.)*\"|'(?:[^'\\]|\\.)*'")
+# One line as (code, comment): the code before any comment, with every string
+# literal's characters, docstrings and f-strings included, replaced by "_";
+# and the comment token with its "#", or "" when the line has none.
+Line = tuple[str, str]
 
 
 def is_label(comment: str) -> bool:
@@ -64,11 +71,44 @@ def is_label(comment: str) -> bool:
     )
 
 
-def split_comment(line: str) -> tuple[str, str]:
-    """(code, comment): the line split at its first ``#`` outside a string."""
-    masked = STRING.sub(lambda match: " " * len(match.group()), line)
-    at = masked.find("#")
-    return (line, "") if at < 0 else (line[:at], line[at + 1 :])
+def scan(text: str) -> list[Line]:
+    """Each line of ``text`` as (code, comment), from Python's tokenizer, so a
+    ``#`` or an operator inside a string is never a comment or code. Lines are
+    tokenized with their indentation removed, which the tokenizer would
+    otherwise check, so a fragment of a file reads the same as the whole file;
+    one that leaves a string open is read up to where the tokenizer stops."""
+    lines = text.splitlines()
+    indent = [len(line) - len(line.lstrip()) for line in lines]
+    rows = [list(line) for line in lines]
+    comments = [""] * len(rows)
+
+    def mask(start: tuple[int, int], end: tuple[int, int]) -> None:
+        for row in range(start[0], min(end[0], len(rows)) + 1):
+            chars = rows[row - 1]
+            first = start[1] + indent[row - 1] if row == start[0] else 0
+            last = end[1] + indent[row - 1] if row == end[0] else len(chars)
+            chars[first:last] = "_" * len(chars[first:last])
+
+    dedented = io.StringIO("".join(line.lstrip() + "\n" for line in lines))
+    opened: list[tuple[int, int]] = []
+    try:
+        for token in tokenize.generate_tokens(dedented.readline):
+            name = tokenize.tok_name[token.type]
+            row, column = token.start
+            if name == "COMMENT":
+                comments[row - 1] = token.string
+                del rows[row - 1][column + indent[row - 1] :]
+            elif name == "STRING" and not opened:
+                mask(token.start, token.end)
+            elif name.endswith("STRING_START"):
+                opened.append(token.start)
+            elif name.endswith("STRING_END") and opened:
+                begun = opened.pop()
+                if not opened:
+                    mask(begun, token.end)
+    except (tokenize.TokenError, SyntaxError):
+        pass
+    return [("".join(chars), comment) for chars, comment in zip(rows, comments)]
 
 
 def ruff_command() -> list[str] | None:
@@ -112,15 +152,15 @@ def formatted(path: Path) -> tuple[str, str] | None:
     return source, proc.stdout
 
 
-def trailing_label(line: str) -> bool:
+def trailing_label(line: Line) -> bool:
     """A ``skill default`` label trailing code, not a docstring or comment line."""
-    code, comment = split_comment(line)
+    code, comment = line
     return bool(code.strip()) and is_label(comment)
 
 
-def bracket_label(line: str) -> bool:
+def bracket_label(line: Line) -> bool:
     """A label after code that only closes brackets or ends in an opening one."""
-    code, comment = split_comment(line)
+    code, comment = line
     return (
         is_label(comment)
         and bool(code.strip())
@@ -128,20 +168,20 @@ def bracket_label(line: str) -> bool:
     )
 
 
-def moved_labels(text: str, source: str) -> set[int]:
+def moved_labels(text: list[Line], source: list[Line]) -> set[int]:
     """Line numbers in ``text`` of bracket-line labels that were not on a
     bracket line in ``source``: labels ruff moved there. ruff keeps comments
     in order, so the k-th copy of a comment in ``text`` is its k-th copy in
     ``source``."""
     placed: dict[str, list[bool]] = {}
-    for line in source.splitlines():
-        comment = split_comment(line)[1]
+    for line in source:
+        comment = line[1]
         if is_label(comment):
             placed.setdefault(comment.strip(), []).append(bracket_label(line))
     seen: dict[str, int] = {}
     moved: set[int] = set()
-    for number, line in enumerate(text.splitlines(), start=1):
-        comment = split_comment(line)[1].strip()
+    for number, line in enumerate(text, start=1):
+        comment = line[1].strip()
         if not is_label(comment):
             continue
         k = seen.get(comment, 0)
@@ -154,9 +194,9 @@ def moved_labels(text: str, source: str) -> set[int]:
 
 def brackets(code: str) -> tuple[int, int]:
     """(closed, opened): brackets this code closes from earlier lines, and
-    leaves open for later ones. Brackets inside string literals do not count."""
+    leaves open for later ones. The code has its strings masked already."""
     closed = opened = 0
-    for char in STRING.sub("", code):
+    for char in code:
         if char in "([{":
             opened += 1
         elif char in ")]}":
@@ -167,16 +207,15 @@ def brackets(code: str) -> tuple[int, int]:
     return closed, opened
 
 
-def inside(lines: list[str], index: int) -> list[str]:
+def inside(lines: list[Line], index: int) -> list[Line]:
     """The lines inside the bracket pair the line at ``index`` opens (when its
     code ends in an opening bracket) or closes (when it is only closers)."""
-    code = split_comment(lines[index])[0]
-    closed, opened = brackets(code)
-    found: list[str] = []
+    closed, opened = brackets(lines[index][0])
+    found: list[Line] = []
     if opened:
         depth = opened
         for line in lines[index + 1 :]:
-            line_closed, line_opened = brackets(split_comment(line)[0])
+            line_closed, line_opened = brackets(line[0])
             depth -= line_closed
             if depth <= 0:
                 break
@@ -185,7 +224,7 @@ def inside(lines: list[str], index: int) -> list[str]:
     else:
         depth = closed
         for line in reversed(lines[:index]):
-            line_closed, line_opened = brackets(split_comment(line)[0])
+            line_closed, line_opened = brackets(line[0])
             depth -= line_opened
             if depth <= 0:
                 break
@@ -198,11 +237,11 @@ def split_entries(text: str, source: str | None = None) -> list[tuple[int, str]]
     """Each (line number, description) where a label in the formatted ``text``
     is split or detached; with ``source``, a label ruff moved onto a bracket
     line is detached whatever the bracket holds."""
-    lines = text.splitlines()
-    moved = set() if source is None else moved_labels(text, source)
+    raw = text.splitlines()
+    lines = scan(text)
+    moved = set() if source is None else moved_labels(lines, scan(source))
     found: list[tuple[int, str]] = []
-    for number, head in enumerate(lines, start=1):
-        code, comment = split_comment(head)
+    for number, (code, comment) in enumerate(lines, start=1):
         if (
             comment
             or not code.strip()
@@ -214,17 +253,19 @@ def split_entries(text: str, source: str | None = None) -> list[tuple[int, str]]
         # on the last of one or more continuation lines.
         tail = list(
             itertools.takewhile(
-                CONTINUATION.match, itertools.islice(lines, number, None)
+                lambda line: CONTINUATION.match(line[0]),
+                itertools.islice(lines, number, None),
             )
         )
-        if tail and is_label(split_comment(tail[-1])[1]):
-            found.append((number, f"split: {head.strip()!r} / {tail[-1].strip()!r}"))
+        if tail and is_label(tail[-1][1]):
+            last = raw[number + len(tail) - 1].strip()
+            found.append((number, f"split: {raw[number - 1].strip()!r} / {last!r}"))
     for number, line in enumerate(lines, start=1):
         if bracket_label(line) and (
             number in moved
             or not any(trailing_label(entry) for entry in inside(lines, number - 1))
         ):
-            found.append((number, f"detached: {line.strip()!r}"))
+            found.append((number, f"detached: {raw[number - 1].strip()!r}"))
     return sorted(found)
 
 
@@ -240,7 +281,7 @@ def main(argv: list[str]) -> int:
     if read is None:
         return 2
     source, text = read
-    labels = sum(1 for line in text.splitlines() if trailing_label(line))
+    labels = sum(1 for line in scan(text) if trailing_label(line))
     if labels == 0:
         print(
             "check_labels: no skill-default label, nothing to check "
