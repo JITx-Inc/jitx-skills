@@ -25,6 +25,19 @@ BRACKET_ENTRIES = (
     "            ),\n"
 )
 ENTRY_LABEL = "  # skill default: 3x dielectric height"
+# The last entry's label sits after the brackets it closes, so ruff moves it
+# onto the closing bracket.
+MOVED = (
+    "class S:\n    x = f(\n        {\n            2: g(a=1).reference(\n"
+    "                {\n                    1: 3 * 0.080," + ENTRY_LABEL + "\n"
+    "                    3: 3 * 0.127})," + ENTRY_LABEL + "\n        }\n    )\n"
+)
+SUMMARY = (
+    PREFIX
+    + "            ).reference(  # skill default: 3x dielectric height to each plane\n"
+    + BRACKET_ENTRIES.format(first=ENTRY_LABEL, second=ENTRY_LABEL)
+    + "        }\n    )\n"
+)
 
 
 def run(
@@ -32,9 +45,10 @@ def run(
     pyproject: str = "",
     flags: tuple[str, ...] = (),
     path: str | None = None,
+    python: str = sys.executable,
 ) -> subprocess.CompletedProcess[str]:
-    """Run the script on ``source``; ``flags`` go to the interpreter, and
-    ``path`` replaces PATH in the script's environment."""
+    """Run the script with ``python`` on ``source``; ``flags`` go to the
+    interpreter, and ``path`` replaces PATH in the script's environment."""
     env = dict(os.environ) if path is None else {**os.environ, "PATH": path}
     with tempfile.TemporaryDirectory() as tmp:
         board = Path(tmp) / "board.py"
@@ -45,7 +59,7 @@ def run(
         if pyproject:
             (Path(tmp) / "pyproject.toml").write_text(pyproject)
         return subprocess.run(
-            [sys.executable, *flags, str(SCRIPT), str(board)],
+            [python, *flags, str(SCRIPT), str(board)],
             check=False,
             capture_output=True,
             text=True,
@@ -84,8 +98,9 @@ class SplitEntries(unittest.TestCase):
             with self.subTest(comment=comment):
                 self.assertEqual([n for n, _ in split_entries(text)], [1])
 
-    def test_split_under_any_dict_key_is_reported(self) -> None:
-        # The shapes ruff format leaves a long labeled entry in.
+    def test_split_under_any_head_is_reported(self) -> None:
+        # The shapes ruff format leaves a long labeled entry in: any dict key,
+        # including one with ``=`` or a ``#`` in a string, and a list element.
         label = "# skill default: 3x dielectric height to each reference plane"
         for head in (
             '1: H["D-PP"]\n                    * 3,',
@@ -93,6 +108,10 @@ class SplitEntries(unittest.TestCase):
             "L2_IDX: 3\n                    * 0.080,",
             "H.top: 3\n                    * 0.080,",
             'H["a", "b"]: 3\n                    * 0.080,',
+            "3\n                    * 0.080,",
+            "between(1, n=3): 3\n                    * 0.080,",
+            '"L1=L3": 3\n                    * 0.080,',
+            '"L#1": 3\n                    * 0.080,',
         ):
             text = f"                    {head}  {label}\n"
             with self.subTest(head=head):
@@ -186,6 +205,25 @@ class SplitEntries(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertEqual(split_entries(text), [])
 
+    def test_label_ruff_moved_onto_a_bracket_is_detached(self) -> None:
+        # The entry above is labeled, but the source had this label on the
+        # entry, not on the bracket.
+        text = (
+            "                {\n"
+            "                    1: 3 * 0.080," + ENTRY_LABEL + "\n"
+            "                    3: 3 * 0.127,\n"
+            "                }\n"
+            "            )," + ENTRY_LABEL + "\n"
+        )
+        source = (
+            "                {\n"
+            "                    1: 3 * 0.080," + ENTRY_LABEL + "\n"
+            "                    3: 3 * 0.127})," + ENTRY_LABEL + "\n"
+        )
+        self.assertEqual(split_entries(text), [])
+        self.assertEqual([n for n, _ in split_entries(text, source)], [5])
+        self.assertEqual(split_entries(text, text), [])
+
     def test_closing_label_over_unlabeled_entries_is_detached(self) -> None:
         entries = BRACKET_ENTRIES.format(first="", second="")
         text = "            ).reference(\n" + entries.replace(
@@ -202,12 +240,42 @@ class SplitEntries(unittest.TestCase):
         self.assertEqual(split_entries(text), [])
 
 
+def bare_python(tmp: str) -> str | None:
+    """A Python with no ruff: a fresh venv without pip, or None when venv
+    creation is unavailable."""
+    venv = Path(tmp) / "venv"
+    try:
+        subprocess.run(
+            [sys.executable, "-m", "venv", "--without-pip", str(venv)],
+            check=True,
+            capture_output=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    python = venv / "bin" / "python"
+    return str(python) if python.is_file() else None
+
+
 class Script(unittest.TestCase):
-    def test_long_label_at_depth_fails(self) -> None:
-        label = "# skill default: 3x dielectric height, not a source value"
-        body = f"            ).reference(\n                {{\n                    1: 3 * 0.080,  {label}\n"
-        source = PREFIX + body + "                }\n            ),\n        }\n    )\n"
-        self.assertEqual(run(source).returncode, 1)
+    def test_label_split_by_ruff_fails(self) -> None:
+        for label in (
+            "# skill default: 3x dielectric height, not a source value",
+            "# skill-default: 3x dielectric height, not a source value",
+            "# skill defaults: 3x dielectric height, not a source value",
+        ):
+            body = f"            ).reference(\n                {{\n                    1: 3 * 0.080,  {label}\n"
+            source = (
+                PREFIX + body + "                }\n            ),\n        }\n    )\n"
+            )
+            with self.subTest(label=label):
+                result = run(source)
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+
+    def test_bracket_label_fails_only_when_ruff_moved_it_there(self) -> None:
+        for source, code in ((MOVED, 1), (SUMMARY, 0)):
+            with self.subTest(source=source):
+                result = run(source)
+                self.assertEqual(result.returncode, code, result.stdout + result.stderr)
 
     def test_short_label_at_depth_passes(self) -> None:
         label = "# skill default: 3x dielectric height"
@@ -220,19 +288,6 @@ class Script(unittest.TestCase):
             result.stdout,
             "check_labels: 1 labeled lines, none split from their label\n",
         )
-
-    def test_hyphenated_or_plural_label_split_by_ruff_fails(self) -> None:
-        for label in (
-            "# skill-default: 3x dielectric height, not a source value",
-            "# skill defaults: 3x dielectric height, not a source value",
-        ):
-            body = f"            ).reference(\n                {{\n                    1: 3 * 0.080,  {label}\n"
-            source = (
-                PREFIX + body + "                }\n            ),\n        }\n    )\n"
-            )
-            with self.subTest(label=label):
-                result = run(source)
-                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
 
     def test_missing_file_could_not_run(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -284,20 +339,27 @@ class Script(unittest.TestCase):
         self.assertIn("could not read", result.stderr)
 
     def test_ruff_on_path_runs_when_the_interpreter_has_none(self) -> None:
-        # -S leaves site-packages off, so ruff does not import in the script's
-        # interpreter; the ruff on PATH formats instead.
         # The ruff binary beside this interpreter, not a PATH shim that needs a
         # shell the emptied PATH no longer has.
         ruff = Path(sys.executable).with_name("ruff")
         if not ruff.is_file():
             self.skipTest("no ruff executable beside this interpreter")
-        result = run("class S:\n    x = 1\n", flags=("-S",), path=str(ruff.parent))
+        with tempfile.TemporaryDirectory() as tmp:
+            python = bare_python(tmp)
+            if python is None:
+                self.skipTest("could not create a venv without pip")
+            result = run("class S:\n    x = 1\n", path=str(ruff.parent), python=python)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(result.stdout, NOTHING)
 
     def test_no_ruff_anywhere_could_not_run(self) -> None:
-        with tempfile.TemporaryDirectory() as empty:
-            result = run("class S:\n    x = 1\n", flags=("-S",), path=empty)
+        with tempfile.TemporaryDirectory() as tmp:
+            python = bare_python(tmp)
+            if python is None:
+                self.skipTest("could not create a venv without pip")
+            empty = Path(tmp) / "empty"
+            empty.mkdir()
+            result = run("class S:\n    x = 1\n", path=str(empty), python=python)
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
         self.assertIn("nor is on PATH", result.stderr)
 
