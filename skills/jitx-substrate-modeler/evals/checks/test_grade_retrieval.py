@@ -1,6 +1,6 @@
 """grade_retrieval.py credits a read only where a tool result shows the
-destination's text, outside the run's own output, and compares the read logs
-of two runs.
+destination's text and the run did not write that text itself, and compares
+the read logs of two runs.
 
 Every test drives the script's CLI as the case runs it, so the stream-json
 parsing and the exit code are in the path. The case's answers are graded by
@@ -27,7 +27,8 @@ CASE_E = CHECKS / "testdata" / "case_e"
 READS_ALL = CASE_E / "transcript_reads_all.jsonl"
 READS_NONE = CASE_E / "transcript_reads_none.jsonl"
 OUTPUT = "/work/output"
-"""The output directory the fixture runner was given."""
+"""The output directory the fixture runner was given. The read log is not
+told it: where a file sits does not decide whether reading it counts."""
 
 QUESTIONS = range(1, 20)
 READ_CHECKED = [5, 7, 8, 9, 10, 11, 12, 14, 15, 19]
@@ -225,17 +226,21 @@ IMPORT_ONLY: list[Call] = [
         False,
     ),
 ]
+# The runner's own answers, written with Write and read back.
 ANSWERS_ONLY: list[Call] = [
     (
         "Write",
-        {"file_path": "/work/output/ANSWERS.md", "content": "Tags can be assigned to"},
-        "File created successfully at: /work/output/ANSWERS.md",
+        {
+            "file_path": f"{OUTPUT}/ANSWERS.md",
+            "content": "## 19\nThe Hammerstad and Jensen closed form.",
+        },
+        f"File created successfully at: {OUTPUT}/ANSWERS.md",
         None,
     ),
     (
         "Read",
-        {"file_path": "/work/output/ANSWERS.md"},
-        "     1\tFence vias along an arbitrary closed outline",
+        {"file_path": f"{OUTPUT}/ANSWERS.md"},
+        "     1\t## 19\n     2\tThe Hammerstad and Jensen closed form.",
         None,
     ),
 ]
@@ -263,37 +268,73 @@ def truncated(path: Path) -> Path:
     return path
 
 
-# The runner's own output read back: its answers, through a glob that does
-# not name ANSWERS.md, absolutely or relative to the run directory, and a
-# draft kept beside them.
+# The runner's own answers read back through a glob that does not name
+# ANSWERS.md, absolutely or relative to the run directory. The draft rule
+# alone excludes them: the phrases were in the writing call's own input.
 OWN_ANSWERS = (
     "## 19\nThe Hammerstad and Jensen closed form; half its field lies in each.\n"
     "## 11\nstop_layer sets the depth of a bottom backdrill."
 )
+WROTE_ANSWERS: Call = (
+    "Write",
+    {"file_path": f"{OUTPUT}/ANSWERS.md", "content": OWN_ANSWERS},
+    f"File created successfully at: {OUTPUT}/ANSWERS.md",
+    None,
+)
 OWN_OUTPUT_GLOB: list[Call] = [
+    WROTE_ANSWERS,
     ("Bash", {"command": f"cat {OUTPUT}/*.md"}, OWN_ANSWERS, False),
 ]
 OWN_OUTPUT_RELATIVE: list[Call] = [
+    WROTE_ANSWERS,
     ("Bash", {"command": "cd /work && cat output/*.md"}, OWN_ANSWERS, False),
 ]
-OWN_OUTPUT_DRAFT: list[Call] = [
+OWN_OUTPUT_HEREDOC: list[Call] = [
     (
-        "Read",
-        {"file_path": f"{OUTPUT}/draft.md"},
-        "     1\tvelocity is in millimeters per second",
-        None,
+        "Bash",
+        {"command": f"cd /work && cat > output/ANSWERS.md <<'EOF'\n{OWN_ANSWERS}\nEOF"},
+        "",
+        False,
     ),
+    ("Bash", {"command": "cat /work/output/*.md"}, OWN_ANSWERS, False),
 ]
-# The runner was given a different path for its output than the one the
-# read log is given: the directory it wrote ANSWERS.md into still counts.
-OWN_OUTPUT_ELSEWHERE: list[Call] = [
+# Answers begun as a skeleton and filled in by Edit: the Edit's new text is
+# the writing call's input.
+OWN_OUTPUT_EDITED: list[Call] = [
     (
         "Write",
         {"file_path": "/run/out/ANSWERS.md", "content": "# Answers\n"},
         "File created successfully at: /run/out/ANSWERS.md",
         None,
     ),
-    ("Bash", {"command": "cat /run/out/*.md"}, OWN_ANSWERS, False),
+    (
+        "Edit",
+        {
+            "file_path": "/run/out/ANSWERS.md",
+            "old_string": "# Answers\n",
+            "new_string": f"# Answers\n{OWN_ANSWERS}",
+        },
+        "The file /run/out/ANSWERS.md has been updated.",
+        None,
+    ),
+    ("Bash", {"command": "cd /run/out && cat ANSWERS.md"}, OWN_ANSWERS, False),
+]
+OWN_OUTPUT_DRAFT: list[Call] = [
+    (
+        "Write",
+        {
+            "file_path": f"{OUTPUT}/draft.md",
+            "content": "velocity is in millimeters per second",
+        },
+        f"File created successfully at: {OUTPUT}/draft.md",
+        None,
+    ),
+    (
+        "Read",
+        {"file_path": f"{OUTPUT}/draft.md"},
+        "     1\tvelocity is in millimeters per second",
+        None,
+    ),
 ]
 # A draft written from memory outside the output directory, then read back.
 DRAFT_WRITTEN: list[Call] = [
@@ -375,101 +416,160 @@ EDIT_SNIPPET: list[Call] = [
 ]
 
 
+# Genuine reads of the Q5 docstring that touch the output directory or the
+# word "output". Each counts.
+HELP5 = f"{PY} -c 'import jitx.si; help(jitx.si.RoutingStructure.Layer)'"
+DOC5 = (
+    "    Velocity of signal for purposes of timing constraints, in millimeters per"
+    " second."
+)
+ANSWERS5: Call = (
+    "Write",
+    {"file_path": f"{OUTPUT}/ANSWERS.md", "content": "Q5: in millimeters per second"},
+    f"File created successfully at: {OUTPUT}/ANSWERS.md",
+    None,
+)
+HELP_DESCRIBED: list[Call] = [
+    (
+        "Bash",
+        {
+            "command": HELP5,
+            "description": "Print help output for RoutingStructure.Layer",
+        },
+        DOC5,
+        False,
+    ),
+]
+PRINT_OUTPUT: list[Call] = [
+    (
+        "Bash",
+        {
+            "command": f"{PY} -c 'import jitx.si as m;"
+            " output = m.RoutingStructure.Layer.__doc__; print(output)'"
+        },
+        DOC5,
+        False,
+    ),
+]
+# Answers that quote the phrase are already written: a directory that holds
+# them is not them.
+CD_OUTPUT: list[Call] = [
+    ANSWERS5,
+    ("Bash", {"command": f"cd {OUTPUT} && {HELP5}"}, DOC5, False),
+]
+PROBE_IN_OUTPUT: list[Call] = [
+    ANSWERS5,
+    (
+        "Write",
+        {
+            "file_path": f"{OUTPUT}/probe.py",
+            "content": "import jitx.si\nprint(jitx.si.RoutingStructure.Layer.velocity.__doc__)",
+        },
+        f"File created successfully at: {OUTPUT}/probe.py",
+        None,
+    ),
+    ("Bash", {"command": f"{PY} {OUTPUT}/probe.py"}, DOC5, False),
+]
+# help() saved into the output directory is not a draft: the phrase is in
+# the help output, not in the writing call's input.
+HELP_SAVED_IN_OUTPUT: list[Call] = [
+    ("Bash", {"command": f"{HELP5} > {OUTPUT}/help_si.txt"}, "", False),
+    ("Read", {"file_path": f"{OUTPUT}/help_si.txt"}, "     1\t" + DOC5, None),
+]
+# Silencing stderr writes no file.
+GREP_THEN_SED: list[Call] = [
+    (
+        "Bash",
+        {"command": f"grep -rn 'in millimeters per second' {SITE}/x 2>/dev/null"},
+        "",
+        False,
+    ),
+    (
+        "Bash",
+        {"command": f"sed -n 560,575p {SITE}/jitx/si.py 2>/dev/null"},
+        DOC5,
+        False,
+    ),
+]
+READ5 = {**NONE_READ, 5: PASS}
+
+
 def calls_of(calls: list[Call]) -> object:
     return lambda p: transcript(p, calls)
 
 
 @pytest.mark.parametrize(
-    ("build", "expected", "output"),
+    ("build", "expected"),
     [
         pytest.param(
-            lambda p: READS_ALL,
-            {n: PASS for n in READ_CHECKED},
-            OUTPUT,
-            id="fixture-all",
+            lambda p: READS_ALL, {n: PASS for n in READ_CHECKED}, id="fixture-all"
         ),
-        pytest.param(lambda p: READS_NONE, NONE_READ, OUTPUT, id="fixture-none"),
+        pytest.param(lambda p: READS_NONE, NONE_READ, id="fixture-none"),
         pytest.param(
-            truncated,
-            {**{n: PASS for n in READ_CHECKED}, 19: "FAIL"},
-            OUTPUT,
-            id="truncated",
+            truncated, {**{n: PASS for n in READ_CHECKED}, 19: "FAIL"}, id="truncated"
         ),
         pytest.param(
             calls_of(IDIOMS),
             {n: PASS for n in READ_CHECKED},
-            OUTPUT,
             id="runner-idioms-showing-the-text",
         ),
-        pytest.param(calls_of(LISTING), NONE_READ, OUTPUT, id="listing-only"),
-        pytest.param(calls_of(HEREDOC), NONE_READ, OUTPUT, id="heredoc-and-echo"),
-        pytest.param(calls_of(IMPORT_ONLY), NONE_READ, OUTPUT, id="import-only"),
-        pytest.param(calls_of(ANSWERS_ONLY), NONE_READ, OUTPUT, id="answers-file-only"),
+        pytest.param(calls_of(LISTING), NONE_READ, id="listing-only"),
+        pytest.param(calls_of(HEREDOC), NONE_READ, id="heredoc-and-echo"),
+        pytest.param(calls_of(IMPORT_ONLY), NONE_READ, id="import-only"),
+        pytest.param(calls_of(ANSWERS_ONLY), NONE_READ, id="answers-written-then-read"),
+        pytest.param(calls_of([PHASE]), {**NONE_READ, 19: PASS}, id="help-output"),
         pytest.param(
-            calls_of([PHASE]),
-            {**NONE_READ, 19: PASS},
-            OUTPUT,
-            id="help-output-showing-the-text",
+            calls_of(PHASE_FAILED), NONE_READ, id="errored-or-missing-results"
+        ),
+        pytest.param(calls_of(OWN_OUTPUT_GLOB), NONE_READ, id="own-answers-by-glob"),
+        pytest.param(
+            calls_of(OWN_OUTPUT_RELATIVE), NONE_READ, id="own-answers-by-relative-glob"
         ),
         pytest.param(
-            calls_of(PHASE_FAILED), NONE_READ, OUTPUT, id="errored-or-missing-results"
+            calls_of(OWN_OUTPUT_HEREDOC), NONE_READ, id="own-answers-from-heredoc"
+        ),
+        pytest.param(calls_of(OWN_OUTPUT_EDITED), NONE_READ, id="own-answers-by-edit"),
+        pytest.param(calls_of(OWN_OUTPUT_DRAFT), NONE_READ, id="draft-in-own-output"),
+        pytest.param(calls_of(DRAFT_WRITTEN), NONE_READ, id="draft-written-then-read"),
+        pytest.param(calls_of(DRAFT_ECHOED), NONE_READ, id="draft-echoed-then-read"),
+        pytest.param(
+            calls_of(DRAFT_PYTHON), NONE_READ, id="draft-from-python-then-read"
         ),
         pytest.param(
-            calls_of(OWN_OUTPUT_GLOB), NONE_READ, OUTPUT, id="own-output-by-glob"
+            calls_of(HELP_SAVED), {**NONE_READ, 19: PASS}, id="help-saved-then-read"
         ),
-        pytest.param(
-            calls_of(OWN_OUTPUT_RELATIVE),
-            NONE_READ,
-            OUTPUT,
-            id="own-output-by-relative-path",
-        ),
-        pytest.param(
-            calls_of(OWN_OUTPUT_DRAFT), NONE_READ, OUTPUT, id="draft-in-own-output"
-        ),
-        pytest.param(
-            calls_of(OWN_OUTPUT_ELSEWHERE),
-            NONE_READ,
-            "/grader/output",
-            id="own-output-at-the-runner-path",
-        ),
-        pytest.param(
-            calls_of(DRAFT_WRITTEN), NONE_READ, OUTPUT, id="draft-written-then-read"
-        ),
-        pytest.param(
-            calls_of(DRAFT_ECHOED), NONE_READ, OUTPUT, id="draft-echoed-then-read"
-        ),
-        pytest.param(
-            calls_of(DRAFT_PYTHON), NONE_READ, OUTPUT, id="draft-from-python-then-read"
-        ),
-        pytest.param(
-            calls_of(HELP_SAVED),
-            {**NONE_READ, 19: PASS},
-            OUTPUT,
-            id="help-saved-then-read",
-        ),
-        pytest.param(
-            calls_of(EDIT_SNIPPET), NONE_READ, OUTPUT, id="edit-result-snippet"
-        ),
+        pytest.param(calls_of(EDIT_SNIPPET), NONE_READ, id="edit-result-snippet"),
+        pytest.param(calls_of(HELP_DESCRIBED), READ5, id="description-says-output"),
+        pytest.param(calls_of(PRINT_OUTPUT), READ5, id="print-output-variable"),
+        pytest.param(calls_of(CD_OUTPUT), READ5, id="cd-into-output-then-help"),
+        pytest.param(calls_of(PROBE_IN_OUTPUT), READ5, id="probe-script-in-output"),
+        pytest.param(calls_of(HELP_SAVED_IN_OUTPUT), READ5, id="help-saved-in-output"),
+        pytest.param(calls_of(GREP_THEN_SED), READ5, id="stderr-to-dev-null"),
     ],
 )
-def test_read_log(
-    tmp_path: Path, build: object, expected: dict[int, str], output: str
-) -> None:
+def test_read_log(tmp_path: Path, build: object, expected: dict[int, str]) -> None:
     assert callable(build)
     path = build(tmp_path / "transcript.jsonl")
     assert isinstance(path, Path)
-    run = grade("reads", str(path), output)
+    run = grade("reads", str(path))
     assert statuses(run.stdout) == expected, run.stdout
     assert run.returncode == (0 if set(expected.values()) == {PASS} else 1)
 
 
-def run_dir(root: Path, transcript_path: Path | None, answers: bool = True) -> Path:
+Run = tuple[Path | list[Call] | None, bool]
+"""(the transcript, or the calls to build one from, or None for none;
+whether output/ANSWERS.md exists)."""
+
+
+def run_dir(root: Path, source: Path | list[Call] | None, answers: bool) -> Path:
     (root / "output").mkdir(parents=True)
     if answers:
         (root / "output" / "ANSWERS.md").write_text("# Answers\n", encoding="utf-8")
-    if transcript_path is not None:
+    if isinstance(source, list):
+        transcript(root / "transcript.jsonl", source)
+    elif source is not None:
         (root / "transcript.jsonl").write_text(
-            transcript_path.read_text(encoding="utf-8"), encoding="utf-8"
+            source.read_text(encoding="utf-8"), encoding="utf-8"
         )
     return root
 
@@ -502,19 +602,27 @@ def run_dir(root: Path, transcript_path: Path | None, answers: bool = True) -> P
             id="before-produced-nothing",
         ),
         pytest.param(
-            (READS_NONE, True),
+            (READS_ALL, True),
             (READS_ALL, False),
-            0,
+            2,
             ["after: run produced no output (no output/ANSWERS.md)"],
-            len(READ_CHECKED),
-            id="after-wrote-no-answers",
+            0,
+            id="after-read-everything-wrote-no-answers",
+        ),
+        pytest.param(
+            (READS_ALL, True),
+            ([], False),
+            2,
+            ["after: run produced no output (no output/ANSWERS.md)"],
+            0,
+            id="after-init-only-wrote-no-answers",
         ),
     ],
 )
 def test_compare(
     tmp_path: Path,
-    before: tuple[Path | None, bool],
-    after: tuple[Path | None, bool],
+    before: Run,
+    after: Run,
     code: int,
     shown: list[str],
     questions: int,
@@ -537,10 +645,8 @@ def test_compare(
     [
         pytest.param([], id="no-subcommand"),
         pytest.param(["answers", "ANSWERS.md"], id="no-answers-subcommand"),
-        pytest.param(["reads", "transcript.jsonl"], id="no-output-directory"),
-        pytest.param(
-            ["reads", "no-such-transcript.jsonl", "output"], id="missing-transcript"
-        ),
+        pytest.param(["reads"], id="no-transcript"),
+        pytest.param(["reads", "no-such-transcript.jsonl"], id="missing-transcript"),
         pytest.param(["compare", "before"], id="compare-one-directory"),
     ],
 )
@@ -565,7 +671,7 @@ def test_each_question_has_one_judge_assertion_in_prompt_order() -> None:
 def test_the_reads_assertion_names_the_logged_questions() -> None:
     case = json.loads(CASE.read_text(encoding="utf-8"))
     [reads] = [a for a in case["assertions"] if a["check"] == "deterministic"]
-    assert reads["cmd"].endswith("reads <transcript> <output>")
+    assert reads["cmd"].endswith("reads <transcript>")
     named = [int(n) for n in re.findall(r"\bQ(\d+)\b", reads["text"])]
     assert named == READ_CHECKED
 
@@ -589,12 +695,12 @@ def test_no_output_reads_as_an_environment_problem(tmp_path: Path) -> None:
         ],
     )
     runs = [
-        grade("reads", str(reads), OUTPUT),
-        grade("reads", str(tmp_path / "missing.jsonl"), OUTPUT),
+        grade("reads", str(reads)),
+        grade("reads", str(tmp_path / "missing.jsonl")),
         grade(
             "compare",
             str(run_dir(tmp_path / "before", None, answers=False)),
-            str(run_dir(tmp_path / "after", reads)),
+            str(run_dir(tmp_path / "after", reads, answers=True)),
         ),
     ]
     for run in runs:

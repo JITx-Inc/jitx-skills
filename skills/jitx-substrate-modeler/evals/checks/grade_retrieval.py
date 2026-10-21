@@ -2,7 +2,7 @@
 """Log what the runner read in the substrate-api-retrieval case.
 
 Usage:
-  grade_retrieval.py reads TRANSCRIPT_JSONL OUTPUT_DIR
+  grade_retrieval.py reads TRANSCRIPT_JSONL
   grade_retrieval.py compare BEFORE_DIR AFTER_DIR
 
 The case's answers are graded by its judge assertions, one per question.
@@ -15,21 +15,27 @@ present, is not an error, and shows a phrase that only that question's
 destination text carries, as built. Naming a file is not reading it: an
 import, a file listing, a files_with_matches search, or a call with no result
 shows no such phrase. The phrase must come from the result, not from the
-call's own input. These calls never count:
+call's own input. Of a call's input, only its path fields (``file_path``,
+``notebook_path``, ``path``) and its ``command`` are read; a ``description``
+or any other field is never read. A call that writes a file (Write, Edit,
+MultiEdit, NotebookEdit) is never a read.
 
-- a call that writes a file (Write, Edit, MultiEdit, NotebookEdit);
-- a call whose input names ANSWERS.md, or touches the run's output
-  directory: OUTPUT_DIR, the directory the runner wrote ANSWERS.md into, or
-  a relative path that starts with that directory's name (``cat output/*.md``);
-- a call that reads back a file the run wrote earlier with the phrase in
-  the writing call's own input (a draft written from memory with Write, a
-  shell redirect or a Python one-liner).
+One rule keeps a run from crediting itself, the draft rule: a call does not
+count when it reads back a file the run wrote earlier with the phrase in the
+writing call's own input. That covers a draft or an ANSWERS.md written from
+memory with Write or Edit (their written text is that input), a shell
+redirect or tee, or a Python one-liner. The read-back names the file by its
+path, by a relative path or bare name, or by a glob that matches it
+(``cat output/*.md``). Where the file sits does not matter: a help() page
+saved into the output directory and read back counts, since the phrase came
+from help(), not from the writing call.
 
 ``compare`` takes two runs of the case, each a directory holding
 ``transcript.jsonl`` and ``output/``, and prints one line per read-checked
 question with its read verdict before and after (``Q9 reads FAIL->PASS``).
-It exits 1 when a read goes from PASS to FAIL. A run with no transcript is
-reported as having produced no output, and compare exits 2.
+It exits 1 when a read goes from PASS to FAIL. When either run has no
+transcript or no output/ANSWERS.md, compare reports that run as having
+produced no output, lists no reads, and exits 2.
 
 Output of ``reads``: one ``PASS  Qn <topic>`` or ``FAIL  Qn <topic>: <reason>``
 line per read-checked question, then a summary line. Exit 0 when every line
@@ -46,6 +52,7 @@ import json
 import re
 import sys
 from dataclasses import dataclass
+from fnmatch import fnmatchcase
 from pathlib import Path
 from typing import Any
 
@@ -129,8 +136,10 @@ CHECKS: tuple[Check, ...] = (
 answers them itself, or (Q1, Q4) no destination is needed."""
 
 WRITING_TOOLS = {"Write", "Edit", "MultiEdit", "NotebookEdit"}
-PATH_FIELDS = ("file_path", "notebook_path")
-REDIRECT = re.compile(r"(?:>>?|\btee(?:\s+-a)?)\s*([^\s;&|<>()'\"]+)")
+PATH_FIELDS = ("file_path", "notebook_path", "path")
+WRITTEN_FIELDS = ("content", "new_string", "new_source")
+REDIRECT = re.compile(r"(?:(?<![02-9])>>?|\btee(?:\s+-a)?)\s*([^\s;&|<>()'\"]+)")
+WORD = re.compile(r"[^\s'\"`()<>;&|=,]+")
 PYTHON_WRITE = re.compile(
     r"""open\(\s*['"]([^'"]+)['"]\s*,\s*['"][wax]"""
     r"""|Path\(\s*['"]([^'"]+)['"]\s*\)\.write_(?:text|bytes)"""
@@ -175,15 +184,21 @@ def result_text(content: object) -> str:
     return ""
 
 
-def strings(value: object) -> list[str]:
-    """Every string inside a tool call's input."""
-    if isinstance(value, str):
-        return [value]
-    if isinstance(value, dict):
-        return [s for item in value.values() for s in strings(item)]
-    if isinstance(value, list):
-        return [s for item in value for s in strings(item)]
-    return []
+def inspected(name: str, raw: dict[str, Any]) -> list[str]:
+    """The parts of a call's input the read log looks at: its path fields and
+    its command, and for a writing tool the text it writes."""
+    fields = PATH_FIELDS + ("command",)
+    if name in WRITING_TOOLS:
+        fields += WRITTEN_FIELDS
+    found = [raw[f] for f in fields if isinstance(raw.get(f), str)]
+    edits = raw.get("edits") if name in WRITING_TOOLS else None
+    if isinstance(edits, list):
+        found += [
+            e["new_string"]
+            for e in edits
+            if isinstance(e, dict) and isinstance(e.get("new_string"), str)
+        ]
+    return found
 
 
 @dataclass(frozen=True)
@@ -191,7 +206,7 @@ class Call:
     name: str
     raw: dict[str, Any]
     given: list[str]
-    """The strings in the call's input."""
+    """The parts of the call's input that the read log looks at."""
     output: str | None
     """The result's text, or None when it has no result or errored."""
 
@@ -220,7 +235,9 @@ def calls(evs: list[Event]) -> list[Call]:
                 Call(
                     str(item.get("name")),
                     raw if isinstance(raw, dict) else {},
-                    strings(raw),
+                    inspected(
+                        str(item.get("name")), raw if isinstance(raw, dict) else {}
+                    ),
                     results.get(str(item.get("id"))),
                 )
             )
@@ -237,41 +254,43 @@ def written(call: Call) -> list[str]:
     if call.name != "Bash" or not isinstance(command, str):
         return []
     opened = [a or b for a, b in PYTHON_WRITE.findall(command)]
-    return REDIRECT.findall(command) + opened
+    targets = REDIRECT.findall(command) + opened
+    return [t for t in targets if not t.startswith("/dev/")]
 
 
-def touches(text: str, directory: str) -> bool:
-    """Whether ``text`` names ``directory`` by its path, or by a relative path
-    that starts with its name."""
-    if directory in text:
-        return True
-    name = re.escape(Path(directory).name)
-    return re.search(rf"(?<![\w./-])(?:\./)?{name}(?=/|\s|$)", text) is not None
+def names(text: str, path: str) -> bool:
+    """Whether ``text`` names the file ``path``: by its path, by a relative
+    path or bare name that ends it, or by a glob that matches it. A path the
+    run wrote relative to its working directory is matched by the tail of an
+    absolute one. A directory that holds the file is not the file."""
+    path = path.removeprefix("./")
+    for word in WORD.findall(text):
+        word = word.removeprefix("./")
+        if not word or word.endswith("/"):
+            continue
+        tails = [word]
+        if not path.startswith("/"):
+            parts = word.split("/")
+            depth = len(path.split("/"))
+            tails += ["/".join(parts[-depth:])] if len(parts) > depth else []
+        if any(fnmatchcase(path, t) or fnmatchcase(path, f"*/{t}") for t in tails if t):
+            return True
+    return False
 
 
 def collapsed(text: str) -> str:
     return " ".join(text.split())
 
 
-def read_results(evs: list[Event], output: Path) -> Results:
+def read_results(evs: list[Event]) -> Results:
     found = calls(evs)
     writes = [written(call) for call in found]
-    named = {str(output)} | {
-        str(Path(path).parent)
-        for paths in writes
-        for path in paths
-        if Path(path).name == "ANSWERS.md"
-    }
-    directories = {d for d in named if Path(d).name}
     given = [collapsed(" ".join(call.given)) for call in found]
     shown = [collapsed(call.output or "") for call in found]
     candidates = [
         index
         for index, call in enumerate(found)
-        if call.output is not None
-        and call.name not in WRITING_TOOLS
-        and "ANSWERS.md" not in given[index]
-        and not any(touches(given[index], d) for d in directories)
+        if call.output is not None and call.name not in WRITING_TOOLS
     ]
     results: Results = []
     for check in CHECKS:
@@ -284,7 +303,7 @@ def read_results(evs: list[Event], output: Path) -> Results:
         hit = any(
             re.search(check.phrase, shown[index])
             and not re.search(check.phrase, given[index])
-            and not any(at < index and path in given[index] for at, path in drafts)
+            and not any(at < index and names(given[index], path) for at, path in drafts)
             for index in candidates
         )
         why = None if hit else f"no tool result shows the {check.where} text"
@@ -322,19 +341,19 @@ def verdict(why: str | None) -> str:
 def compare(before: Path, after: Path) -> int:
     loaded: list[list[Event]] = []
     for label, run in (("before", before), ("after", after)):
-        if not (run / "output" / "ANSWERS.md").is_file():
-            print(f"{label}: run produced no output (no output/ANSWERS.md)")
         evs = load_events(run / "transcript.jsonl")
         if evs is None:
             print(f"{label}: run produced no output (no transcript.jsonl)")
+        elif not (run / "output" / "ANSWERS.md").is_file():
+            print(f"{label}: run produced no output (no output/ANSWERS.md)")
         else:
             loaded.append(evs)
     if len(loaded) < 2:
         print("compare: nothing to compare")
         return 2
     verdicts = [
-        {check.number: verdict(why) for check, why in read_results(evs, run / "output")}
-        for evs, run in zip(loaded, (before, after), strict=True)
+        {check.number: verdict(why) for check, why in read_results(evs)}
+        for evs in loaded
     ]
     lost: list[str] = []
     for check in CHECKS:
@@ -354,7 +373,6 @@ def main(argv: list[str] | None = None) -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     logged = commands.add_parser("reads")
     logged.add_argument("transcript", type=Path)
-    logged.add_argument("output", type=Path)
     compared = commands.add_parser("compare")
     compared.add_argument("before", type=Path)
     compared.add_argument("after", type=Path)
@@ -365,7 +383,7 @@ def main(argv: list[str] | None = None) -> int:
     if evs is None:
         print("usage error: the transcript cannot be read", file=sys.stderr)
         return 2
-    return report(read_results(evs, args.output))
+    return report(read_results(evs))
 
 
 if __name__ == "__main__":
