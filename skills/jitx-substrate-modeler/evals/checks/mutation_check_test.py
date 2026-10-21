@@ -244,6 +244,14 @@ def test_a_suite_of_copied_constants_fails_every_mutation() -> None:
             edit(SUITE, "import board\n", "import board\nimport fixtures_helper\n"),
             "FAIL  the tests do not pass against the report as given (pytest exit 2)",
         ),
+        (
+            edit(SUITE, "def test_reference_plane_width", "def _reference_plane_width"),
+            "FAIL  the tests pass with a reference-plane width in board.py moved off",
+        ),
+        (
+            edit(Path("board.py"), "3 * H_L1_L2", "0.240"),
+            "FAIL  board.py has no line that multiplies by 3 under a skill-default",
+        ),
     ],
     ids=[
         "a suite that reads its own copy of the report",
@@ -260,6 +268,8 @@ def test_a_suite_of_copied_constants_fails_every_mutation() -> None:
         "a suite whose failure message reads like a missing command",
         "a board.py that does not import",
         "a suite that imports a module that does not exist",
+        "a suite that never tests a default width against its formula",
+        "a board.py that writes its default width as a number",
     ],
 )
 def test_each_way_a_suite_cannot_show_it_reads_the_report_is_red(

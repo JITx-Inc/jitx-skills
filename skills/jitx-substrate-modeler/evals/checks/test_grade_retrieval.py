@@ -30,7 +30,7 @@ OUTPUT = "/work/output"
 told it: where a file sits does not decide whether reading it counts."""
 
 QUESTIONS = range(1, 20)
-READ_CHECKED = [5, 7, 8, 9, 10, 11, 12, 14, 15, 19]
+READ_CHECKED = [3, 5, 7, 8, 9, 10, 11, 12, 14, 15, 18, 19]
 
 LINE = re.compile(r"^(PASS|FAIL)  Q(\d+) [^:\n]*(?:: (.*))?$", re.MULTILINE)
 
@@ -54,6 +54,7 @@ def statuses(stdout: str) -> dict[int, str]:
 
 SITE = "/work/venv/lib/python3.12/site-packages"
 PY = "/work/venv/bin/python"
+SKILLS = "/work/skills"
 
 Call = tuple[str, dict[str, object], str | list[dict[str, str]] | None, bool | None]
 """(tool, input, result content or None for no result, is_error or None for
@@ -91,6 +92,18 @@ def transcript(path: Path, calls: list[Call]) -> Path:
 # Runner idioms that read a destination, each with the lines its output shows
 # from the built text.
 IDIOMS: list[Call] = [
+    (
+        "Grep",
+        {
+            "pattern": "inline-subclass",
+            "path": f"{SKILLS}/jitx/references",
+            "output_mode": "content",
+        },
+        f"{SKILLS}/jitx/references/architectural-patterns.md:331:**Note (legitimate"
+        " inline-subclass case):** `@inline class stackup(Symmetric):` with a"
+        " *non-empty body* that declares layers",
+        None,
+    ),
     (
         "Bash",
         {
@@ -179,6 +192,70 @@ IDIOMS: list[Call] = [
         },
         "Fence vias along an arbitrary closed outline.\n\nUse this pattern when",
         False,
+    ),
+]
+
+# Q3 answered from text that points at architectural patterns 7 without
+# carrying its note: the substrate skill's route line and the code-review
+# checklist entry.
+Q3_FROM_POINTERS: list[Call] = [
+    (
+        "Read",
+        {
+            "file_path": f"{SKILLS}/jitx-substrate-modeler/SKILL.md",
+            "offset": 16,
+            "limit": 1,
+        },
+        "    16\t- Substrate-shaped tables (layer-to-via maps) live on the substrate;"
+        " instantiate a generic stackup rather than inline-subclass it with an empty"
+        " body",
+        None,
+    ),
+    (
+        "Read",
+        {"file_path": f"{SKILLS}/jitx-code-review/references/checklist.md"},
+        "    82\t**Look for:** `@inline class stackup(Generic_Stackup): pass` or any"
+        " other class declaration whose body is `pass`, used where `stackup ="
+        " Generic_Stackup()` would suffice.",
+        None,
+    ),
+    (
+        "Write",
+        {
+            "file_path": f"{OUTPUT}/ANSWERS.md",
+            "content": "## 3\nInstantiate it. A non-empty body is the legitimate"
+            " inline-subclass case.",
+        },
+        f"File created successfully at: {OUTPUT}/ANSWERS.md",
+        None,
+    ),
+]
+# Q18 answered from the circuit-builder reference, which names the module
+# and shows a tagged pour, without reading the module.
+Q18_FROM_REFERENCE: list[Call] = [
+    (
+        "Read",
+        {
+            "file_path": f"{SKILLS}/jitx-circuit-builder/references/advanced-patterns.md",
+            "offset": 155,
+            "limit": 21,
+        },
+        "   157\tTo ring an arbitrary closed shape with fence vias (antipad outlines"
+        " around signal-via pairs, RF cavities, BGA breakout boundaries, deskew arc"
+        " cutouts), pair a tagged Pour with an optional same-shape KeepOut.\n   174\t"
+        "`jitxexamples.patterns.fenced_pour_outline` module.",
+        None,
+    ),
+    (
+        "Write",
+        {
+            "file_path": f"{OUTPUT}/ANSWERS.md",
+            "content": "## 18\njitxexamples.patterns.fenced_pour_outline: a Tag, a"
+            " fence_via rule and a tagged Pour; the generated vias take the pour's"
+            " net.",
+        },
+        f"File created successfully at: {OUTPUT}/ANSWERS.md",
+        None,
     ),
 ]
 
@@ -513,6 +590,12 @@ def calls_of(calls: list[Call]) -> object:
             id="runner-idioms-showing-the-text",
         ),
         pytest.param(calls_of(LISTING), NONE_READ, id="listing-only"),
+        pytest.param(
+            calls_of(Q3_FROM_POINTERS), NONE_READ, id="q3-answered-from-pointers"
+        ),
+        pytest.param(
+            calls_of(Q18_FROM_REFERENCE), NONE_READ, id="q18-answered-from-reference"
+        ),
         pytest.param(calls_of(HEREDOC), NONE_READ, id="heredoc-and-echo"),
         pytest.param(calls_of(IMPORT_ONLY), NONE_READ, id="import-only"),
         pytest.param(calls_of(ANSWERS_ONLY), NONE_READ, id="answers-written-then-read"),

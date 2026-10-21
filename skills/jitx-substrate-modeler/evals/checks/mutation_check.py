@@ -11,7 +11,7 @@ copies OUTPUT_DIR into a scratch directory, imports ``board.py`` there in a
 child through ``import_candidate.py``, and runs ``python -m pytest -q tests``
 from the copy, with this interpreter, the copy first on PYTHONPATH (so the
 tests ``import board``), and the environment variable ``FAB_CSV`` naming a
-copy of the report in another scratch directory. It runs seven times:
+copy of the report in another scratch directory. It runs eight times:
 
 - against an unchanged copy of the report: every test must pass, and at
   least one must run;
@@ -22,6 +22,11 @@ copy of the report in another scratch directory. It runs seven times:
   name with a stand-in that equals no number or string (``BROKEN_BOARD``):
   the tests must fail, so a suite that never tests board.py, or only imports
   it or a name from it, is a red;
+- against the report, with one reference-plane width in board.py moved off
+  3 x its dielectric height (see ``move_width``): the tests must fail (pytest
+  exit 1, or 2), so a suite that never tests a default width against its
+  formula is a red. A board.py with no line that multiplies by 3 under a
+  skill-default label gives the check no width to move, and is a red;
 - against four copies, each with one value changed (see ``MUTATIONS``): a
   dielectric thickness, a via pad, a fab rule and an impedance width. Each
   run must fail (pytest exit 1, or 2 for errors at collection).
@@ -47,9 +52,11 @@ from __future__ import annotations
 import argparse
 import csv
 import io
+import re
 import signal
 import sys
 import tempfile
+import tokenize
 import xml.etree.ElementTree as ElementTree
 from dataclasses import dataclass
 from pathlib import Path
@@ -95,6 +102,60 @@ test that asserts a value read from board.py equals a number or string,
 orders it, or does arithmetic with it, fails; a suite that only imports board.py, reads a
 name from it, checks that a name exists or is truthy, or compares two names
 it read, passes and is a red."""
+
+
+LABEL = re.compile(r"\bskill[- ]defaults?\b", re.IGNORECASE)
+NEGATED = re.compile(r"\b(?:no|not(?:\s+(?:a|the|any))?)\s+$", re.IGNORECASE)
+"""A skill-default label, as ``scripts/check_labels.py`` reads one: a comment
+naming the skill default other than directly after a word that denies it."""
+
+MOVED_FACTOR = "3.5"
+"""What ``move_width`` writes in place of the factor 3."""
+
+
+def is_label(comment: str) -> bool:
+    """The comment names the skill default, other than to deny it."""
+    return any(
+        not NEGATED.search(comment[: match.start()])
+        for match in LABEL.finditer(comment)
+    )
+
+
+def move_width(text: str) -> tuple[str, int] | None:
+    """``text`` with one default width moved off its formula, and the line
+    moved; None when there is no width to move.
+
+    The width is the first line whose comment is a skill-default label and
+    whose code multiplies by the number 3 (``2: 3 * H_L1_L3,  # skill
+    default: ...``, ``H * 3.0`` too); that 3 becomes ``MOVED_FACTOR``. Python's
+    tokenizer finds both, so a 3 or a label inside a string is never one."""
+    try:
+        tokens = list(tokenize.generate_tokens(io.StringIO(text).readline))
+    except (tokenize.TokenError, SyntaxError):
+        return None
+    labelled = {
+        token.start[0]
+        for token in tokens
+        if token.type == tokenize.COMMENT and is_label(token.string)
+    }
+    for index, token in enumerate(tokens):
+        if token.type != tokenize.NUMBER or token.start[0] not in labelled:
+            continue
+        try:
+            value = float(token.string.replace("_", ""))
+        except ValueError:
+            continue
+        neighbours = tokens[index - 1 : index] + tokens[index + 1 : index + 2]
+        if value != 3 or not any(
+            other.type == tokenize.OP and other.string == "*" for other in neighbours
+        ):
+            continue
+        lines = text.splitlines(keepends=True)
+        row, start = token.start
+        line = lines[row - 1]
+        lines[row - 1] = line[:start] + MOVED_FACTOR + line[token.end[1] :]
+        return "".join(lines), row
+    return None
 
 
 @dataclass(frozen=True)
@@ -322,6 +383,37 @@ def check(output: Path, report_csv: Path, timeout: float) -> Verdict:
             )
         else:
             print("board.py replaced: the tests fail, as they should")
+        site = move_width(real_board)
+        if site is None:
+            verdict.problems.append(
+                "board.py has no line that multiplies by 3 under a skill-default "
+                "label, so the check has no reference-plane width to move off 3 x "
+                "its dielectric height"
+            )
+        else:
+            moved_board, line = site
+            (project / "board.py").write_text(moved_board, encoding="utf-8")
+            off = against("width-off-formula", text)
+            (project / "board.py").write_text(real_board, encoding="utf-8")
+            change = f"board.py line {line}: 3 -> {MOVED_FACTOR}"
+            if off.code is None:
+                verdict.problems.append(late("with a default width moved"))
+            elif off.code in (1, 2):
+                print(
+                    f"a reference-plane width moved off its formula ({change}): "
+                    "the tests fail, as they should"
+                )
+            elif off.code == 0:
+                verdict.problems.append(
+                    "the tests pass with a reference-plane width in board.py moved "
+                    f"off 3 x its dielectric height ({change}): they do not test "
+                    "default widths against their formula"
+                )
+            else:
+                verdict.problems.append(
+                    f"pytest exited {off.code} with a default width moved "
+                    f"({change}):\n" + plain(tail(off.output))
+                )
         for number, (mutation, changed) in enumerate(variants, start=1):
             outcome = against(f"mutation-{number}", changed)
             values = ", ".join(

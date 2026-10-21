@@ -1,6 +1,7 @@
 """Each value in board.py against the report that FAB_CSV names."""
 
 import csv
+import math
 import os
 from pathlib import Path
 
@@ -38,3 +39,12 @@ def test_fab_rule() -> None:
 def test_impedance_width() -> None:
     cell = row("IMPEDANCE", "Structure_ID", "SE-50")["Line_width_mm"]
     assert board.SE50_L1_WIDTH == float(cell)
+
+
+def test_reference_plane_width() -> None:
+    """The L1 trace's plane on L2 is 3 x the dielectric between them."""
+    stack = rows("STACKUP")
+    layers = [r["Layer"] for r in stack]
+    between = stack[layers.index("L1") + 1 : layers.index("L2")]
+    height = sum(float(r["Thickness_mm"]) for r in between if r["Type"] == "Dielectric")
+    assert math.isclose(board.SE50_L1_PLANE_L2_WIDTH, 3 * height)
