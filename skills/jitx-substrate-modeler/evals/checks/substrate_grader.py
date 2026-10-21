@@ -53,7 +53,8 @@ What it checks, against the report:
 - Neck regions: a controlled target whose rows quote ``Neck_*`` columns has
   a structure of its own beside its main one, single-ended or differential
   as the target is, carrying the neck width, gap and clearance on the layers
-  of those rows, found by that geometry rather than by impedance. Its
+  of those rows, found by that geometry rather than by impedance; regions
+  that quote the same neck geometry may share one structure. Its
   impedance, velocity and loss are not checked (the report quotes only a
   modelled impedance for a neck), and how a design applies it, by tag, is not
   graded here. No ``NeckDown`` may appear in the file or on any structure.
@@ -745,25 +746,51 @@ def neck_mismatches(structure: AnyStructure, structure_id: str) -> list[str]:
     return out
 
 
+def neck_geometry(structure_id: str) -> tuple[object, ...]:
+    """The neck geometry ``structure_id``'s rows quote, as a comparable value:
+    whether it is differential, and each layer's neck width, pair gap and
+    clearance. Two regions with the same value may share one structure."""
+
+    def cell(row: dict[str, str], column: str) -> float | None:
+        text = row.get(column, "").strip()
+        return round(float(text), 6) if text else None
+
+    rows = neck_rows(structure_id)
+    return (
+        rows[0]["Type"] == "Differential",
+        tuple(
+            sorted(
+                (
+                    fabcsv.layer_number(name),
+                    cell(row, "Neck_width_mm"),
+                    cell(row, "Neck_gap_mm"),
+                    cell(row, "Neck_clearance_mm"),
+                )
+                for row in rows
+                for name in row["Layers"].split(";")
+            )
+        ),
+    )
+
+
 def neck_lookups(substrate: Substrate) -> list[tuple[str, AnyStructure]]:
     """Each neck region with the structure that carries it: in report order,
-    the first declared structure that no controlled target's impedance finds,
-    that no earlier region took, and that carries the region's neck geometry.
+    a declared structure that no controlled target's impedance finds and
+    that carries the region's neck geometry. One that no earlier region took
+    comes first; failing that, regions with the same neck geometry share one.
     A region with none is left out."""
-    taken = [structure for _, structure in controlled_lookups(substrate)]
+    controlled = [structure for _, structure in controlled_lookups(substrate)]
     named: list[tuple[str, AnyStructure]] = []
     for structure_id in neck_regions():
-        found = next(
-            (
-                structure
-                for structure in top_level_structures(substrate)
-                if not any(structure is seen for seen in taken)
-                and not neck_mismatches(structure, structure_id)
-            ),
-            None,
-        )
+        carriers = [
+            structure
+            for structure in top_level_structures(substrate)
+            if not any(structure is seen for seen in controlled)
+            and not neck_mismatches(structure, structure_id)
+        ]
+        unshared = [s for s in carriers if not any(s is seen for _, seen in named)]
+        found = (unshared or carriers or [None])[0]
         if found is not None:
-            taken.append(found)
             named.append((structure_id, found))
     return named
 
@@ -1504,7 +1531,8 @@ class TestRoutingStructures(TestCase):
     def test_uncoupled_rows_are_not_standalone_structures(self) -> None:
         """One single-ended structure per controlled single-ended target, less
         the ``-UNC`` rows, which belong inside their differential structure,
-        plus one per single-ended neck region."""
+        plus the single-ended neck regions' structures: those that carry a
+        region, and one for each neck geometry that none carries."""
         nested = set(uncoupled_ids().values())
         single = {
             r["Structure_ID"]
@@ -1513,14 +1541,21 @@ class TestRoutingStructures(TestCase):
             and r["Type"] == "Single-ended"
             and r["Structure_ID"] not in nested
         }
+        substrate = candidate()
         necks = [sid for sid in neck_regions() if sid in single]
-        found = single_ended_structures(candidate())
+        carried = dict(neck_lookups(substrate))
+        # A structure per carried region, shared or not, and one still owed
+        # for each neck geometry that no structure carries.
+        carriers = _distinct([carried[sid] for sid in necks if sid in carried])
+        owed = {neck_geometry(sid) for sid in necks if sid not in carried}
+        found = single_ended_structures(substrate)
         self.assertEqual(
             len(found),
-            len(single) + len(necks),
+            len(single) + len(carriers) + len(owed),
             "single-ended structures on the substrate, against controlled "
-            f"single-ended targets {sorted(single)} and their neck regions "
-            f"{necks}",
+            f"single-ended targets {sorted(single)} and the structures for "
+            f"their neck regions {necks} (one per distinct neck geometry, or "
+            "one per region)",
         )
 
     def test_uncontrolled_rows_are_not_modelled(self) -> None:
@@ -1588,7 +1623,8 @@ class TestNeckRegions(TestCase):
     def test_each_neck_region_has_a_structure_of_its_own(self) -> None:
         """Each target whose rows quote ``Neck_*`` columns has a structure
         beside its main one, of the same kind, on the layers of those rows,
-        with the neck width, pair gap and clearance."""
+        with the neck width, pair gap and clearance. Targets that quote the
+        same neck geometry may share that structure."""
         substrate = candidate()
         matched = dict(neck_lookups(substrate))
         taken = [s for _, s in controlled_lookups(substrate)] + list(matched.values())

@@ -1,19 +1,25 @@
 #!/usr/bin/env python3
-"""Check that the runner's tests read the report: they pass on it and fail on
-copies of it with one value changed.
+"""Check that the runner's tests read the report and test board.py against
+it: they pass on the report and fail on copies of it with one value changed.
 
 Usage:
   mutation_check.py OUTPUT_DIR REPORT_CSV [--timeout SECONDS]
 
 OUTPUT_DIR holds the runner's ``board.py`` and its ``tests/`` directory.
 REPORT_CSV is the case report, ``QCW-HDI12_Fab-Stackup_RevB.csv``. The check
-copies OUTPUT_DIR into a scratch directory and runs ``python -m pytest -q
-tests`` there, with this interpreter, the copy first on PYTHONPATH (so the
+copies OUTPUT_DIR into a scratch directory, imports ``board.py`` there in a
+child through ``import_candidate.py``, and runs ``python -m pytest -q tests``
+from the copy, with this interpreter, the copy first on PYTHONPATH (so the
 tests ``import board``), and the environment variable ``FAB_CSV`` naming a
-copy of the report. It runs five times:
+copy of the report in another scratch directory. It runs seven times:
 
 - against an unchanged copy of the report: every test must pass, and at
   least one must run;
+- against a copy at another path with the same values and one more NOTES
+  line: every test must pass, so a suite that checks the report's bytes or
+  path rather than its values is a red;
+- with board.py replaced by a module that raises at import: the tests must
+  fail, so a suite that never tests board.py is a red;
 - against four copies, each with one value changed (see ``MUTATIONS``): a
   dielectric thickness, a via pad, a fab rule and an impedance width. Each
   run must fail (pytest exit 1, or 2 for errors at collection).
@@ -22,12 +28,16 @@ A suite that compares board.py with numbers typed into the tests, or reads
 the report from a path of its own instead of ``FAB_CSV``, passes a changed
 copy and is a red. So is a suite that cannot run at all. Each changed value
 is written in both its mm and its mil cell, so a test that reads either
-column sees the change. POSIX only, like ``grade_substrate.py``, whose child
-runner it uses.
+column sees the change. Outcomes are counted from a JUnit XML report written
+outside the copy, so a runner's own pytest options cannot hide them. POSIX
+only, like ``grade_substrate.py``, whose child runner and signal handling it
+uses: SIGTERM or SIGHUP ends every child and removes the scratch directories.
 
 Exit codes: 0 pass / 1 red, with a ``FAIL  `` line per reason / 2 usage error
 (no such directory or report, or a report that no longer holds a row or value
-``MUTATIONS`` expects).
+``MUTATIONS`` expects) / 3 an environment problem, as an ``ERROR  `` line in
+Python's own wording (this interpreter lacks pytest or jitx, or a library
+board.py imports does not import).
 """
 
 from __future__ import annotations
@@ -35,19 +45,37 @@ from __future__ import annotations
 import argparse
 import csv
 import io
-import os
-import shutil
+import signal
 import sys
 import tempfile
+import xml.etree.ElementTree as ElementTree
 from dataclasses import dataclass
 from pathlib import Path
 
-from grade_substrate import run_child, summary_counts
+from design_check import (
+    Verdict,
+    child_env,
+    copy_output,
+    import_file,
+    missing,
+    plain,
+    report,
+    tail,
+)
+from grade_substrate import run_child, stop
 
 TIMEOUT_S = 300.0
 """Seconds each pytest run may take."""
 
-IGNORED = shutil.ignore_patterns("__pycache__", ".pytest_cache", "*.pyc")
+RELOCATED_NOTE = (
+    '"This copy of the report has the values of the original; the check reads '
+    'it from another path."\n'
+)
+"""The line added to the report's last section, NOTES, for the relocated
+copy."""
+
+BROKEN_BOARD = 'raise RuntimeError("mutation_check.py replaced board.py")\n'
+"""board.py for the run whose tests must fail."""
 
 
 @dataclass(frozen=True)
@@ -138,14 +166,48 @@ def mutate(text: str, mutation: Mutation) -> str:
     )
 
 
-def run_tests(project: Path, report: Path, timeout: float) -> tuple[int | None, str]:
-    """pytest's exit code (None on timeout) and its output, for the tests in
-    ``project`` against ``report``."""
-    env = {key: value for key, value in os.environ.items() if key != "PYTEST_ADDOPTS"}
-    env["FAB_CSV"] = str(report)
-    env["PYTHONPATH"] = os.pathsep.join(
-        part for part in (str(project), env.get("PYTHONPATH", "")) if part
+def relocate(text: str) -> str:
+    """``text`` with one more NOTES line; every value as it was."""
+    sections = [line for line in text.splitlines() if line.startswith("SECTION,")]
+    if not sections or sections[-1].strip() != "SECTION,NOTES":
+        raise ReportChanged("the last section is not NOTES")
+    return text + ("" if text.endswith("\n") else "\n") + RELOCATED_NOTE
+
+
+@dataclass(frozen=True)
+class Outcome:
+    """One pytest run: its exit code (None on timeout), the tests that
+    passed, and the tail of its output."""
+
+    code: int | None
+    passed: int
+    output: str
+
+
+def passed_count(junit: Path) -> int:
+    """Tests that passed, from a JUnit XML report; 0 when there is none."""
+    try:
+        root = ElementTree.parse(junit).getroot()
+    except (OSError, ElementTree.ParseError):
+        return 0
+    suites = [root] if root.tag == "testsuite" else list(root.iter("testsuite"))
+    return sum(
+        int(suite.get("tests", 0))
+        - int(suite.get("failures", 0))
+        - int(suite.get("errors", 0))
+        - int(suite.get("skipped", 0))
+        for suite in suites
     )
+
+
+def run_tests(project: Path, report_copy: Path, timeout: float) -> Outcome:
+    """The tests in ``project`` against ``report_copy``. The JUnit report
+    goes beside the report copy, outside ``project``."""
+    env = {k: v for k, v in child_env(project).items() if k != "PYTEST_ADDOPTS"}
+    env["FAB_CSV"] = str(report_copy)
+    # board.py is swapped out between runs: no bytecode cache may outlive it.
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    junit = report_copy.parent / "junit.xml"
     done = run_child(
         [
             sys.executable,
@@ -155,6 +217,7 @@ def run_tests(project: Path, report: Path, timeout: float) -> tuple[int | None, 
             "-p",
             "no:cacheprovider",
             "--color=no",
+            f"--junitxml={junit}",
             "tests",
         ],
         timeout=timeout,
@@ -162,64 +225,101 @@ def run_tests(project: Path, report: Path, timeout: float) -> tuple[int | None, 
         cwd=project,
     )
     if done is None:
-        return None, ""
-    return done.returncode, done.stdout + done.stderr
+        return Outcome(None, 0, "")
+    return Outcome(done.returncode, passed_count(junit), done.stdout + done.stderr)
 
 
-def last_lines(output: str) -> str:
-    return "\n".join(output.strip().splitlines()[-15:])
-
-
-def check(output: Path, report: Path, timeout: float) -> list[str]:
-    """Every reason the output's tests fail the check; empty when they pass."""
-    text = report.read_text(encoding="utf-8")
+def check(output: Path, report_csv: Path, timeout: float) -> Verdict:
+    """Every environment problem and red; both empty when the tests pass."""
+    verdict = Verdict()
+    text = report_csv.read_text(encoding="utf-8")
     variants = [(mutation, mutate(text, mutation)) for mutation in MUTATIONS]
+    relocated = relocate(text)
+    error = missing("mutation_check.py", ("pytest", "jitx"))
+    if error is not None:
+        verdict.errors.append(error)
+        return verdict
     if not (output / "tests").is_dir():
-        return [f"{output / 'tests'} does not exist, so there are no tests to run"]
+        verdict.problems.append(
+            f"{output / 'tests'} does not exist, so there are no tests to run"
+        )
+        return verdict
+    if not (output / "board.py").is_file():
+        verdict.problems.append(f"{output / 'board.py'} does not exist")
+        return verdict
     with tempfile.TemporaryDirectory(prefix="mutation-check-") as tmp:
         root = Path(tmp)
         project = root / "project"
-        shutil.copytree(output, project, ignore=IGNORED)
-        original = root / "reports" / "original" / report.name
-        original.parent.mkdir(parents=True)
-        original.write_text(text, encoding="utf-8")
-        code, out = run_tests(project, original, timeout)
-        if code is None:
-            return [f"the tests did not finish within {timeout:g} s on the report"]
-        counts = summary_counts(out)
-        if code != 0 or not counts.get("passed"):
-            return [
-                "the tests do not pass against the report as given (pytest exit "
-                f"{code}), so they cannot show that a changed value fails them:\n"
-                + last_lines(out)
-            ]
-        print(f"report as given: {counts['passed']} passed")
-        problems: list[str] = []
-        for number, (mutation, changed) in enumerate(variants, start=1):
-            copy = root / "reports" / f"mutation-{number}" / report.name
+        copy_output(output, project)
+        if not import_file(project / "board.py", child_env(project), timeout, verdict):
+            return verdict
+
+        def against(name: str, content: str) -> Outcome:
+            copy = root / "reports" / name / report_csv.name
             copy.parent.mkdir(parents=True)
-            copy.write_text(changed, encoding="utf-8")
-            code, out = run_tests(project, copy, timeout)
+            copy.write_text(content, encoding="utf-8")
+            return run_tests(project, copy, timeout)
+
+        def late(what: str) -> str:
+            return f"the tests did not finish within {timeout:g} s {what}"
+
+        original = against("original", text)
+        if original.code is None:
+            verdict.problems.append(late("on the report"))
+            return verdict
+        if original.code != 0 or not original.passed:
+            verdict.problems.append(
+                "the tests do not pass against the report as given (pytest exit "
+                f"{original.code}), so they cannot show that a changed value fails "
+                f"them:\n{plain(tail(original.output))}"
+            )
+            return verdict
+        print(f"report as given: {original.passed} passed")
+        moved = against("relocated", relocated)
+        if moved.code is None:
+            verdict.problems.append(late("on the relocated copy of the report"))
+        elif moved.code != 0 or not moved.passed:
+            verdict.problems.append(
+                "the tests fail on a copy of the report with the same values at "
+                "another path and one more NOTES line (pytest exit "
+                f"{moved.code}): they check the file, not its values:\n"
+                + plain(tail(moved.output))
+            )
+        else:
+            print("relocated copy of the report: the tests pass, as they should")
+        real_board = (project / "board.py").read_text(encoding="utf-8")
+        (project / "board.py").write_text(BROKEN_BOARD, encoding="utf-8")
+        broken = against("board-replaced", text)
+        (project / "board.py").write_text(real_board, encoding="utf-8")
+        if broken.code is None:
+            verdict.problems.append(late("with board.py replaced"))
+        elif broken.code == 0:
+            verdict.problems.append(
+                "the tests pass with board.py replaced by a module that raises at "
+                "import: they do not test board.py"
+            )
+        else:
+            print("board.py replaced: the tests fail, as they should")
+        for number, (mutation, changed) in enumerate(variants, start=1):
+            outcome = against(f"mutation-{number}", changed)
             values = ", ".join(
                 f"{column} {old} -> {new}" for column, old, new in mutation.cells
             )
-            if code is None:
-                problems.append(
-                    f"the tests did not finish within {timeout:g} s on {mutation.label}"
-                )
-            elif code in (1, 2):
+            if outcome.code is None:
+                verdict.problems.append(late(f"on {mutation.label}"))
+            elif outcome.code in (1, 2):
                 print(f"{mutation.label} ({values}): the tests fail, as they should")
-            elif code == 0:
-                problems.append(
+            elif outcome.code == 0:
+                verdict.problems.append(
                     f"the tests pass with {mutation.label} changed ({values}): they "
                     "do not check that value against the report FAB_CSV names"
                 )
             else:
-                problems.append(
-                    f"pytest exited {code} with {mutation.label} changed:\n"
-                    + last_lines(out)
+                verdict.problems.append(
+                    f"pytest exited {outcome.code} with {mutation.label} changed:\n"
+                    + plain(tail(outcome.output))
                 )
-    return problems
+    return verdict
 
 
 def main(argv: list[str]) -> int:
@@ -233,27 +333,27 @@ def main(argv: list[str]) -> int:
         args = parser.parse_args(argv[1:])
     except SystemExit as error:
         return 2 if error.code else 0
-    output, report = Path(args.output), Path(args.report)
+    output, report_csv = Path(args.output), Path(args.report)
     if not output.is_dir():
         print(f"error: no output directory at {output}", file=sys.stderr)
         return 2
-    if not report.is_file():
-        print(f"error: no report at {report}", file=sys.stderr)
+    if not report_csv.is_file():
+        print(f"error: no report at {report_csv}", file=sys.stderr)
         return 2
     try:
-        problems = check(output, report, args.timeout)
+        verdict = check(output, report_csv, args.timeout)
     except ReportChanged as error:
         print(
             f"error: the report has changed ({error}); update MUTATIONS",
             file=sys.stderr,
         )
         return 2
-    for problem in problems:
-        print(f"FAIL  {problem}")
-    if not problems:
-        print(f"PASS  the tests in {output} fail on every changed copy of the report")
-    return 1 if problems else 0
+    return report(
+        verdict, f"the tests in {output} fail on every changed copy of the report"
+    )
 
 
 if __name__ == "__main__":
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGHUP, stop)
     sys.exit(main(sys.argv))

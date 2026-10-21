@@ -9,6 +9,8 @@ children are real.
 
 from __future__ import annotations
 
+import hashlib
+import os
 import shutil
 import subprocess
 import sys
@@ -26,9 +28,14 @@ CASE_CSV = CHECKS.parent / "cases" / "fixtures" / "QCW-HDI12_Fab-Stackup_RevB.cs
 SUITE = Path("tests") / "test_board.py"
 
 
-def run(output: Path) -> subprocess.CompletedProcess[str]:
+PYTHON_IMPORT_WORDING = ("No module named", "cannot import name")
+"""Python's own words for a failed import. Eval harnesses read them as an
+environment problem, so a red must not carry them."""
+
+
+def run(output: Path, *flags: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, str(SCRIPT), str(output), str(CASE_CSV)],
+        [sys.executable, *flags, str(SCRIPT), str(output), str(CASE_CSV)],
         capture_output=True,
         text=True,
         timeout=600,
@@ -44,6 +51,68 @@ def edit(name: Path, old: str, new: str) -> Callable[[Path], None]:
         path.write_text(text.replace(old, new), encoding="utf-8")
 
     return apply
+
+
+Change = Callable[[Path], None]
+
+
+def suite(text: str) -> Change:
+    """The suite replaced by one test file holding ``text``."""
+
+    def apply(output: Path) -> None:
+        (output / SUITE).write_text(text, encoding="utf-8")
+
+    return apply
+
+
+def write(name: str, text: str) -> Change:
+    def apply(output: Path) -> None:
+        (output / name).write_text(text, encoding="utf-8")
+
+    return apply
+
+
+def clutter(output: Path) -> None:
+    """What a runner's directory may also hold: a virtualenv, a git directory
+    and a symlink to nothing."""
+    (output / ".venv" / "bin").mkdir(parents=True)
+    os.symlink("/nonexistent/python", output / ".venv" / "bin" / "python")
+    (output / ".git").mkdir()
+    (output / ".git" / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
+    os.symlink("missing.py", output / "stale.py")
+
+
+REPORT_HASH = hashlib.sha256(CASE_CSV.read_bytes()).hexdigest()
+
+HASH_SUITE = f"""import hashlib
+import os
+from pathlib import Path
+
+
+def test_the_report_is_the_one_modelled() -> None:
+    text = Path(os.environ["FAB_CSV"]).read_bytes()
+    assert hashlib.sha256(text).hexdigest() == "{REPORT_HASH}"
+"""
+"""Passes on the report and fails on every changed copy, without board.py."""
+
+PATH_SUITE = """import os
+
+
+def test_the_report_path() -> None:
+    assert "/original/" in os.environ["FAB_CSV"]
+"""
+"""Passes or fails by where the check puts the report."""
+
+REPORT_ONLY_SUITE = """import os
+from pathlib import Path
+
+
+def test_the_report_holds_the_modelled_values() -> None:
+    text = Path(os.environ["FAB_CSV"]).read_text(encoding="utf-8")
+    for cells in ("5.00,0.1270", "9.45,0.240", "width,1.77,0.045", "5.79,0.1470"):
+        assert cells in text
+"""
+"""Reads each changed value from the report, and never tests board.py."""
 
 
 def test_a_suite_that_reads_the_report_passes() -> None:
@@ -79,16 +148,41 @@ def test_a_suite_of_copied_constants_fails_every_mutation() -> None:
             lambda output: shutil.rmtree(output / "tests"),
             "tests does not exist, so there are no tests to run",
         ),
+        (
+            suite(HASH_SUITE),
+            "FAIL  the tests fail on a copy of the report with the same values",
+        ),
+        (
+            suite(PATH_SUITE),
+            "FAIL  the tests fail on a copy of the report with the same values",
+        ),
+        (
+            suite(REPORT_ONLY_SUITE),
+            "FAIL  the tests pass with board.py replaced by a module that raises",
+        ),
+        (
+            write("board.py", "import substrate_helpers\n"),
+            "FAIL  board.py does not import: substrate_helpers",
+        ),
+        (
+            edit(SUITE, "import board\n", "import board\nimport fixtures_helper\n"),
+            "FAIL  the tests do not pass against the report as given (pytest exit 2)",
+        ),
     ],
     ids=[
         "a suite that reads its own copy of the report",
         "a suite that fails on the report",
         "a tests directory with no tests",
         "no tests directory",
+        "a suite that checks the report's hash",
+        "a suite that checks the report's path",
+        "a suite that never tests board.py",
+        "a board.py that does not import",
+        "a suite that imports a module that does not exist",
     ],
 )
 def test_each_way_a_suite_cannot_show_it_reads_the_report_is_red(
-    tmp_path: Path, change: Callable[[Path], None], reason: str
+    tmp_path: Path, change: Change, reason: str
 ) -> None:
     output = tmp_path / "output"
     shutil.copytree(CASE_A / "reads_report", output)
@@ -96,6 +190,33 @@ def test_each_way_a_suite_cannot_show_it_reads_the_report_is_red(
     done = run(output)
     assert done.returncode == 1, done.stdout + done.stderr
     assert reason in done.stdout
+    for words in PYTHON_IMPORT_WORDING:
+        assert words.lower() not in done.stdout.lower(), done.stdout
+
+
+@pytest.mark.parametrize(
+    "change",
+    [write("pytest.ini", "[pytest]\naddopts = -q\n"), clutter],
+    ids=[
+        "a pytest.ini that adds -q",
+        "a virtualenv, a git directory and a broken symlink",
+    ],
+)
+def test_each_way_of_writing_a_good_suite_passes(
+    tmp_path: Path, change: Change
+) -> None:
+    output = tmp_path / "output"
+    shutil.copytree(CASE_A / "reads_report", output)
+    change(output)
+    done = run(output)
+    assert done.returncode == 0, done.stdout + done.stderr
+
+
+def test_an_interpreter_without_pytest_is_an_environment_error() -> None:
+    """``-S`` leaves site-packages, and with it pytest, off the path."""
+    done = run(CASE_A / "reads_report", "-S")
+    assert done.returncode == 3, done.stdout + done.stderr
+    assert done.stdout.startswith("ERROR  mutation_check.py needs pytest"), done.stdout
 
 
 @pytest.mark.parametrize("mutation", mutation_check.MUTATIONS, ids=lambda m: m.section)
