@@ -16,9 +16,25 @@ Exit codes:
      ``FAIL  candidate does not import: <what>``, without Python's wording
   2  usage error
   3  an environment problem, as an ``ERROR  `` line in Python's own wording:
-     a grader dependency (jitx with jitx.proxy, jitxlib.physics, pytest) does
-     not import, or an import fails inside a library rather than in the
-     candidate's own files
+     a module or name the grader imports (``NEEDED``) does not import, or an
+     import fails inside a library rather than in the candidate's own files
+
+A red goes through ``scrub``, so a candidate's own message cannot carry the
+wording an eval harness reads as an environment problem. Each verdict is one
+line, printed last; ``verdict`` is how every grader reads this script's exit
+code and that line. Once the candidate has run, the verdict goes to a copy of
+stdout taken before it ran, after both streams are flushed, as the last write
+to the pipe: file descriptor 1 is pointed at the null device first, so a
+thread the candidate started cannot print after the line, and the process
+then ends with ``os._exit``, so no exit handler runs. A replaced or closed
+``sys.stdout`` or file descriptor 1 does not hide the line. That guards
+against a candidate's accidents only: a candidate that prints one of the
+``ERROR  `` lines itself and calls ``os._exit(3)`` reads as an environment
+problem (``sys.exit(3)`` is caught, and reads as a red).
+``scrub`` and the
+wording it rewords live here, with no jitx import, so that every grader and
+check that quotes a candidate can use them, including the ones that must
+report a missing jitx themselves.
 """
 
 from __future__ import annotations
@@ -33,24 +49,143 @@ import sys
 import sysconfig
 import traceback
 from pathlib import Path
+from typing import NoReturn
 from urllib.parse import urlparse
 from urllib.request import url2pathname
 
 from parent_watch import watch_parent
 
-NEEDED = ("jitx", "jitx.proxy", "jitxlib.physics", "pytest")
-"""What the grader itself imports. No candidate can fix these. Older jitx
-releases have no ``jitx.proxy``; one of those is reported here, not as a red."""
+ENVIRONMENT_WORDING = [
+    r"No module named",
+    r'Import "[^"]+" could not be resolved \(reportMissingImports\)',
+    r"ImportError: cannot import name",
+    r'"[^"]+" is unknown import symbol',
+    r"command not found|: not found\b",
+    r"No such file or directory: '(?:[^']*/)?(?:python[0-9.]*|pyright|jitx)'",
+    r"coroutine '.*' was never awaited",
+    r"launcher exited .* before announcing itself",
+    r"Error occurred when attempting to open the user statistics file",
+    r"Connection refused|WebSocket|ws://.*refused",
+]
+"""Wording an eval harness reads, case-insensitively, as "the environment
+could not run this" rather than as a red: a copy of the patterns in the
+harness's ENV_PATTERNS (run_cases.py), which a test compares when it can
+import run_cases. A red must match none of it."""
+
+PARAPHRASES = [
+    (r"No module named", "no module called"),
+    (
+        r"could not be resolved \(reportMissingImports\)",
+        "is unresolved (reportMissingImports)",
+    ),
+    (r"ImportError: cannot import name", "ImportError, cannot import name"),
+    (r"is unknown import symbol", "is an unknown symbol to import"),
+    (r"command not found", "command missing"),
+    (r": not found\b", ": missing"),
+    (r"No such file or directory: '", "no such file or folder: '"),
+    (r"was never awaited", "was not awaited"),
+    (r"before announcing itself", "before it announced itself"),
+    (
+        r"Error occurred when attempting to open the user statistics file",
+        "the user statistics file did not open",
+    ),
+    (r"Connection refused", "connection turned away"),
+    (r"WebSocket", "web socket"),
+    (r"ws://", "ws: //"),
+]
+"""Each phrase in ENVIRONMENT_WORDING, and a rewording that keeps its sense."""
+
+
+def scrub(text: str) -> str:
+    """``text`` with every phrase an eval harness would read as an
+    environment problem reworded, so a candidate's red stays a red."""
+    for pattern, paraphrase in PARAPHRASES:
+        text = re.sub(pattern, paraphrase, text, flags=re.IGNORECASE)
+    return text
+
+
+NEEDED: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("jitx", ()),
+    ("jitx.proxy", ("typeof",)),
+    ("jitxlib.physics", ("phase_velocity",)),
+    ("pytest", ()),
+    ("jitx._instantiation", ("instantiation",)),
+    ("jitx._translate.design", ("package_design",)),
+    ("jitx.board", ("Board",)),
+    ("jitx.circuit", ("Circuit",)),
+    ("jitx.design", ("Design",)),
+    ("jitx.inspect", ("decompose",)),
+    ("jitx.shapes", ("Shape",)),
+    ("jitx.shapes.composites", ("rectangle",)),
+    ("jitx.si", ("DifferentialRoutingStructure", "RoutingStructure", "_RefLayer")),
+    ("jitx.stackup", ("Conductor", "Dielectric", "Material")),
+    ("jitx.substrate", ("FabricationConstraints", "Substrate")),
+    ("jitx.test", ("TestCase",)),
+    ("jitx.units", ("ohm",)),
+)
+"""(module, names) the grader itself imports: pytest, and every jitx and
+jitxlib import of substrate_grader.py, which a test keeps in step. No
+candidate can fix these, and checking them here, before any candidate code
+runs, reports a missing one in Python's own wording, where a failure inside
+the grader's pytest run would be printed scrubbed, as a red. Older jitx
+releases have no ``jitx.proxy``, and private modules such as
+``jitx._translate.design`` can move between releases; either is reported
+here, not as a red."""
+
+NEEDS = "ERROR  the grader needs"
+LIBRARY = "ERROR  a library the candidate imports does not import:"
+"""How this script's two environment lines start (exit 3). A caller that
+reads exit 3 can tell them from a candidate that exits 3 on its own."""
+
+DOES_NOT_IMPORT = "FAIL  candidate does not import:"
+"""How this script's red line starts (exit 1)."""
+
+
+def one_line(text: str) -> str:
+    """``text`` with its whitespace, newlines included, collapsed, so a
+    multi-line error message stays on the line that carries it."""
+    return " ".join(text.split())
+
+
+def verdict(code: int, stdout: str, stderr: str, name: str) -> tuple[bool, str]:
+    """What a run of this script on the file ``name`` that did not exit 0
+    means, as every grader reads it: ``(True, line)`` for an environment
+    problem, only when it exited 3 and its last stdout line is one of its two
+    environment lines, kept as it is; otherwise ``(False, line)``, the
+    candidate's red, a ``FAIL  `` line with everything quoted from the
+    candidate scrubbed. A candidate that exits 3 itself, exits with another
+    code, or crashes the import is a red."""
+    said = stdout.strip().splitlines()
+    last = said[-1] if said else ""
+    if code == 3 and last.startswith((NEEDS, LIBRARY)):
+        return True, last
+    if code == 1 and last.startswith(DOES_NOT_IMPORT):
+        return False, scrub(last)
+    if code == 3:
+        head = (
+            f"FAIL  the import pre-flight exited 3 on {name} without one of its "
+            "own environment lines; a candidate that exits 3 is a red:"
+        )
+    else:
+        head = f"FAIL  the import pre-flight gave no verdict on {name} (exit {code}):"
+    tail = [*said[-3:], *stderr.strip().splitlines()[-3:]]
+    return False, head + "".join(f"\n      {scrub(line)}" for line in tail)
 
 
 def missing_dependency() -> str | None:
     """Python's own report for the first grader dependency that does not
     import, or None when all of them do."""
-    for name in NEEDED:
+    for module, names in NEEDED:
         try:
-            importlib.import_module(name)
-        except Exception as error:  # noqa: BLE001 - whatever it raises, not the candidate's
-            return f"ERROR  the grader needs {name}: {type(error).__name__}: {error}"
+            imported = importlib.import_module(module)
+        except BaseException as error:  # noqa: BLE001 - SystemExit too, not the candidate's
+            return f"{NEEDS} {module}: {type(error).__name__}: {one_line(str(error))}"
+        for name in names:
+            if not hasattr(imported, name):
+                return (
+                    f"{NEEDS} {module}.{name}: ImportError: cannot import name "
+                    f"{name!r} from {module!r}"
+                )
     return None
 
 
@@ -185,6 +320,75 @@ def describe(error: BaseException) -> str:
     return f"{type(error).__name__}: {error}"
 
 
+GRADER_ENVIRONMENT = "GRADE_SUBSTRATE_ENVIRONMENT"
+"""The setting that names a file for substrate_grader.py's own environment
+line. grade_substrate.py sets it, and prints the line it finds there raw."""
+
+
+def grader_cannot_import(error: BaseException) -> None:
+    """Record, for grade_substrate.py, that substrate_grader.py's own imports
+    failed in its pytest process. They run before any candidate code there,
+    so the failure is the environment's: the line names the first grader
+    dependency that does not import, in Python's own wording, or the error
+    itself when each of them imports on a second try. It is written to the
+    file ``GRADER_ENVIRONMENT`` names, when that is set, because grade_substrate.py
+    prints the pytest output scrubbed and reads an environment problem only
+    from there. The caller re-raises ``error``."""
+    line = missing_dependency() or (
+        f"{NEEDS} {type(error).__name__}: {one_line(str(error))}"
+    )
+    target = os.environ.get(GRADER_ENVIRONMENT, "").strip()
+    if target:
+        Path(target).write_text(f"{line}\n", encoding="utf-8")
+
+
+_verdict_channel: list[int] = []
+"""A copy of stdout, taken before the candidate runs, for the verdict line."""
+
+
+def flush_all() -> None:
+    """Flush stdout and stderr, as the candidate may have replaced them and as
+    Python started them, so what the candidate printed comes before the
+    verdict line."""
+    for stream in (sys.stdout, sys.stderr, sys.__stdout__, sys.__stderr__):
+        try:
+            if stream is not None:
+                stream.flush()
+        except Exception:  # noqa: BLE001 - a replaced stream may not flush
+            pass
+
+
+def say(line: str, code: int) -> NoReturn:
+    """Write the verdict line as the last write to stdout's pipe, and end
+    this process with ``code`` at once.
+
+    What the candidate printed is flushed first, so it comes before the line.
+    Then file descriptor 1 is pointed at the null device, so what a thread
+    of the candidate's prints from then on goes nowhere, and the line goes to
+    the copy of stdout taken before the candidate ran, which a replaced or
+    closed ``sys.stdout`` or file descriptor 1 does not reach. ``os._exit``
+    then ends the process, so no exit handler runs and nothing is flushed
+    after the line."""
+    flush_all()
+    channel = _verdict_channel[0] if _verdict_channel else sys.stdout.fileno()
+    try:
+        os.dup2(os.open(os.devnull, os.O_WRONLY), 1)
+    except OSError:
+        pass  # the line is still written, only no longer surely the last
+    data = f"\n{line}\n".encode()
+    while data:
+        data = data[os.write(channel, data) :]
+    os._exit(code)
+
+
+def finish(code: int) -> NoReturn:
+    """End this process with ``code`` at once, after flushing what was
+    printed, when no verdict line was written: exit 0, 2, or an environment
+    line printed before any candidate code ran."""
+    flush_all()
+    os._exit(code)
+
+
 def main(argv: list[str]) -> int:
     if len(argv) != 2:
         print(__doc__, file=sys.stderr)
@@ -194,13 +398,14 @@ def main(argv: list[str]) -> int:
     if problem is not None:
         print(problem)
         return 3
+    _verdict_channel.append(os.dup(sys.stdout.fileno()))
     board = Path(argv[1]).resolve()
     before = list(sys.path)
     editable = editable_projects()
     sys.path.insert(0, str(board.parent))
     spec = importlib.util.spec_from_file_location("_candidate_preflight", board)
     if spec is None or spec.loader is None:
-        print(f"FAIL  candidate does not import: {board.name} is not a Python file")
+        print(f"{DOES_NOT_IMPORT} {board.name} is not a Python file")
         return 1
     module = importlib.util.module_from_spec(spec)
     # Registered before it runs, as a normal import would be: dataclasses
@@ -220,11 +425,7 @@ def main(argv: list[str]) -> int:
         theirs = frame is not None and not in_candidate(frame.filename, own, library)
         if isinstance(error, ImportError) and theirs:
             where = f" (in {frame.filename}:{frame.lineno})" if frame else ""
-            print(
-                "ERROR  a library the candidate imports does not import: "
-                f"{type(error).__name__}: {error}{where}"
-            )
-            return 3
+            say(f"{LIBRARY} {type(error).__name__}: {one_line(str(error))}{where}", 3)
         own = [
             line.lineno
             for line in traceback.extract_tb(error.__traceback__)
@@ -232,10 +433,9 @@ def main(argv: list[str]) -> int:
             and Path(line.filename).resolve() == board
         ]
         where = f" (at {board.name}:{own[-1]})" if own else ""
-        print(f"FAIL  candidate does not import: {describe(error)}{where}")
-        return 1
+        say(f"{DOES_NOT_IMPORT} {scrub(one_line(describe(error)))}{where}", 1)
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv))
+    finish(main(sys.argv))

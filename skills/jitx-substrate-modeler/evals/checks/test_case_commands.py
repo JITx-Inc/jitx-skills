@@ -17,6 +17,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -24,6 +25,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from import_candidate import ENVIRONMENT_WORDING
 
 CHECKS = Path(__file__).resolve().parent
 SKILL = CHECKS.parents[1]
@@ -77,12 +79,18 @@ def missing_tool(cmd: str) -> str | None:
 def test_case_command_passes_on_the_known_good_files(
     tmp_path: Path, case: str, cmd: str
 ) -> None:
+    for name, source in STAGED[case].items():
+        shutil.copyfile(source, tmp_path / name)
+    run_in_repo(cmd, tmp_path)
+
+
+def run_in_repo(cmd: str, output: Path, code: int = 0) -> str:
+    """Run ``cmd`` as the case writes it, with ``<output>`` as ``output``;
+    its output, after failing unless it exits ``code``."""
     why = missing_tool(cmd)
     if why is not None:
         pytest.skip(why)
-    for name, source in STAGED[case].items():
-        shutil.copyfile(source, tmp_path / name)
-    command = cmd.replace("<output>", shlex.quote(str(tmp_path)))
+    command = cmd.replace("<output>", shlex.quote(str(output)))
     env = {
         **os.environ,
         "PATH": os.pathsep.join([str(Path(sys.executable).parent), os.environ["PATH"]]),
@@ -96,4 +104,79 @@ def test_case_command_passes_on_the_known_good_files(
         text=True,
         check=False,
     )
-    assert run.returncode == 0, f"{command}\n{run.stdout}{run.stderr}"
+    assert run.returncode == code, f"{command}\n{run.stdout}{run.stderr}"
+    return run.stdout + run.stderr
+
+
+CASE_B_DERIVED_CORE = """THICK_CORE = FINISHED - (
+    2 * 0.0381 + 6 * INNER_CU + 2 * 0.0762 + 2 * 0.1270 + 2 * 0.1016
+)"""
+"""The known-good case B board's core, solved from the finished total exactly."""
+
+CASE_B_ROUNDED = (
+    ("INNER_CU = 0.0350", "INNER_CU = 1.38 * 0.0254"),
+    (CASE_B_DERIVED_CORE, "THICK_CORE = 1.1359"),
+)
+"""1 oz inner copper as 1.38 mil, and the core solved from the total and
+written to the report's 4 decimal places: correct, though its stack sums to
+the stated totals only at the report's precision."""
+
+
+def case_b_graders() -> list[object]:
+    """Case B's grader commands, as its JSON writes them."""
+    assertions = json.loads(
+        (CASES / "stackup-from-pdf-report.json").read_text(encoding="utf-8")
+    )["assertions"]
+    return [
+        pytest.param(assertion["cmd"], id=f"stackup-from-pdf-report-{index}")
+        for index, assertion in enumerate(assertions)
+        if assertion["check"] == "deterministic" and "grade_" in assertion["cmd"]
+    ]
+
+
+@pytest.mark.parametrize("cmd", case_b_graders())
+def test_case_b_grades_a_core_written_at_the_report_precision(
+    tmp_path: Path, cmd: str
+) -> None:
+    """Case B grades the stack's totals at the report's precision, so its
+    graders pass a board whose core is the 4-place literal 1.1359 mm."""
+    source = STAGED["stackup-from-pdf-report.json"]["board.py"].read_text(
+        encoding="utf-8"
+    )
+    for old, new in CASE_B_ROUNDED:
+        assert source.count(old) == 1, old
+        source = source.replace(old, new)
+    (tmp_path / "board.py").write_text(source, encoding="utf-8")
+    run_in_repo(cmd, tmp_path)
+
+
+RED_AT_IMPORT = {
+    "exits 3 in environment wording": (
+        "\nimport os as _os\n\n"
+        'if __name__ == "_candidate_preflight":\n'
+        "    print(\"No module named 'jitx_rf_helpers'\", flush=True)\n"
+        "    _os._exit(3)\n"
+    ),
+    "prints environment wording, then fails": (
+        "\nprint(\"note: No module named 'jitx_rf_helpers'; using built-in defaults\")\n"
+        "EXTRA = UNDEFINED_NAME  # noqa: F821\n"
+    ),
+}
+"""Tails that stop the case B board importing, each the candidate's fault."""
+
+
+@pytest.mark.parametrize("tail", RED_AT_IMPORT.values(), ids=RED_AT_IMPORT.keys())
+@pytest.mark.parametrize("cmd", case_b_graders())
+def test_case_b_graders_read_a_board_that_does_not_import_as_red(
+    tmp_path: Path, cmd: str, tail: str
+) -> None:
+    """Run as the case writes them, both graders call it a red, in no wording
+    an eval harness reads as a missing environment."""
+    source = STAGED["stackup-from-pdf-report.json"]["board.py"].read_text(
+        encoding="utf-8"
+    )
+    (tmp_path / "board.py").write_text(source + tail, encoding="utf-8")
+    output = run_in_repo(cmd, tmp_path, code=1)
+    assert "FAIL  " in output, output
+    for wording in ENVIRONMENT_WORDING:
+        assert not re.search(wording, output, re.IGNORECASE), (wording, output)

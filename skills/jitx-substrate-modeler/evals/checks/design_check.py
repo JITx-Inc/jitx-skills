@@ -10,7 +10,9 @@ project with a ``pyproject.toml`` of its own, then:
 
 1. imports ``board.py`` and ``design.py`` there, each in a child interpreter,
    through ``import_candidate.py``, so a file that does not import is a red
-   and a library that does not import is an environment problem;
+   and a library that does not import is an environment problem. Only
+   import_candidate.py's own environment lines, on its exit 3, are one;
+   anything else the import ends with is a red, as in every grader here;
 2. lists, in another child, each ``Design`` subclass in ``design.py``'s
    namespace that ``design.py`` or ``board.py`` defines, instantiates it, and
    reads the substrate it binds. A design matches when it is not a
@@ -50,6 +52,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from grade_substrate import run_child, stop
+from import_candidate import DOES_NOT_IMPORT, scrub
+from import_candidate import verdict as read_verdict
 from parent_watch import PARENT
 
 TIMEOUT_S = 300.0
@@ -81,9 +85,10 @@ class Verdict:
 
 
 def plain(text: str) -> str:
-    """``text`` without Python's own words for a failed import. Eval
-    harnesses read those words as an environment problem, so a red that
-    quotes a runner's failed import must not carry them."""
+    """``text`` without Python's own words for a failed import, and without
+    any other wording an eval harness reads as an environment problem
+    (``import_candidate.scrub``), so a red that quotes a runner's output
+    stays a red."""
     for pattern, words in (
         (r"cannot import name ('[^']*') from ('[^']*')", r"\2 has no name \1"),
         (r"cannot import name\b", "no importable name"),
@@ -91,7 +96,7 @@ def plain(text: str) -> str:
         (r"No module named\b", "module not found"),
     ):
         text = re.sub(pattern, words, text, flags=re.IGNORECASE)
-    return text
+    return scrub(text)
 
 
 def tail(text: str, lines: int = 15) -> str:
@@ -104,7 +109,7 @@ def missing(script: str, names: tuple[str, ...]) -> str | None:
     for name in names:
         try:
             importlib.import_module(name)
-        except Exception as error:  # noqa: BLE001 - whatever it raises, not the runner's
+        except BaseException as error:  # noqa: BLE001 - SystemExit too, not the runner's
             return f"{script} needs {name}: {type(error).__name__}: {error}"
     return None
 
@@ -144,17 +149,16 @@ def import_file(
         return False
     if done.returncode == 0:
         return True
-    said = done.stdout.strip()
-    if done.returncode == 3 and said.startswith("ERROR  "):
-        verdict.errors.append(said.removeprefix("ERROR  "))
-    elif done.returncode == 1 and said.startswith("FAIL  candidate does not import: "):
-        what = said.removeprefix("FAIL  candidate does not import: ")
+    environment, line = read_verdict(
+        done.returncode, done.stdout, done.stderr, path.name
+    )
+    if environment:
+        verdict.errors.append(line.removeprefix("ERROR  "))
+    elif line.startswith(DOES_NOT_IMPORT):
+        what = line.removeprefix(DOES_NOT_IMPORT).strip()
         verdict.problems.append(f"{path.name} does not import: {plain(what)}")
     else:
-        verdict.errors.append(
-            f"the import check on {path.name} gave no verdict (exit "
-            f"{done.returncode}):\n{tail(done.stdout + done.stderr)}"
-        )
+        verdict.problems.append(plain(line.removeprefix("FAIL  ")))
     return False
 
 
@@ -248,7 +252,10 @@ def list_designs(
 def check(output: Path, timeout: float) -> Verdict:
     """Every environment problem and red; both empty when the output passes."""
     verdict = Verdict()
-    error = missing("design_check.py", ("jitx", "jitx.proxy"))
+    error = missing(
+        "design_check.py",
+        ("jitx", "jitx.proxy", "jitx._instantiation", "jitx.sample"),
+    )
     if error is not None:
         verdict.errors.append(error)
         return verdict

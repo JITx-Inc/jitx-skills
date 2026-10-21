@@ -27,11 +27,17 @@ from the CSV:
   copper, each as thick as the row says, except the rows the PDF leaves
   unstated (inner_copper and core_from_total grade those);
 - inner_copper: each inner copper layer, which the PDF gives as 1 oz only, is
-  between 0.0340 and 0.0360 mm. The band holds the skill's 0.035 mm, the
-  report's 1.38 mil column (0.03505 mm) and other conversions within about 3%
+  between 0.0340 and 0.0360 mm. The band holds the skill's 0.035 mm, 1.38 mil
+  (0.03505 mm, which the PDF does not print but SV-1's 7.38 mil depth over
+  two 3.00 mil build-up plies implies) and other conversions within about 3%
   of them, and excludes a 0.5 oz or 2 oz reading (0.0175 or 0.070 mm);
 - core_from_total: the unstated L5-L6 core is the stated finished thickness
   less the candidate's own other copper and dielectric layers;
+- thickness_totals: the candidate's stack sums to the DOCUMENT's overall
+  thickness, and less its soldermask to the finished thickness, each to the
+  precision the report states it in (4 decimal places of a mm: within half
+  of 0.0001 mm), so a core solved from the total and written to the
+  report's own precision passes;
 - materials: each dielectric layer has its row's Dk and Df, and each copper
   layer's class docstring (or one it is built on) states its matte and drum
   Rz, with the ``roughness`` scalar, when set, the matte Rz in mm;
@@ -44,10 +50,15 @@ from the CSV:
   ``0.1524 mm``), unless a length limit is a custom mm attribute of the rules
   class.
 
-stackup_rows, inner_copper, core_from_total and materials stand in for the two
-substrate_grader.py tests the case deselects (test_layer_count_and_order and
-test_material_properties_match_csv), which pin the unstated rows to the twin's
-values exactly.
+stackup_rows, inner_copper, core_from_total, materials and thickness_totals
+stand in for the three substrate_grader.py tests the case deselects
+(test_layer_count_and_order, test_material_properties_match_csv and
+test_thickness_totals_match_document), which pin the unstated rows to the
+twin's values and the totals to six decimal places. They compare thicknesses,
+Dk, Df and the roughness scalar within 0.0001, not to six places, and they
+do not stand in for the deselected test's check of each copper layer against
+its MATERIALS_COPPER finished thickness or of the roughness that reaches the
+translated material.
 
 ``report`` also prints a ``NOTE`` line for each source line that seems to
 call a fabrication-constraint field other than the four ``min_copper_*``
@@ -62,9 +73,10 @@ copper layers, and the substrate translates on a 50 x 50 mm board.
 The grading runs in a child process; see check_runner.py.
 
 Exit codes: 0 graded and every check passed / 1 a check failed, the candidate
-does not import, the grading stopped before every check ran, or a stage ran
-past --timeout seconds (default 120) / 2 a usage error, a grader dependency
-that does not import, or an import that fails inside a library.
+does not import, the grading did not end as check_runner.py requires (every
+check ran once, nothing printed after, exit 0), or a stage ran past --timeout
+seconds (default 120) / 2 a usage error, or an environment problem: a grader
+dependency that does not import, or an import that fails inside a library.
 """
 
 from __future__ import annotations
@@ -133,6 +145,7 @@ REPORT_NAMES = [
     "stackup_rows",
     "inner_copper",
     "core_from_total",
+    "thickness_totals",
     "materials",
     "capability_not_attributes",
     "capability_documented",
@@ -586,6 +599,29 @@ def check_core_from_total(report: Report) -> None:
             )
 
 
+def check_thickness_totals(report: Report) -> None:
+    layers = candidate_layers(report)
+    overall = sum(layer.thickness or 0.0 for layer in layers)
+    mask = sum(
+        layer.thickness or 0.0
+        for row, layer in zip(report.stackup, layers, strict=True)
+        if row["Type"] == "Soldermask"
+    )
+    document = {row["Field"]: row["Value"] for row in report.sections["DOCUMENT"]}
+    for field, total in (
+        ("Overall thickness", overall),
+        ("Finished thickness", overall - mask),
+    ):
+        stated = document[field]
+        places = len(stated.partition(".")[2])
+        # Half a unit in the last stated place, and a little for float sums.
+        if abs(total - float(stated)) > 0.5 * 10**-places + 1e-9:
+            raise AssertionError(
+                f"the stack sums to {total:.6f} mm against the {field.lower()} "
+                f"of {stated} mm, stated to {places} decimal places"
+            )
+
+
 RZ_NUMBER = re.compile(r"(?<![\w.])\d+(?:\.\d+)?")
 
 
@@ -667,6 +703,7 @@ def report_checks(report: Report) -> list[check_runner.Check]:
         ("stackup_rows", bind(check_stackup_rows)),
         ("inner_copper", bind(check_inner_copper)),
         ("core_from_total", bind(check_core_from_total)),
+        ("thickness_totals", bind(check_thickness_totals)),
         ("materials", bind(check_materials)),
         ("capability_not_attributes", bind(check_capability_not_attributes)),
         ("capability_documented", bind(check_capability_documented)),

@@ -81,31 +81,39 @@ from typing import TYPE_CHECKING
 from unittest import mock
 
 import fabcsv
-
-# `instantiation` is private; it is the context jitx.test.TestCase enters, and
-# the loader needs it once at import to see the candidate's stackup and rules.
-from jitx._instantiation import instantiation
-
-# `package_design` is private; jitx.test.TestCase supplies the instantiation
-# context but exposes no public translate entry point.
-from jitx._translate.design import package_design
-from jitx.board import Board
-from jitx.circuit import Circuit
-from jitx.design import Design
-from jitx.inspect import decompose
-from jitx.proxy import typeof
-from jitx.shapes import Shape
-from jitx.shapes.composites import rectangle
-
-# `_RefLayer` is private; `RoutingStructure.Layer` exposes no public accessor
-# for the planes carried by `.reference()`.
-from jitx.si import DifferentialRoutingStructure, RoutingStructure, _RefLayer
-from jitx.stackup import Conductor, Dielectric, Material
-from jitx.substrate import FabricationConstraints, Substrate
-from jitx.test import TestCase
-from jitx.units import ohm
-from jitxlib.physics import phase_velocity
+from import_candidate import grader_cannot_import
 from parent_watch import watch_parent
+
+# These run before any candidate code, so a failure here is the environment's;
+# import_candidate.NEEDED lists each of them, and a test keeps it in step.
+try:
+    # `instantiation` is private; it is the context jitx.test.TestCase enters,
+    # and the loader needs it once at import to see the candidate's stackup and
+    # rules.
+    from jitx._instantiation import instantiation
+
+    # `package_design` is private; jitx.test.TestCase supplies the
+    # instantiation context but exposes no public translate entry point.
+    from jitx._translate.design import package_design
+    from jitx.board import Board
+    from jitx.circuit import Circuit
+    from jitx.design import Design
+    from jitx.inspect import decompose
+    from jitx.proxy import typeof
+    from jitx.shapes import Shape
+    from jitx.shapes.composites import rectangle
+
+    # `_RefLayer` is private; `RoutingStructure.Layer` exposes no public
+    # accessor for the planes carried by `.reference()`.
+    from jitx.si import DifferentialRoutingStructure, RoutingStructure, _RefLayer
+    from jitx.stackup import Conductor, Dielectric, Material
+    from jitx.substrate import FabricationConstraints, Substrate
+    from jitx.test import TestCase
+    from jitx.units import ohm
+    from jitxlib.physics import phase_velocity
+except BaseException as error:
+    grader_cannot_import(error)
+    raise
 
 if TYPE_CHECKING:
     # Annotation-only: the protobuf message types of the translated design.

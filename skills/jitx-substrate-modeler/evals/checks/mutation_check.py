@@ -18,8 +18,10 @@ copy of the report in another scratch directory. It runs seven times:
 - against a copy at another path with the same values and one more NOTES
   line: every test must pass, so a suite that checks the report's bytes or
   path rather than its values is a red;
-- with board.py replaced by a module that raises at import: the tests must
-  fail, so a suite that never tests board.py is a red;
+- with board.py replaced by a module that imports cleanly and answers every
+  name with a stand-in that equals no number or string (``BROKEN_BOARD``):
+  the tests must fail, so a suite that never tests board.py, or only imports
+  it or a name from it, is a red;
 - against four copies, each with one value changed (see ``MUTATIONS``): a
   dielectric thickness, a via pad, a fab rule and an impedance width. Each
   run must fail (pytest exit 1, or 2 for errors at collection).
@@ -74,8 +76,25 @@ RELOCATED_NOTE = (
 """The line added to the report's last section, NOTES, for the relocated
 copy."""
 
-BROKEN_BOARD = 'raise RuntimeError("mutation_check.py replaced board.py")\n'
-"""board.py for the run whose tests must fail."""
+BROKEN_BOARD = '''"""mutation_check.py replaced board.py with this module."""
+
+STAND_IN = object()
+
+
+def __getattr__(name: str) -> object:
+    if name.startswith("__"):
+        raise AttributeError(name)
+    return STAND_IN
+'''
+"""board.py for the run whose tests must fail. It imports cleanly, and every
+name read from it, ``from board import NAME`` included, is one stand-in: a
+plain ``object()``, so it equals itself and nothing else, is truthy, takes no
+arithmetic and no ordering comparison, and makes ``hasattr(board, NAME)``
+true for any name that does not start with ``__``. What that guarantees: a
+test that asserts a value read from board.py equals a number or string,
+orders it, or does arithmetic with it, fails; a suite that only imports board.py, reads a
+name from it, checks that a name exists or is truthy, or compares two names
+it read, passes and is a red."""
 
 
 @dataclass(frozen=True)
@@ -232,13 +251,15 @@ def run_tests(project: Path, report_copy: Path, timeout: float) -> Outcome:
 def check(output: Path, report_csv: Path, timeout: float) -> Verdict:
     """Every environment problem and red; both empty when the tests pass."""
     verdict = Verdict()
-    text = report_csv.read_text(encoding="utf-8")
-    variants = [(mutation, mutate(text, mutation)) for mutation in MUTATIONS]
-    relocated = relocate(text)
+    # First, before anything an older interpreter cannot run: a Python
+    # without pytest or jitx (jitx needs 3.12) is the environment's problem.
     error = missing("mutation_check.py", ("pytest", "jitx"))
     if error is not None:
         verdict.errors.append(error)
         return verdict
+    text = report_csv.read_text(encoding="utf-8")
+    variants = [(mutation, mutate(text, mutation)) for mutation in MUTATIONS]
+    relocated = relocate(text)
     if not (output / "tests").is_dir():
         verdict.problems.append(
             f"{output / 'tests'} does not exist, so there are no tests to run"
@@ -295,8 +316,9 @@ def check(output: Path, report_csv: Path, timeout: float) -> Verdict:
             verdict.problems.append(late("with board.py replaced"))
         elif broken.code == 0:
             verdict.problems.append(
-                "the tests pass with board.py replaced by a module that raises at "
-                "import: they do not test board.py"
+                "the tests pass with board.py replaced by a module whose every "
+                "name is a stand-in that equals no number or string: they do not test "
+                "board.py's values"
             )
         else:
             print("board.py replaced: the tests fail, as they should")

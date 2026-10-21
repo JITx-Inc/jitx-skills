@@ -23,6 +23,7 @@ the copy, so a change to one without the other turns these tests red.
 
 from __future__ import annotations
 
+import ast
 import importlib.util
 import json
 import os
@@ -36,6 +37,7 @@ from pathlib import Path
 
 import fabcsv
 import grade_substrate
+import import_candidate
 import pytest
 
 CHECKS = Path(__file__).resolve().parent
@@ -194,14 +196,36 @@ def kit_source(necks: str = KIT_NECK_STRUCTURES) -> str:
     the drum-side Rz in each foil class's docstring. Each edit applies only
     where the installed kit board still has the text it edits, so a kit board
     already brought to these rules is taken as it is; the neck structures are
-    added only when ``NeckDown`` entries were taken out."""
+    added only when ``NeckDown`` entries were taken out. A test that asks for
+    other ``necks`` than the default skips on a kit board with no
+    ``NeckDown`` entries, since its structures could not take their place and
+    the test would grade the kit's own."""
     assert KIT_BOARD is not None
     source = KIT_BOARD.read_text(encoding="utf-8")
     had_neck_downs = "NeckDown" in source
+    if not had_neck_downs and necks != KIT_NECK_STRUCTURES:
+        pytest.skip(
+            "the installed kit board has no NeckDown entries for these neck "
+            "structures to replace, so this test would grade the kit's own"
+        )
     for old, new in (*KIT_NECK_DOWNS, *KIT_DRUM_RZ):
         source = source.replace(old, new)
     assert "NeckDown" not in source, "the kit's NeckDown code has changed shape"
     return add_to_substrate(necks)(source) if had_neck_downs else source
+
+
+@needs_kit
+def test_kit_source_skips_other_necks_on_a_kit_board_without_neck_downs(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Once the kit board ships without ``NeckDown``, a test that asks for
+    neck structures of its own skips rather than grading the kit's."""
+    retargeted = tmp_path / "board.py"
+    retargeted.write_text(kit_source(), encoding="utf-8")
+    monkeypatch.setattr(sys.modules[__name__], "KIT_BOARD", retargeted)
+    assert kit_source() == retargeted.read_text(encoding="utf-8")
+    with pytest.raises(pytest.skip.Exception, match="no NeckDown entries"):
+        kit_source(KIT_NECK_PER_REGION)
 
 
 def renamed_kit_source() -> str:
@@ -230,6 +254,7 @@ def no_grader_settings(monkeypatch: pytest.MonkeyPatch) -> None:
         "FAB_CSV",
         "PYTEST_ADDOPTS",
         "GRADE_SUBSTRATE_PID",
+        import_candidate.GRADER_ENVIRONMENT,
     ):
         monkeypatch.delenv(name, raising=False)
 
@@ -1085,6 +1110,42 @@ def test_a_board_that_hangs_is_red_and_leaves_nothing_running(
     assert left == [], f"processes {left} were still running"
 
 
+ESCAPES_THE_GROUP = """
+import os, sys, time
+
+if os.fork() == 0:
+    os.setsid()
+    with open(sys.argv[1], "w") as record:
+        record.write(str(os.getpid()))
+    time.sleep(60)
+    os._exit(0)
+os._exit(0)
+"""
+"""Exits at once, leaving a process in a session of its own that holds the
+child's output open."""
+
+
+def test_a_child_whose_group_cannot_be_signalled_is_timed_out(
+    tmp_path: Path,
+) -> None:
+    """The wait runs to the timeout, since the escaped process holds the
+    output open, and the child's group then holds only the unreaped child,
+    which macOS refuses to signal (PermissionError). run_child kills what it
+    can and reports the timeout rather than raising."""
+    script = tmp_path / "escape.py"
+    script.write_text(ESCAPES_THE_GROUP, encoding="utf-8")
+    record = tmp_path / "escaped.pid"
+    try:
+        done = grade_substrate.run_child(
+            [sys.executable, str(script), str(record)], timeout=2
+        )
+    finally:
+        if record.is_file():
+            survivors([int(record.read_text(encoding="utf-8"))])
+    assert done is None
+    assert record.is_file(), "the escaping process never started"
+
+
 SIGNALLED = """
 import os, subprocess, sys, time
 from pathlib import Path
@@ -1139,42 +1200,195 @@ def test_no_child_outlives_a_signalled_grader(
     assert grader.returncode == (-signum if signum == 9 else 128 + signum)
 
 
+EXITS_AT_IMPORT = """import os
+
+if __name__ == "_candidate_preflight":
+    print({line!r}, flush=True)
+    os._exit({code})
+"""
+"""A board that ends the import pre-flight itself, with a line of its own."""
+
+FORGED = (
+    "ERROR  a library the candidate imports does not import: "
+    "ModuleNotFoundError: No module named 'jitx_rf'"
+)
+"""An environment line a board writes itself, from code that runs late."""
+
+FORGED_AT_EXIT = f"""import atexit
+import os
+
+
+def _forge() -> None:
+    os.write(1, b"\\n{FORGED}\\n")
+    os._exit(3)
+
+
+atexit.register(_forge)
+EXTRA = UNDEFINED_NAME
+"""
+"""A board that fails to import, with an exit handler that would end the
+pre-flight on a forged environment line."""
+
+FORGED_FROM_A_THREAD = f"""import os
+import threading
+import time
+
+
+def _forge() -> None:
+    time.sleep(2)
+    os.write(1, b"\\n{FORGED}\\n")
+    os._exit(3)
+
+
+threading.Thread(target=_forge).start()
+EXTRA = UNDEFINED_NAME
+"""
+"""The same from a thread, which the interpreter waits for at exit."""
+
+UNDEFINED = "FAIL  candidate does not import: NameError: name 'UNDEFINED_NAME' is not"
+
+RED_AT_IMPORT = [
+    pytest.param(
+        "from jitx.dielectric import Laminate\n",
+        "FAIL  candidate does not import: jitx.dielectric (at board.py:1)",
+        id="a module that does not exist",
+    ),
+    pytest.param(
+        "from jitx.units import kiloohm_typo\n",
+        "FAIL  candidate does not import: cannot import name 'kiloohm_typo' "
+        "from 'jitx.units' (at board.py:1)",
+        id="a name that does not exist",
+    ),
+    pytest.param(
+        "raise RuntimeError(\"sh: 1: pyright: not found; No module named 'jitx.unitz'\")\n",
+        "FAIL  candidate does not import: RuntimeError: sh: 1: pyright: missing",
+        id="a message in environment wording",
+    ),
+    pytest.param(
+        "print(\"note: No module named 'jitx_rf_helpers'; using built-in defaults\")\n"
+        "EXTRA = UNDEFINED_NAME\n",
+        "FAIL  candidate does not import: NameError: name 'UNDEFINED_NAME' is not "
+        "defined (at board.py:2)",
+        id="environment wording printed before its own error",
+    ),
+    pytest.param(
+        EXITS_AT_IMPORT.format(line="ERROR  No module named 'jitx_rf_helpers'", code=3),
+        "FAIL  the import pre-flight exited 3 on board.py without one of its own "
+        "environment lines",
+        id="an exit 3 with an ERROR line of its own",
+    ),
+    pytest.param(
+        EXITS_AT_IMPORT.format(line="No module named 'jitx_rf_helpers'", code=7),
+        "FAIL  the import pre-flight gave no verdict on board.py (exit 7)",
+        id="another exit code in environment wording",
+    ),
+    pytest.param(FORGED_AT_EXIT, UNDEFINED, id="an exit handler that forges an ERROR"),
+    pytest.param(FORGED_FROM_A_THREAD, UNDEFINED, id="a thread that forges an ERROR"),
+]
+"""(what the board starts with, the line grade_substrate.py prints for it)."""
+
+
 @needs_jitx
-def test_candidate_that_does_not_import_is_red(
+@pytest.mark.parametrize(("start", "line"), RED_AT_IMPORT)
+def test_a_board_that_does_not_import_is_red(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path, start: str, line: str
+) -> None:
+    """Whatever stops the board importing in its own code is the candidate's
+    fault: a red, with nothing in it an eval harness reads as a missing
+    environment, whatever the board printed or exited with."""
+    code, out = grade(capsys, write(tmp_path, start + MINIMAL_SUBSTRATE), CASE_CSV)
+    assert code == 1
+    assert line in out, out
+    for wording in import_candidate.ENVIRONMENT_WORDING:
+        assert not re.search(wording, out, re.IGNORECASE), (wording, out)
+
+
+@needs_jitx
+def test_what_the_board_prints_while_graded_is_scrubbed(
     capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
-    """A wrong import is the candidate's fault, so it reads as a red and not in
-    the wording a harness takes for a missing environment."""
+    """A board that imports, then prints environment wording while the
+    grader's tests run, is a red the eval harness still reads as one: the
+    pytest output that quotes it is scrubbed."""
     board = write(
-        tmp_path, "from jitx.dielectric import Laminate\n" + MINIMAL_SUBSTRATE
+        tmp_path,
+        MINIMAL_SUBSTRATE
+        + "\n    def __init__(self) -> None:\n"
+        + "        print(\"No module named 'jitx_rf_helpers'\")\n"
+        + "        super().__init__()\n",
     )
     code, out = grade(capsys, board, CASE_CSV)
     assert code == 1
-    assert "FAIL  candidate does not import: jitx.dielectric (at board.py:1)" in out
-    assert "No module named" not in out
+    assert "no module called 'jitx_rf_helpers'" in out, out
+    for wording in import_candidate.ENVIRONMENT_WORDING:
+        assert not re.search(wording, out, re.IGNORECASE), (wording, out)
+
+
+WRITES_THROUGH = """import sys
+
+
+class _Through:
+    def __init__(self):
+        self.pending = []
+
+    def write(self, text):
+        self.pending.append(text)
+        return len(text)
+
+    def flush(self):
+        sys.__stdout__.write("".join(self.pending))
+        self.pending.clear()
+
+    def __getattr__(self, name):
+        return getattr(sys.__stdout__, name)
+
+
+sys.stdout = _Through()
+print("loading brokenlib")
+"""
+"""A replacement sys.stdout that holds what is printed until it is flushed,
+then hands it to sys.__stdout__, which holds it until that is flushed."""
+
+STDOUT_BEFORE_A_LIBRARY = [
+    pytest.param("", id="nothing else"),
+    pytest.param(
+        "import io\nimport sys\n\nsys.stdout = io.StringIO()\n",
+        id="sys.stdout replaced",
+    ),
+    pytest.param(
+        'import atexit\n\natexit.register(print, "board: done")\n',
+        id="an exit handler that prints",
+    ),
+    pytest.param(WRITES_THROUGH, id="sys.stdout replaced by one that writes through"),
+    pytest.param(
+        "import os\n\nos.dup2(os.open(os.devnull, os.O_WRONLY), 1)\n",
+        id="file descriptor 1 pointed at the null device",
+    ),
+    pytest.param("import os\n\nos.close(1)\n", id="file descriptor 1 closed"),
+    pytest.param(
+        "import threading\n\n\n"
+        "def _spin():\n"
+        "    while True:\n"
+        '        print("tick", flush=True)\n\n\n'
+        "threading.Thread(target=_spin, daemon=True).start()\n",
+        id="a thread that prints and flushes in a tight loop",
+    ),
+]
+"""What a board does before it imports a library that does not import."""
 
 
 @needs_jitx
-def test_a_name_that_does_not_exist_is_red(
-    capsys: pytest.CaptureFixture[str], tmp_path: Path
-) -> None:
-    board = write(tmp_path, "from jitx.units import kiloohm_typo\n" + MINIMAL_SUBSTRATE)
-    code, out = grade(capsys, board, CASE_CSV)
-    assert code == 1
-    assert (
-        "FAIL  candidate does not import: cannot import name 'kiloohm_typo' "
-        "from 'jitx.units' (at board.py:1)"
-    ) in out
-    assert "ImportError: cannot import name" not in out
-
-
-@needs_jitx
+@pytest.mark.parametrize("head", STDOUT_BEFORE_A_LIBRARY)
 def test_an_import_that_fails_inside_a_library_is_the_environment(
     capsys: pytest.CaptureFixture[str],
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    head: str,
 ) -> None:
-    """Nothing in the candidate's own files is wrong, so it is not a red."""
+    """Nothing in the candidate's own files is wrong, so it is not a red. The
+    pre-flight's environment line reaches the grader, last, whatever the
+    board did to stdout before the library failed, and nothing the board set
+    up to run at exit runs after it."""
     library = tmp_path / "library"
     library.mkdir()
     (library / "brokenlib.py").write_text(
@@ -1183,32 +1397,18 @@ def test_an_import_that_fails_inside_a_library_is_the_environment(
     monkeypatch.setenv("PYTHONPATH", str(library))
     candidate = tmp_path / "candidate"
     candidate.mkdir()
-    board = write(candidate, "import brokenlib\n" + MINIMAL_SUBSTRATE)
+    board = write(candidate, head + "import brokenlib\n" + MINIMAL_SUBSTRATE)
     code, out = grade(capsys, board, CASE_CSV)
-    assert code == 1
-    assert "ERROR  a library the candidate imports does not import" in out
-    assert "No module named 'a_dependency_that_is_not_installed'" in out
+    assert code == 1, out
+    assert (
+        out.strip()
+        .splitlines()[-1]
+        .startswith(
+            "ERROR  a library the candidate imports does not import: ModuleNotFoundError: "
+            "No module named 'a_dependency_that_is_not_installed'"
+        )
+    ), out
     assert "candidate does not import" not in out
-
-
-@needs_jitx
-def test_a_missing_grader_dependency_is_the_environment(
-    capsys: pytest.CaptureFixture[str],
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """jitxlib is the grader's dependency, not jitx's, so it is checked too."""
-    shadow = tmp_path / "shadow"
-    shadow.mkdir()
-    (shadow / "jitxlib.py").write_text(
-        "raise ModuleNotFoundError(\"No module named 'jitxlib'\", name='jitxlib')\n",
-        encoding="utf-8",
-    )
-    monkeypatch.setenv("PYTHONPATH", str(shadow))
-    code, out = grade(capsys, write(tmp_path, MINIMAL_SUBSTRATE), CASE_CSV)
-    assert code == 1
-    assert "ERROR  the grader needs jitxlib.physics" in out
-    assert "No module named 'jitxlib'" in out
 
 
 @needs_jitx
@@ -1629,26 +1829,216 @@ def test_an_error_the_board_causes_inside_a_library_is_red(
     assert "(at board.py:2)" in out
 
 
+SIBLINGS = {path.stem for path in CHECKS.glob("*.py")}
+"""Modules beside the grader, which it imports from its own directory."""
+
+
+def type_checking(test: ast.expr) -> bool:
+    """Whether an ``if`` tests ``TYPE_CHECKING``, so its body never runs."""
+    return (isinstance(test, ast.Name) and test.id == "TYPE_CHECKING") or (
+        isinstance(test, ast.Attribute) and test.attr == "TYPE_CHECKING"
+    )
+
+
+def reports(handler: ast.ExceptHandler) -> bool:
+    """Whether an ``except`` clause hands its error to grader_cannot_import."""
+    return any(
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "grader_cannot_import"
+        for node in ast.walk(handler)
+    )
+
+
+GraderImport = tuple[str, str, int, bool, bool]
+"""(module, name or "" for a plain import, line, at module level, inside a
+try whose handler reports to grader_cannot_import)."""
+
+
+def grader_imports() -> list[GraderImport]:
+    """Every import in substrate_grader.py of a module that is neither in the
+    standard library nor beside the grader, at any depth: module level,
+    nested blocks, class bodies and function bodies. Imports under
+    ``if TYPE_CHECKING:`` never run, so they are left out."""
+    found: list[GraderImport] = []
+
+    def visit(statements: list[ast.stmt], module_level: bool, guarded: bool) -> None:
+        for statement in statements:
+            if isinstance(statement, ast.Import | ast.ImportFrom):
+                if isinstance(statement, ast.Import):
+                    pairs = [(alias.name, "") for alias in statement.names]
+                else:
+                    module = "." * statement.level + (statement.module or "")
+                    pairs = [(module, alias.name) for alias in statement.names]
+                for module, name in pairs:
+                    top = module.split(".")[0]
+                    if top and top not in sys.stdlib_module_names | SIBLINGS:
+                        found.append(
+                            (module, name, statement.lineno, module_level, guarded)
+                        )
+            elif isinstance(statement, ast.If) and type_checking(statement.test):
+                visit(statement.orelse, module_level, guarded)
+            elif isinstance(statement, ast.Try | ast.TryStar):
+                inside = guarded or any(reports(h) for h in statement.handlers)
+                visit(statement.body, module_level, inside)
+                for handler in statement.handlers:
+                    visit(handler.body, module_level, guarded)
+                visit(statement.orelse, module_level, guarded)
+                visit(statement.finalbody, module_level, guarded)
+            elif isinstance(statement, ast.FunctionDef | ast.AsyncFunctionDef):
+                visit(statement.body, False, False)
+            else:
+                children = ast.iter_child_nodes(statement)
+                visit(
+                    [c for c in children if isinstance(c, ast.stmt)],
+                    module_level,
+                    guarded,
+                )
+                if isinstance(statement, ast.Match):
+                    for case in statement.cases:
+                        visit(case.body, module_level, guarded)
+
+    visit(ast.parse(GRADER.read_text(encoding="utf-8")).body, True, False)
+    return found
+
+
+def test_the_preflight_checks_every_third_party_import_of_the_grader() -> None:
+    """Every import of the grader's that is not the standard library's or a
+    sibling's is in import_candidate.NEEDED, so the pre-flight checks it
+    before any candidate code runs, and each that runs at module level sits
+    in the try that reports a failed one. One left out would fail inside
+    pytest, where its output is printed scrubbed, as a red. An import inside
+    a function runs only once a test calls it, so it must be in NEEDED too."""
+    found = grader_imports()
+    needed = {(module, "") for module, _ in import_candidate.NEEDED} | {
+        (module, name) for module, names in import_candidate.NEEDED for name in names
+    }
+    assert any(m == "jitx.si" and n == "_RefLayer" for m, n, *_ in found)
+    unlisted = sorted(
+        (line, module, name)
+        for module, name, line, _, _ in found
+        if (module, name) not in needed
+    )
+    assert not unlisted, f"imports missing from NEEDED: {unlisted}"
+    unguarded = sorted(
+        line for _, _, line, top, guarded in found if top and not guarded
+    )
+    assert not unguarded, f"imports outside the guarded try, at lines {unguarded}"
+
+
+HIDE_MODULE = """    class _Hide:
+        def find_spec(self, name, path=None, target=None):
+            if name == {target!r}:
+                raise ModuleNotFoundError(f"No module named {{name!r}}", name=name)
+            return None
+
+    sys.meta_path.insert(0, _Hide())
+"""
+DROP_NAME = """    import jitx._translate.design
+    import {module}
+
+    del {module}.{name}
+"""
+"""jitx._translate.design imports jitx.si's ``_RefLayer`` itself, so it is
+imported first: the name is then gone for the grader alone."""
+RAISE_IN = """    class _Raise:
+        def find_spec(self, name, path=None, target=None):
+            if name == {target!r}:
+                {statement}
+            return None
+
+    sys.meta_path.insert(0, _Raise())
+"""
+"""A dependency that raises, or exits, as it is imported."""
+ONLY_IN = """import sys
+
+if any(arg.endswith({script!r}) for arg in getattr(sys, "orig_argv", [])):
+"""
+"""A sitecustomize.py that breaks the environment in one script's process."""
+
+GRADER_ENVIRONMENT_FAULTS = [
+    pytest.param(
+        "import_candidate.py",
+        HIDE_MODULE.format(target="jitxlib"),
+        "ERROR  the grader needs jitxlib.physics: ModuleNotFoundError: "
+        "No module named 'jitxlib'",
+        id="jitxlib, the grader's dependency and not jitx's, gone",
+    ),
+    pytest.param(
+        "import_candidate.py",
+        HIDE_MODULE.format(target="jitx._translate.design"),
+        "ERROR  the grader needs jitx._translate.design: ModuleNotFoundError: "
+        "No module named 'jitx._translate.design'",
+        id="a private module the grader imports, gone",
+    ),
+    pytest.param(
+        "substrate_grader.py",
+        HIDE_MODULE.format(target="jitx._translate.design"),
+        "ERROR  the grader needs jitx._translate.design: ModuleNotFoundError: "
+        "No module named 'jitx._translate.design'",
+        id="a private module, gone only where the grader runs",
+    ),
+    pytest.param(
+        "import_candidate.py",
+        DROP_NAME.format(module="jitx.si", name="_RefLayer"),
+        "ERROR  the grader needs jitx.si._RefLayer: ImportError: cannot import "
+        "name '_RefLayer' from 'jitx.si'",
+        id="a private name the grader imports, gone",
+    ),
+    pytest.param(
+        "substrate_grader.py",
+        DROP_NAME.format(module="jitx.si", name="_RefLayer"),
+        "ERROR  the grader needs jitx.si._RefLayer: ImportError: cannot import "
+        "name '_RefLayer' from 'jitx.si'",
+        id="a private name, gone only where the grader runs",
+    ),
+    pytest.param(
+        "import_candidate.py",
+        RAISE_IN.format(
+            target="jitxlib.physics",
+            statement='sys.exit("jitxlib.physics: No module named '
+            "'jitxlib._native'; reinstall jitxlib\")",
+        ),
+        "ERROR  the grader needs jitxlib.physics: SystemExit: jitxlib.physics: "
+        "No module named 'jitxlib._native'; reinstall jitxlib",
+        id="a grader dependency that exits at import",
+    ),
+    pytest.param(
+        "import_candidate.py",
+        RAISE_IN.format(
+            target="jitxlib.physics",
+            statement="raise RuntimeError('jitxlib built for another jitx')",
+        ),
+        "ERROR  the grader needs jitxlib.physics: RuntimeError: "
+        "jitxlib built for another jitx",
+        id="a grader dependency that raises at import",
+    ),
+]
+"""(the script whose process breaks, how, the line grade_substrate.py ends
+with). A fault only where the grader runs is one the pre-flight cannot see."""
+
+
 @needs_jitx
-def test_a_grader_dependency_that_raises_is_the_environment(
+@pytest.mark.parametrize(("script", "fault", "line"), GRADER_ENVIRONMENT_FAULTS)
+def test_a_grader_import_that_fails_is_the_environment(
     capsys: pytest.CaptureFixture[str],
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    script: str,
+    fault: str,
+    line: str,
 ) -> None:
-    """Whatever a grader dependency raises, no candidate can fix it."""
-    shadow = tmp_path / "shadow"
-    shadow.mkdir()
-    (shadow / "jitxlib.py").write_text(
-        "raise RuntimeError('jitxlib built for another jitx')\n", encoding="utf-8"
+    """Whatever stops the grader's own imports, in the pre-flight or in the
+    grader's pytest run, is reported raw, last, in Python's wording."""
+    site = tmp_path / "site"
+    site.mkdir()
+    (site / "sitecustomize.py").write_text(
+        ONLY_IN.format(script=script) + fault, encoding="utf-8"
     )
-    monkeypatch.setenv("PYTHONPATH", str(shadow))
+    monkeypatch.setenv("PYTHONPATH", str(site))
     code, out = grade(capsys, write(tmp_path, MINIMAL_SUBSTRATE), CASE_CSV)
-    assert code == 1
-    assert (
-        "ERROR  the grader needs jitxlib.physics: RuntimeError: "
-        "jitxlib built for another jitx"
-    ) in out
-    assert "does not import" not in out
+    assert code == 1, out
+    assert out.strip().splitlines()[-1] == line, out
 
 
 def test_a_preflight_that_prints_no_verdict_shows_its_stderr(

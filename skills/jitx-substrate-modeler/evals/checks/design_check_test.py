@@ -11,21 +11,41 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import re
 import shutil
 import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
 
+import design_check
 import pytest
+from import_candidate import ENVIRONMENT_WORDING
 
 CHECKS = Path(__file__).resolve().parent
 SCRIPT = CHECKS / "design_check.py"
 CASE_A = CHECKS / "testdata" / "case_a"
 
-PYTHON_IMPORT_WORDING = ("No module named", "cannot import name")
-"""Python's own words for a failed import. Eval harnesses read them as an
-environment problem, so a red must not carry them."""
+OPTIONAL_IMPORT = (
+    "try:\n"
+    "    import jitx_rf_helpers  # noqa: F401\n"
+    "except ImportError as missing_helper:\n"
+    '    print(f"note: {missing_helper}; using built-in defaults")\n'
+    "EXTRA = UNDEFINED_NAME  # noqa: F821\n\n\n"
+)
+"""An optional import whose failure the board prints, in Python's wording,
+before an error of the board's own stops it importing."""
+
+
+def exits_at_import(line: str, code: int) -> str:
+    """Code that ends the import pre-flight with ``line`` and exit ``code``."""
+    return (
+        "import os\n\n"
+        'if __name__ == "_candidate_preflight":\n'
+        f"    print({line!r}, flush=True)\n"
+        f"    os._exit({code})\n\n\n"
+    )
+
 
 pytestmark = pytest.mark.skipif(
     importlib.util.find_spec("jitx") is None,
@@ -197,6 +217,27 @@ def test_each_way_of_writing_a_good_design_passes(
             "FAIL  design.py does not import: boards",
         ),
         (remove("design.py"), "design.py does not exist"),
+        (
+            edit("board.py", "class Core(", OPTIONAL_IMPORT + "class Core("),
+            "FAIL  board.py does not import: NameError: name 'UNDEFINED_NAME'",
+        ),
+        (
+            edit(
+                "board.py",
+                "class Core(",
+                exits_at_import("ERROR  No module named 'jitx_rf_helpers'", 3)
+                + "class Core(",
+            ),
+            "FAIL  the import pre-flight exited 3 on board.py without one of its own",
+        ),
+        (
+            edit(
+                "board.py",
+                "class Core(",
+                exits_at_import("No module named 'jitx_rf_helpers'", 7) + "class Core(",
+            ),
+            "FAIL  the import pre-flight gave no verdict on board.py (exit 7)",
+        ),
     ],
     ids=[
         "a SampleDesign subclass",
@@ -208,6 +249,9 @@ def test_each_way_of_writing_a_good_design_passes(
         "a design.py importing a name board.py lacks",
         "a design.py importing a module that does not exist",
         "no design.py",
+        "a board.py that prints environment wording, then fails",
+        "a board.py that exits 3 with an ERROR line of its own",
+        "a board.py that exits 7 in environment wording",
     ],
 )
 def test_each_way_a_design_misses_is_red(
@@ -218,8 +262,11 @@ def test_each_way_a_design_misses_is_red(
     done = run(output)
     assert done.returncode == 1, done.stdout + done.stderr
     assert reason in done.stdout
-    for words in PYTHON_IMPORT_WORDING:
-        assert words.lower() not in done.stdout.lower(), done.stdout
+    for wording in ENVIRONMENT_WORDING:
+        assert not re.search(wording, done.stdout + done.stderr, re.IGNORECASE), (
+            wording,
+            done.stdout,
+        )
 
 
 def test_an_interpreter_without_jitx_is_an_environment_error() -> None:
@@ -227,3 +274,33 @@ def test_an_interpreter_without_jitx_is_an_environment_error() -> None:
     done = run(CASE_A / "good_design", "-S")
     assert done.returncode == 3, done.stdout + done.stderr
     assert done.stdout.startswith("ERROR  design_check.py needs jitx"), done.stdout
+
+
+def test_an_interpreter_without_jitx_sample_is_an_environment_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The listing child imports jitx.sample; without it nothing is graded."""
+    monkeypatch.setitem(sys.modules, "jitx.sample", None)
+    verdict = design_check.check(good_copy(tmp_path), design_check.TIMEOUT_S)
+    assert verdict.problems == []
+    assert [error.split(":")[0] for error in verdict.errors] == [
+        "design_check.py needs jitx.sample"
+    ], verdict.errors
+
+
+def test_a_dependency_that_exits_at_import_is_an_environment_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A dependency that calls sys.exit while it imports is still the
+    environment's, not a way out of the check."""
+    site = tmp_path / "site"
+    site.mkdir()
+    (site / "exits_at_import.py").write_text(
+        'import sys\n\nsys.exit("exits_at_import: reinstall it")\n', encoding="utf-8"
+    )
+    monkeypatch.syspath_prepend(str(site))
+    monkeypatch.delitem(sys.modules, "exits_at_import", raising=False)
+    assert design_check.missing("design_check.py", ("exits_at_import",)) == (
+        "design_check.py needs exits_at_import: SystemExit: "
+        "exits_at_import: reinstall it"
+    )
