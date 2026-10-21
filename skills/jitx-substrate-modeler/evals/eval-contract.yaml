@@ -16,7 +16,7 @@ dimensions:
   - "STACKUP_FIDELITY — do layer count, order, names, and per-layer thicknesses match the source, and does the summed total reconcile with the source's stated finished/overall thickness?"
   - "MATERIAL_FIDELITY — one material class per distinct source row (no collapsing rows that differ in Dk/Df/roughness), correct unit conversions (mils to mm, oz to finished-thickness mm, Rz um to mm), no-field values docstringed?"
   - "VIA_INVENTORY — exactly the source's via set, correct spans/drill types/pad and hole sizes/fill-cap-tent, aspect ratios on the source's stated depth basis per drill type, nothing speculative?"
-  - "ROUTING_STRUCTURE_FIT — one structure per impedance target covering every listed layer and geometry, velocity from eps_eff where given, edge-to-edge pair gaps, neck-down and uncoupled regions, reference planes carried?"
+  - "ROUTING_STRUCTURE_FIT — one structure per impedance target covering every listed layer and geometry, velocity from eps_eff where given, edge-to-edge pair gaps, uncoupled regions, each neck region a structure of its own (applied by tag in the design, never a NeckDown), reference planes carried?"
   - "FAB_RULES_COMPLETE — every source rule that maps to a FabricationConstraints field present and correct, capability limits with no JITX field documented rather than dropped or force-fit?"
   - "PROVENANCE — does every number trace to a source row, with unstated values asked about or documented as omissions rather than invented (including to satisfy a type checker)?"
 hard_fails:

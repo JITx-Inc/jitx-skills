@@ -32,10 +32,9 @@ also assumes the report holds these:
 What it checks, against the report:
 
 - Stackup: one entry per STACKUP row in order, copper or dielectric as the
-  row says, thickness, Dk and Df, copper roughness (the deprecated
-  ``roughness`` scalar equal to matte Rz in mm, or, where it is not set, matte
-  and drum Rz in the copper class's docstring), both thickness totals in
-  DOCUMENT, copper
+  row says, thickness, Dk and Df, copper roughness (matte and drum Rz in um
+  in the copper class's docstring, and the ``roughness`` scalar, where it is
+  set, equal to matte Rz in mm), both thickness totals in DOCUMENT, copper
   layer names that carry their layer id, distinct dielectric
   rows kept distinct, each dielectric's ``material_name`` carrying its
   MATERIALS_DIELECTRIC Product, and mirrored rows mirrored in the design.
@@ -47,11 +46,17 @@ What it checks, against the report:
   the translated rules; no impedance geometry below the engine minimums.
 - Routing structures: one per controlled target, found by its target
   impedance; every geometry and layer the report lists, with width,
-  clearance, pair gap, neck-down, insertion loss and velocity from
-  ``Eps_eff``; reference planes as ``Ref_layers`` names them, at the
-  substrate-modeler skill's default width of 3x the dielectric height;
-  ``-UNC`` rows folded into their pair; the uncontrolled default row not
-  modelled.
+  clearance, pair gap, insertion loss and velocity from ``Eps_eff``;
+  reference planes as ``Ref_layers`` names them, at the substrate-modeler
+  skill's default width of 3x the dielectric height; ``-UNC`` rows folded
+  into their pair; the uncontrolled default row not modelled.
+- Neck regions: a controlled target whose rows quote ``Neck_*`` columns has
+  a structure of its own beside its main one, single-ended or differential
+  as the target is, carrying the neck width, gap and clearance on the layers
+  of those rows, found by that geometry rather than by impedance. Its
+  impedance, velocity and loss are not checked (the report quotes only a
+  modelled impedance for a neck), and how a design applies it, by tag, is not
+  graded here. No ``NeckDown`` may appear in the file or on any structure.
 
 The substrate is wrapped in the grader's own design, on a board of the
 report's DOCUMENT ``Board size``, and translated offline; that translation is
@@ -60,6 +65,7 @@ how the vias, materials and rules are read. The board itself is not graded.
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import importlib.util
 import os
@@ -679,6 +685,89 @@ def controlled_lookups(substrate: Substrate) -> list[tuple[str, AnyStructure]]:
     return named
 
 
+def neck_rows(structure_id: str) -> Rows:
+    """The IMPEDANCE rows of a target that quote a neck width."""
+    return [
+        row
+        for row in impedance_rows(structure_id)
+        if row.get("Neck_width_mm", "").strip()
+    ]
+
+
+@cache
+def neck_regions() -> tuple[str, ...]:
+    """Each controlled Structure_ID with a row that quotes a neck region. A
+    neck region is modelled as a routing structure of its own, beside the
+    target's main structure."""
+    return tuple(sid for sid in controlled_ids() if neck_rows(sid))
+
+
+def neck_label(structure_id: str) -> str:
+    """Subtest ``structure=`` value for a neck region's structure."""
+    return f"{structure_id} neck"
+
+
+def neck_mismatches(structure: AnyStructure, structure_id: str) -> list[str]:
+    """How ``structure`` differs from the neck region of ``structure_id``:
+    its kind, its layers, then each layer's neck width, pair gap and
+    clearance. Empty when it carries that neck region."""
+    rows = neck_rows(structure_id)
+    differential = rows[0]["Type"] == "Differential"
+    if isinstance(structure, DifferentialRoutingStructure) != differential:
+        return ["not differential" if differential else "differential"]
+    expected = {
+        fabcsv.layer_number(name): row
+        for row in rows
+        for name in row["Layers"].split(";")
+    }
+    covered = {
+        signed_to_layer(index): layer for index, layer in structure.layers.items()
+    }
+    if set(covered) != set(expected):
+        return [f"layers {sorted(covered)}, not {sorted(expected)}"]
+    out: list[str] = []
+    for number, row in sorted(expected.items()):
+        layer = covered[number]
+        checks = [
+            ("width", layer.trace_width, row["Neck_width_mm"]),
+            ("clearance", layer.clearance or 0.0, row.get("Neck_clearance_mm", "")),
+            (
+                "pair gap",
+                getattr(layer, "pair_spacing", None) or 0.0,
+                row.get("Neck_gap_mm", ""),
+            ),
+        ]
+        out += [
+            f"L{number} {what} {got:g}, not {cell}"
+            for what, got, cell in checks
+            if cell.strip() and round(got - float(cell), 6) != 0
+        ]
+    return out
+
+
+def neck_lookups(substrate: Substrate) -> list[tuple[str, AnyStructure]]:
+    """Each neck region with the structure that carries it: in report order,
+    the first declared structure that no controlled target's impedance finds,
+    that no earlier region took, and that carries the region's neck geometry.
+    A region with none is left out."""
+    taken = [structure for _, structure in controlled_lookups(substrate)]
+    named: list[tuple[str, AnyStructure]] = []
+    for structure_id in neck_regions():
+        found = next(
+            (
+                structure
+                for structure in top_level_structures(substrate)
+                if not any(structure is seen for seen in taken)
+                and not neck_mismatches(structure, structure_id)
+            ),
+            None,
+        )
+        if found is not None:
+            taken.append(found)
+            named.append((structure_id, found))
+    return named
+
+
 UNMATCHED = "(no IMPEDANCE row)"
 """Subtest ``structure=`` value for a structure no IMPEDANCE row finds."""
 
@@ -688,6 +777,7 @@ def all_structures(substrate: Substrate) -> list[tuple[str, AnyStructure]]:
     included, each with the IMPEDANCE Structure_ID whose impedance finds it."""
     found = _distinct([*top_level_structures(substrate), *uncoupled_regions(substrate)])
     named = controlled_lookups(substrate)
+    named += [(neck_label(sid), s) for sid, s in neck_lookups(substrate)]
     for structure_id, uncoupled_id in uncoupled_ids().items():
         try:
             region = diff_structure_for(substrate, structure_id).uncoupled_region
@@ -823,10 +913,10 @@ class TestStackup(TestCase):
     ) -> None:
         """Copper roughness, on the convention SKILL.md sets.
 
-        The ``roughness`` scalar is slated for deprecation, so it is optional.
-        Where it is set, it is matte Rz in mm, and it reaches the translated
-        material. Where it is not, the class docstring, the durable record,
-        must carry the matte and drum Rz in um as the report writes them.
+        The class docstring, the durable record, must carry the matte and drum
+        Rz in um as the report writes them, whether or not the ``roughness``
+        scalar is set: the scalar holds one side only. Where the scalar is set,
+        it is matte Rz in mm, and it reaches the translated material.
         """
         declared = materials()[row["Material_ID"]]
         where = f"MATERIALS_COPPER {row['Material_ID']}"
@@ -839,7 +929,6 @@ class TestStackup(TestCase):
             self.assertAlmostEqual(
                 translated_roughness, expected, places=6, msg=f"{where} Rz_matte_um"
             )
-            return
         # `decompose` hands back proxies; `typeof` is the class behind one.
         klass = typeof(conductor)
         # The candidate's own classes along the MRO, so Rz stated once on a
@@ -857,9 +946,9 @@ class TestStackup(TestCase):
             self.assertIn(
                 float(declared[column]),
                 stated,
-                f"{where} {column} {declared[column]} um: {klass.__name__} sets "
-                "no roughness scalar, so its docstring, or a docstring of a "
-                "class it is built on, must state this value",
+                f"{where} {column} {declared[column]} um: the docstring of "
+                f"{klass.__name__}, or of a class it is built on, must state this "
+                "value, since the roughness scalar holds at most the matte side",
             )
 
     def test_distinct_dielectrics_are_not_collapsed(self) -> None:
@@ -1123,16 +1212,16 @@ class TestFabRules(TestCase):
 
     def test_engine_enforced_rules_do_not_clamp_the_geometry(self) -> None:
         """min_copper_* override trace width and clearance, so nothing the
-        report quotes may sit below them, the neck-down regions included."""
+        report quotes may sit below them, the neck regions included."""
         min_width = fab_rules()["min_copper_width"]
         min_space = fab_rules()["min_copper_copper_space"]
         for row in sections()["IMPEDANCE"]:
-            widths = [row["Line_width_mm"], row["Neck_width_mm"]]
+            widths = [row["Line_width_mm"], row.get("Neck_width_mm", "")]
             spaces = [
                 row["Pair_gap_mm"],
-                row["Neck_gap_mm"],
+                row.get("Neck_gap_mm", ""),
                 row["Clearance_mm"],
-                row["Neck_clearance_mm"],
+                row.get("Neck_clearance_mm", ""),
             ]
             with self.subTest(structure=row["Structure_ID"], geom=row["Geometry"]):
                 for value in widths:
@@ -1201,34 +1290,6 @@ class TestRoutingStructures(TestCase):
             delta=VELOCITY_RTOL * expected,
             msg=f"{where} Eps_eff, as phase velocity",
         )
-        self.assert_neck_matches(layer, row)
-
-    def assert_neck_matches(self, layer: AnyLayer, row: dict[str, str]) -> None:
-        """A blank Neck_* column means no neck-down, not a borrowed one."""
-        if not row["Neck_width_mm"].strip():
-            self.assertIsNone(
-                layer.neck_down,
-                f"{row['Structure_ID']} {row['Geometry']}: the report leaves the "
-                "Neck_* columns blank, so no neck-down may be declared",
-            )
-            return
-        neck = layer.neck_down
-        self.assertIsNotNone(
-            neck, f"{row['Structure_ID']} {row['Geometry']}: no neck-down declared"
-        )
-        assert neck is not None
-        self.assertAlmostEqual(
-            neck.trace_width or 0.0, float(row["Neck_width_mm"]), places=6
-        )
-        self.assertAlmostEqual(
-            neck.clearance or 0.0, float(row["Neck_clearance_mm"]), places=6
-        )
-        if row["Neck_gap_mm"].strip():
-            self.assertAlmostEqual(
-                getattr(neck, "pair_spacing", None) or 0.0,
-                float(row["Neck_gap_mm"]),
-                places=6,
-            )
 
     def test_lookup_by_impedance(self) -> None:
         substrate = candidate()
@@ -1254,11 +1315,12 @@ class TestRoutingStructures(TestCase):
                 )
 
     def test_every_declared_structure_has_a_controlled_target(self) -> None:
-        """A structure no controlled IMPEDANCE row finds by its impedance is one
-        the report does not ask for, such as an extra pair or a hoisted
-        uncoupled region."""
+        """A structure no controlled IMPEDANCE row finds by its impedance, and
+        that carries no neck region, is one the report does not ask for, such
+        as an extra pair or a hoisted uncoupled region."""
         substrate = candidate()
         named = controlled_lookups(substrate)
+        named += [(neck_label(sid), s) for sid, s in neck_lookups(substrate)]
         for structure in top_level_structures(substrate):
             label = next((sid for sid, s in named if s is structure), UNMATCHED)
             with self.subTest(structure=label, candidate=structure.name):
@@ -1266,7 +1328,7 @@ class TestRoutingStructures(TestCase):
                     self.fail(
                         f"{structure.name!r} at {ohm.m_from(structure.impedance)} "
                         "ohm is not the structure any controlled IMPEDANCE target "
-                        "finds"
+                        "finds, and it carries no neck region"
                     )
 
     def test_layer_coverage(self) -> None:
@@ -1441,7 +1503,8 @@ class TestRoutingStructures(TestCase):
 
     def test_uncoupled_rows_are_not_standalone_structures(self) -> None:
         """One single-ended structure per controlled single-ended target, less
-        the ``-UNC`` rows, which belong inside their differential structure."""
+        the ``-UNC`` rows, which belong inside their differential structure,
+        plus one per single-ended neck region."""
         nested = set(uncoupled_ids().values())
         single = {
             r["Structure_ID"]
@@ -1450,12 +1513,14 @@ class TestRoutingStructures(TestCase):
             and r["Type"] == "Single-ended"
             and r["Structure_ID"] not in nested
         }
+        necks = [sid for sid in neck_regions() if sid in single]
         found = single_ended_structures(candidate())
         self.assertEqual(
             len(found),
-            len(single),
+            len(single) + len(necks),
             "single-ended structures on the substrate, against controlled "
-            f"single-ended targets {sorted(single)}",
+            f"single-ended targets {sorted(single)} and their neck regions "
+            f"{necks}",
         )
 
     def test_uncontrolled_rows_are_not_modelled(self) -> None:
@@ -1470,6 +1535,88 @@ class TestRoutingStructures(TestCase):
                     self.assertRaises(ValueError),
                 ):
                     substrate.routing_structure(float(value) * ohm)
+
+
+class TestNeckRegions(TestCase):
+    """A neck region is a routing structure of its own, applied by tag in the
+    design; ``NeckDown`` is not used. How a design applies the structure is
+    not graded here."""
+
+    def test_no_neck_down_in_the_file(self) -> None:
+        """No ``NeckDown`` name and no ``neck_down=`` other than None in the
+        candidate file's code; comments and strings are not read."""
+        path = Path(str(sys.modules[SUBSTRATE.__module__].__file__))
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        lines = sorted(
+            {
+                node.lineno
+                for node in ast.walk(tree)
+                if (isinstance(node, ast.Name) and node.id == "NeckDown")
+                or (isinstance(node, ast.Attribute) and node.attr == "NeckDown")
+                or (isinstance(node, ast.alias) and node.name == "NeckDown")
+                or (
+                    isinstance(node, ast.keyword)
+                    and node.arg == "neck_down"
+                    and not (
+                        isinstance(node.value, ast.Constant)
+                        and node.value.value is None
+                    )
+                )
+            }
+        )
+        self.assertEqual(
+            lines,
+            [],
+            f"{path.name} uses NeckDown on these lines. A neck region is a "
+            "routing structure of its own, applied by tag in the design.",
+        )
+
+    def test_no_structure_carries_a_neck_down(self) -> None:
+        for label, structure in all_structures(candidate()):
+            for index, layer in structure.layers.items():
+                with self.subTest(
+                    structure=label,
+                    candidate=structure.name,
+                    layer=f"L{signed_to_layer(index)}",
+                ):
+                    self.assertIsNone(
+                        layer.neck_down,
+                        "a neck region is a routing structure of its own, "
+                        "applied by tag in the design, not a NeckDown",
+                    )
+
+    def test_each_neck_region_has_a_structure_of_its_own(self) -> None:
+        """Each target whose rows quote ``Neck_*`` columns has a structure
+        beside its main one, of the same kind, on the layers of those rows,
+        with the neck width, pair gap and clearance."""
+        substrate = candidate()
+        matched = dict(neck_lookups(substrate))
+        taken = [s for _, s in controlled_lookups(substrate)] + list(matched.values())
+        spare = [
+            s
+            for s in top_level_structures(substrate)
+            if not any(s is seen for seen in taken)
+        ]
+        for structure_id in neck_regions():
+            if structure_id in matched:
+                continue
+            quoted = "; ".join(
+                f"{row['Layers']} width {row['Neck_width_mm']}, gap "
+                f"{row.get('Neck_gap_mm', '') or '-'}, clearance "
+                f"{row.get('Neck_clearance_mm', '') or '-'}"
+                for row in neck_rows(structure_id)
+            )
+            nearest = "; ".join(
+                f"{s.name!r}: {', '.join(neck_mismatches(s, structure_id))}"
+                for s in spare
+            )
+            with self.subTest(structure=neck_label(structure_id)):
+                self.fail(
+                    f"IMPEDANCE {structure_id} quotes a neck region ({quoted}), "
+                    "and no structure carries it other than the one its target "
+                    "impedance finds. Structures no target finds: "
+                    f"{nearest or 'none'}"
+                )
 
 
 class TestSettings(unittest.TestCase):
