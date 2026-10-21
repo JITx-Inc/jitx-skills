@@ -123,7 +123,7 @@ Patterns where the substrate / routing-structure / framework API is being misuse
 
 **Severity:** WARNING. Functional code; structural code-smell.
 
-**Rule source:** `jitx-substrate-modeler/SKILL.md` (the coplanar-features-in-routing-structure callout).
+**Rule source:** the `jitx.si.RoutingStructure.Layer.geometry` docstring in jitx.
 
 ### `generic-substrate-design-leak`
 
@@ -133,7 +133,7 @@ Patterns where the substrate / routing-structure / framework API is being misuse
 
 **Severity:** WARNING / CRITICAL depending on how invasive. The substrate is supposed to be reusable; design-specific concepts in it block reuse.
 
-**Rule source:** `jitx-substrate-modeler/SKILL.md` (the anti-string-hacking callout).
+**Rule source:** [architectural patterns 4a](../../jitx/references/architectural-patterns.md#sub-example-4a-substrate-shaped-tables) in the `jitx` skill.
 
 ### `symmetric-mirroring-confusion`
 
@@ -141,7 +141,7 @@ Patterns where the substrate / routing-structure / framework API is being misuse
 
 **Severity:** WARNING.
 
-**Rule source:** `jitx-substrate-modeler/SKILL.md` (Stackup section).
+**Rule source:** the `jitx.stackup.Symmetric` docstring in jitx.
 
 ### `tag-proliferation`
 
@@ -151,7 +151,7 @@ Patterns where the substrate / routing-structure / framework API is being misuse
 
 **Severity:** WARNING (architecture smell; functional code). NOTE when it's only two tags.
 
-**Rule source:** `jitx-substrate-modeler/SKILL.md` ("Tag inheritance & proliferation").
+**Rule source:** `jitx-layout-constraints`, [Sharp edges (verified on real boards)](../../jitx-layout-constraints/SKILL.md#sharp-edges-verified-on-real-boards), the flat-tag-proliferation bullet.
 
 ## Code-craft patterns
 
