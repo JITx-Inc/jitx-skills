@@ -13,14 +13,17 @@ prints the child's lines and one summary line, and passes only when the
 token line came last, every check printed exactly one line, every check
 passed and the child exited 0.
 
-What this guards against is a candidate's accident, not its malice: a
-candidate that exits the child early (``sys.exit``, ``os._exit``, a crash or
-an exit handler), hangs it past the time limit, prints lines of its own or
-replaces ``sys.stdout`` is a red, since the child writes its check lines to
-a copy of its stdout taken before any candidate code runs. Code written to
-defeat the grader from inside the child (writing to that copy, or reading
-the token, which ``ps -E`` shows in the child's environment) is not covered.
-POSIX only: it uses process groups and POSIX signals.
+What this guards against is a candidate's accident, not its malice. A
+candidate is a red when it ends the child early (``sys.exit``, ``os._exit``
+or a crash), hangs it past the time limit, prints a line shaped like a check
+line for a check the grader runs (``PASS  <check>`` or ``FAIL  <check>``, so
+that check has two lines), or prints anything after the ``DONE`` line, from
+an exit handler for one. Ordinary prints pass, a partial line or a replaced
+``sys.stdout`` included: the child writes each check line, on a line of its
+own, to a copy of its stdout taken before any candidate code runs. Code
+written to defeat the grader from inside the child (writing to that copy,
+or reading the token, which ``ps -E`` shows in the child's environment) is
+not covered. POSIX only: it uses process groups and POSIX signals.
 
 Everything the parent prints from the candidate's side (the child's lines, the
 tail of its stderr, the pre-flight's red) goes through ``scrub`` first. An
@@ -52,7 +55,7 @@ from types import ModuleType
 from typing import TypeVar
 
 from grade_substrate import run_child
-from import_candidate import LIBRARY, NEEDS, describe, scrub
+from import_candidate import describe, scrub, verdict
 from parent_watch import PARENT, watch_parent
 
 from jitx.board import Board
@@ -218,11 +221,14 @@ def child_nonce() -> str | None:
 def say(line: str) -> None:
     """In the grading child: write one check line to the stdout copy, after
     whatever the candidate has printed so far, so a candidate that replaces
-    ``sys.stdout`` cannot rewrite it."""
-    for stream in (sys.__stdout__, sys.stdout):
+    ``sys.stdout`` cannot rewrite it. The line starts with a newline, so a
+    partial line the candidate left (``progress: 1/1`` with no newline) does
+    not run into it; the parent skips blank lines."""
+    # sys.stdout first: a replacement may write through to sys.__stdout__.
+    for stream in (sys.stdout, sys.__stdout__):
         if stream is not None:
             stream.flush()
-    data = (line + "\n").encode()
+    data = f"\n{line}\n".encode()
     while data:
         data = data[os.write(_check_lines[0], data) :]
 
@@ -266,25 +272,12 @@ def preflight(files: list[Path], timeout: float, env: dict[str, str]) -> int | N
                 f"importing {file.name} hangs or takes too long"
             )
             return 1
-        said = done.stdout.strip().splitlines()
-        if done.returncode == 3 and said and said[-1].startswith((NEEDS, LIBRARY)):
-            # An environment problem, kept in Python's own wording.
-            print(said[-1])
-            return ENVIRONMENT_EXIT
-        if done.returncode == 3:
-            print(
-                f"FAIL  the import pre-flight exited 3 on {file.name} without one "
-                "of its own environment lines; a candidate that exits 3 is a red:\n"
-                + scrub("\n".join(said[-3:]))
-            )
-            return 1
         if done.returncode != 0:
-            verdict = done.stdout.strip() or (
-                f"FAIL  the import pre-flight gave no verdict on {file.name} (exit "
-                f"{done.returncode}):\n{done.stderr.strip()}"
+            environment, line = verdict(
+                done.returncode, done.stdout, done.stderr, file.name
             )
-            print(scrub(verdict))
-            return 1
+            print(line)
+            return ENVIRONMENT_EXIT if environment else 1
     return None
 
 
@@ -317,7 +310,7 @@ def grade_in_child(
         print(f"FAIL  grading ran past {timeout:g} s on {graded}")
         return 1
     finished = f"{DONE} {token}"
-    printed = done.stdout.splitlines()
+    printed = [line for line in done.stdout.splitlines() if line.strip()]
     lines = [scrub(line) for line in printed if line != finished]
     if lines:
         print("\n".join(lines))

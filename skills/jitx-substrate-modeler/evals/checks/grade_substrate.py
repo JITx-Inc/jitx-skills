@@ -11,7 +11,11 @@ other file, or graded nothing, is not a pass. A candidate that does not import
 is a red ("FAIL  candidate does not import: <what>"). A grader dependency that
 does not import, or an import that fails inside a library rather than in the
 candidate's own files, is an ``ERROR  `` line in Python's own wording: an
-environment problem, not the candidate's. A stage that runs past --timeout
+environment problem, not the candidate's. Only those two lines of
+import_candidate.py's, on its exit 3, are; anything else the pre-flight ends
+with is a red. Everything printed from the candidate's side, the grader's
+pytest output included, goes through ``scrub``, so a candidate's own message
+in the wording an eval harness reads as an environment problem stays a red. A stage that runs past --timeout
 seconds (default 300), such as a board that hangs at import, is a red, and
 nothing it started in the stage's process group keeps running (a process that
 leaves the group, by ``setsid``, is beyond reach). POSIX only: it uses process
@@ -32,6 +36,7 @@ import sys
 from pathlib import Path
 from types import FrameType
 
+from import_candidate import scrub, verdict
 from parent_watch import PARENT
 
 GRADER = Path(__file__).resolve().parent / "substrate_grader.py"
@@ -155,14 +160,13 @@ def main(argv: list[str]) -> int:
         )
         return 1
     if preflight.returncode != 0:
-        verdict = preflight.stdout.strip()
-        if not verdict:
-            # The pre-flight crashed before judging the candidate: show why.
-            verdict = (
-                f"ERROR  the import pre-flight gave no verdict (exit "
-                f"{preflight.returncode}):\n{preflight.stderr.strip()}"
-            )
-        print(verdict)
+        # An environment line or the candidate's red, scrubbed; either way,
+        # not graded.
+        print(
+            verdict(
+                preflight.returncode, preflight.stdout, preflight.stderr, board.name
+            )[1]
+        )
         return 1
     # Absolute, because the grader runs from its own directory.
     env = {
@@ -195,7 +199,9 @@ def main(argv: list[str]) -> int:
         )
         return 1
     output = done.stdout + done.stderr
-    print(output, end="" if output.endswith("\n") else "\n")
+    # Printed scrubbed, since it quotes the candidate; read raw below.
+    shown = scrub(output)
+    print(shown, end="" if shown.endswith("\n") else "\n")
     # Green needs all three: pytest exits 0 with at least one test selected;
     # every selected test passed, since a skipped, xfailed or xpassed test is
     # not a graded one; and the grader's GradedTarget warning names BOARD_PY as

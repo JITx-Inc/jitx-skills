@@ -596,6 +596,22 @@ TAMPER_ROWS: list[tuple[str, Edits, str, str]] = [
         + "    _os._exit(3)\n",
         "FAIL  the import pre-flight exited 3 on board.py without one of its own",
     ),
+    (
+        "preflight_exits_3_with_an_error_line_of_its_own",
+        [],
+        HEADER
+        + 'if __name__ == "_candidate_preflight":\n'
+        + "    print(\"ERROR  No module named 'jitx_rf_helpers'\", flush=True)\n"
+        + "    _os._exit(3)\n",
+        "FAIL  the import pre-flight exited 3 on board.py without one of its own",
+    ),
+    (
+        "environment_wording_printed_before_its_own_error",
+        [],
+        "print(\"note: No module named 'jitx_rf_helpers'; using built-in defaults\")\n"
+        + "EXTRA = UNDEFINED_NAME\n",
+        "FAIL  candidate does not import: NameError: name 'UNDEFINED_NAME'",
+    ),
 ]
 """Candidates that try to end the grading looking green, or looking like an
 environment problem. Several are the kind of code the grader does not claim
@@ -622,6 +638,61 @@ def test_a_candidate_that_tampers_with_the_grading_is_red(
     assert "PASS  all" not in stdout, stdout
     for wording in ENVIRONMENT_WORDING:
         assert not re.search(wording, stdout, re.IGNORECASE), (wording, stdout)
+
+
+@needs_jitx
+@pytest.mark.parametrize(
+    "head",
+    [
+        'print("building the TIC-8L substrate")\n',
+        'import sys\n\nsys.stdout.write("progress: 1/1")\n',
+    ],
+    ids=["a line printed at import", "a partial line written at import"],
+)
+def test_a_correct_board_that_prints_passes(tmp_path: Path, head: str) -> None:
+    """What a board prints is not a check line, even a line with no end."""
+    board = tmp_path / BOARD.name
+    board.write_text(head + BOARD.read_text(encoding="utf-8"), encoding="utf-8")
+    code, stdout = grade("report", board, TWIN)
+    assert code == 0, stdout
+    assert f"PASS  all {len(REPORT_CHECKS)} checks passed" in stdout, stdout
+
+
+MULTI_LINE_IMPORT_ERROR = """raise ImportError(
+    "\\n\\nIMPORTANT: PLEASE READ THIS FOR ADVICE ON HOW TO SOLVE THIS ISSUE!\\n\\n"
+    "Importing the fastmath C-extensions failed.\\n\\n"
+    "Original error was: No module named 'fastmath._core'\\n"
+)
+"""
+"""A library that fails to import with a message over several lines, as
+compiled extensions do."""
+
+
+@needs_jitx
+def test_a_library_import_error_over_several_lines_is_the_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The pre-flight's environment line holds the whole message on one line,
+    so it is still the last line and still reads as an environment problem."""
+    site = tmp_path / "site" / "fastmath"
+    site.mkdir(parents=True)
+    (site / "__init__.py").write_text(MULTI_LINE_IMPORT_ERROR, encoding="utf-8")
+    monkeypatch.setenv("PYTHONPATH", str(site.parent))
+    candidate = tmp_path / "candidate"
+    candidate.mkdir()
+    board = candidate / BOARD.name
+    board.write_text(
+        "import fastmath  # noqa: F401\n" + BOARD.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    code, stdout = grade("report", board, TWIN)
+    assert code == 2, stdout
+    last = stdout.strip().splitlines()[-1]
+    assert last.startswith(
+        "ERROR  a library the candidate imports does not import: ImportError: "
+        "IMPORTANT: PLEASE READ"
+    ), stdout
+    assert "No module named 'fastmath._core'" in last, stdout
 
 
 SYMMETRIC_CORE = "    core = FR4(thickness=1.065)\n"

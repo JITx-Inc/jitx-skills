@@ -145,6 +145,22 @@ def test_report_is_the_one_modelled() -> None:
 so it passes the relocated copy, fails every changed one, and never reads a
 value from board.py."""
 
+NAME_SNAPSHOT_SUITE = SNAPSHOT_SUITE.replace(
+    "import board  # noqa: F401", "from board import UV1_PAD  # noqa: F401"
+)
+"""SNAPSHOT_SUITE, importing a name from board.py rather than the module."""
+
+
+def exits_at_import(line: str, code: int) -> str:
+    """A board.py that ends the import pre-flight with ``line`` and ``code``."""
+    return (
+        "import os\n\n"
+        'if __name__ == "_candidate_preflight":\n'
+        f"    print({line!r}, flush=True)\n"
+        f"    os._exit({code})\n"
+    )
+
+
 NOT_FOUND_TEST = """
 
 def test_se99() -> None:
@@ -198,11 +214,23 @@ def test_a_suite_of_copied_constants_fails_every_mutation() -> None:
         ),
         (
             suite(REPORT_ONLY_SUITE),
-            "FAIL  the tests pass with board.py replaced by a module that defines",
+            "FAIL  the tests pass with board.py replaced by a module whose every",
         ),
         (
             suite(SNAPSHOT_SUITE),
-            "FAIL  the tests pass with board.py replaced by a module that defines",
+            "FAIL  the tests pass with board.py replaced by a module whose every",
+        ),
+        (
+            suite(NAME_SNAPSHOT_SUITE),
+            "FAIL  the tests pass with board.py replaced by a module whose every",
+        ),
+        (
+            write("board.py", exits_at_import("ERROR  No module named 'helpers'", 3)),
+            "FAIL  the import pre-flight exited 3 on board.py without one of its own",
+        ),
+        (
+            write("board.py", exits_at_import("No module named 'helpers'", 7)),
+            "FAIL  the import pre-flight gave no verdict on board.py (exit 7)",
         ),
         (
             append(SUITE, NOT_FOUND_TEST),
@@ -226,6 +254,9 @@ def test_a_suite_of_copied_constants_fails_every_mutation() -> None:
         "a suite that checks the report's path",
         "a suite that never tests board.py",
         "a suite that imports board.py and checks a hash of the report's values",
+        "a suite that imports a name from board.py and checks the same hash",
+        "a board.py that exits 3 with an ERROR line of its own",
+        "a board.py that exits 7 in environment wording",
         "a suite whose failure message reads like a missing command",
         "a board.py that does not import",
         "a suite that imports a module that does not exist",
@@ -265,6 +296,43 @@ def test_each_way_of_writing_a_good_suite_passes(
     change(output)
     done = run(output)
     assert done.returncode == 0, done.stdout + done.stderr
+
+
+def older_python() -> str | None:
+    """A Python older than 3.10 on this machine, or None."""
+    for name in ("python3.9", "python3.8"):
+        found = shutil.which(name)
+        if found:
+            return found
+    system = Path("/usr/bin/python3")
+    if system.is_file():
+        version = subprocess.run(
+            [str(system), "-c", "import sys; print(sys.version_info < (3, 10))"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if version.stdout.strip() == "True":
+            return str(system)
+    return None
+
+
+def test_an_older_python_is_an_environment_error() -> None:
+    """An interpreter too old for jitx reads as the environment's problem,
+    not as a crash in code it cannot run."""
+    python = older_python()
+    if python is None:
+        pytest.skip("no Python older than 3.10 here to run the check under")
+    done = subprocess.run(
+        [python, str(SCRIPT), str(CASE_A / "reads_report"), str(CASE_CSV)],
+        capture_output=True,
+        text=True,
+        timeout=600,
+        check=False,
+        env={k: v for k, v in os.environ.items() if k != "PYTHONPATH"},
+    )
+    assert done.returncode == 3, done.stdout + done.stderr
+    assert done.stdout.startswith("ERROR  mutation_check.py needs"), done.stdout
 
 
 def test_an_interpreter_without_pytest_is_an_environment_error() -> None:

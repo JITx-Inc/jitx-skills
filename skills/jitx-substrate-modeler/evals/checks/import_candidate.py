@@ -21,7 +21,9 @@ Exit codes:
      candidate's own files
 
 A red goes through ``scrub``, so a candidate's own message cannot carry the
-wording an eval harness reads as an environment problem. ``scrub`` and the
+wording an eval harness reads as an environment problem. Each verdict is one
+line, printed last; ``verdict`` is how every grader reads this script's exit
+code and that line. ``scrub`` and the
 wording it rewords live here, with no jitx import, so that every grader and
 check that quotes a candidate can use them, including the ones that must
 report a missing jitx themselves.
@@ -102,6 +104,40 @@ LIBRARY = "ERROR  a library the candidate imports does not import:"
 """How this script's two environment lines start (exit 3). A caller that
 reads exit 3 can tell them from a candidate that exits 3 on its own."""
 
+DOES_NOT_IMPORT = "FAIL  candidate does not import:"
+"""How this script's red line starts (exit 1)."""
+
+
+def one_line(text: str) -> str:
+    """``text`` with its whitespace, newlines included, collapsed, so a
+    multi-line error message stays on the line that carries it."""
+    return " ".join(text.split())
+
+
+def verdict(code: int, stdout: str, stderr: str, name: str) -> tuple[bool, str]:
+    """What a run of this script on the file ``name`` that did not exit 0
+    means, as every grader reads it: ``(True, line)`` for an environment
+    problem, only when it exited 3 and its last stdout line is one of its two
+    environment lines, kept as it is; otherwise ``(False, line)``, the
+    candidate's red, a ``FAIL  `` line with everything quoted from the
+    candidate scrubbed. A candidate that exits 3 itself, exits with another
+    code, or crashes the import is a red."""
+    said = stdout.strip().splitlines()
+    last = said[-1] if said else ""
+    if code == 3 and last.startswith((NEEDS, LIBRARY)):
+        return True, last
+    if code == 1 and last.startswith(DOES_NOT_IMPORT):
+        return False, scrub(last)
+    if code == 3:
+        head = (
+            f"FAIL  the import pre-flight exited 3 on {name} without one of its "
+            "own environment lines; a candidate that exits 3 is a red:"
+        )
+    else:
+        head = f"FAIL  the import pre-flight gave no verdict on {name} (exit {code}):"
+    tail = [*said[-3:], *stderr.strip().splitlines()[-3:]]
+    return False, head + "".join(f"\n      {scrub(line)}" for line in tail)
+
 
 def missing_dependency() -> str | None:
     """Python's own report for the first grader dependency that does not
@@ -110,7 +146,7 @@ def missing_dependency() -> str | None:
         try:
             importlib.import_module(name)
         except Exception as error:  # noqa: BLE001 - whatever it raises, not the candidate's
-            return f"{NEEDS} {name}: {type(error).__name__}: {error}"
+            return f"{NEEDS} {name}: {type(error).__name__}: {one_line(str(error))}"
     return None
 
 
@@ -245,6 +281,12 @@ def describe(error: BaseException) -> str:
     return f"{type(error).__name__}: {error}"
 
 
+def say(line: str) -> None:
+    """Print one verdict line after the candidate has run, on a line of its
+    own even when the candidate left a partial line on stdout."""
+    print(f"\n{line}")
+
+
 def main(argv: list[str]) -> int:
     if len(argv) != 2:
         print(__doc__, file=sys.stderr)
@@ -260,7 +302,7 @@ def main(argv: list[str]) -> int:
     sys.path.insert(0, str(board.parent))
     spec = importlib.util.spec_from_file_location("_candidate_preflight", board)
     if spec is None or spec.loader is None:
-        print(f"FAIL  candidate does not import: {board.name} is not a Python file")
+        print(f"{DOES_NOT_IMPORT} {board.name} is not a Python file")
         return 1
     module = importlib.util.module_from_spec(spec)
     # Registered before it runs, as a normal import would be: dataclasses
@@ -280,7 +322,7 @@ def main(argv: list[str]) -> int:
         theirs = frame is not None and not in_candidate(frame.filename, own, library)
         if isinstance(error, ImportError) and theirs:
             where = f" (in {frame.filename}:{frame.lineno})" if frame else ""
-            print(f"{LIBRARY} {type(error).__name__}: {error}{where}")
+            say(f"{LIBRARY} {type(error).__name__}: {one_line(str(error))}{where}")
             return 3
         own = [
             line.lineno
@@ -289,7 +331,7 @@ def main(argv: list[str]) -> int:
             and Path(line.filename).resolve() == board
         ]
         where = f" (at {board.name}:{own[-1]})" if own else ""
-        print(f"FAIL  candidate does not import: {scrub(describe(error))}{where}")
+        say(f"{DOES_NOT_IMPORT} {scrub(one_line(describe(error)))}{where}")
         return 1
     return 0
 

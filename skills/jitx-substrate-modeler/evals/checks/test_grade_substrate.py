@@ -1198,51 +1198,87 @@ def test_no_child_outlives_a_signalled_grader(
     assert grader.returncode == (-signum if signum == 9 else 128 + signum)
 
 
-@needs_jitx
-def test_candidate_that_does_not_import_is_red(
-    capsys: pytest.CaptureFixture[str], tmp_path: Path
-) -> None:
-    """A wrong import is the candidate's fault, so it reads as a red and not in
-    the wording a harness takes for a missing environment."""
-    board = write(
-        tmp_path, "from jitx.dielectric import Laminate\n" + MINIMAL_SUBSTRATE
-    )
-    code, out = grade(capsys, board, CASE_CSV)
-    assert code == 1
-    assert "FAIL  candidate does not import: jitx.dielectric (at board.py:1)" in out
-    assert "No module named" not in out
+EXITS_AT_IMPORT = """import os
+
+if __name__ == "_candidate_preflight":
+    print({line!r}, flush=True)
+    os._exit({code})
+"""
+"""A board that ends the import pre-flight itself, with a line of its own."""
+
+RED_AT_IMPORT = [
+    pytest.param(
+        "from jitx.dielectric import Laminate\n",
+        "FAIL  candidate does not import: jitx.dielectric (at board.py:1)",
+        id="a module that does not exist",
+    ),
+    pytest.param(
+        "from jitx.units import kiloohm_typo\n",
+        "FAIL  candidate does not import: cannot import name 'kiloohm_typo' "
+        "from 'jitx.units' (at board.py:1)",
+        id="a name that does not exist",
+    ),
+    pytest.param(
+        "raise RuntimeError(\"sh: 1: pyright: not found; No module named 'jitx.unitz'\")\n",
+        "FAIL  candidate does not import: RuntimeError: sh: 1: pyright: missing",
+        id="a message in environment wording",
+    ),
+    pytest.param(
+        "print(\"note: No module named 'jitx_rf_helpers'; using built-in defaults\")\n"
+        "EXTRA = UNDEFINED_NAME\n",
+        "FAIL  candidate does not import: NameError: name 'UNDEFINED_NAME' is not "
+        "defined (at board.py:2)",
+        id="environment wording printed before its own error",
+    ),
+    pytest.param(
+        EXITS_AT_IMPORT.format(line="ERROR  No module named 'jitx_rf_helpers'", code=3),
+        "FAIL  the import pre-flight exited 3 on board.py without one of its own "
+        "environment lines",
+        id="an exit 3 with an ERROR line of its own",
+    ),
+    pytest.param(
+        EXITS_AT_IMPORT.format(line="No module named 'jitx_rf_helpers'", code=7),
+        "FAIL  the import pre-flight gave no verdict on board.py (exit 7)",
+        id="another exit code in environment wording",
+    ),
+]
+"""(what the board starts with, the line grade_substrate.py prints for it)."""
 
 
 @needs_jitx
-def test_a_candidate_message_in_environment_wording_is_still_red(
-    capsys: pytest.CaptureFixture[str], tmp_path: Path
+@pytest.mark.parametrize(("start", "line"), RED_AT_IMPORT)
+def test_a_board_that_does_not_import_is_red(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path, start: str, line: str
 ) -> None:
-    """A board that raises at import with words an eval harness takes for a
-    missing environment is a red, and its message is reworded so the harness
-    does not read it as one."""
-    message = "sh: 1: pyright: not found; No module named 'jitx.unitz'"
-    board = write(tmp_path, f"raise RuntimeError({message!r})\n" + MINIMAL_SUBSTRATE)
-    code, out = grade(capsys, board, CASE_CSV)
+    """Whatever stops the board importing in its own code is the candidate's
+    fault: a red, with nothing in it an eval harness reads as a missing
+    environment, whatever the board printed or exited with."""
+    code, out = grade(capsys, write(tmp_path, start + MINIMAL_SUBSTRATE), CASE_CSV)
     assert code == 1
-    assert (
-        "FAIL  candidate does not import: RuntimeError: sh: 1: pyright: missing" in out
-    )
+    assert line in out, out
     for wording in import_candidate.ENVIRONMENT_WORDING:
         assert not re.search(wording, out, re.IGNORECASE), (wording, out)
 
 
 @needs_jitx
-def test_a_name_that_does_not_exist_is_red(
+def test_what_the_board_prints_while_graded_is_scrubbed(
     capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
-    board = write(tmp_path, "from jitx.units import kiloohm_typo\n" + MINIMAL_SUBSTRATE)
+    """A board that imports, then prints environment wording while the
+    grader's tests run, is a red the eval harness still reads as one: the
+    pytest output that quotes it is scrubbed."""
+    board = write(
+        tmp_path,
+        MINIMAL_SUBSTRATE
+        + "\n    def __init__(self) -> None:\n"
+        + "        print(\"No module named 'jitx_rf_helpers'\")\n"
+        + "        super().__init__()\n",
+    )
     code, out = grade(capsys, board, CASE_CSV)
     assert code == 1
-    assert (
-        "FAIL  candidate does not import: cannot import name 'kiloohm_typo' "
-        "from 'jitx.units' (at board.py:1)"
-    ) in out
-    assert "ImportError: cannot import name" not in out
+    assert "no module called 'jitx_rf_helpers'" in out, out
+    for wording in import_candidate.ENVIRONMENT_WORDING:
+        assert not re.search(wording, out, re.IGNORECASE), (wording, out)
 
 
 @needs_jitx
