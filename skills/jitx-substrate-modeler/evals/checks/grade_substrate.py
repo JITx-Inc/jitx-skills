@@ -15,7 +15,11 @@ environment problem, not the candidate's. Only those two lines of
 import_candidate.py's, on its exit 3, are; anything else the pre-flight ends
 with is a red. Everything printed from the candidate's side, the grader's
 pytest output included, goes through ``scrub``, so a candidate's own message
-in the wording an eval harness reads as an environment problem stays a red. A stage that runs past --timeout
+in the wording an eval harness reads as an environment problem stays a red.
+The grader's own imports run in its pytest process before any candidate
+code; when one fails there, the grader writes the reason to a file this
+script names, and this script prints it raw, last, as an ``ERROR  `` line
+too. A stage that runs past --timeout
 seconds (default 300), such as a board that hangs at import, is a red, and
 nothing it started in the stage's process group keeps running (a process that
 leaves the group, by ``setsid``, is beyond reach). POSIX only: it uses process
@@ -33,10 +37,11 @@ import re
 import signal
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from types import FrameType
 
-from import_candidate import scrub, verdict
+from import_candidate import GRADER_ENVIRONMENT, scrub, verdict
 from parent_watch import PARENT
 
 GRADER = Path(__file__).resolve().parent / "substrate_grader.py"
@@ -168,11 +173,27 @@ def main(argv: list[str]) -> int:
             )[1]
         )
         return 1
+    with tempfile.TemporaryDirectory() as scratch:
+        environment = Path(scratch) / "environment"
+        code = grade(board, csv_file, args, watched, environment)
+    return code
+
+
+def grade(
+    board: Path,
+    csv_file: Path,
+    args: argparse.Namespace,
+    watched: dict[str, str],
+    environment: Path,
+) -> int:
+    """Run the grader on a board that imports, and judge its run. The grader
+    writes ``environment`` only when its own imports fail."""
     # Absolute, because the grader runs from its own directory.
     env = {
         **watched,
         "SUBSTRATE_FILE": str(board.resolve()),
         "FAB_CSV": str(csv_file.resolve()),
+        GRADER_ENVIRONMENT: str(environment),
     }
     # Removed so a stray value cannot pick a class or deselect tests.
     env.pop("SUBSTRATE_CLASS", None)
@@ -202,6 +223,11 @@ def main(argv: list[str]) -> int:
     # Printed scrubbed, since it quotes the candidate; read raw below.
     shown = scrub(output)
     print(shown, end="" if shown.endswith("\n") else "\n")
+    if environment.is_file():
+        # The grader's own imports failed before any candidate code ran.
+        said = environment.read_text(encoding="utf-8").strip().splitlines()
+        print(said[0] if said else "ERROR  the grader's own imports failed")
+        return 1
     # Green needs all three: pytest exits 0 with at least one test selected;
     # every selected test passed, since a skipped, xfailed or xpassed test is
     # not a graded one; and the grader's GradedTarget warning names BOARD_PY as

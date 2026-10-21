@@ -286,3 +286,21 @@ def test_an_interpreter_without_jitx_sample_is_an_environment_error(
     assert [error.split(":")[0] for error in verdict.errors] == [
         "design_check.py needs jitx.sample"
     ], verdict.errors
+
+
+def test_a_dependency_that_exits_at_import_is_an_environment_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A dependency that calls sys.exit while it imports is still the
+    environment's, not a way out of the check."""
+    site = tmp_path / "site"
+    site.mkdir()
+    (site / "exits_at_import.py").write_text(
+        'import sys\n\nsys.exit("exits_at_import: reinstall it")\n', encoding="utf-8"
+    )
+    monkeypatch.syspath_prepend(str(site))
+    monkeypatch.delitem(sys.modules, "exits_at_import", raising=False)
+    assert design_check.missing("design_check.py", ("exits_at_import",)) == (
+        "design_check.py needs exits_at_import: SystemExit: "
+        "exits_at_import: reinstall it"
+    )

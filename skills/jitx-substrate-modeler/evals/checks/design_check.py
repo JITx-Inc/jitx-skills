@@ -109,7 +109,7 @@ def missing(script: str, names: tuple[str, ...]) -> str | None:
     for name in names:
         try:
             importlib.import_module(name)
-        except Exception as error:  # noqa: BLE001 - whatever it raises, not the runner's
+        except BaseException as error:  # noqa: BLE001 - SystemExit too, not the runner's
             return f"{script} needs {name}: {type(error).__name__}: {error}"
     return None
 

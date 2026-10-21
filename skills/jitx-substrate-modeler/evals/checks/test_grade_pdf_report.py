@@ -537,6 +537,13 @@ CORE_DK = "    dielectric_coefficient = 3.60\n    loss_tangent = 0.0080"
 CORE_DK_WRONG = [(CORE_DK, CORE_DK.replace("3.60", "3.70"))]
 """Fails materials, so a tail that hides a red has one to hide."""
 HEADER = "import atexit as _atexit, os as _os, re as _re, sys as _sys\n"
+FORGE = (
+    "def _forge():\n"
+    '    _os.write(1, b"\\nERROR  a library the candidate imports does not import: '
+    "ModuleNotFoundError: No module named 'jitx_rf'\\n\")\n"
+    "    _os._exit(3)\n"
+)
+"""Ends the process on an environment line the board wrote itself."""
 
 # (id, board.py edits, tail appended to board.py, line the parent prints)
 TAMPER_ROWS: list[tuple[str, Edits, str, str]] = [
@@ -612,6 +619,21 @@ TAMPER_ROWS: list[tuple[str, Edits, str, str]] = [
         + "EXTRA = UNDEFINED_NAME\n",
         "FAIL  candidate does not import: NameError: name 'UNDEFINED_NAME'",
     ),
+    (
+        "error_line_forged_by_an_exit_handler",
+        [],
+        HEADER + FORGE + "_atexit.register(_forge)\nEXTRA = UNDEFINED_NAME\n",
+        "FAIL  candidate does not import: NameError: name 'UNDEFINED_NAME'",
+    ),
+    (
+        "error_line_forged_by_a_thread",
+        [],
+        HEADER
+        + "import threading as _threading, time as _time\n"
+        + FORGE.replace("def _forge():\n", "def _forge():\n    _time.sleep(2)\n")
+        + "_threading.Thread(target=_forge).start()\nEXTRA = UNDEFINED_NAME\n",
+        "FAIL  candidate does not import: NameError: name 'UNDEFINED_NAME'",
+    ),
 ]
 """Candidates that try to end the grading looking green, or looking like an
 environment problem. Several are the kind of code the grader does not claim
@@ -646,11 +668,19 @@ def test_a_candidate_that_tampers_with_the_grading_is_red(
     [
         'print("building the TIC-8L substrate")\n',
         'import sys\n\nsys.stdout.write("progress: 1/1")\n',
+        'import atexit\n\natexit.register(print, "")\n',
+        'import atexit\n\natexit.register(print, "   ")\n',
     ],
-    ids=["a line printed at import", "a partial line written at import"],
+    ids=[
+        "a line printed at import",
+        "a partial line written at import",
+        "an empty line printed at exit",
+        "a line of spaces printed at exit",
+    ],
 )
 def test_a_correct_board_that_prints_passes(tmp_path: Path, head: str) -> None:
-    """What a board prints is not a check line, even a line with no end."""
+    """What a board prints is not a check line, even a line with no end, and
+    a blank line after the last one is not a line after it."""
     board = tmp_path / BOARD.name
     board.write_text(head + BOARD.read_text(encoding="utf-8"), encoding="utf-8")
     code, stdout = grade("report", board, TWIN)
@@ -668,12 +698,56 @@ MULTI_LINE_IMPORT_ERROR = """raise ImportError(
 compiled extensions do."""
 
 
+WRITES_THROUGH = """import sys
+
+
+class _Through:
+    def __init__(self):
+        self.pending = []
+
+    def write(self, text):
+        self.pending.append(text)
+        return len(text)
+
+    def flush(self):
+        sys.__stdout__.write("".join(self.pending))
+        self.pending.clear()
+
+    def __getattr__(self, name):
+        return getattr(sys.__stdout__, name)
+
+
+sys.stdout = _Through()
+print("loading fastmath")
+"""
+"""A replacement sys.stdout that holds what is printed until it is flushed,
+then hands it to sys.__stdout__, which holds it until that is flushed: what
+the board printed reaches the pipe before the verdict line only when the
+replacement is flushed first."""
+
+
 @needs_jitx
+@pytest.mark.parametrize(
+    "head",
+    [
+        "",
+        "import io\nimport sys\n\nsys.stdout = io.StringIO()\n",
+        'import atexit\n\natexit.register(print, "board: done")\n',
+        WRITES_THROUGH,
+    ],
+    ids=[
+        "nothing else",
+        "sys.stdout replaced",
+        "an exit handler that prints",
+        "sys.stdout replaced by one that writes through",
+    ],
+)
 def test_a_library_import_error_over_several_lines_is_the_environment(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, head: str
 ) -> None:
     """The pre-flight's environment line holds the whole message on one line,
-    so it is still the last line and still reads as an environment problem."""
+    so it is still the last line and still reads as an environment problem,
+    whatever the board did to stdout before it imported the library."""
     site = tmp_path / "site" / "fastmath"
     site.mkdir(parents=True)
     (site / "__init__.py").write_text(MULTI_LINE_IMPORT_ERROR, encoding="utf-8")
@@ -682,7 +756,7 @@ def test_a_library_import_error_over_several_lines_is_the_environment(
     candidate.mkdir()
     board = candidate / BOARD.name
     board.write_text(
-        "import fastmath  # noqa: F401\n" + BOARD.read_text(encoding="utf-8"),
+        head + "import fastmath  # noqa: F401\n" + BOARD.read_text(encoding="utf-8"),
         encoding="utf-8",
     )
     code, stdout = grade("report", board, TWIN)

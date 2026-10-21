@@ -16,14 +16,19 @@ Exit codes:
      ``FAIL  candidate does not import: <what>``, without Python's wording
   2  usage error
   3  an environment problem, as an ``ERROR  `` line in Python's own wording:
-     a grader dependency (jitx with jitx.proxy, jitxlib.physics, pytest) does
-     not import, or an import fails inside a library rather than in the
-     candidate's own files
+     a module or name the grader imports (``NEEDED``) does not import, or an
+     import fails inside a library rather than in the candidate's own files
 
 A red goes through ``scrub``, so a candidate's own message cannot carry the
 wording an eval harness reads as an environment problem. Each verdict is one
 line, printed last; ``verdict`` is how every grader reads this script's exit
-code and that line. ``scrub`` and the
+code and that line. Once the candidate has run, the verdict goes to a copy of
+stdout taken before it ran, after both streams are flushed, and the process
+then ends at once, so a replaced ``sys.stdout``, an exit handler or a thread
+the candidate started cannot hide the line or print after it. That guards
+against a candidate's accidents only: a candidate that prints one of the
+``ERROR  `` lines itself and exits 3 reads as an environment problem.
+``scrub`` and the
 wording it rewords live here, with no jitx import, so that every grader and
 check that quotes a candidate can use them, including the ones that must
 report a missing jitx themselves.
@@ -95,9 +100,33 @@ def scrub(text: str) -> str:
     return text
 
 
-NEEDED = ("jitx", "jitx.proxy", "jitxlib.physics", "pytest")
-"""What the grader itself imports. No candidate can fix these. Older jitx
-releases have no ``jitx.proxy``; one of those is reported here, not as a red."""
+NEEDED: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("jitx", ()),
+    ("jitx.proxy", ("typeof",)),
+    ("jitxlib.physics", ("phase_velocity",)),
+    ("pytest", ()),
+    ("jitx._instantiation", ("instantiation",)),
+    ("jitx._translate.design", ("package_design",)),
+    ("jitx.board", ("Board",)),
+    ("jitx.circuit", ("Circuit",)),
+    ("jitx.design", ("Design",)),
+    ("jitx.inspect", ("decompose",)),
+    ("jitx.shapes", ("Shape",)),
+    ("jitx.shapes.composites", ("rectangle",)),
+    ("jitx.si", ("DifferentialRoutingStructure", "RoutingStructure", "_RefLayer")),
+    ("jitx.stackup", ("Conductor", "Dielectric", "Material")),
+    ("jitx.substrate", ("FabricationConstraints", "Substrate")),
+    ("jitx.test", ("TestCase",)),
+    ("jitx.units", ("ohm",)),
+)
+"""(module, names) the grader itself imports: pytest, and every jitx and
+jitxlib import of substrate_grader.py, which a test keeps in step. No
+candidate can fix these, and checking them here, before any candidate code
+runs, reports a missing one in Python's own wording, where a failure inside
+the grader's pytest run would be printed scrubbed, as a red. Older jitx
+releases have no ``jitx.proxy``, and private modules such as
+``jitx._translate.design`` can move between releases; either is reported
+here, not as a red."""
 
 NEEDS = "ERROR  the grader needs"
 LIBRARY = "ERROR  a library the candidate imports does not import:"
@@ -142,11 +171,17 @@ def verdict(code: int, stdout: str, stderr: str, name: str) -> tuple[bool, str]:
 def missing_dependency() -> str | None:
     """Python's own report for the first grader dependency that does not
     import, or None when all of them do."""
-    for name in NEEDED:
+    for module, names in NEEDED:
         try:
-            importlib.import_module(name)
-        except Exception as error:  # noqa: BLE001 - whatever it raises, not the candidate's
-            return f"{NEEDS} {name}: {type(error).__name__}: {one_line(str(error))}"
+            imported = importlib.import_module(module)
+        except BaseException as error:  # noqa: BLE001 - SystemExit too, not the candidate's
+            return f"{NEEDS} {module}: {type(error).__name__}: {one_line(str(error))}"
+        for name in names:
+            if not hasattr(imported, name):
+                return (
+                    f"{NEEDS} {module}.{name}: ImportError: cannot import name "
+                    f"{name!r} from {module!r}"
+                )
     return None
 
 
@@ -281,10 +316,60 @@ def describe(error: BaseException) -> str:
     return f"{type(error).__name__}: {error}"
 
 
+GRADER_ENVIRONMENT = "GRADE_SUBSTRATE_ENVIRONMENT"
+"""The setting that names a file for substrate_grader.py's own environment
+line. grade_substrate.py sets it, and prints the line it finds there raw."""
+
+
+def grader_cannot_import(error: BaseException) -> None:
+    """Record, for grade_substrate.py, that substrate_grader.py's own imports
+    failed in its pytest process. They run before any candidate code there,
+    so the failure is the environment's: the line names the first grader
+    dependency that does not import, in Python's own wording, or the error
+    itself when each of them imports on a second try. It is written to the
+    file ``GRADER_ENVIRONMENT`` names, when that is set, because grade_substrate.py
+    prints the pytest output scrubbed and reads an environment problem only
+    from there. The caller re-raises ``error``."""
+    line = missing_dependency() or (
+        f"{NEEDS} {type(error).__name__}: {one_line(str(error))}"
+    )
+    target = os.environ.get(GRADER_ENVIRONMENT, "").strip()
+    if target:
+        Path(target).write_text(f"{line}\n", encoding="utf-8")
+
+
+_verdict_channel: list[int] = []
+"""A copy of stdout, taken before the candidate runs, for the verdict line."""
+
+
+def flush_all() -> None:
+    """Flush stdout and stderr, as the candidate may have replaced them and as
+    Python started them, so what the candidate printed comes before the
+    verdict line."""
+    for stream in (sys.stdout, sys.stderr, sys.__stdout__, sys.__stderr__):
+        try:
+            if stream is not None:
+                stream.flush()
+        except Exception:  # noqa: BLE001 - a replaced stream may not flush
+            pass
+
+
 def say(line: str) -> None:
-    """Print one verdict line after the candidate has run, on a line of its
-    own even when the candidate left a partial line on stdout."""
-    print(f"\n{line}")
+    """Write the verdict line, after whatever the candidate printed and on a
+    line of its own, to the copy of stdout taken before the candidate ran, so
+    a candidate that replaces ``sys.stdout`` cannot swallow it."""
+    flush_all()
+    data = f"\n{line}\n".encode()
+    channel = _verdict_channel[0] if _verdict_channel else sys.stdout.fileno()
+    while data:
+        data = data[os.write(channel, data) :]
+
+
+def finish(code: int) -> None:
+    """End this process with ``code`` at once, once the verdict is written,
+    so no exit handler or thread the candidate started runs after it."""
+    flush_all()
+    os._exit(code)
 
 
 def main(argv: list[str]) -> int:
@@ -296,6 +381,7 @@ def main(argv: list[str]) -> int:
     if problem is not None:
         print(problem)
         return 3
+    _verdict_channel.append(os.dup(sys.stdout.fileno()))
     board = Path(argv[1]).resolve()
     before = list(sys.path)
     editable = editable_projects()
@@ -337,4 +423,4 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv))
+    finish(main(sys.argv))

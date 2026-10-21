@@ -16,14 +16,20 @@ passed and the child exited 0.
 What this guards against is a candidate's accident, not its malice. A
 candidate is a red when it ends the child early (``sys.exit``, ``os._exit``
 or a crash), hangs it past the time limit, prints a line shaped like a check
-line for a check the grader runs (``PASS  <check>`` or ``FAIL  <check>``, so
-that check has two lines), or prints anything after the ``DONE`` line, from
-an exit handler for one. Ordinary prints pass, a partial line or a replaced
-``sys.stdout`` included: the child writes each check line, on a line of its
-own, to a copy of its stdout taken before any candidate code runs. Code
-written to defeat the grader from inside the child (writing to that copy,
-or reading the token, which ``ps -E`` shows in the child's environment) is
-not covered. POSIX only: it uses process groups and POSIX signals.
+line (``PASS  <name>`` or ``FAIL  <name>``, for any word ``<name>``) that
+gives one name two such lines, as one for a check the grader runs always
+does, or prints a line with anything but whitespace after the ``DONE`` line,
+from an exit handler for one. Ordinary prints pass, a partial line, a
+replaced ``sys.stdout`` and blank lines anywhere included: the child writes
+each check line, on a line of its own, to a copy of its stdout taken before
+any candidate code runs, and the parent skips lines that hold only
+whitespace. The pre-flight writes its verdict the same way and then ends at
+once, so an exit handler or thread the candidate started never runs after
+it. Code written to defeat the grader (writing to that copy, reading the
+token, which ``ps -E`` shows in the child's environment, or printing one of
+the pre-flight's own ``ERROR  `` lines and exiting 3 during the import, which
+reads as an environment problem) is not covered. POSIX only: it uses process
+groups and POSIX signals.
 
 Everything the parent prints from the candidate's side (the child's lines, the
 tail of its stderr, the pre-flight's red) goes through ``scrub`` first. An
