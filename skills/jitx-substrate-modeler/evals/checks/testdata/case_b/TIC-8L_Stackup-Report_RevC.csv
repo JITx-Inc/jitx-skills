@@ -1,0 +1,113 @@
+SECTION,DOCUMENT
+Field,Value,Unit,Notes
+Document type,Impedance-Controlled Stackup Report,,Grader-side twin of the case's PDF report; see NOTES
+Fabricator,Tamsworth Interconnect Co.,,Fictional fabricator - see NOTES
+Quote number,TIC-Q-4471,,
+Revision,C,,Supersedes Rev B - see REVISION_HISTORY
+Issue date,2026-10-06,,
+Customer part number,RFX-8L-STK,,
+Board size,50.0 x 40.0,mm,2.0 mm corner radius
+Layer count,8,copper layers,
+Construction,1 + 6 + 1 with a second build-up level on the top side,,Stacked laser microvia L1 to L3
+Overall thickness,2.0574,mm,81.00 mil - including soldermask both sides
+Finished thickness,2.0320,mm,"80.00 mil - copper + dielectric, excluding soldermask"
+Thickness tolerance,+/-10,%,
+Surface finish,ENIG,,
+Soldermask,LPI green,,Both sides
+Copper plating class,IPC-6012 Class 2,,
+Impedance tolerance,+/-10,%,All controlled structures
+Impedance model,TIC 2D field solver,,
+Impedance test frequency,5.0,GHz,
+Dk/Df reference frequency,2.0,GHz,
+Primary units,mil,,The mil value controls where the two disagree; mm is given for reference
+
+SECTION,REVISION_HISTORY
+Revision,Date,Change
+A,2026-08-11,Initial issue.
+B,2026-09-15,L4-L5 prepreg changed from 3.5 mil to 4.0 mil; the L4 stripline widths re-solved.
+C,2026-10-06,UV-1 capture pad enlarged from 9.0 mil to 10.0 mil for registration margin. No other change.
+
+SECTION,MATERIALS_DIELECTRIC
+Material_ID,Manufacturer,Product,Type,Glass_style,Resin_pct,Thickness_mil,Thickness_mm,Dk,Df,Tg_C,Usage
+D-SM,Corvel Coatings,CV-12,Soldermask,,,0.50,0.0127,3.60,0.0200,,Outer surfaces both sides
+D-BU,Ashgrove Laminates,AL-330,Prepreg,1067,70,3.00,0.0762,3.30,0.0025,200,Top build-up levels L1-L2 and L2-L3
+D-CORE,Ashgrove Laminates,AL-360,Laminate core,1080,60,5.00,0.1270,3.60,0.0080,200,Cores L3-L4 and L6-L7
+D-PP,Ashgrove Laminates,AL-355,Prepreg,2113,62,4.00,0.1016,3.55,0.0070,200,Prepregs L4-L5 and L7-L8
+D-CORE-T,Ashgrove Laminates,AL-370,Laminate core,7628,45,44.73,1.1362,3.70,0.0090,200,"Thick core L5-L6. The report states no thickness for it; this value balances the stated finished thickness"
+
+SECTION,MATERIALS_COPPER
+Copper_ID,Manufacturer,Product,Foil_type,Nominal_weight_oz,Base_thickness_um,Plating_um,Finished_thickness_um,Finished_thickness_mm,Rz_matte_um,Rz_drum_um,Usage
+CU-OUT,Brightwell Foil,BF-V2,VLP,0.5,17.1,21.0,38.1,0.0381,2.5,0.8,Outer layers L1 and L8 - base foil plus panel plating
+CU-IN,Brightwell Foil,BF-R1,RTF,1.0,35.0,0.0,35.0,0.0350,4.0,2.0,"Inner layers L2 to L7. The report gives the weight only; 0.0350 mm is the substrate-modeler skill's 1 oz figure"
+
+SECTION,STACKUP
+Seq,Type,Layer,Function,Material_ID,Thickness_mil,Thickness_mm,Dk,Df
+1,Soldermask,,Soldermask top,D-SM,0.50,0.0127,3.60,0.0200
+2,Copper,L1,Signal - surface microstrip referenced to L3,CU-OUT,1.50,0.0381,,
+3,Dielectric,,Build-up 1,D-BU,3.00,0.0762,3.30,0.0025
+4,Copper,L2,Signal - low speed; voided under L1 controlled routes,CU-IN,1.38,0.0350,,
+5,Dielectric,,Build-up 2,D-BU,3.00,0.0762,3.30,0.0025
+6,Copper,L3,Plane - GND,CU-IN,1.38,0.0350,,
+7,Dielectric,,Core,D-CORE,5.00,0.1270,3.60,0.0080
+8,Copper,L4,Signal - stripline,CU-IN,1.38,0.0350,,
+9,Dielectric,,Prepreg,D-PP,4.00,0.1016,3.55,0.0070
+10,Copper,L5,Plane - GND,CU-IN,1.38,0.0350,,
+11,Dielectric,,Thick core,D-CORE-T,44.73,1.1362,3.70,0.0090
+12,Copper,L6,Plane - PWR,CU-IN,1.38,0.0350,,
+13,Dielectric,,Core,D-CORE,5.00,0.1270,3.60,0.0080
+14,Copper,L7,Plane - GND,CU-IN,1.38,0.0350,,
+15,Dielectric,,Prepreg,D-PP,4.00,0.1016,3.55,0.0070
+16,Copper,L8,Signal - surface microstrip,CU-OUT,1.50,0.0381,,
+17,Soldermask,,Soldermask bottom,D-SM,0.50,0.0127,3.60,0.0200
+
+SECTION,VIAS
+Via_ID,Structure,Drill,From_layer,To_layer,Finished_hole_mil,Finished_hole_mm,Pad_mil,Pad_mm,Depth_mm,Aspect_ratio,Annular_ring_mm,Fill,Capped,Tented,Via_in_pad,Backdrill_side,Backdrill_keep_layer,Backdrill_diameter_mm,Backdrill_startpad_mm,Backdrill_mask_opening_mm,Backdrill_copper_clearance_mm,NFP_layers,NFP_pad_mm,Stacked_levels,Notes
+UV-1,Microvia,Laser,L1,L2,4.00,0.1016,10.00,0.2540,0.0762,0.75,0.0762,Copper,Yes,Both,Yes,,,,,,,,,1,Pad 9.0 mil before Rev C
+SV-1,Stacked microvia,Laser,L1,L3,6.00,0.1524,12.00,0.3048,0.1874,1.23,0.0762,Copper,Yes,Both,Yes,,,,,,,,,2,Two laser levels stacked
+BD-1,Backdrilled through,Mechanical,L1,L4,10.00,0.2540,20.00,0.5080,0.4225,1.66,0.1270,Resin,Yes,Both,No,Bottom,L4,0.4064,0.6096,0.6604,0.7112,,,,"Drilled L1 to L8, backdrilled from L8 keeping L1 to L4. From_layer, To_layer and Depth_mm give the span the via is coded with (stop_layer at L4); the report quotes the full drilled depth"
+TH-1,Through,Mechanical,L1,L8,8.00,0.2032,16.00,0.4064,2.0320,10.00,0.1016,None,No,Both,No,,,,,,,L2;L3;L4;L5;L6;L7,0.2794,,Non-functional inner pads reduced; sits exactly on the mechanical aspect-ratio limit
+
+SECTION,IMPEDANCE
+Structure_ID,Controlled,Type,Target_Z_ohm,Tolerance_pct,Layers,Geometry,Line_width_mil,Line_width_mm,Pair_gap_mm,Clearance_mm,Ref_layers,Modelled_Z_ohm,Eps_eff,Delay_ps_per_mm,Loss_dB_per_mm,Neck_width_mm,Neck_gap_mm,Neck_clearance_mm,Neck_modelled_Z_ohm
+SE-50,Yes,Single-ended,50,10,L1,Coated microstrip over L3 (L2 voided),11.00,0.2794,,0.5588,L3 for L1,50.4,2.7000,5.4810,0.00600,,,,
+SE-50,Yes,Single-ended,50,10,L8,Coated microstrip,7.50,0.1905,,0.3810,L7 for L8,49.7,2.6600,5.4403,0.00680,,,,
+SE-50,Yes,Single-ended,50,10,L4,Asymmetric stripline,4.50,0.1143,,0.2286,L3+L5,50.2,3.5800,6.3113,0.00950,,,,
+DIFF-100,Yes,Differential,100,10,L4,Asymmetric stripline edge-coupled,4.00,0.1016,0.1524,0.3048,L3+L5,99.1,3.5800,6.3113,0.01050,,,,
+DIFF-100,Yes,Differential,100,10,L8,Coated microstrip edge-coupled,5.50,0.1397,0.1778,0.3556,L7 for L8,100.6,2.6200,5.3992,0.00750,,,,
+STANDARD,No,Single-ended,,,All routing layers,Default line/space,4.00,0.1016,,0.1016,,46.1 stripline / 64.8 microstrip,,,,,,,
+
+SECTION,FAB_RULES
+Rule,Value_mil,Value_mm,JITX_attribute,Notes
+Minimum copper width,3.00,0.0762,min_copper_width,
+Minimum copper to copper space,3.00,0.0762,min_copper_copper_space,
+Minimum copper to hole space,6.00,0.1524,min_copper_hole_space,
+Minimum copper to board edge,10.00,0.2540,min_copper_edge_space,
+Minimum annular ring,2.50,0.0635,min_annular_ring,
+Minimum laser drill diameter,4.00,0.1016,min_drill_diameter,Laser minimum - see mechanical minimum below
+Minimum pitch - leaded package,16.00,0.4064,min_pitch_leaded,
+Minimum pitch - BGA,14.00,0.3556,min_pitch_bga,
+Maximum board width,,457.200,max_board_width,Quoted in inches only (18.0 in)
+Maximum board height,,609.600,max_board_height,Quoted in inches only (24.0 in)
+Minimum silkscreen line width,5.00,0.1270,min_silkscreen_width,
+Minimum silkscreen to soldermask space,4.00,0.1016,min_silk_solder_mask_space,
+Minimum silkscreen text height,30.00,0.7620,min_silkscreen_text_height,
+Soldermask registration,2.00,0.0508,solder_mask_registration,
+Minimum soldermask opening,3.00,0.0762,min_soldermask_opening,
+Minimum soldermask bridge,4.00,0.1016,min_soldermask_bridge,
+Minimum through-hole pad expansion outer,4.00,0.1016,min_th_pad_expand_outer,
+Minimum hole to hole,10.00,0.2540,min_hole_to_hole,
+Minimum PTH pin to soldermask clearance,8.00,0.2032,min_pth_pin_solder_clearance,
+Minimum mechanical drill diameter,6.00,0.1524,,No JITX field - quoted in mil only
+Maximum mechanical drill aspect ratio,,10.0:1,,No JITX field
+Maximum laser microvia aspect ratio,,1.25:1,,No JITX field
+Maximum stacked microvia levels,,2,,No JITX field - a count of laser levels; not a length
+Minimum dielectric between adjacent copper layers,2.50,0.0635,,No JITX field - quoted in mil only
+
+SECTION,NOTES
+Note
+"Grader-side twin of evals/cases/fixtures/pdf_TIC-8L_Stackup-Report_RevC.pdf, in the fab-report SECTION layout so the substrate grader can read it. A runner never sees this file. Where the PDF states a value in mil only, this twin holds its mm conversion (x 0.0254). Where the PDF states no value, this twin holds the one value the PDF backs: the thick core's thickness that balances the stated finished thickness, and 0.0350 mm for 1 oz inner copper, the figure the substrate-modeler skill gives. The PDF's L4-L5 prepreg mm cell reads 0.1000; this twin holds 0.1016, the 4.00 mil the PDF declares controlling."
+"This is a synthetic example document. Tamsworth Interconnect Co. is a fictional fabricator, and Corvel Coatings, Ashgrove Laminates and Brightwell Foil, with every product named here, are fictional too. The Dk, Df and roughness figures are illustrative and describe no real material."
+"Layer numbering is 1-based from the top (L1 = top copper, L8 = bottom copper). Dielectric and soldermask layers are not numbered."
+"L2 is voided under every L1 controlled route, so L1's controlled lines reference L3 across both build-up plies."
+"Differential pair gap is stated edge to edge."
+"Copper roughness is stated as Rz in micrometres, matte and drum side separately."

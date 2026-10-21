@@ -1,0 +1,42 @@
+{
+  "name": "symmetric-4-layer-no-report",
+  "prompt": "model this as a symmetric 4-layer FR-4 board, no report",
+  "inputs": {},
+  "notes": "For whoever reads the grader's output, not for the runner. Whoever launches the runner stages the skill without its evals/ directory, so the runner never sees the graders or these notes. The no-report variant of stackup-from-pdf-report, as its own file because run_cases.py reads one case per file. There is no source document, so the graded points are structural (a Symmetric stackup listed down to its centre dielectric, 4 copper layers, a substrate that translates on a 50 x 50 mm board) and the values are left to the judges. The commands run from the repository root. Whoever launches the runner passes runner_artifacts to it verbatim, with the prompt; no script reads it. Judges get <output>/board.py and <output>/COMPLETION.md, each as --artifact. The grader's self-tests run with `python -m pytest -q skills/jitx-substrate-modeler` from the repository root.",
+  "runner_models": [
+    "sonnet"
+  ],
+  "runner_rationale": "Customers drive this skill with mixed-strength agents (Claude Code, Codex, and Devin among them). The skill must carry the goodness checks itself, so the eval runs the skill under a Sonnet-class runner rather than the strongest available model. Judges stay frontier-tier regardless of runner.",
+  "runner_artifacts": "The runner MUST write the substrate to exactly <output>/board.py, and its completion summary to <output>/COMPLETION.md, not only into its final chat message. Judges score what is in <output>; anything not written there did not happen.",
+  "expected_output": "A single-file substrate (board.py) with a Symmetric stackup that lists the top half down to the centre core, so the last listed layer is a dielectric and the mirrored stack has 4 copper layers; FR-4 Dk and Df, copper thicknesses, dielectric thicknesses, the 19 fab rules and any vias either asked about or set from named defaults, each labeled at its call site and listed under Provenance as an open item (no report and no datasheet back them); and the completeness check block, whose Verdict is open items.",
+  "assertions": [
+    {
+      "text": "generated file parses as Python",
+      "check": "deterministic",
+      "cmd": "python3 -m py_compile <output>/board.py"
+    },
+    {
+      "text": "generated file type-checks against the installed jitx package",
+      "check": "deterministic",
+      "cmd": "python3 -m pyright --pythonpath \"$(command -v python3)\" <output>/board.py"
+    },
+    {
+      "text": "the stackup is a Symmetric whose last listed layer is a dielectric, it has 4 copper layers, and the substrate translates",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-substrate-modeler/evals/checks/grade_pdf_report.py symmetric <output>/board.py"
+    },
+    {
+      "text": "ruff format leaves every labeled derivation in board.py whole, on the line with its label, and no label sits on a bracket whose entries carry no label of their own (the judges read the unformatted file)",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-substrate-modeler/scripts/check_labels.py <output>/board.py"
+    },
+    {
+      "text": "no value is presented as if a source backed it: FR-4's Dk and Df and their frequency, the thicknesses, the fab rules and anything else are either asked about or labeled at their call site as defaults, and listed under Provenance as open items",
+      "check": "judge"
+    },
+    {
+      "text": "the completion summary contains the filled Substrate completeness check block, every row with its evidence, and its Verdict follows from those rows",
+      "check": "judge"
+    }
+  ]
+}

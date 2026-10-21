@@ -1,0 +1,23 @@
+RF fencing requirements for RFE-6L-FENCE (synthetic example)
+
+Fab report: rf_PC-6L_Fab-Stackup_RevA.csv (Pellingham Circuits, fictional).
+Board outline: 30.0 x 20.0 mm rectangle centred on the origin, square corners.
+Fence vias and the cavity ring belong to the GND net.
+
+1. 50 ohm grounded coplanar line on L1 (IMPEDANCE row SE-50)
+   - Fence both sides of the line with UV-1 (L1 to L2), tied to the L2 ground plane.
+   - Fence via pitch 0.50 mm, one row on each side.
+   - The first row's via centres sit 0.40 mm out from the trace edge.
+   - Void the L2 copper under the line, 0.60 mm wide.
+
+2. 100 ohm differential pair on L1 and L6 (IMPEDANCE row DIFF-100)
+   - Fence the pair on each layer with the microvia that lands on that layer's adjacent ground:
+     UV-1 to L2 on L1, UV-2 to L5 on L6.
+   - Fence via pitch 0.50 mm, one row on each side.
+   - The first row's via centres sit 0.60 mm out from the outer trace edge.
+
+3. RF cavity on L1
+   - Cavity outline: a 4.0 x 3.0 mm rectangle centred at (5.0, 3.0) mm.
+   - Ring the outline with UV-1 fence vias landing on L2: pitch 0.50 mm, one row,
+     via centres 0.30 mm outside the outline.
+   - No copper on L1 inside the outline.
