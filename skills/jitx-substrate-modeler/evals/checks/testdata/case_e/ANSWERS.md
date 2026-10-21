@@ -92,8 +92,10 @@ Define a routing structure for that section on the substrate, tag the route segm
 
 ## 18
 
-The jitxexamples package has a fenced pour outline pattern. It composes a `Tag`, a `design_constraint(FenceOutlineTag()).fence_via(via, pattern)` rule on the substrate, a tagged `Pour` on the ground net, and an optional `KeepOut` over the same outline.
+`jitxexamples.patterns.fenced_pour_outline`. It composes a `Tag`, a `design_constraint(FenceOutlineTag()).fence_via(via, pattern)` rule on the substrate, a tagged `Pour` on the ground net, and an optional `KeepOut` over the same outline.
 
 ## 19
 
-In one dielectric, eps_eff = Dk exactly, so pass 4.0. Between a prepreg and a core with equal heights, eps_eff = (3.9 + 4.3) / 2 = 4.1.
+(a) The narrow-strip limit, eps_eff = (er + 1) / 2 = (3.6 + 1) / 2 = 2.3. The real eps_eff of a 50 ohm line is higher, so that value overstates the velocity: the docstring puts the error at about 11% for a 50 ohm line on er = 4.4.
+
+(b) With equal heights, eps_eff = (3.2 + 3.8) / 2 = 3.5, exact for a thin strip.
