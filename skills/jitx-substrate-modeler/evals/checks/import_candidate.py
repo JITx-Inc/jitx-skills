@@ -23,11 +23,14 @@ A red goes through ``scrub``, so a candidate's own message cannot carry the
 wording an eval harness reads as an environment problem. Each verdict is one
 line, printed last; ``verdict`` is how every grader reads this script's exit
 code and that line. Once the candidate has run, the verdict goes to a copy of
-stdout taken before it ran, after both streams are flushed, and the process
-then ends at once, so a replaced ``sys.stdout``, an exit handler or a thread
-the candidate started cannot hide the line or print after it. That guards
+stdout taken before it ran, after both streams are flushed, as the last write
+to the pipe: file descriptor 1 is pointed at the null device first, so a
+thread the candidate started cannot print after the line, and the process
+then ends with ``os._exit``, so no exit handler runs. A replaced or closed
+``sys.stdout`` or file descriptor 1 does not hide the line. That guards
 against a candidate's accidents only: a candidate that prints one of the
-``ERROR  `` lines itself and exits 3 reads as an environment problem.
+``ERROR  `` lines itself and calls ``os._exit(3)`` reads as an environment
+problem (``sys.exit(3)`` is caught, and reads as a red).
 ``scrub`` and the
 wording it rewords live here, with no jitx import, so that every grader and
 check that quotes a candidate can use them, including the ones that must
@@ -46,6 +49,7 @@ import sys
 import sysconfig
 import traceback
 from pathlib import Path
+from typing import NoReturn
 from urllib.parse import urlparse
 from urllib.request import url2pathname
 
@@ -354,20 +358,33 @@ def flush_all() -> None:
             pass
 
 
-def say(line: str) -> None:
-    """Write the verdict line, after whatever the candidate printed and on a
-    line of its own, to the copy of stdout taken before the candidate ran, so
-    a candidate that replaces ``sys.stdout`` cannot swallow it."""
+def say(line: str, code: int) -> NoReturn:
+    """Write the verdict line as the last write to stdout's pipe, and end
+    this process with ``code`` at once.
+
+    What the candidate printed is flushed first, so it comes before the line.
+    Then file descriptor 1 is pointed at the null device, so what a thread
+    of the candidate's prints from then on goes nowhere, and the line goes to
+    the copy of stdout taken before the candidate ran, which a replaced or
+    closed ``sys.stdout`` or file descriptor 1 does not reach. ``os._exit``
+    then ends the process, so no exit handler runs and nothing is flushed
+    after the line."""
     flush_all()
-    data = f"\n{line}\n".encode()
     channel = _verdict_channel[0] if _verdict_channel else sys.stdout.fileno()
+    try:
+        os.dup2(os.open(os.devnull, os.O_WRONLY), 1)
+    except OSError:
+        pass  # the line is still written, only no longer surely the last
+    data = f"\n{line}\n".encode()
     while data:
         data = data[os.write(channel, data) :]
+    os._exit(code)
 
 
-def finish(code: int) -> None:
-    """End this process with ``code`` at once, once the verdict is written,
-    so no exit handler or thread the candidate started runs after it."""
+def finish(code: int) -> NoReturn:
+    """End this process with ``code`` at once, after flushing what was
+    printed, when no verdict line was written: exit 0, 2, or an environment
+    line printed before any candidate code ran."""
     flush_all()
     os._exit(code)
 
@@ -408,8 +425,7 @@ def main(argv: list[str]) -> int:
         theirs = frame is not None and not in_candidate(frame.filename, own, library)
         if isinstance(error, ImportError) and theirs:
             where = f" (in {frame.filename}:{frame.lineno})" if frame else ""
-            say(f"{LIBRARY} {type(error).__name__}: {one_line(str(error))}{where}")
-            return 3
+            say(f"{LIBRARY} {type(error).__name__}: {one_line(str(error))}{where}", 3)
         own = [
             line.lineno
             for line in traceback.extract_tb(error.__traceback__)
@@ -417,8 +433,7 @@ def main(argv: list[str]) -> int:
             and Path(line.filename).resolve() == board
         ]
         where = f" (at {board.name}:{own[-1]})" if own else ""
-        say(f"{DOES_NOT_IMPORT} {scrub(one_line(describe(error)))}{where}")
-        return 1
+        say(f"{DOES_NOT_IMPORT} {scrub(one_line(describe(error)))}{where}", 1)
     return 0
 
 

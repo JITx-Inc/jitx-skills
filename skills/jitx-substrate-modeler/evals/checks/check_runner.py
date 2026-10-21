@@ -23,12 +23,14 @@ from an exit handler for one. Ordinary prints pass, a partial line, a
 replaced ``sys.stdout`` and blank lines anywhere included: the child writes
 each check line, on a line of its own, to a copy of its stdout taken before
 any candidate code runs, and the parent skips lines that hold only
-whitespace. The pre-flight writes its verdict the same way and then ends at
-once, so an exit handler or thread the candidate started never runs after
-it. Code written to defeat the grader (writing to that copy, reading the
-token, which ``ps -E`` shows in the child's environment, or printing one of
-the pre-flight's own ``ERROR  `` lines and exiting 3 during the import, which
-reads as an environment problem) is not covered. POSIX only: it uses process
+whitespace. The pre-flight writes its verdict to such a copy too, as the
+last write to the pipe (what a thread of the candidate's prints after it
+goes to the null device), and then ends with ``os._exit``, so no exit
+handler runs after it. Code written to defeat the grader (writing to that
+copy, reading the token, which ``ps -E`` shows in the child's environment,
+or printing one of the pre-flight's own ``ERROR  `` lines and calling
+``os._exit(3)`` during the import, which reads as an environment problem) is
+not covered. POSIX only: it uses process
 groups and POSIX signals.
 
 Everything the parent prints from the candidate's side (the child's lines, the
@@ -230,7 +232,10 @@ def say(line: str) -> None:
     ``sys.stdout`` cannot rewrite it. The line starts with a newline, so a
     partial line the candidate left (``progress: 1/1`` with no newline) does
     not run into it; the parent skips blank lines."""
-    # sys.stdout first: a replacement may write through to sys.__stdout__.
+    # sys.stdout first, so that what a replacement that writes through to
+    # sys.__stdout__ holds comes out before this line rather than after it.
+    # Either order keeps it before the DONE line, which run() writes straight
+    # after the last check line, flushing sys.__stdout__ again first.
     for stream in (sys.stdout, sys.__stdout__):
         if stream is not None:
             stream.flush()

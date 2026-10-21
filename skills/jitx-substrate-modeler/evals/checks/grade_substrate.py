@@ -19,8 +19,12 @@ in the wording an eval harness reads as an environment problem stays a red.
 The grader's own imports run in its pytest process before any candidate
 code; when one fails there, the grader writes the reason to a file this
 script names, and this script prints it raw, last, as an ``ERROR  `` line
-too. A stage that runs past --timeout
-seconds (default 300), such as a board that hangs at import, is a red, and
+too. That covers what fails while the grader's module imports, and no more:
+a dependency that imports but fails only once the tests run, after
+collection (a jitx function that imports a missing module when a test calls
+it, say), fails a grader test, whose output is printed scrubbed, so it reads
+as a red. A stage that runs past --timeout seconds (default 300), such as a
+board that hangs at import, is a red, and
 nothing it started in the stage's process group keeps running (a process that
 leaves the group, by ``setsid``, is beyond reach). POSIX only: it uses process
 groups and POSIX signals.
