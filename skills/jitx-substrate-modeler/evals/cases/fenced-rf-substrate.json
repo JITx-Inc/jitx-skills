@@ -1,0 +1,51 @@
+{
+  "name": "fenced-rf-substrate",
+  "prompt": "model this substrate from the csv, with the RF fencing the spec asks for; put the substrate in board.py and a design that uses it in design.py",
+  "inputs": {
+    "csv": "evals/cases/fixtures/rf_PC-6L_Fab-Stackup_RevA.csv",
+    "spec": "evals/cases/fixtures/rf_fence_spec.txt",
+    "notes": "A synthetic Pellingham Circuits stackup report (fictional fabricator and products) for a 6-layer RF board, with a written fencing spec: a fenced 50 ohm coplanar line, a fenced 100 ohm pair on L1 and L6, and a fenced RF cavity."
+  },
+  "notes": "For whoever reads the grader's output, not for the runner. Whoever launches the runner stages only `inputs` and must not expose evals/checks to it. grade_fenced_rf.py grades the fence parameters as declared (pitch, first-row offset as initial_offset or offset, rows, via and reference layer), not measured via positions, and holds the spec's values as constants that its self-test checks against rf_fence_spec.txt. The spec states each offset as the distance from the trace edge or cavity outline to the via centres, which is what ViaFencePattern's initial_offset (defaulting to offset) means in py-jitx; a red on cpw_fence with an offset of 0.54 mm means the runner added half the 0.2800 mm trace width to the spec's 0.40 mm, a centre-to-centre reading. substrate_grader.py runs with -k \"not reference_plane\": it reads one set of reference planes per routing layer, and this report gives L1 two (L3 for the coplanar line, L2 for the pair), so grade_fenced_rf.py checks the reference planes per structure instead. The commands run from the repository root. Whoever launches the runner passes runner_artifacts to it verbatim, with the prompt; no script reads it. Judges get <output>/board.py, <output>/design.py, <output>/COMPLETION.md, the CSV and the spec, each as --artifact. The graders' self-tests run with `python -m pytest -q skills/jitx-substrate-modeler` from the repository root; run them after any edit to a grader or fixture.",
+  "runner_models": [
+    "sonnet"
+  ],
+  "runner_rationale": "Customers drive this skill with mixed-strength agents (Claude Code, Codex, and Devin among them). The skill must carry the goodness checks itself, so the eval runs the skill under a Sonnet-class runner rather than the strongest available model. Judges stay frontier-tier regardless of runner.",
+  "runner_artifacts": "The runner MUST write the substrate to exactly <output>/board.py, a design that uses it to exactly <output>/design.py (importing the substrate from board), and its completion summary to <output>/COMPLETION.md, not only into its final chat message. Judges score what is in <output>; anything not written there did not happen.",
+  "expected_output": "board.py: the 6-layer stackup, materials, the 3 vias (TH-1, UV-1 from L1, UV-2 from L6), the 19 fab rules, SE-50 on L1 with .geometry(KeepOut, 0.60, layers=LayerSet(1), pour=True), a reference on L3 at 3x 0.300 mm and .fence(UV1, ViaFencePattern(pitch=0.50, offset or initial_offset 0.40, one row), reference_layer=1); DIFF-100 with L1 and L6 enumerated, each referenced to its adjacent plane at 3x 0.100 mm and fenced with UV1 to L2 or UV2 to L5 at pitch 0.50 and first-row offset 0.60; and one substrate-side rule, design_constraint(<a Tag subclass>()).fence_via(UV1, ViaFencePattern(pitch=0.50, offset 0.30, one row)), and no other design rule. design.py: a 30 x 20 mm board, a GND net, a Pour of the 4.0 x 3.0 mm cavity rectangle at (5.0, 3.0) on L1 (or L2) carrying that Tag and joined to GND, with no isolate=, and a KeepOut of the same rectangle on L1 with pour=True. The completeness check block in COMPLETION.md.",
+  "assertions": [
+    {
+      "text": "generated files parse as Python",
+      "check": "deterministic",
+      "cmd": "python3 -m py_compile <output>/board.py <output>/design.py"
+    },
+    {
+      "text": "generated files type-check against the installed jitx package",
+      "check": "deterministic",
+      "cmd": "python3 -m pyright --pythonpath \"$(command -v python3)\" <output>/board.py <output>/design.py"
+    },
+    {
+      "text": "the substrate in board.py matches the report: stackup, materials and names, vias and drill direction, fab rules, and the routing structures' widths, gaps, clearances, loss and velocity (reference planes are graded per structure by the fence grader below)",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-substrate-modeler/evals/checks/grade_substrate.py <output>/board.py skills/jitx-substrate-modeler/evals/cases/fixtures/rf_PC-6L_Fab-Stackup_RevA.csv -k \"not reference_plane\""
+    },
+    {
+      "text": "ruff format leaves every labeled derivation in board.py whole, on the line with its label, and no label sits on a bracket whose entries carry no label of their own (the judges read the unformatted file)",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-substrate-modeler/scripts/check_labels.py <output>/board.py"
+    },
+    {
+      "text": "the fencing matches the spec as declared: the 50 ohm L1 fence and L2 pour keep-out, the 100 ohm pair's fences on enumerated L1 and L6, the reference planes per structure, a tag-conditioned fence_via rule on the substrate with a tagged cavity Pour on a layer its via reaches and a matching pour KeepOut, no isolate=, no other substrate design rule, and both the design and every routing structure translate",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-substrate-modeler/evals/checks/grade_fenced_rf.py <output>/board.py <output>/design.py skills/jitx-substrate-modeler/evals/cases/fixtures/rf_PC-6L_Fab-Stackup_RevA.csv"
+    },
+    {
+      "text": "no invented numbers: every value in board.py and design.py that neither the report nor the spec backs (the reference-plane widths, and anything else) carries a skill-default label on the same line at its call site, naming the rule it follows",
+      "check": "judge"
+    },
+    {
+      "text": "the completion summary contains the filled Substrate completeness check block, every row with its evidence, and its Verdict follows from those rows",
+      "check": "judge"
+    }
+  ]
+}
