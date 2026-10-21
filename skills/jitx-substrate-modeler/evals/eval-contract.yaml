@@ -18,7 +18,7 @@ dimensions:
   - "VIA_INVENTORY — exactly the source's via set, correct spans/drill types/pad and hole sizes/fill-cap-tent, aspect ratios on the source's stated depth basis per drill type, nothing speculative?"
   - "ROUTING_STRUCTURE_FIT — one structure per impedance target covering every listed layer and geometry, velocity from eps_eff where given, edge-to-edge pair gaps, uncoupled regions, each neck region on a structure beside its target's (regions with the same neck geometry may share one; never a NeckDown; where design.py is given, applied there by tag), reference planes carried?"
   - "FAB_RULES_COMPLETE — every source rule that maps to a FabricationConstraints field present and correct, capability limits with no JITX field documented rather than dropped or force-fit?"
-  - "PROVENANCE — does every number trace to a source row, with unstated values asked about or documented as omissions rather than invented (including to satisfy a type checker)?"
+  - "PROVENANCE — does every number trace to a source row (a rule priority or pour rank is an ordering and needs none), with unstated values asked about or documented as omissions rather than invented (including to satisfy a type checker)?"
 hard_fails:
   - "A numeric value in the generated substrate that traces to no source row and carries no skill-default label on its own line at the call site (an invented number). A declared, per-call-site-labeled skill default — e.g. reference-plane width = 3x dielectric height — is rule-backed, not invented. A rule priority or a pour rank is an ordering, not a value, and needs no label."
   - "Via structures beyond the source's stated inventory."
