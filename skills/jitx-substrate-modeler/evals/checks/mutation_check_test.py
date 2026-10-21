@@ -250,7 +250,7 @@ def test_a_suite_of_copied_constants_fails_every_mutation() -> None:
         ),
         (
             edit(Path("board.py"), "3 * H_L1_L2", "0.240"),
-            "FAIL  board.py has no line that multiplies by 3 under a skill-default",
+            "FAIL  board.py has no line that multiplies by 3, or by a name assigned 3,",
         ),
     ],
     ids=[
@@ -292,10 +292,20 @@ def test_each_way_a_suite_cannot_show_it_reads_the_report_is_red(
 
 @pytest.mark.parametrize(
     "change",
-    [write("pytest.ini", "[pytest]\naddopts = -q\n"), clutter],
+    [
+        write("pytest.ini", "[pytest]\naddopts = -q\n"),
+        clutter,
+        edit(
+            Path("board.py"),
+            "SE50_L1_PLANE_L2_WIDTH = 3 * H_L1_L2",
+            "REF_FACTOR = 3  # skill default: 3x dielectric height\n"
+            "SE50_L1_PLANE_L2_WIDTH = REF_FACTOR * H_L1_L2",
+        ),
+    ],
     ids=[
         "a pytest.ini that adds -q",
         "a virtualenv, a git directory and a broken symlink",
+        "a board.py that names its 3x factor",
     ],
 )
 def test_each_way_of_writing_a_good_suite_passes(

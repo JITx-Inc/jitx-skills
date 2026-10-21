@@ -25,8 +25,9 @@ copy of the report in another scratch directory. It runs eight times:
 - against the report, with one reference-plane width in board.py moved off
   3 x its dielectric height (see ``move_width``): the tests must fail (pytest
   exit 1, or 2), so a suite that never tests a default width against its
-  formula is a red. A board.py with no line that multiplies by 3 under a
-  skill-default label gives the check no width to move, and is a red;
+  formula is a red. A board.py with no width to move (no line that
+  multiplies by 3, or by a name assigned 3, under a skill-default label)
+  is a red;
 - against four copies, each with one value changed (see ``MUTATIONS``): a
   dielectric thickness, a via pad, a fab rule and an impedance width. Each
   run must fail (pytest exit 1, or 2 for errors at collection).
@@ -50,6 +51,7 @@ board.py imports does not import).
 from __future__ import annotations
 
 import argparse
+import ast
 import csv
 import io
 import re
@@ -121,40 +123,103 @@ def is_label(comment: str) -> bool:
     )
 
 
+def is_three(node: ast.expr) -> bool:
+    """The node is the number 3 (``3`` or ``3.0``), not a bool."""
+    return (
+        isinstance(node, ast.Constant)
+        and isinstance(node.value, int | float)
+        and not isinstance(node.value, bool)
+        and node.value == 3
+    )
+
+
+def factor_assignments(body: list[ast.stmt]) -> list[tuple[str, ast.expr]]:
+    """Each ``NAME = 3`` (or ``NAME: T = 3``) in a module or class body, and
+    in the bodies of the classes it defines, as (name, the 3), in source
+    order."""
+    found: list[tuple[str, ast.expr]] = []
+    for statement in body:
+        if isinstance(statement, ast.ClassDef):
+            found += factor_assignments(statement.body)
+        elif (
+            isinstance(statement, ast.Assign)
+            and len(statement.targets) == 1
+            and isinstance(statement.targets[0], ast.Name)
+            and is_three(statement.value)
+        ):
+            found.append((statement.targets[0].id, statement.value))
+        elif (
+            isinstance(statement, ast.AnnAssign)
+            and isinstance(statement.target, ast.Name)
+            and statement.value is not None
+            and is_three(statement.value)
+        ):
+            found.append((statement.target.id, statement.value))
+    return found
+
+
+def replaced(text: str, row: int, start: int, end: int) -> str:
+    """``text`` with characters ``start`` to ``end`` of line ``row`` (1-based)
+    replaced by ``MOVED_FACTOR``."""
+    lines = text.splitlines(keepends=True)
+    line = lines[row - 1]
+    lines[row - 1] = line[:start] + MOVED_FACTOR + line[end:]
+    return "".join(lines)
+
+
 def move_width(text: str) -> tuple[str, int] | None:
     """``text`` with one default width moved off its formula, and the line
     moved; None when there is no width to move.
 
     The width is the first line whose comment is a skill-default label and
     whose code multiplies by the number 3 (``2: 3 * H_L1_L3,  # skill
-    default: ...``, ``H * 3.0`` too); that 3 becomes ``MOVED_FACTOR``. Python's
-    tokenizer finds both, so a 3 or a label inside a string is never one."""
+    default: ...``, ``H * 3.0`` too); that 3 becomes ``MOVED_FACTOR``. With no
+    such line, the factor may be named: a labelled line multiplies by a name
+    (``2: REF_FACTOR * H,  # skill default: ...``) that a module- or
+    class-level assignment sets to 3 (``REF_FACTOR = 3``), and that
+    assignment's 3 becomes ``MOVED_FACTOR``, the first such assignment in the
+    file. Python's tokenizer finds the lines, so a 3, a name or a label inside
+    a string is never one."""
     try:
         tokens = list(tokenize.generate_tokens(io.StringIO(text).readline))
-    except (tokenize.TokenError, SyntaxError):
+        tree = ast.parse(text)
+    except (tokenize.TokenError, SyntaxError, ValueError):
         return None
     labelled = {
         token.start[0]
         for token in tokens
         if token.type == tokenize.COMMENT and is_label(token.string)
     }
+    factors: set[str] = set()
     for index, token in enumerate(tokens):
-        if token.type != tokenize.NUMBER or token.start[0] not in labelled:
+        if token.type not in (tokenize.NUMBER, tokenize.NAME):
+            continue
+        if token.start[0] not in labelled:
+            continue
+        neighbours = tokens[index - 1 : index] + tokens[index + 1 : index + 2]
+        if not any(
+            other.type == tokenize.OP and other.string == "*" for other in neighbours
+        ):
+            continue
+        if token.type == tokenize.NAME:
+            factors.add(token.string)
             continue
         try:
             value = float(token.string.replace("_", ""))
         except ValueError:
             continue
-        neighbours = tokens[index - 1 : index] + tokens[index + 1 : index + 2]
-        if value != 3 or not any(
-            other.type == tokenize.OP and other.string == "*" for other in neighbours
-        ):
+        if value == 3:
+            row, start = token.start
+            return replaced(text, row, start, token.end[1]), row
+    lines = text.splitlines(keepends=True)
+    for name, three in factor_assignments(tree.body):
+        if name not in factors or three.end_col_offset is None:
             continue
-        lines = text.splitlines(keepends=True)
-        row, start = token.start
-        line = lines[row - 1]
-        lines[row - 1] = line[:start] + MOVED_FACTOR + line[token.end[1] :]
-        return "".join(lines), row
+        # ast columns count UTF-8 bytes; the line is sliced in characters.
+        raw = lines[three.lineno - 1].encode("utf-8")
+        start = len(raw[: three.col_offset].decode("utf-8"))
+        end = len(raw[: three.end_col_offset].decode("utf-8"))
+        return replaced(text, three.lineno, start, end), three.lineno
     return None
 
 
@@ -386,9 +451,9 @@ def check(output: Path, report_csv: Path, timeout: float) -> Verdict:
         site = move_width(real_board)
         if site is None:
             verdict.problems.append(
-                "board.py has no line that multiplies by 3 under a skill-default "
-                "label, so the check has no reference-plane width to move off 3 x "
-                "its dielectric height"
+                "board.py has no line that multiplies by 3, or by a name assigned "
+                "3, under a skill-default label, so the check has no "
+                "reference-plane width to move off 3 x its dielectric height"
             )
         else:
             moved_board, line = site

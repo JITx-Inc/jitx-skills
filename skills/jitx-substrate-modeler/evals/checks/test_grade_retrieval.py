@@ -190,7 +190,9 @@ IDIOMS: list[Call] = [
             "command": "python -c 'import jitxexamples.patterns.fenced_pour_outline as m;"
             " print(m.__doc__)'"
         },
-        "Fence vias along an arbitrary closed outline.\n\nUse this pattern when",
+        "Fence vias along an arbitrary closed outline.\n\nUse this pattern when"
+        " a row of ground vias has to follow a shape that is not\n...\n   is what"
+        " makes the rule select it. The generated vias take the pour's net,",
         False,
     ),
 ]
@@ -255,6 +257,22 @@ Q18_FROM_REFERENCE: list[Call] = [
             " net.",
         },
         f"File created successfully at: {OUTPUT}/ANSWERS.md",
+        None,
+    ),
+]
+
+# A content grep that shows the module's title line, not the fact Q18's judge
+# needs.
+Q18_TITLE_ONLY: list[Call] = [
+    (
+        "Grep",
+        {
+            "pattern": "Fence vias",
+            "path": f"{SITE}/jitxexamples/patterns",
+            "output_mode": "content",
+        },
+        f"{SITE}/jitxexamples/patterns/fenced_pour_outline.py:1:"
+        '"""Fence vias along an arbitrary closed outline.',
         None,
     ),
 ]
@@ -596,6 +614,7 @@ def calls_of(calls: list[Call]) -> object:
         pytest.param(
             calls_of(Q18_FROM_REFERENCE), NONE_READ, id="q18-answered-from-reference"
         ),
+        pytest.param(calls_of(Q18_TITLE_ONLY), NONE_READ, id="q18-title-line-only"),
         pytest.param(calls_of(HEREDOC), NONE_READ, id="heredoc-and-echo"),
         pytest.param(calls_of(IMPORT_ONLY), NONE_READ, id="import-only"),
         pytest.param(calls_of(ANSWERS_ONLY), NONE_READ, id="answers-written-then-read"),

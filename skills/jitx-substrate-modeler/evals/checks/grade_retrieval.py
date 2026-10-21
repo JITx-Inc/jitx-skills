@@ -135,8 +135,7 @@ CHECKS: tuple[Check, ...] = (
         18,
         "fenced pour outline example",
         "jitxexamples.patterns.fenced_pour_outline",
-        r"Fence vias along an arbitrary closed outline"
-        r"|generated vias take the pour's net",
+        r"generated vias take the pour's net",
     ),
     Check(
         19,
