@@ -8,7 +8,7 @@ Fence vias and the cavity ring belong to the GND net.
    - Fence both sides of the line with UV-1 (L1 to L2), tied to the L2 ground plane.
    - Fence via pitch 0.50 mm, one row on each side.
    - The first row's via centres sit 0.40 mm out from the trace edge.
-   - Void the L2 copper under the line: a pour keep-out on L2, 0.60 mm wide, following the route.
+   - Void the L2 copper under the line, 0.60 mm wide.
 
 2. 100 ohm differential pair on L1 and L6 (IMPEDANCE row DIFF-100)
    - Fence the pair on each layer with the microvia that lands on that layer's adjacent ground:

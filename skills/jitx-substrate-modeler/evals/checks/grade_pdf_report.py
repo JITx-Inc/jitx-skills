@@ -16,16 +16,38 @@ from the CSV:
   its whole span, not a stack of unlisted single-level vias;
 - nfp: each VIAS row with ``NFP_layers`` has its pad on every layer it spans
   and its reduced pad on exactly the listed layers, through ``diameters`` and
-  ``ViaDiameter(nfp=...)`` or the via-wide ``nfp``;
+  ``ViaDiameter(nfp=...)`` or the via-wide ``nfp``. A reduced pad declared on
+  the start layer of a via with no top backdrill, or on the stop layer of one
+  with no bottom backdrill, counts as the full pad, since jitx keeps it there
+  (the ``ViaDiameter.nfp`` docstring in jitx/via.py);
 - skip_layer_reference: a routing layer whose IMPEDANCE ``Ref_layers`` names a
-  plane beyond the next copper layer references that plane alone, at 3x the
+  plane beyond the next copper layer references exactly that plane, at 3x the
   dielectric summed between them;
+- stackup_rows: one entry per STACKUP row, in order, copper where the row is
+  copper, each as thick as the row says, except the rows the PDF leaves
+  unstated (inner_copper and core_from_total grade those);
+- inner_copper: each inner copper layer, which the PDF gives as 1 oz only, is
+  between 0.0340 and 0.0360 mm. The band holds the skill's 0.035 mm, the
+  report's 1.38 mil column (0.03505 mm) and other conversions within about 3%
+  of them, and excludes a 0.5 oz or 2 oz reading (0.0175 or 0.070 mm);
+- core_from_total: the unstated L5-L6 core is the stated finished thickness
+  less the candidate's own other copper and dielectric layers;
+- materials: each dielectric layer has its row's Dk and Df, and each copper
+  layer's class docstring (or one it is built on) states its matte and drum
+  Rz, with the ``roughness`` scalar, when set, the matte Rz in mm;
 - capability_not_attributes: no capability limit that is not a length (an
   ``N:1`` ratio or a count) is a class attribute of the rules or substrate
-  class;
+  class: an attribute named for a ratio or for stacked levels whose value is
+  that limit;
 - capability_documented: the rules class docstring states every capability
-  limit, the length limits in mm or mil, unless the limit is a custom mm
-  attribute of the rules class.
+  limit with its unit or label (``10:1``, ``2 stacked levels``, ``6.0 mil`` or
+  ``0.1524 mm``), unless a length limit is a custom mm attribute of the rules
+  class.
+
+stackup_rows, inner_copper, core_from_total and materials stand in for the two
+substrate_grader.py tests the case deselects (test_layer_count_and_order and
+test_material_properties_match_csv), which pin the unstated rows to the twin's
+values exactly.
 
 ``report`` also prints a ``NOTE`` line for each source line that seems to
 call a fabrication-constraint field other than the four ``min_copper_*``
@@ -37,9 +59,12 @@ points a reader at the line.
 ``Symmetric`` subclass, its last listed layer is a dielectric, it has four
 copper layers, and the substrate translates on a 50 x 50 mm board.
 
+The grading runs in a child process; see check_runner.py.
+
 Exit codes: 0 graded and every check passed / 1 a check failed, the candidate
-does not import, or the run went past --timeout seconds (default 120) / 2 a
-usage error or a grader dependency that does not import.
+does not import, the grading stopped before every check ran, or a stage ran
+past --timeout seconds (default 120) / 2 a usage error, a grader dependency
+that does not import, or an import that fails inside a library.
 """
 
 from __future__ import annotations
@@ -47,6 +72,7 @@ from __future__ import annotations
 import argparse
 import inspect
 import re
+import signal
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -55,12 +81,14 @@ from typing import TYPE_CHECKING
 try:
     import check_runner
     import fabcsv
+    from grade_substrate import stop
 
     # `instantiation` and `package_design` are private; jitx exposes no public
     # entry point that instantiates and translates a design offline.
     from jitx._instantiation import instantiation
     from jitx._translate.design import package_design
     from jitx.inspect import decompose
+    from jitx.proxy import typeof
     from jitx.si import DifferentialRoutingStructure, RoutingStructure, _RefLayer
     from jitx.stackup import Conductor, Dielectric, Material, Symmetric
     from jitx.substrate import FabricationConstraints, Substrate
@@ -89,6 +117,32 @@ ENFORCED = frozenset(
 
 SYMMETRIC_BOARD = (50.0, 50.0, 0.0)
 """The variant has no report, so no board size: a 50 x 50 mm square."""
+
+INNER_COPPER = "CU-IN"
+"""The twin's copper the PDF gives by weight only (1 oz)."""
+INNER_COPPER_BAND = (0.0340, 0.0360)
+"""mm. See inner_copper in the module docstring."""
+UNSTATED_CORE = "D-CORE-T"
+"""The twin's dielectric whose thickness the PDF leaves out."""
+
+REPORT_NAMES = [
+    "backdrill",
+    "stacked",
+    "nfp",
+    "skip_layer_reference",
+    "stackup_rows",
+    "inner_copper",
+    "core_from_total",
+    "materials",
+    "capability_not_attributes",
+    "capability_documented",
+]
+SYMMETRIC_NAMES = [
+    "symmetric",
+    "middle_is_dielectric",
+    "four_copper_layers",
+    "translates",
+]
 
 
 def close(actual: float, expected: float) -> bool:
@@ -254,11 +308,22 @@ def check_nfp(report: Report) -> None:
                     entry.pad,
                     entry.nfp,
                 )
-        low, high = sorted(report.span(via))
+        start, stop = report.span(via)
+        # jitx keeps the full pad on the start layer without a top backdrill
+        # and on the stop layer without a bottom one (ViaDiameter.nfp, in
+        # jitx/via.py), whatever nfp says there.
+        kept = {
+            layer
+            for layer, side in ((start, "top"), (stop, "bottom"))
+            if not via.backdrill.HasField(side)
+        }
+        low, high = sorted((start, stop))
         for number in range(low, high + 1):
             layer_pad, layer_nfp = per_layer.get(
                 number, (via.diameter, via.nfp_diameter)
             )
+            if number in kept:
+                layer_nfp = 0.0
             if not close(layer_pad, pad):
                 raise AssertionError(
                     f"{row['Via_ID']}: pad on L{number} is {layer_pad}, not {pad}"
@@ -367,7 +432,11 @@ def capability_rows(report: Report) -> list[tuple[str, str, float, float | None]
     return out
 
 
-NOT_A_LENGTH = re.compile(r"aspect|ratio|stack|level|count", re.IGNORECASE)
+NAMED_FOR = {
+    "ratio": re.compile(r"aspect|ratio", re.IGNORECASE),
+    "count": re.compile(r"stack|level", re.IGNORECASE),
+}
+"""What an attribute holding each kind of non-length limit is named for."""
 
 
 def custom_attributes(klass: type, base: type) -> dict[str, float]:
@@ -391,42 +460,178 @@ def custom_attributes(klass: type, base: type) -> dict[str, float]:
 
 def check_capability_not_attributes(report: Report) -> None:
     rules = report.substrate.constraints
-    values = {
-        value for _, kind, value, _ in capability_rows(report) if kind != "length"
-    }
+    limits = [
+        (rule, kind, value)
+        for rule, kind, value, _ in capability_rows(report)
+        if kind != "length"
+    ]
     for klass, base in (
         (type(rules), FabricationConstraints),
         (report.substrate, Substrate),
     ):
         for name, value in custom_attributes(klass, base).items():
-            if NOT_A_LENGTH.search(name) or value in values:
-                raise AssertionError(
-                    f"{klass.__name__}.{name} = {value:g} holds a capability limit that is "
-                    "not a length; it belongs in the rules class docstring"
-                )
+            for rule, kind, limit in limits:
+                if NAMED_FOR[kind].search(name) and close(value, limit):
+                    raise AssertionError(
+                        f"{klass.__name__}.{name} = {value:g} holds the capability "
+                        f"limit {rule!r}, which is not a length; it belongs in the "
+                        "rules class docstring"
+                    )
 
 
-def numbers_in(text: str) -> set[float]:
-    return {float(token) for token in re.findall(r"\d+(?:\.\d+)?", text)}
+NUMBER = r"(?<![\w.])(\d+(?:\.\d+)?)"
+"""A number standing on its own: not the 2 in "L2" or in "1.25"."""
+STATED = {
+    "ratio": [re.compile(NUMBER + r"\s*:\s*1\b")],
+    "count": [
+        re.compile(
+            NUMBER + r"\s+(?:[A-Za-z-]+\s+){0,2}?(?:levels?|stack(?:ed|s)?)\b", re.I
+        ),
+        re.compile(r"\b(?:levels?|stack(?:ed|s)?)\b[^.\d]{0,30}?" + NUMBER, re.I),
+    ],
+    "mm": [re.compile(NUMBER + r"\s*mm\b")],
+    "mil": [re.compile(NUMBER + r"\s*mils?\b")],
+}
+"""How a docstring states each kind of limit: the number with its unit or
+label."""
+
+
+def stated(text: str, kind: str) -> set[float]:
+    return {float(m) for pattern in STATED[kind] for m in pattern.findall(text)}
 
 
 def check_capability_documented(report: Report) -> None:
     rules = type(report.substrate.constraints)
-    stated = numbers_in(inspect.getdoc(rules) or "")
+    doc = inspect.getdoc(rules) or ""
     custom = custom_attributes(rules, FabricationConstraints)
     missing: list[str] = []
     for rule, kind, value, mil in capability_rows(report):
-        if any(close(number, value) for number in stated):
+        if kind != "length":
+            if any(close(number, value) for number in stated(doc, kind)):
+                continue
+        elif any(close(number, value) for number in stated(doc, "mm")):
             continue
-        if mil is not None and any(close(number, mil) for number in stated):
+        elif mil is not None and any(
+            close(number, mil) for number in stated(doc, "mil")
+        ):
             continue
-        if kind == "length" and any(close(number, value) for number in custom.values()):
+        elif any(close(number, value) for number in custom.values()):
             continue
         missing.append(rule)
     if missing:
         raise AssertionError(
             f"the {rules.__name__} docstring does not state: {'; '.join(missing)}"
         )
+
+
+def candidate_layers(report: Report) -> list[Material]:
+    layers = list(decompose(report.design().substrate.stackup, Material))
+    if len(layers) != len(report.stackup):
+        raise AssertionError(
+            f"{len(layers)} stackup entries; the report has {len(report.stackup)} rows"
+        )
+    return layers
+
+
+def check_stackup_rows(report: Report) -> None:
+    for row, layer in zip(report.stackup, candidate_layers(report), strict=True):
+        where = f"STACKUP seq {row['Seq']} ({row['Layer'] or row['Function']})"
+        if isinstance(layer, Conductor) != (row["Type"] == "Copper"):
+            raise AssertionError(
+                f"{where} is a {row['Type']}, not a {type(layer).__name__}"
+            )
+        if row["Material_ID"] in (INNER_COPPER, UNSTATED_CORE):
+            continue
+        if not close(layer.thickness or 0.0, float(row["Thickness_mm"])):
+            raise AssertionError(
+                f"{where} is {layer.thickness} mm thick, not {row['Thickness_mm']}"
+            )
+
+
+def check_inner_copper(report: Report) -> None:
+    low, high = INNER_COPPER_BAND
+    for row, layer in zip(report.stackup, candidate_layers(report), strict=True):
+        if row["Material_ID"] != INNER_COPPER:
+            continue
+        thickness = layer.thickness or 0.0
+        if not low <= thickness <= high:
+            raise AssertionError(
+                f"{row['Layer']} is {thickness} mm thick; 1 oz copper is "
+                f"{low} to {high} mm"
+            )
+
+
+def check_core_from_total(report: Report) -> None:
+    finished = float(
+        next(
+            r for r in report.sections["DOCUMENT"] if r["Field"] == "Finished thickness"
+        )["Value"]
+    )
+    layers = candidate_layers(report)
+    others = 0.0
+    cores: list[float] = []
+    for row, layer in zip(report.stackup, layers, strict=True):
+        if row["Type"] == "Soldermask":
+            continue
+        if row["Material_ID"] == UNSTATED_CORE:
+            cores.append(layer.thickness or 0.0)
+        else:
+            others += layer.thickness or 0.0
+    want = finished - others
+    for core in cores:
+        if not close(core, want):
+            raise AssertionError(
+                f"the unstated core is {core} mm; the finished {finished} mm less the "
+                f"other layers ({others:.6f} mm) leaves {want:.6f} mm"
+            )
+
+
+RZ_NUMBER = re.compile(r"(?<![\w.])\d+(?:\.\d+)?")
+
+
+def check_materials(report: Report) -> None:
+    translated = report.translated()
+    by_id = {material.id: material for material in translated.materials}
+    proto_layers = translated.stackups[0].layers
+    copper = report.sections["MATERIALS_COPPER"]
+    rz = {row["Copper_ID"]: row for row in copper}
+    conductors = iter(decompose(report.design().substrate.stackup, Conductor))
+    for row, proto in zip(report.stackup, proto_layers, strict=True):
+        where = f"STACKUP seq {row['Seq']}"
+        material = by_id[proto.material]
+        if row["Type"] != "Copper":
+            for got, column in (
+                (material.dielectric_coefficient, "Dk"),
+                (material.loss_tangent, "Df"),
+            ):
+                if not close(got, float(row[column])):
+                    raise AssertionError(
+                        f"{where} {column} is {got}, not {row[column]}"
+                    )
+            continue
+        conductor = next(conductors)
+        declared = rz[row["Material_ID"]]
+        matte = float(declared["Rz_matte_um"])
+        if conductor.roughness is not None and not close(
+            conductor.roughness, matte / 1000.0
+        ):
+            raise AssertionError(
+                f"{where} roughness is {conductor.roughness} mm, not the matte Rz "
+                f"{matte / 1000.0} mm"
+            )
+        klass = typeof(conductor)
+        docs = "\n".join(
+            vars(cls).get("__doc__") or ""
+            for cls in klass.__mro__
+            if cls.__module__.split(".")[0] not in ("jitx", "builtins")
+        )
+        numbers = {float(n) for n in RZ_NUMBER.findall(docs)}
+        for column in ("Rz_matte_um", "Rz_drum_um"):
+            if float(declared[column]) not in numbers:
+                raise AssertionError(
+                    f"{where}: the docstring of {klass.__name__} does not state "
+                    f"{column} {declared[column]} um"
+                )
 
 
 ENFORCED_CLAIM = re.compile(r"\benforc", re.IGNORECASE)
@@ -454,14 +659,20 @@ def report_checks(report: Report) -> list[check_runner.Check]:
     def bind(check: Callable[[Report], None]) -> Callable[[], None]:
         return lambda: check(report)
 
-    return [
+    named = [
         ("backdrill", bind(check_backdrill)),
         ("stacked", bind(check_stacked)),
         ("nfp", bind(check_nfp)),
         ("skip_layer_reference", bind(check_skip_layer_reference)),
+        ("stackup_rows", bind(check_stackup_rows)),
+        ("inner_copper", bind(check_inner_copper)),
+        ("core_from_total", bind(check_core_from_total)),
+        ("materials", bind(check_materials)),
         ("capability_not_attributes", bind(check_capability_not_attributes)),
         ("capability_documented", bind(check_capability_documented)),
     ]
+    assert [name for name, _ in named] == REPORT_NAMES
+    return named
 
 
 def symmetric_checks(substrate: type[Substrate]) -> list[check_runner.Check]:
@@ -497,30 +708,37 @@ def symmetric_checks(substrate: type[Substrate]) -> list[check_runner.Check]:
     def translates() -> None:
         package_design(design())
 
-    return [
+    named: list[check_runner.Check] = [
         ("symmetric", is_symmetric),
         ("middle_is_dielectric", middle_is_dielectric),
         ("four_copper_layers", four_copper_layers),
         ("translates", translates),
     ]
+    assert [name for name, _ in named] == SYMMETRIC_NAMES
+    return named
 
 
 def parse(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Grade what the stackup-from-pdf-report cases add to the substrate grader."
     )
-    parser.add_argument("--timeout", type=int, default=120)
+    # --timeout follows the mode's arguments, as the usage line shows.
+    timeout = argparse.ArgumentParser(add_help=False)
+    timeout.add_argument("--timeout", type=float, default=120.0)
     modes = parser.add_subparsers(dest="mode", required=True)
-    report = modes.add_parser("report")
+    report = modes.add_parser("report", parents=[timeout])
     report.add_argument("board", type=Path)
     report.add_argument("csv", type=Path)
-    symmetric = modes.add_parser("symmetric")
+    symmetric = modes.add_parser("symmetric", parents=[timeout])
     symmetric.add_argument("board", type=Path)
     return parser.parse_args(argv)
 
 
 def main(argv: list[str]) -> int:
     args = parse(argv)
+    if not args.timeout > 0:
+        print("ERROR  --timeout must be a positive number of seconds")
+        return 2
     csv: Path | None = getattr(args, "csv", None)
     if csv is not None and not csv.is_file():
         print(f"ERROR  {csv} is not a file")
@@ -529,30 +747,33 @@ def main(argv: list[str]) -> int:
     if not board.is_file():
         print(f"FAIL  candidate {board} is not a file")
         return 1
+    token = check_runner.child_nonce()
+    if token is None:
+        names = SYMMETRIC_NAMES if csv is None else REPORT_NAMES
+        return check_runner.grade_in_child(
+            Path(__file__).resolve(), argv, names, [board], str(board), args.timeout
+        )
     try:
-        with check_runner.time_limit(args.timeout):
-            try:
-                module = check_runner.load_module(board)
-                substrate = check_runner.one_leaf(module, Substrate)
-            except Exception as error:  # noqa: BLE001 - the candidate's red
-                print(f"FAIL  candidate does not load: {check_runner.reason(error)}")
-                return 1
-            with instantiation.activate():
-                if csv is None:
-                    checks = symmetric_checks(substrate)
-                else:
-                    report = Report(substrate, csv, board.read_text(encoding="utf-8"))
-                    checks = report_checks(report)
-                    for claim in enforced_claims(report.source):
-                        print(
-                            "NOTE  only the four min_copper_* fields are engine-enforced; "
-                            f"{claim}"
-                        )
-                return check_runner.run(checks, str(board))
-    except check_runner.TimeLimit:
-        print(f"FAIL  grading {board} ran past {args.timeout} s")
+        module = check_runner.load_module(board)
+        substrate = check_runner.one_leaf(module, Substrate)
+    except Exception as error:  # noqa: BLE001 - the candidate's red
+        print(check_runner.load_failure(error))
         return 1
+    with instantiation.activate():
+        if csv is None:
+            checks = symmetric_checks(substrate)
+        else:
+            report = Report(substrate, csv, board.read_text(encoding="utf-8"))
+            checks = report_checks(report)
+            for claim in enforced_claims(report.source):
+                print(
+                    "NOTE  only the four min_copper_* fields are engine-enforced; "
+                    f"{claim}"
+                )
+        return check_runner.run(checks, token)
 
 
 if __name__ == "__main__":
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGHUP, stop)
     sys.exit(main(sys.argv[1:]))

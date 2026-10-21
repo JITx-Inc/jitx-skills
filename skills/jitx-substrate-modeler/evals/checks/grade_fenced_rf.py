@@ -31,21 +31,26 @@ Checks:
 - cavity_rule: the substrate declares a tag-conditioned ``fence_via`` rule
   with the L1-L2 laser via, the spec's pitch and an outward offset;
 - cavity_pour: the design has a Pour carrying that tag, on a layer the fence
-  via reaches, in the cavity's outline;
-- cavity_keepout: a pour KeepOut of the same outline covers L1 and the pour's
-  layer;
-- no_isolate: neither file sets the deprecated ``isolate=``;
+  via reaches, in the cavity's outline (when cavity_rule finds no such rule,
+  any tag will do here, so one defect is one red);
+- cavity_keepout: a pour KeepOut of the same outline covers L1, where the spec
+  voids the copper; the pour itself may sit on L1 or L2;
+- no_isolate: no Pour in the design sets the deprecated ``isolate``;
 - substrate_rules: the substrate declares no design rule but fence rules.
 
+A via's ends are compared as a pair, so UV-2 may be coded from L6 to L5 or
+from L5 to L6. The grading runs in a child process; see check_runner.py.
+
 Exit codes: 0 graded and every check passed / 1 a check failed, a candidate
-file does not import, or the run went past --timeout seconds (default 120) /
-2 a usage error or a grader dependency that does not import.
+file does not import, the grading stopped before every check ran, or a stage
+ran past --timeout seconds (default 120) / 2 a usage error, a grader
+dependency that does not import, or an import that fails inside a library.
 """
 
 from __future__ import annotations
 
 import argparse
-import re
+import signal
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -53,6 +58,7 @@ from types import ModuleType
 try:
     import check_runner
     import fabcsv
+    from grade_substrate import stop
 
     # `instantiation` and `package_design` are private; jitx exposes no public
     # entry point that instantiates and translates a design offline.
@@ -199,16 +205,18 @@ class Candidate:
             self.layer(int(via.stop_layer)),
         )
 
-    def laser_via_to(self, start: int, stop: int) -> tuple[bool, int, int]:
-        """The report's laser via from L<start> to L<stop>, as ``via_span`` gives it."""
-        for row in self.report["VIAS"]:
-            ends = (
+    def has_laser_via(self, start: int, stop: int) -> bool:
+        """Whether the report lists a laser via between L<start> and L<stop>,
+        coded either way round."""
+        return any(
+            row["Drill"] == "Laser"
+            and {
                 fabcsv.layer_number(row["From_layer"]),
                 fabcsv.layer_number(row["To_layer"]),
-            )
-            if row["Drill"] == "Laser" and ends == (start, stop):
-                return (True, start, stop)
-        raise AssertionError(f"the report lists no laser via from L{start} to L{stop}")
+            }
+            == {start, stop}
+            for row in self.report["VIAS"]
+        )
 
 
 def first_offset(pattern: ViaFencePattern) -> float:
@@ -227,12 +235,13 @@ def check_fence(
     plane: int,
     offset: float,
 ) -> None:
-    want = candidate.laser_via_to(start, plane)
-    got = candidate.via_span(fence.definition)
-    if got != want:
-        kind = "laser" if got[0] else "mechanical"
+    if not candidate.has_laser_via(start, plane):
+        raise AssertionError(f"the report lists no laser via from L{start} to L{plane}")
+    laser, first, last = candidate.via_span(fence.definition)
+    if not laser or {first, last} != {start, plane}:
+        kind = "laser" if laser else "mechanical"
         raise AssertionError(
-            f"{where}: the fence via is a {kind} via L{got[1]}-L{got[2]}; the spec "
+            f"{where}: the fence via is a {kind} via L{first}-L{last}; the spec "
             f"wants the laser via L{start}-L{plane}"
         )
     pattern = fence.pattern
@@ -462,23 +471,29 @@ def same_outline(shape: Shape, expected: Shape) -> bool:
     return actual.symmetric_difference(expected.to_shapely().g).area <= TOLERANCE_MM
 
 
-def tagged_pours(candidate: Candidate) -> list[Pour]:
-    tag, _ = cavity_rule(candidate)
+def tagged_pours(candidate: Candidate, tag: type[Tag] | None) -> list[Pour]:
+    """The design's Pours carrying ``tag``, or any tag when it is None."""
     out: list[Pour] = []
     for record in extract(candidate.design(), _ApplyTag):
         if isinstance(record.target, Pour) and any(
-            type(each) is tag for each in record.tags.tags
+            tag is None or type(each) is tag for each in record.tags.tags
         ):
             out.append(record.target)
     return out
 
 
 def check_cavity_pour(candidate: Candidate) -> None:
-    tag, fence = cavity_rule(candidate)
-    pours = tagged_pours(candidate)
+    try:
+        tag, fence = cavity_rule(candidate)
+    except AssertionError:
+        # cavity_rule reports a missing rule; grade the pour on its own.
+        tag, start, stop = None, CAVITY_LAYER, CAVITY_FENCE_PLANE
+    else:
+        _, start, stop = candidate.via_span(fence.definition)
+    pours = tagged_pours(candidate, tag)
     if not pours:
-        raise AssertionError(f"no Pour in the design carries the {tag.__name__} tag")
-    _, start, stop = candidate.via_span(fence.definition)
+        wanted = f"the {tag.__name__} tag" if tag is not None else "a tag"
+        raise AssertionError(f"no Pour in the design carries {wanted}")
     reach = set(range(min(start, stop), max(start, stop) + 1))
     for pour in pours:
         layer = candidate.layer(pour.layer)
@@ -492,31 +507,25 @@ def check_cavity_pour(candidate: Candidate) -> None:
 
 
 def check_cavity_keepout(candidate: Candidate) -> None:
-    pours = tagged_pours(candidate)
-    needed = {CAVITY_LAYER} | {candidate.layer(pour.layer) for pour in pours}
     for keepout in extract(candidate.design(), KeepOut):
         if (
             keepout.pour
-            and needed <= candidate.layers(keepout.layers)
+            and CAVITY_LAYER in candidate.layers(keepout.layers)
             and same_outline(keepout.shape, cavity_shape())
         ):
             return
-    named = ", ".join(f"L{n}" for n in sorted(needed))
     raise AssertionError(
-        f"no pour KeepOut (pour=True) in the cavity outline covers {named}"
+        f"no pour KeepOut (pour=True) in the cavity outline covers L{CAVITY_LAYER}"
     )
 
 
-ISOLATE = re.compile(r"\bisolate\s*=")
-
-
 def check_no_isolate(candidate: Candidate) -> None:
-    for file in candidate.files:
-        for number, line in enumerate(file.read_text(encoding="utf-8").splitlines(), 1):
-            if ISOLATE.search(line.split("#")[0]):
-                raise AssertionError(
-                    f"{file.name} line {number} sets the deprecated isolate="
-                )
+    for pour in extract(candidate.design(), Pour):
+        if pour.isolate:
+            raise AssertionError(
+                f"a Pour on L{candidate.layer(pour.layer)} sets the deprecated "
+                f"isolate={pour.isolate:g}"
+            )
 
 
 EFFECTS = [
@@ -546,6 +555,21 @@ def check_substrate_rules(candidate: Candidate) -> None:
             )
 
 
+NAMES = [
+    "design_translates",
+    "structures_translate",
+    "cpw_fence",
+    "cpw_keepout",
+    "pair_fences",
+    "references",
+    "cavity_rule",
+    "cavity_pour",
+    "cavity_keepout",
+    "no_isolate",
+    "substrate_rules",
+]
+
+
 def checks(candidate: Candidate) -> list[check_runner.Check]:
     named = [
         ("design_translates", check_design_translates),
@@ -560,6 +584,7 @@ def checks(candidate: Candidate) -> list[check_runner.Check]:
         ("no_isolate", check_no_isolate),
         ("substrate_rules", check_substrate_rules),
     ]
+    assert [name for name, _ in named] == NAMES
     return [(name, lambda check=check: check(candidate)) for name, check in named]
 
 
@@ -570,8 +595,11 @@ def main(argv: list[str]) -> int:
     parser.add_argument("board", type=Path)
     parser.add_argument("design", type=Path)
     parser.add_argument("csv", type=Path)
-    parser.add_argument("--timeout", type=int, default=120)
+    parser.add_argument("--timeout", type=float, default=120.0)
     args = parser.parse_args(argv)
+    if not args.timeout > 0:
+        print("ERROR  --timeout must be a positive number of seconds")
+        return 2
     if not args.csv.is_file():
         print(f"ERROR  {args.csv} is not a file")
         return 2
@@ -581,20 +609,27 @@ def main(argv: list[str]) -> int:
         if not file.is_file():
             print(f"FAIL  candidate {file} is not a file")
             return 1
+    token = check_runner.child_nonce()
+    if token is None:
+        return check_runner.grade_in_child(
+            Path(__file__).resolve(),
+            argv,
+            NAMES,
+            [board, design],
+            f"{board} and {design}",
+            args.timeout,
+        )
+    sys.path.insert(0, str(design.parent))
     try:
-        with check_runner.time_limit(args.timeout):
-            sys.path.insert(0, str(design.parent))
-            try:
-                candidate = Candidate(board, design, args.csv)
-            except Exception as error:  # noqa: BLE001 - the candidate's red
-                print(f"FAIL  candidate does not load: {check_runner.reason(error)}")
-                return 1
-            with instantiation.activate():
-                return check_runner.run(checks(candidate), f"{board} and {design}")
-    except check_runner.TimeLimit:
-        print(f"FAIL  grading ran past {args.timeout} s")
+        candidate = Candidate(board, design, args.csv)
+    except Exception as error:  # noqa: BLE001 - the candidate's red
+        print(check_runner.load_failure(error))
         return 1
+    with instantiation.activate():
+        return check_runner.run(checks(candidate), token)
 
 
 if __name__ == "__main__":
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGHUP, stop)
     sys.exit(main(sys.argv[1:]))

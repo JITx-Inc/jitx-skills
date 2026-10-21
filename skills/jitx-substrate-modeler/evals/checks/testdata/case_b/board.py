@@ -43,6 +43,13 @@ class ThickCore(Dielectric):
     loss_tangent = 0.0090
 
 
+INNER_CU = 0.0350  # skill default: 1 oz finished copper; the report gives 1 oz only
+FINISHED = 2.0320  # report: finished thickness, 80.00 mil
+THICK_CORE = FINISHED - (
+    2 * 0.0381 + 6 * INNER_CU + 2 * 0.0762 + 2 * 0.1270 + 2 * 0.1016
+)  # derived: the report states no L5-L6 core thickness; finished less every other layer
+
+
 class OuterFoil(Conductor):
     """Rz matte 2.5 um, drum 0.8 um."""
 
@@ -52,7 +59,7 @@ class OuterFoil(Conductor):
 class InnerFoil(Conductor):
     """1 oz. Rz matte 4.0 um, drum 2.0 um."""
 
-    thickness = 0.0350
+    thickness = INNER_CU
 
 
 class EightLayer(Stackup):
@@ -66,7 +73,7 @@ class EightLayer(Stackup):
     l4 = InnerFoil(name="L4-Signal")
     pp1 = Prepreg(thickness=0.1016)
     l5 = InnerFoil(name="L5-GND")
-    thick = ThickCore(thickness=1.1362)
+    thick = ThickCore(thickness=THICK_CORE)
     l6 = InnerFoil(name="L6-PWR")
     core2 = Core(thickness=0.1270)
     l7 = InnerFoil(name="L7-GND")

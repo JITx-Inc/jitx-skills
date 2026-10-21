@@ -41,6 +41,8 @@ class Prepreg(Dielectric):
 
 
 class Foil(Conductor):
+    """Rz matte 2.0 um, drum 0.8 um."""
+
     thickness = 0.0350
     roughness = 0.0020
 
