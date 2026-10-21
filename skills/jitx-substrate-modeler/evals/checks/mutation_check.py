@@ -11,7 +11,7 @@ copies OUTPUT_DIR into a scratch directory, imports ``board.py`` there in a
 child through ``import_candidate.py``, and runs ``python -m pytest -q tests``
 from the copy, with this interpreter, the copy first on PYTHONPATH (so the
 tests ``import board``), and the environment variable ``FAB_CSV`` naming a
-copy of the report in another scratch directory. It runs seven times:
+copy of the report in another scratch directory. It runs eight times:
 
 - against an unchanged copy of the report: every test must pass, and at
   least one must run;
@@ -22,6 +22,13 @@ copy of the report in another scratch directory. It runs seven times:
   name with a stand-in that equals no number or string (``BROKEN_BOARD``):
   the tests must fail, so a suite that never tests board.py, or only imports
   it or a name from it, is a red;
+- against the report, with one reference-plane width in board.py moved off
+  3 x its dielectric height (see ``move_width``): the tests must fail (pytest
+  exit 1, or 2), so a suite that never tests a default width against its
+  formula is a red. A board.py with no width to move (no line that
+  multiplies by 3, or by a module- or class-level name assigned 3, under
+  a skill-default label) is a red, and so is a move that leaves board.py
+  unparseable;
 - against four copies, each with one value changed (see ``MUTATIONS``): a
   dielectric thickness, a via pad, a fab rule and an impedance width. Each
   run must fail (pytest exit 1, or 2 for errors at collection).
@@ -45,11 +52,14 @@ board.py imports does not import).
 from __future__ import annotations
 
 import argparse
+import ast
 import csv
 import io
+import re
 import signal
 import sys
 import tempfile
+import tokenize
 import xml.etree.ElementTree as ElementTree
 from dataclasses import dataclass
 from pathlib import Path
@@ -95,6 +105,139 @@ test that asserts a value read from board.py equals a number or string,
 orders it, or does arithmetic with it, fails; a suite that only imports board.py, reads a
 name from it, checks that a name exists or is truthy, or compares two names
 it read, passes and is a red."""
+
+
+LABEL = re.compile(r"\bskill[- ]defaults?\b", re.IGNORECASE)
+NEGATED = re.compile(r"\b(?:no|not(?:\s+(?:a|the|any))?)\s+$", re.IGNORECASE)
+"""A skill-default label, as ``scripts/check_labels.py`` reads one: a comment
+naming the skill default other than directly after a word that denies it."""
+
+MOVED_FACTOR = "3.5"
+"""What ``move_width`` writes in place of the factor 3."""
+
+
+def is_label(comment: str) -> bool:
+    """The comment names the skill default, other than to deny it."""
+    return any(
+        not NEGATED.search(comment[: match.start()])
+        for match in LABEL.finditer(comment)
+    )
+
+
+def is_three(node: ast.expr) -> bool:
+    """The node is the number 3 (``3`` or ``3.0``), not a bool."""
+    return (
+        isinstance(node, ast.Constant)
+        and isinstance(node.value, int | float)
+        and not isinstance(node.value, bool)
+        and node.value == 3
+    )
+
+
+def factor_assignments(body: list[ast.stmt]) -> list[tuple[str, ast.expr]]:
+    """Each ``NAME = 3`` (or ``NAME: T = 3``) in a module or class body, and
+    in the bodies of the classes it defines, as (name, the 3), in source
+    order."""
+    found: list[tuple[str, ast.expr]] = []
+    for statement in body:
+        if isinstance(statement, ast.ClassDef):
+            found += factor_assignments(statement.body)
+        elif (
+            isinstance(statement, ast.Assign)
+            and len(statement.targets) == 1
+            and isinstance(statement.targets[0], ast.Name)
+            and is_three(statement.value)
+        ):
+            found.append((statement.targets[0].id, statement.value))
+        elif (
+            isinstance(statement, ast.AnnAssign)
+            and isinstance(statement.target, ast.Name)
+            and statement.value is not None
+            and is_three(statement.value)
+        ):
+            found.append((statement.target.id, statement.value))
+    return found
+
+
+def source_lines(text: str) -> list[str]:
+    """``text``'s lines as tokenize and ast number them: split on newlines
+    only, so a U+2028, a form feed or another character ``str.splitlines``
+    also breaks on stays inside its line."""
+    return io.StringIO(text).readlines()
+
+
+def replaced(text: str, row: int, start: int, end: int) -> str:
+    """``text`` with characters ``start`` to ``end`` of line ``row`` (1-based)
+    replaced by ``MOVED_FACTOR``."""
+    lines = source_lines(text)
+    line = lines[row - 1]
+    lines[row - 1] = line[:start] + MOVED_FACTOR + line[end:]
+    return "".join(lines)
+
+
+def parses(text: str) -> bool:
+    """``text`` is a Python module ``ast`` can parse."""
+    try:
+        ast.parse(text)
+    except (SyntaxError, ValueError):
+        return False
+    return True
+
+
+def move_width(text: str) -> tuple[str, int] | None:
+    """``text`` with one default width moved off its formula, and the line
+    moved; None when there is no width to move.
+
+    The width is the first line whose comment is a skill-default label and
+    whose code multiplies by the number 3 (``2: 3 * H_L1_L3,  # skill
+    default: ...``, ``H * 3.0`` too); that 3 becomes ``MOVED_FACTOR``. With no
+    such line, the factor may be named: a labelled line multiplies by a name
+    (``2: REF_FACTOR * H,  # skill default: ...``) that a module- or
+    class-level assignment sets to 3 (``REF_FACTOR = 3``), and that
+    assignment's 3 becomes ``MOVED_FACTOR``, the first such assignment in the
+    file. Python's tokenizer finds the lines, so a 3, a name or a label inside
+    a string is never one."""
+    try:
+        tokens = list(tokenize.generate_tokens(io.StringIO(text).readline))
+        tree = ast.parse(text)
+    except (tokenize.TokenError, SyntaxError, ValueError):
+        return None
+    labelled = {
+        token.start[0]
+        for token in tokens
+        if token.type == tokenize.COMMENT and is_label(token.string)
+    }
+    factors: set[str] = set()
+    for index, token in enumerate(tokens):
+        if token.type not in (tokenize.NUMBER, tokenize.NAME):
+            continue
+        if token.start[0] not in labelled:
+            continue
+        neighbours = tokens[index - 1 : index] + tokens[index + 1 : index + 2]
+        if not any(
+            other.type == tokenize.OP and other.string == "*" for other in neighbours
+        ):
+            continue
+        if token.type == tokenize.NAME:
+            factors.add(token.string)
+            continue
+        try:
+            value = float(token.string.replace("_", ""))
+        except ValueError:
+            continue
+        if value == 3:
+            row, start = token.start
+            return replaced(text, row, start, token.end[1]), row
+    lines = source_lines(text)
+    for name, three in factor_assignments(tree.body):
+        if name not in factors or three.end_col_offset is None:
+            continue
+        # ast columns count UTF-8 bytes; the line is sliced in characters.
+        raw = lines[three.lineno - 1].encode("utf-8")
+        start = len(raw[: three.col_offset].decode("utf-8"))
+        end = len(raw[: three.end_col_offset].decode("utf-8"))
+        return replaced(text, three.lineno, start, end), three.lineno
+    return None
 
 
 @dataclass(frozen=True)
@@ -322,6 +465,45 @@ def check(output: Path, report_csv: Path, timeout: float) -> Verdict:
             )
         else:
             print("board.py replaced: the tests fail, as they should")
+        site = move_width(real_board)
+        if site is None:
+            verdict.problems.append(
+                "board.py has no line that multiplies by 3, or by a module- or "
+                "class-level name assigned 3, under a skill-default label, so the "
+                "check has no reference-plane width to move off 3 x its dielectric "
+                "height"
+            )
+        elif not parses(site[0]):
+            verdict.problems.append(
+                f"moving the default width on board.py line {site[1]} left a file "
+                "that does not parse, so the check cannot show that the tests "
+                "catch a moved width: a fault in mutation_check.py's move, not a "
+                "pass"
+            )
+        else:
+            moved_board, line = site
+            (project / "board.py").write_text(moved_board, encoding="utf-8")
+            off = against("width-off-formula", text)
+            (project / "board.py").write_text(real_board, encoding="utf-8")
+            change = f"board.py line {line}: 3 -> {MOVED_FACTOR}"
+            if off.code is None:
+                verdict.problems.append(late("with a default width moved"))
+            elif off.code in (1, 2):
+                print(
+                    f"a reference-plane width moved off its formula ({change}): "
+                    "the tests fail, as they should"
+                )
+            elif off.code == 0:
+                verdict.problems.append(
+                    "the tests pass with a reference-plane width in board.py moved "
+                    f"off 3 x its dielectric height ({change}): they do not test "
+                    "default widths against their formula"
+                )
+            else:
+                verdict.problems.append(
+                    f"pytest exited {off.code} with a default width moved "
+                    f"({change}):\n" + plain(tail(off.output))
+                )
         for number, (mutation, changed) in enumerate(variants, start=1):
             outcome = against(f"mutation-{number}", changed)
             values = ", ".join(

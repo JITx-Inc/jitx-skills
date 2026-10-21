@@ -69,4 +69,4 @@ Checks: check.py and check_labels.py lines verbatim; source-driven tests <N pass
 Verdict: complete | open items: <list>
 ```
 
-Derive the Verdict from the rows: a mismatch, an unsupported claim, or a skipped or unavailable check is an open item, and "complete" with a caveat is "open items". A thickness solved as the balancing term is an open question, and the Stackup row reads "not performed".
+Derive the Verdict from the rows: a mismatch, an unsupported claim, or a failed, skipped or unavailable check is an open item, and "complete" with a caveat is "open items". A thickness solved as the balancing term is an open question, and the Stackup row reads "not performed".

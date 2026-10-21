@@ -71,6 +71,12 @@ class Check:
 
 CHECKS: tuple[Check, ...] = (
     Check(
+        3,
+        "generic stackup in a substrate",
+        "jitx skill references/architectural-patterns.md section 7",
+        r"legitimate inline-subclass case|non-empty body = legitimate",
+    ),
+    Check(
         5,
         "routing layer units",
         "jitx.si RoutingStructure.Layer.velocity",
@@ -124,6 +130,12 @@ CHECKS: tuple[Check, ...] = (
         "Dk and Df fields",
         "jitx.stackup Dielectric fields",
         r"the Dk of a datasheet|the Df \(dissipation factor\)",
+    ),
+    Check(
+        18,
+        "fenced pour outline example",
+        "jitxexamples.patterns.fenced_pour_outline",
+        r"generated vias take the pour's net",
     ),
     Check(
         19,

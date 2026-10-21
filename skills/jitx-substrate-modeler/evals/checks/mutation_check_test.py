@@ -10,6 +10,7 @@ children are real.
 from __future__ import annotations
 
 import hashlib
+import io
 import os
 import re
 import shutil
@@ -244,6 +245,14 @@ def test_a_suite_of_copied_constants_fails_every_mutation() -> None:
             edit(SUITE, "import board\n", "import board\nimport fixtures_helper\n"),
             "FAIL  the tests do not pass against the report as given (pytest exit 2)",
         ),
+        (
+            edit(SUITE, "def test_reference_plane_width", "def _reference_plane_width"),
+            "FAIL  the tests pass with a reference-plane width in board.py moved off",
+        ),
+        (
+            edit(Path("board.py"), "3 * H_L1_L2", "0.240"),
+            "FAIL  board.py has no line that multiplies by 3, or by a module- or",
+        ),
     ],
     ids=[
         "a suite that reads its own copy of the report",
@@ -260,6 +269,8 @@ def test_a_suite_of_copied_constants_fails_every_mutation() -> None:
         "a suite whose failure message reads like a missing command",
         "a board.py that does not import",
         "a suite that imports a module that does not exist",
+        "a suite that never tests a default width against its formula",
+        "a board.py that writes its default width as a number",
     ],
 )
 def test_each_way_a_suite_cannot_show_it_reads_the_report_is_red(
@@ -282,10 +293,20 @@ def test_each_way_a_suite_cannot_show_it_reads_the_report_is_red(
 
 @pytest.mark.parametrize(
     "change",
-    [write("pytest.ini", "[pytest]\naddopts = -q\n"), clutter],
+    [
+        write("pytest.ini", "[pytest]\naddopts = -q\n"),
+        clutter,
+        edit(
+            Path("board.py"),
+            "SE50_L1_PLANE_L2_WIDTH = 3 * H_L1_L2",
+            "REF_FACTOR = 3  # skill default: 3x dielectric height\n"
+            "SE50_L1_PLANE_L2_WIDTH = REF_FACTOR * H_L1_L2",
+        ),
+    ],
     ids=[
         "a pytest.ini that adds -q",
         "a virtualenv, a git directory and a broken symlink",
+        "a board.py that names its 3x factor",
     ],
 )
 def test_each_way_of_writing_a_good_suite_passes(
@@ -372,3 +393,49 @@ def test_each_mutation_changes_only_its_own_cells(
         (mutation.section, expected_row, column, old, new)
         for column, old, new in mutation.cells
     )
+
+
+WIDTH_LABEL = "  # skill default: 3x dielectric height"
+
+
+@pytest.mark.parametrize(
+    ("board", "row", "moved"),
+    [
+        (
+            f'"""Widths for L1."""\nH = 0.08\nW = 3 * H{WIDTH_LABEL}\n',
+            3,
+            f"W = 3.5 * H{WIDTH_LABEL}\n",
+        ),
+        (
+            f'"""Widths for L1."""\nREF = 3\nW = REF * H{WIDTH_LABEL}\n',
+            2,
+            "REF = 3.5\n",
+        ),
+        (
+            f"É = 0.08; W = 3 * É{WIDTH_LABEL}\n",
+            1,
+            f"É = 0.08; W = 3.5 * É{WIDTH_LABEL}\n",
+        ),
+        (
+            f"HÉ = 0.08; REF = 3\nW = REF * HÉ{WIDTH_LABEL}\n",
+            1,
+            "HÉ = 0.08; REF = 3.5\n",
+        ),
+    ],
+    ids=[
+        "a U+2028 in a docstring before a labelled 3",
+        "a U+2028 in a docstring before a named factor",
+        "a non-ASCII name before a labelled 3",
+        "a non-ASCII name before a named factor",
+    ],
+)
+def test_move_width_changes_only_the_target_3(board: str, row: int, moved: str) -> None:
+    """The move lands on the line Python reads the 3 on, whatever characters
+    come before it, and changes only that 3."""
+    site = mutation_check.move_width(board)
+    assert site is not None
+    text, line = site
+    assert line == row
+    lines = io.StringIO(board).readlines()
+    lines[row - 1] = moved
+    assert text == "".join(lines)
