@@ -8,17 +8,30 @@ A grader runs in two processes, so it fails closed. The parent imports each
 candidate file in a child first (import_candidate.py, as grade_substrate.py
 does), then runs the grader script again as a child, which loads the
 candidate, prints ``PASS  <check>`` or ``FAIL  <check>: <reason>`` per check
-and, last, a line carrying a token only the parent and the child know. The
-parent prints the child's lines and one summary line, and passes only when
-the token line came and every check passed. A candidate that exits the child
-early, by ``sys.exit`` or ``os._exit``, or hangs it past the time limit, is a
-red. POSIX only: it uses process groups and POSIX signals.
+and, last, a ``DONE`` line carrying a token the parent passed it. The parent
+prints the child's lines and one summary line, and passes only when the
+token line came last, every check printed exactly one line, every check
+passed and the child exited 0.
+
+What this guards against is a candidate's accident, not its malice: a
+candidate that exits the child early (``sys.exit``, ``os._exit``, a crash or
+an exit handler), hangs it past the time limit, prints lines of its own or
+replaces ``sys.stdout`` is a red, since the child writes its check lines to
+a copy of its stdout taken before any candidate code runs. Code written to
+defeat the grader from inside the child (writing to that copy, or reading
+the token, which ``ps -E`` shows in the child's environment) is not covered.
+POSIX only: it uses process groups and POSIX signals.
 
 Everything the parent prints from the candidate's side (the child's lines, the
 tail of its stderr, the pre-flight's red) goes through ``scrub`` first. An
 eval harness reads some wording, such as Python's "No module named" or a
 shell's ": not found", as an environment problem and leaves the assertion out
 of scoring, so a candidate's own message carrying it would hide a red.
+
+Exit codes of the parent: 0 every check passed / 1 a red / 2 an environment
+problem, which only the pre-flight reports, in its own ``ERROR  `` line and
+Python's wording (a grader dependency or a library the candidate imports does
+not import).
 
 The Design and Board subclasses live here rather than in the grader scripts,
 because JITX treats a Design subclass defined in ``__main__`` as a design file
@@ -39,7 +52,7 @@ from types import ModuleType
 from typing import TypeVar
 
 from grade_substrate import run_child
-from import_candidate import describe
+from import_candidate import LIBRARY, NEEDS, describe, scrub
 from parent_watch import PARENT, watch_parent
 
 from jitx.board import Board
@@ -58,57 +71,17 @@ PREFLIGHT = Path(__file__).resolve().parent / "import_candidate.py"
 NONCE = "GRADE_CHECKS_NONCE"
 """The environment variable through which a parent hands its child a token."""
 
+ENVIRONMENT_EXIT = 2
+"""The parent's exit code for an environment problem."""
+
+_check_lines: list[int] = []
+"""In a grading child: the copy of stdout's descriptor that check lines go
+to, taken by ``child_nonce`` before any candidate code runs."""
+
 DONE = "DONE"
 """The child's last line, with the token: every check ran."""
 
 CHECK_LINE = re.compile(r"^(PASS|FAIL)  (\w+)(?::|$)")
-
-ENVIRONMENT_WORDING = [
-    r"No module named",
-    r'Import "[^"]+" could not be resolved \(reportMissingImports\)',
-    r"ImportError: cannot import name",
-    r'"[^"]+" is unknown import symbol',
-    r"command not found|: not found\b",
-    r"No such file or directory: '(?:[^']*/)?(?:python[0-9.]*|pyright|jitx)'",
-    r"coroutine '.*' was never awaited",
-    r"launcher exited .* before announcing itself",
-    r"Error occurred when attempting to open the user statistics file",
-    r"Connection refused|WebSocket|ws://.*refused",
-]
-"""Wording an eval harness reads, case-insensitively, as "the environment
-could not run this" rather than as a red. Mirrors the harness's list; a
-grader's red must match none of it."""
-
-PARAPHRASES = [
-    (r"No module named", "no module called"),
-    (
-        r"could not be resolved \(reportMissingImports\)",
-        "is unresolved (reportMissingImports)",
-    ),
-    (r"ImportError: cannot import name", "ImportError, cannot import name"),
-    (r"is unknown import symbol", "is an unknown symbol to import"),
-    (r"command not found", "command missing"),
-    (r": not found\b", ": missing"),
-    (r"No such file or directory: '", "no such file or folder: '"),
-    (r"was never awaited", "was not awaited"),
-    (r"before announcing itself", "before it announced itself"),
-    (
-        r"Error occurred when attempting to open the user statistics file",
-        "the user statistics file did not open",
-    ),
-    (r"Connection refused", "connection turned away"),
-    (r"WebSocket", "web socket"),
-    (r"ws://", "ws: //"),
-]
-"""Each phrase in ENVIRONMENT_WORDING, and a rewording that keeps its sense."""
-
-
-def scrub(text: str) -> str:
-    """``text`` with every phrase an eval harness would read as an
-    environment problem reworded, so a candidate's red stays a red."""
-    for pattern, paraphrase in PARAPHRASES:
-        text = re.sub(pattern, paraphrase, text, flags=re.IGNORECASE)
-    return text
 
 
 def load_module(file: Path) -> ModuleType:
@@ -233,12 +206,25 @@ def load_failure(error: BaseException) -> str:
 
 def child_nonce() -> str | None:
     """In a grading child: the token its parent passed, taken out of the
-    environment before any candidate code runs, and the parent watch started.
-    None in the parent."""
+    environment before any candidate code runs, the parent watch started and
+    a copy of stdout kept for the check lines. None in the parent."""
     token = os.environ.pop(NONCE, None)
     if token is not None:
         watch_parent()
+        _check_lines.append(os.dup(sys.stdout.fileno()))
     return token
+
+
+def say(line: str) -> None:
+    """In the grading child: write one check line to the stdout copy, after
+    whatever the candidate has printed so far, so a candidate that replaces
+    ``sys.stdout`` cannot rewrite it."""
+    for stream in (sys.__stdout__, sys.stdout):
+        if stream is not None:
+            stream.flush()
+    data = (line + "\n").encode()
+    while data:
+        data = data[os.write(_check_lines[0], data) :]
 
 
 def run(checks: list[Check], token: str) -> int:
@@ -250,20 +236,20 @@ def run(checks: list[Check], token: str) -> int:
             check()
         except Exception as error:  # noqa: BLE001 - any error is the candidate's red
             failed += 1
-            print(f"FAIL  {name}: {reason(error)}", flush=True)
+            say(f"FAIL  {name}: {reason(error)}")
         else:
-            print(f"PASS  {name}", flush=True)
-    print(f"{DONE} {token}", flush=True)
+            say(f"PASS  {name}")
+    say(f"{DONE} {token}")
     return 1 if failed else 0
 
 
-def outcomes(lines: list[str]) -> dict[str, str]:
-    """Check name -> ``PASS`` or ``FAIL``, from per-check lines."""
-    found: dict[str, str] = {}
+def outcomes(lines: list[str]) -> dict[str, list[str]]:
+    """Check name -> each ``PASS`` or ``FAIL`` printed for it, in order."""
+    found: dict[str, list[str]] = {}
     for line in lines:
         match = CHECK_LINE.match(line)
         if match:
-            found.setdefault(match.group(2), match.group(1))
+            found.setdefault(match.group(2), []).append(match.group(1))
     return found
 
 
@@ -280,10 +266,18 @@ def preflight(files: list[Path], timeout: float, env: dict[str, str]) -> int | N
                 f"importing {file.name} hangs or takes too long"
             )
             return 1
-        if done.returncode == 3:
+        said = done.stdout.strip().splitlines()
+        if done.returncode == 3 and said and said[-1].startswith((NEEDS, LIBRARY)):
             # An environment problem, kept in Python's own wording.
-            print(done.stdout.strip())
-            return 2
+            print(said[-1])
+            return ENVIRONMENT_EXIT
+        if done.returncode == 3:
+            print(
+                f"FAIL  the import pre-flight exited 3 on {file.name} without one "
+                "of its own environment lines; a candidate that exits 3 is a red:\n"
+                + scrub("\n".join(said[-3:]))
+            )
+            return 1
         if done.returncode != 0:
             verdict = done.stdout.strip() or (
                 f"FAIL  the import pre-flight gave no verdict on {file.name} (exit "
@@ -303,11 +297,12 @@ def grade_in_child(
     timeout: float,
 ) -> int:
     """In the parent: pre-flight the candidate's files, then run ``script``
-    with ``argv`` as the grading child, and pass only when the child printed a
-    ``PASS`` line for every one of ``names`` and then the line that says every
-    check ran. A child that exits early, by ``sys.exit`` or ``os._exit`` from
-    the candidate's code or by a crash, or that runs past ``timeout`` seconds,
-    is a red, and nothing it started keeps running."""
+    with ``argv`` as the grading child, and pass only when the child printed
+    one ``PASS`` line for each of ``names``, then the line that says every
+    check ran and nothing after it, and exited 0. A child that exits early,
+    by ``sys.exit`` or ``os._exit`` from the candidate's code or by a crash,
+    or that runs past ``timeout`` seconds, is a red, and nothing it started
+    in its process group keeps running."""
     watched = {**os.environ, PARENT: str(os.getpid())}
     stopped = preflight(files, timeout, watched)
     if stopped is not None:
@@ -322,10 +317,11 @@ def grade_in_child(
         print(f"FAIL  grading ran past {timeout:g} s on {graded}")
         return 1
     finished = f"{DONE} {token}"
-    lines = [scrub(line) for line in done.stdout.splitlines() if line != finished]
+    printed = done.stdout.splitlines()
+    lines = [scrub(line) for line in printed if line != finished]
     if lines:
         print("\n".join(lines))
-    if finished not in done.stdout.splitlines():
+    if finished not in printed:
         tail = [scrub(line) for line in done.stderr.strip().splitlines()[-3:]]
         print(
             f"FAIL  grading stopped before every check ran on {graded} (the "
@@ -333,10 +329,20 @@ def grade_in_child(
             + "".join(f"\n      {line}" for line in tail)
         )
         return 1
+    after = len(printed) - 1 - printed.index(finished)
     results = outcomes(lines)
-    failed = [name for name in names if results.get(name) != "PASS"]
-    if failed or done.returncode != 0:
-        print(f"FAIL  {len(failed)} of {len(names)} checks failed on {graded}")
+    repeated = sorted(name for name, said in results.items() if len(said) > 1)
+    failed = [name for name in names if set(results.get(name, [])) != {"PASS"}]
+    problems = [f"{len(failed)} of {len(names)} checks failed"] if failed else []
+    if repeated:
+        problems.append(f"more than one line for {', '.join(repeated)}")
+    if after:
+        problems.append(f"{after} line(s) after the line that ends the grading")
+    if done.returncode != 0 and not failed:
+        # A child whose checks all passed exits 0; anything else ended it.
+        problems.append(f"every check passed, but the grader exited {done.returncode}")
+    if problems:
+        print(f"FAIL  {'; '.join(problems)} on {graded}")
         return 1
     print(f"PASS  all {len(names)} checks passed on {graded}")
     return 0

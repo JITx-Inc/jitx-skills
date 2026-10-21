@@ -18,8 +18,9 @@ copy of the report in another scratch directory. It runs seven times:
 - against a copy at another path with the same values and one more NOTES
   line: every test must pass, so a suite that checks the report's bytes or
   path rather than its values is a red;
-- with board.py replaced by a module that raises at import: the tests must
-  fail, so a suite that never tests board.py is a red;
+- with board.py replaced by a module that imports cleanly and defines
+  nothing: the tests must fail, so a suite that never tests board.py, or
+  only imports it, is a red;
 - against four copies, each with one value changed (see ``MUTATIONS``): a
   dielectric thickness, a via pad, a fab rule and an impedance width. Each
   run must fail (pytest exit 1, or 2 for errors at collection).
@@ -74,8 +75,10 @@ RELOCATED_NOTE = (
 """The line added to the report's last section, NOTES, for the relocated
 copy."""
 
-BROKEN_BOARD = 'raise RuntimeError("mutation_check.py replaced board.py")\n'
-"""board.py for the run whose tests must fail."""
+BROKEN_BOARD = '"""mutation_check.py replaced board.py with this empty module."""\n'
+"""board.py for the run whose tests must fail. It imports and defines
+nothing, so a suite that tests board.py's values fails on it, and a suite
+that only imports board.py passes and is a red."""
 
 
 @dataclass(frozen=True)
@@ -295,8 +298,8 @@ def check(output: Path, report_csv: Path, timeout: float) -> Verdict:
             verdict.problems.append(late("with board.py replaced"))
         elif broken.code == 0:
             verdict.problems.append(
-                "the tests pass with board.py replaced by a module that raises at "
-                "import: they do not test board.py"
+                "the tests pass with board.py replaced by a module that defines "
+                "nothing: they do not test board.py's values"
             )
         else:
             print("board.py replaced: the tests fail, as they should")

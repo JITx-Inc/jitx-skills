@@ -36,6 +36,7 @@ from pathlib import Path
 
 import fabcsv
 import grade_substrate
+import import_candidate
 import pytest
 
 CHECKS = Path(__file__).resolve().parent
@@ -194,14 +195,36 @@ def kit_source(necks: str = KIT_NECK_STRUCTURES) -> str:
     the drum-side Rz in each foil class's docstring. Each edit applies only
     where the installed kit board still has the text it edits, so a kit board
     already brought to these rules is taken as it is; the neck structures are
-    added only when ``NeckDown`` entries were taken out."""
+    added only when ``NeckDown`` entries were taken out. A test that asks for
+    other ``necks`` than the default skips on a kit board with no
+    ``NeckDown`` entries, since its structures could not take their place and
+    the test would grade the kit's own."""
     assert KIT_BOARD is not None
     source = KIT_BOARD.read_text(encoding="utf-8")
     had_neck_downs = "NeckDown" in source
+    if not had_neck_downs and necks != KIT_NECK_STRUCTURES:
+        pytest.skip(
+            "the installed kit board has no NeckDown entries for these neck "
+            "structures to replace, so this test would grade the kit's own"
+        )
     for old, new in (*KIT_NECK_DOWNS, *KIT_DRUM_RZ):
         source = source.replace(old, new)
     assert "NeckDown" not in source, "the kit's NeckDown code has changed shape"
     return add_to_substrate(necks)(source) if had_neck_downs else source
+
+
+@needs_kit
+def test_kit_source_skips_other_necks_on_a_kit_board_without_neck_downs(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Once the kit board ships without ``NeckDown``, a test that asks for
+    neck structures of its own skips rather than grading the kit's."""
+    retargeted = tmp_path / "board.py"
+    retargeted.write_text(kit_source(), encoding="utf-8")
+    monkeypatch.setattr(sys.modules[__name__], "KIT_BOARD", retargeted)
+    assert kit_source() == retargeted.read_text(encoding="utf-8")
+    with pytest.raises(pytest.skip.Exception, match="no NeckDown entries"):
+        kit_source(KIT_NECK_PER_REGION)
 
 
 def renamed_kit_source() -> str:
@@ -1085,6 +1108,42 @@ def test_a_board_that_hangs_is_red_and_leaves_nothing_running(
     assert left == [], f"processes {left} were still running"
 
 
+ESCAPES_THE_GROUP = """
+import os, sys, time
+
+if os.fork() == 0:
+    os.setsid()
+    with open(sys.argv[1], "w") as record:
+        record.write(str(os.getpid()))
+    time.sleep(60)
+    os._exit(0)
+os._exit(0)
+"""
+"""Exits at once, leaving a process in a session of its own that holds the
+child's output open."""
+
+
+def test_a_child_whose_group_cannot_be_signalled_is_timed_out(
+    tmp_path: Path,
+) -> None:
+    """The wait runs to the timeout, since the escaped process holds the
+    output open, and the child's group then holds only the unreaped child,
+    which macOS refuses to signal (PermissionError). run_child kills what it
+    can and reports the timeout rather than raising."""
+    script = tmp_path / "escape.py"
+    script.write_text(ESCAPES_THE_GROUP, encoding="utf-8")
+    record = tmp_path / "escaped.pid"
+    try:
+        done = grade_substrate.run_child(
+            [sys.executable, str(script), str(record)], timeout=2
+        )
+    finally:
+        if record.is_file():
+            survivors([int(record.read_text(encoding="utf-8"))])
+    assert done is None
+    assert record.is_file(), "the escaping process never started"
+
+
 SIGNALLED = """
 import os, subprocess, sys, time
 from pathlib import Path
@@ -1152,6 +1211,24 @@ def test_candidate_that_does_not_import_is_red(
     assert code == 1
     assert "FAIL  candidate does not import: jitx.dielectric (at board.py:1)" in out
     assert "No module named" not in out
+
+
+@needs_jitx
+def test_a_candidate_message_in_environment_wording_is_still_red(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """A board that raises at import with words an eval harness takes for a
+    missing environment is a red, and its message is reworded so the harness
+    does not read it as one."""
+    message = "sh: 1: pyright: not found; No module named 'jitx.unitz'"
+    board = write(tmp_path, f"raise RuntimeError({message!r})\n" + MINIMAL_SUBSTRATE)
+    code, out = grade(capsys, board, CASE_CSV)
+    assert code == 1
+    assert (
+        "FAIL  candidate does not import: RuntimeError: sh: 1: pyright: missing" in out
+    )
+    for wording in import_candidate.ENVIRONMENT_WORDING:
+        assert not re.search(wording, out, re.IGNORECASE), (wording, out)
 
 
 @needs_jitx

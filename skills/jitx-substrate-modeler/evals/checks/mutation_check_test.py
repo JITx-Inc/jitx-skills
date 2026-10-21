@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -20,6 +21,7 @@ from pathlib import Path
 import fabcsv
 import mutation_check
 import pytest
+from import_candidate import ENVIRONMENT_WORDING
 
 CHECKS = Path(__file__).resolve().parent
 SCRIPT = CHECKS / "mutation_check.py"
@@ -30,7 +32,8 @@ SUITE = Path("tests") / "test_board.py"
 
 PYTHON_IMPORT_WORDING = ("No module named", "cannot import name")
 """Python's own words for a failed import. Eval harnesses read them as an
-environment problem, so a red must not carry them."""
+environment problem, so a red must not carry them, nor any other wording in
+ENVIRONMENT_WORDING."""
 
 
 def run(output: Path, *flags: str) -> subprocess.CompletedProcess[str]:
@@ -61,6 +64,14 @@ def suite(text: str) -> Change:
 
     def apply(output: Path) -> None:
         (output / SUITE).write_text(text, encoding="utf-8")
+
+    return apply
+
+
+def append(name: Path, text: str) -> Change:
+    def apply(output: Path) -> None:
+        with (output / name).open("a", encoding="utf-8") as file:
+            file.write(text)
 
     return apply
 
@@ -114,6 +125,35 @@ def test_the_report_holds_the_modelled_values() -> None:
 """
 """Reads each changed value from the report, and never tests board.py."""
 
+REPORT_BODY_HASH = hashlib.sha256(
+    CASE_CSV.read_text(encoding="utf-8").split("SECTION,NOTES")[0].encode()
+).hexdigest()
+
+SNAPSHOT_SUITE = f"""import hashlib
+import os
+from pathlib import Path
+
+import board  # noqa: F401
+
+
+def test_report_is_the_one_modelled() -> None:
+    text = Path(os.environ["FAB_CSV"]).read_text(encoding="utf-8")
+    body = text.split("SECTION,NOTES")[0]
+    assert hashlib.sha256(body.encode()).hexdigest() == "{REPORT_BODY_HASH}"
+"""
+"""Imports board.py and checks the report's values against a hash of them,
+so it passes the relocated copy, fails every changed one, and never reads a
+value from board.py."""
+
+NOT_FOUND_TEST = """
+
+def test_se99() -> None:
+    found = [r for r in rows("IMPEDANCE") if r["Structure_ID"] == "SE-99"]
+    assert found, "IMPEDANCE SE-99: not found"
+"""
+"""A test that fails on the report, with a message in a shell's wording for
+a missing command."""
+
 
 def test_a_suite_that_reads_the_report_passes() -> None:
     done = run(CASE_A / "reads_report")
@@ -158,7 +198,15 @@ def test_a_suite_of_copied_constants_fails_every_mutation() -> None:
         ),
         (
             suite(REPORT_ONLY_SUITE),
-            "FAIL  the tests pass with board.py replaced by a module that raises",
+            "FAIL  the tests pass with board.py replaced by a module that defines",
+        ),
+        (
+            suite(SNAPSHOT_SUITE),
+            "FAIL  the tests pass with board.py replaced by a module that defines",
+        ),
+        (
+            append(SUITE, NOT_FOUND_TEST),
+            "FAIL  the tests do not pass against the report as given (pytest exit 1)",
         ),
         (
             write("board.py", "import substrate_helpers\n"),
@@ -177,6 +225,8 @@ def test_a_suite_of_copied_constants_fails_every_mutation() -> None:
         "a suite that checks the report's hash",
         "a suite that checks the report's path",
         "a suite that never tests board.py",
+        "a suite that imports board.py and checks a hash of the report's values",
+        "a suite whose failure message reads like a missing command",
         "a board.py that does not import",
         "a suite that imports a module that does not exist",
     ],
@@ -192,6 +242,11 @@ def test_each_way_a_suite_cannot_show_it_reads_the_report_is_red(
     assert reason in done.stdout
     for words in PYTHON_IMPORT_WORDING:
         assert words.lower() not in done.stdout.lower(), done.stdout
+    for wording in ENVIRONMENT_WORDING:
+        assert not re.search(wording, done.stdout + done.stderr, re.IGNORECASE), (
+            wording,
+            done.stdout,
+        )
 
 
 @pytest.mark.parametrize(

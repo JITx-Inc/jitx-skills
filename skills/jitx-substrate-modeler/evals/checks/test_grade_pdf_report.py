@@ -22,6 +22,7 @@ from pathlib import Path
 
 import fabcsv
 import pytest
+from import_candidate import ENVIRONMENT_WORDING
 
 CHECKS = Path(__file__).resolve().parent
 GRADER = CHECKS / "grade_pdf_report.py"
@@ -39,6 +40,7 @@ REPORT_CHECKS = {
     "stackup_rows",
     "inner_copper",
     "core_from_total",
+    "thickness_totals",
     "materials",
     "capability_not_attributes",
     "capability_documented",
@@ -253,7 +255,7 @@ REPORT_ROWS: list[tuple[str, Edits, set[str], bool]] = [
                 "    pp1 = Prepreg(thickness=0.1000)\n",
             )
         ],
-        {"stackup_rows", "core_from_total"},
+        {"stackup_rows", "core_from_total", "thickness_totals"},
         False,
     ),
     (
@@ -280,7 +282,22 @@ REPORT_ROWS: list[tuple[str, Edits, set[str], bool]] = [
     (
         "core_not_from_the_total",
         [(THICK, "    thick = ThickCore(thickness=1.1000)\n")],
-        {"core_from_total"},
+        {"core_from_total", "thickness_totals"},
+        False,
+    ),
+    (
+        "core_from_the_total_at_the_report_precision",
+        [
+            (INNER_CU, "INNER_CU = 1.38 * 0.0254"),
+            (THICK, "    thick = ThickCore(thickness=1.1359)\n"),
+        ],
+        set(),
+        False,
+    ),
+    (
+        "core_rounded_past_the_report_precision",
+        [(THICK, "    thick = ThickCore(thickness=1.136)\n")],
+        {"core_from_total", "thickness_totals"},
         False,
     ),
     (
@@ -507,6 +524,106 @@ def test_a_candidate_that_ends_the_grading_early_is_red(
     assert "PASS  all" not in stdout, stdout
 
 
+IN_GRADING = 'if __name__ != "_candidate_preflight":\n'
+"""Guards a tail so it runs in the grading child only, not the pre-flight."""
+
+FAKED_PASSES = (
+    "    for _name in "
+    + repr(sorted(REPORT_CHECKS))
+    + ':\n        print(f"PASS  {_name}", flush=True)\n'
+)
+EXIT_0_AT_EXIT = "    _atexit.register(lambda: (_sys.stdout.flush(), _os._exit(0)))\n"
+CORE_DK = "    dielectric_coefficient = 3.60\n    loss_tangent = 0.0080"
+CORE_DK_WRONG = [(CORE_DK, CORE_DK.replace("3.60", "3.70"))]
+"""Fails materials, so a tail that hides a red has one to hide."""
+HEADER = "import atexit as _atexit, os as _os, re as _re, sys as _sys\n"
+
+# (id, board.py edits, tail appended to board.py, line the parent prints)
+TAMPER_ROWS: list[tuple[str, Edits, str, str]] = [
+    (
+        "passes_printed_before_the_checks_then_exit_0",
+        CORE_DK_WRONG,
+        HEADER + IN_GRADING + FAKED_PASSES + EXIT_0_AT_EXIT,
+        "more than one line for",
+    ),
+    (
+        "stdout_rewritten_fail_to_pass_then_exit_0",
+        CORE_DK_WRONG,
+        HEADER
+        + IN_GRADING
+        + "    class _Rewrite:\n"
+        + "        def __init__(self, inner):\n"
+        + "            self.inner = inner\n"
+        + "        def write(self, text):\n"
+        + '            return self.inner.write(_re.sub(r"^FAIL  (\\w+):.*$", '
+        + 'r"PASS  \\1", text, flags=_re.M))\n'
+        + "        def flush(self):\n"
+        + "            self.inner.flush()\n"
+        + "        def __getattr__(self, name):\n"
+        + "            return getattr(self.inner, name)\n"
+        + "    _sys.stdout = _Rewrite(_sys.stdout)\n"
+        + EXIT_0_AT_EXIT,
+        "FAIL  1 of 11 checks failed",
+    ),
+    (
+        "token_read_from_the_environment",
+        [],
+        HEADER
+        + IN_GRADING
+        + FAKED_PASSES
+        + "    print(f\"DONE {_os.environ.get('GRADE_CHECKS_NONCE')}\", flush=True)\n"
+        + "    _os._exit(0)\n",
+        "FAIL  grading stopped before every check ran",
+    ),
+    (
+        "exits_1_after_every_check_passed",
+        [],
+        HEADER + IN_GRADING + "    _atexit.register(_os._exit, 1)\n",
+        "every check passed, but the grader exited 1",
+    ),
+    (
+        "prints_after_the_last_line",
+        [],
+        HEADER + IN_GRADING + '    _atexit.register(print, "at exit")\n',
+        "1 line(s) after the line that ends the grading",
+    ),
+    (
+        "preflight_exits_3_in_environment_wording",
+        [],
+        HEADER
+        + 'if __name__ == "_candidate_preflight":\n'
+        + "    print(\"No module named 'jitx_rf_helpers'\", flush=True)\n"
+        + "    _os._exit(3)\n",
+        "FAIL  the import pre-flight exited 3 on board.py without one of its own",
+    ),
+]
+"""Candidates that try to end the grading looking green, or looking like an
+environment problem. Several are the kind of code the grader does not claim
+to stop (see check_runner.py); each of these is a red all the same."""
+
+
+@needs_jitx
+@pytest.mark.parametrize(
+    ("edits", "tail", "line"),
+    [
+        pytest.param(edits, tail, line, id=name)
+        for name, edits, tail, line in TAMPER_ROWS
+    ],
+)
+def test_a_candidate_that_tampers_with_the_grading_is_red(
+    tmp_path: Path, edits: Edits, tail: str, line: str
+) -> None:
+    board = edited(tmp_path, BOARD, edits)
+    with board.open("a", encoding="utf-8") as file:
+        file.write("\n\n" + tail)
+    code, stdout = grade("report", board, TWIN)
+    assert code == 1, stdout
+    assert line in stdout, stdout
+    assert "PASS  all" not in stdout, stdout
+    for wording in ENVIRONMENT_WORDING:
+        assert not re.search(wording, stdout, re.IGNORECASE), (wording, stdout)
+
+
 SYMMETRIC_CORE = "    core = FR4(thickness=1.065)\n"
 SYMMETRIC_STACKUP = (
     "class FourLayer(Symmetric):\n"
@@ -597,7 +714,7 @@ def test_symmetric_checks_fail_only_on_their_own_defect(
             ["report", BOARD, TWIN, "--timeout", "60"],
             0,
             "out",
-            "PASS  all 10 checks passed",
+            "PASS  all 11 checks passed",
             id="timeout_after_the_arguments",
         ),
         pytest.param(
@@ -663,6 +780,27 @@ SHOWN_TRAPS = [
 ]
 """(start of the PDF table row, value, why): each trap value is looked for on
 its own row, since the same figure appears elsewhere in the PDF."""
+
+STATED_PROSE = [
+    (
+        "the mil value controls.",
+        "the Units row declaring mil controlling over the mm cells",
+    ),
+    (
+        "C 2026-10-06 UV-1 capture pad enlarged from 9.0 mil to 10.0 mil",
+        "the Rev C row enlarging UV-1's pad",
+    ),
+    (
+        "* Aspect ratio = depth / finished hole.",
+        "the footnote that gives the aspect-ratio depth basis",
+    ),
+]
+"""(words, why): prose traps the PDF states in a sentence, not a table cell,
+looked for with whitespace collapsed and ligatures spelled out."""
+
+LIGATURES = str.maketrans({"ﬀ": "ff", "ﬁ": "fi", "ﬂ": "fl"})
+"""pdftotext writes the ff, fi and fl ligatures the PDF's font uses as one
+character each."""
 
 
 def pdf_text() -> str:
@@ -751,3 +889,6 @@ def test_pdf_states_every_graded_value_and_hides_the_trap_values() -> None:
         if len(lines) != 1 or not re.search(token, lines[0]):
             absent.append(f"{value}: {why}")
     assert not absent, absent
+    prose = " ".join(text.translate(LIGATURES).split())
+    unstated = [why for words, why in STATED_PROSE if words not in prose]
+    assert not unstated, unstated

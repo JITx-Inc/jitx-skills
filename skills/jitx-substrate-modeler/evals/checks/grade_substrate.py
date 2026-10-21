@@ -13,8 +13,9 @@ does not import, or an import that fails inside a library rather than in the
 candidate's own files, is an ``ERROR  `` line in Python's own wording: an
 environment problem, not the candidate's. A stage that runs past --timeout
 seconds (default 300), such as a board that hangs at import, is a red, and
-nothing it started keeps running. POSIX only: it uses process groups and POSIX
-signals.
+nothing it started in the stage's process group keeps running (a process that
+leaves the group, by ``setsid``, is beyond reach). POSIX only: it uses process
+groups and POSIX signals.
 
 Exit codes: 0 graded and green / 1 red, or not graded / 2 usage error (a
 missing or blank argument, or a CSV that is not a file).
@@ -49,11 +50,14 @@ TIMEOUT_S = 300.0
 
 
 def kill_group(child: subprocess.Popen[str]) -> None:
-    """Kill the child's whole process group, then reap the child. Without a
-    group of its own, the child alone is killed."""
+    """Kill the child's whole process group, then reap the child. When the
+    group cannot be signalled, the child alone is killed: it has no group of
+    its own, or (on macOS, which refuses to signal a group that holds only
+    an unreaped child) the child has exited while a process it started, gone
+    to a session of its own, holds its output open."""
     try:
         os.killpg(child.pid, signal.SIGKILL)
-    except ProcessLookupError:
+    except (ProcessLookupError, PermissionError):
         child.kill()
     child.wait()
     for stream in (child.stdout, child.stderr):

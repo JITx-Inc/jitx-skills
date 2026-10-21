@@ -77,12 +77,18 @@ def missing_tool(cmd: str) -> str | None:
 def test_case_command_passes_on_the_known_good_files(
     tmp_path: Path, case: str, cmd: str
 ) -> None:
+    for name, source in STAGED[case].items():
+        shutil.copyfile(source, tmp_path / name)
+    run_in_repo(cmd, tmp_path)
+
+
+def run_in_repo(cmd: str, output: Path) -> None:
+    """Run ``cmd`` as the case writes it, with ``<output>`` as ``output``,
+    and fail with its output unless it exits 0."""
     why = missing_tool(cmd)
     if why is not None:
         pytest.skip(why)
-    for name, source in STAGED[case].items():
-        shutil.copyfile(source, tmp_path / name)
-    command = cmd.replace("<output>", shlex.quote(str(tmp_path)))
+    command = cmd.replace("<output>", shlex.quote(str(output)))
     env = {
         **os.environ,
         "PATH": os.pathsep.join([str(Path(sys.executable).parent), os.environ["PATH"]]),
@@ -97,3 +103,48 @@ def test_case_command_passes_on_the_known_good_files(
         check=False,
     )
     assert run.returncode == 0, f"{command}\n{run.stdout}{run.stderr}"
+
+
+CASE_B_DERIVED_CORE = """THICK_CORE = FINISHED - (
+    2 * 0.0381 + 6 * INNER_CU + 2 * 0.0762 + 2 * 0.1270 + 2 * 0.1016
+)"""
+"""The known-good case B board's core, solved from the finished total exactly."""
+
+CASE_B_ROUNDED = (
+    ("INNER_CU = 0.0350", "INNER_CU = 1.38 * 0.0254"),
+    (CASE_B_DERIVED_CORE, "THICK_CORE = 1.1359"),
+)
+"""1 oz inner copper as 1.38 mil, and the core solved from the total and
+written to the report's 4 decimal places: correct, though its stack sums to
+the stated totals only at the report's precision."""
+
+
+@pytest.mark.parametrize(
+    "cmd",
+    [
+        pytest.param(cmd, id=f"stackup-from-pdf-report-{index}")
+        for index, cmd in (
+            (index, assertion["cmd"])
+            for index, assertion in enumerate(
+                json.loads(
+                    (CASES / "stackup-from-pdf-report.json").read_text(encoding="utf-8")
+                )["assertions"]
+            )
+            if assertion["check"] == "deterministic"
+        )
+        if "grade_" in cmd
+    ],
+)
+def test_case_b_grades_a_core_written_at_the_report_precision(
+    tmp_path: Path, cmd: str
+) -> None:
+    """Case B grades the stack's totals at the report's precision, so its
+    graders pass a board whose core is the 4-place literal 1.1359 mm."""
+    source = STAGED["stackup-from-pdf-report.json"]["board.py"].read_text(
+        encoding="utf-8"
+    )
+    for old, new in CASE_B_ROUNDED:
+        assert source.count(old) == 1, old
+        source = source.replace(old, new)
+    (tmp_path / "board.py").write_text(source, encoding="utf-8")
+    run_in_repo(cmd, tmp_path)

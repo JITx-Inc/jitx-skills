@@ -12,11 +12,14 @@ reason, without it.
 from __future__ import annotations
 
 import importlib.util
+import os
 import re
 import subprocess
 import sys
 from pathlib import Path
+from types import ModuleType
 
+import import_candidate
 import pytest
 
 CHECKS = Path(__file__).resolve().parent
@@ -482,22 +485,30 @@ environment problem."""
             "FAIL  candidate does not import: RuntimeError: pyright: missing",
             id="preflight_red",
         ),
+        pytest.param(
+            ends_in_init(
+                "        import os, sys\n\n"
+                f"        sys.stderr.write({ENVIRONMENT_MESSAGE!r})\n"
+                "        sys.stderr.flush()\n"
+                "        os._exit(0)\n"
+            ),
+            "sh: 1: pyright: missing;",
+            id="written_to_stderr_while_grading",
+        ),
     ],
 )
 def test_a_red_never_reads_as_an_environment_problem(
     tmp_path: Path, design: Edits, line: str
 ) -> None:
-    import check_runner
-
     code, stdout = grade(tmp_path, [], design)
     assert code == 1, stdout
     assert line in stdout, stdout
-    for wording in check_runner.ENVIRONMENT_WORDING:
+    for wording in import_candidate.ENVIRONMENT_WORDING:
         assert not re.search(wording, stdout, re.IGNORECASE), (wording, stdout)
 
 
 @needs_jitx
-def test_a_candidate_cannot_end_the_grading_as_an_environment_error(
+def test_a_candidate_that_prints_an_error_line_and_exits_2_is_red(
     tmp_path: Path,
 ) -> None:
     design = ends_in_init(
@@ -510,7 +521,6 @@ def test_a_candidate_cannot_end_the_grading_as_an_environment_error(
     assert "FAIL  grading stopped before every check ran" in stdout, stdout
 
 
-@needs_jitx
 @pytest.mark.parametrize(
     "text",
     [
@@ -531,15 +541,46 @@ def test_a_candidate_cannot_end_the_grading_as_an_environment_error(
     ],
 )
 def test_scrub_rewords_every_environment_phrase(text: str) -> None:
-    import check_runner
-
     assert any(
         re.search(wording, text, re.IGNORECASE)
-        for wording in check_runner.ENVIRONMENT_WORDING
+        for wording in import_candidate.ENVIRONMENT_WORDING
     ), text
-    scrubbed = check_runner.scrub(text)
-    for wording in check_runner.ENVIRONMENT_WORDING:
+    scrubbed = import_candidate.scrub(text)
+    for wording in import_candidate.ENVIRONMENT_WORDING:
         assert not re.search(wording, scrubbed, re.IGNORECASE), (wording, scrubbed)
+
+
+RUN_CASES = "RUN_CASES_PY"
+"""The environment variable naming the eval harness's run_cases.py, for the
+test that compares its ENV_PATTERNS with ENVIRONMENT_WORDING."""
+
+
+def harness() -> ModuleType:
+    """The eval harness's run_cases module: from the file RUN_CASES_PY names,
+    or importable as run_cases. Skips, with the reason, when it is neither."""
+    named = os.environ.get(RUN_CASES, "").strip()
+    if named:
+        spec = importlib.util.spec_from_file_location("run_cases", named)
+    elif importlib.util.find_spec("run_cases") is not None:
+        spec = importlib.util.find_spec("run_cases")
+    else:
+        spec = None
+    if spec is None or spec.loader is None:
+        pytest.skip(
+            "run_cases.py, the eval harness, is not importable; set "
+            f"{RUN_CASES} to its path to compare its ENV_PATTERNS"
+        )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_environment_wording_is_the_harness_list() -> None:
+    """scrub rewords what ENVIRONMENT_WORDING lists, so the list must be the
+    harness's: a pattern added there and not here would let a red through
+    as an environment problem."""
+    patterns = [pattern for pattern, _ in harness().ENV_PATTERNS]
+    assert import_candidate.ENVIRONMENT_WORDING == patterns
 
 
 @needs_jitx

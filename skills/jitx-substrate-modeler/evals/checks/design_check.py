@@ -50,6 +50,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from grade_substrate import run_child, stop
+from import_candidate import scrub
 from parent_watch import PARENT
 
 TIMEOUT_S = 300.0
@@ -81,9 +82,10 @@ class Verdict:
 
 
 def plain(text: str) -> str:
-    """``text`` without Python's own words for a failed import. Eval
-    harnesses read those words as an environment problem, so a red that
-    quotes a runner's failed import must not carry them."""
+    """``text`` without Python's own words for a failed import, and without
+    any other wording an eval harness reads as an environment problem
+    (``import_candidate.scrub``), so a red that quotes a runner's output
+    stays a red."""
     for pattern, words in (
         (r"cannot import name ('[^']*') from ('[^']*')", r"\2 has no name \1"),
         (r"cannot import name\b", "no importable name"),
@@ -91,7 +93,7 @@ def plain(text: str) -> str:
         (r"No module named\b", "module not found"),
     ):
         text = re.sub(pattern, words, text, flags=re.IGNORECASE)
-    return text
+    return scrub(text)
 
 
 def tail(text: str, lines: int = 15) -> str:
@@ -248,7 +250,10 @@ def list_designs(
 def check(output: Path, timeout: float) -> Verdict:
     """Every environment problem and red; both empty when the output passes."""
     verdict = Verdict()
-    error = missing("design_check.py", ("jitx", "jitx.proxy"))
+    error = missing(
+        "design_check.py",
+        ("jitx", "jitx.proxy", "jitx._instantiation", "jitx.sample"),
+    )
     if error is not None:
         verdict.errors.append(error)
         return verdict

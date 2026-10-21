@@ -42,9 +42,11 @@ A via's ends are compared as a pair, so UV-2 may be coded from L6 to L5 or
 from L5 to L6. The grading runs in a child process; see check_runner.py.
 
 Exit codes: 0 graded and every check passed / 1 a check failed, a candidate
-file does not import, the grading stopped before every check ran, or a stage
-ran past --timeout seconds (default 120) / 2 a usage error, a grader
-dependency that does not import, or an import that fails inside a library.
+file does not import, the grading did not end as check_runner.py requires
+(every check ran once, nothing printed after, exit 0), or a stage ran past
+--timeout seconds (default 120) / 2 a usage error, or an environment problem:
+a grader dependency that does not import, or an import that fails inside a
+library.
 """
 
 from __future__ import annotations

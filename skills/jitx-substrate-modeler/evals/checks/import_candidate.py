@@ -19,6 +19,12 @@ Exit codes:
      a grader dependency (jitx with jitx.proxy, jitxlib.physics, pytest) does
      not import, or an import fails inside a library rather than in the
      candidate's own files
+
+A red goes through ``scrub``, so a candidate's own message cannot carry the
+wording an eval harness reads as an environment problem. ``scrub`` and the
+wording it rewords live here, with no jitx import, so that every grader and
+check that quotes a candidate can use them, including the ones that must
+report a missing jitx themselves.
 """
 
 from __future__ import annotations
@@ -38,9 +44,63 @@ from urllib.request import url2pathname
 
 from parent_watch import watch_parent
 
+ENVIRONMENT_WORDING = [
+    r"No module named",
+    r'Import "[^"]+" could not be resolved \(reportMissingImports\)',
+    r"ImportError: cannot import name",
+    r'"[^"]+" is unknown import symbol',
+    r"command not found|: not found\b",
+    r"No such file or directory: '(?:[^']*/)?(?:python[0-9.]*|pyright|jitx)'",
+    r"coroutine '.*' was never awaited",
+    r"launcher exited .* before announcing itself",
+    r"Error occurred when attempting to open the user statistics file",
+    r"Connection refused|WebSocket|ws://.*refused",
+]
+"""Wording an eval harness reads, case-insensitively, as "the environment
+could not run this" rather than as a red: a copy of the patterns in the
+harness's ENV_PATTERNS (run_cases.py), which a test compares when it can
+import run_cases. A red must match none of it."""
+
+PARAPHRASES = [
+    (r"No module named", "no module called"),
+    (
+        r"could not be resolved \(reportMissingImports\)",
+        "is unresolved (reportMissingImports)",
+    ),
+    (r"ImportError: cannot import name", "ImportError, cannot import name"),
+    (r"is unknown import symbol", "is an unknown symbol to import"),
+    (r"command not found", "command missing"),
+    (r": not found\b", ": missing"),
+    (r"No such file or directory: '", "no such file or folder: '"),
+    (r"was never awaited", "was not awaited"),
+    (r"before announcing itself", "before it announced itself"),
+    (
+        r"Error occurred when attempting to open the user statistics file",
+        "the user statistics file did not open",
+    ),
+    (r"Connection refused", "connection turned away"),
+    (r"WebSocket", "web socket"),
+    (r"ws://", "ws: //"),
+]
+"""Each phrase in ENVIRONMENT_WORDING, and a rewording that keeps its sense."""
+
+
+def scrub(text: str) -> str:
+    """``text`` with every phrase an eval harness would read as an
+    environment problem reworded, so a candidate's red stays a red."""
+    for pattern, paraphrase in PARAPHRASES:
+        text = re.sub(pattern, paraphrase, text, flags=re.IGNORECASE)
+    return text
+
+
 NEEDED = ("jitx", "jitx.proxy", "jitxlib.physics", "pytest")
 """What the grader itself imports. No candidate can fix these. Older jitx
 releases have no ``jitx.proxy``; one of those is reported here, not as a red."""
+
+NEEDS = "ERROR  the grader needs"
+LIBRARY = "ERROR  a library the candidate imports does not import:"
+"""How this script's two environment lines start (exit 3). A caller that
+reads exit 3 can tell them from a candidate that exits 3 on its own."""
 
 
 def missing_dependency() -> str | None:
@@ -50,7 +110,7 @@ def missing_dependency() -> str | None:
         try:
             importlib.import_module(name)
         except Exception as error:  # noqa: BLE001 - whatever it raises, not the candidate's
-            return f"ERROR  the grader needs {name}: {type(error).__name__}: {error}"
+            return f"{NEEDS} {name}: {type(error).__name__}: {error}"
     return None
 
 
@@ -220,10 +280,7 @@ def main(argv: list[str]) -> int:
         theirs = frame is not None and not in_candidate(frame.filename, own, library)
         if isinstance(error, ImportError) and theirs:
             where = f" (in {frame.filename}:{frame.lineno})" if frame else ""
-            print(
-                "ERROR  a library the candidate imports does not import: "
-                f"{type(error).__name__}: {error}{where}"
-            )
+            print(f"{LIBRARY} {type(error).__name__}: {error}{where}")
             return 3
         own = [
             line.lineno
@@ -232,7 +289,7 @@ def main(argv: list[str]) -> int:
             and Path(line.filename).resolve() == board
         ]
         where = f" (at {board.name}:{own[-1]})" if own else ""
-        print(f"FAIL  candidate does not import: {describe(error)}{where}")
+        print(f"FAIL  candidate does not import: {scrub(describe(error))}{where}")
         return 1
     return 0
 
