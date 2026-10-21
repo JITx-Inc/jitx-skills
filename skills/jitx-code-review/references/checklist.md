@@ -123,7 +123,7 @@ Patterns where the substrate / routing-structure / framework API is being misuse
 
 **Severity:** WARNING. Functional code; structural code-smell.
 
-**Rule source:** `jitx-substrate-modeler/SKILL.md` (the coplanar-features-in-routing-structure callout).
+**Rule source:** [architectural patterns 4b](../../jitx/references/architectural-patterns.md#sub-example-4b-routing-structure-per-layer-geometry) in the `jitx` skill.
 
 ### `generic-substrate-design-leak`
 
@@ -133,15 +133,13 @@ Patterns where the substrate / routing-structure / framework API is being misuse
 
 **Severity:** WARNING / CRITICAL depending on how invasive. The substrate is supposed to be reusable; design-specific concepts in it block reuse.
 
-**Rule source:** `jitx-substrate-modeler/SKILL.md` (the anti-string-hacking callout).
-
 ### `symmetric-mirroring-confusion`
 
 **Look for:** Layer names inside a `Symmetric` stackup that bake in a unique layer position (e.g., `L1_Ground1` — `Symmetric` auto-mirrors so the bottom conductor gets the same name). Or core dielectric that's *not* mirrored while everything else is.
 
 **Severity:** WARNING.
 
-**Rule source:** `jitx-substrate-modeler/SKILL.md` (Stackup section).
+**Rule source:** the `jitx.stackup.Symmetric` docstring in jitx (the last listed layer becomes the centre dielectric) for the core; no written rule covers the layer names.
 
 ### `tag-proliferation`
 
@@ -151,7 +149,7 @@ Patterns where the substrate / routing-structure / framework API is being misuse
 
 **Severity:** WARNING (architecture smell; functional code). NOTE when it's only two tags.
 
-**Rule source:** `jitx-substrate-modeler/SKILL.md` ("Tag inheritance & proliferation").
+**Rule source:** `jitx-layout-constraints`, [Sharp edges (verified on real boards)](../../jitx-layout-constraints/SKILL.md#sharp-edges-verified-on-real-boards), the flat-tag-proliferation bullet.
 
 ## Code-craft patterns
 
