@@ -48,7 +48,7 @@
       "check": "judge"
     },
     {
-      "text": "the completion summary contains the filled Substrate completeness check block, every row with its evidence, and its Verdict follows from those rows: a Checks row showing a nonzero exit or a failure (check.py, check_labels.py, the source-driven tests or the build) under \"Verdict: complete\" fails this assertion, and so does a Verdict \"open items: <list>\" whose list leaves out a check that the Checks row shows as failed or with a nonzero exit",
+      "text": "the completion summary contains the filled Substrate completeness check block, every row with its evidence, and its Verdict follows from those rows: a Checks row showing a check (check.py, check_labels.py, the source-driven tests or the build) with a nonzero exit, failed, skipped or not run under \"Verdict: complete\" fails this assertion, and so does a Verdict \"open items: <list>\" whose list leaves out a check that the Checks row shows with a nonzero exit, failed, skipped or not run",
       "check": "judge"
     }
   ],

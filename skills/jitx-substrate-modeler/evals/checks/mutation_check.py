@@ -26,8 +26,9 @@ copy of the report in another scratch directory. It runs eight times:
   3 x its dielectric height (see ``move_width``): the tests must fail (pytest
   exit 1, or 2), so a suite that never tests a default width against its
   formula is a red. A board.py with no width to move (no line that
-  multiplies by 3, or by a name assigned 3, under a skill-default label)
-  is a red;
+  multiplies by 3, or by a module- or class-level name assigned 3, under
+  a skill-default label) is a red, and so is a move that leaves board.py
+  unparseable;
 - against four copies, each with one value changed (see ``MUTATIONS``): a
   dielectric thickness, a via pad, a fab rule and an impedance width. Each
   run must fail (pytest exit 1, or 2 for errors at collection).
@@ -158,13 +159,29 @@ def factor_assignments(body: list[ast.stmt]) -> list[tuple[str, ast.expr]]:
     return found
 
 
+def source_lines(text: str) -> list[str]:
+    """``text``'s lines as tokenize and ast number them: split on newlines
+    only, so a U+2028, a form feed or another character ``str.splitlines``
+    also breaks on stays inside its line."""
+    return io.StringIO(text).readlines()
+
+
 def replaced(text: str, row: int, start: int, end: int) -> str:
     """``text`` with characters ``start`` to ``end`` of line ``row`` (1-based)
     replaced by ``MOVED_FACTOR``."""
-    lines = text.splitlines(keepends=True)
+    lines = source_lines(text)
     line = lines[row - 1]
     lines[row - 1] = line[:start] + MOVED_FACTOR + line[end:]
     return "".join(lines)
+
+
+def parses(text: str) -> bool:
+    """``text`` is a Python module ``ast`` can parse."""
+    try:
+        ast.parse(text)
+    except (SyntaxError, ValueError):
+        return False
+    return True
 
 
 def move_width(text: str) -> tuple[str, int] | None:
@@ -211,7 +228,7 @@ def move_width(text: str) -> tuple[str, int] | None:
         if value == 3:
             row, start = token.start
             return replaced(text, row, start, token.end[1]), row
-    lines = text.splitlines(keepends=True)
+    lines = source_lines(text)
     for name, three in factor_assignments(tree.body):
         if name not in factors or three.end_col_offset is None:
             continue
@@ -451,9 +468,17 @@ def check(output: Path, report_csv: Path, timeout: float) -> Verdict:
         site = move_width(real_board)
         if site is None:
             verdict.problems.append(
-                "board.py has no line that multiplies by 3, or by a name assigned "
-                "3, under a skill-default label, so the check has no "
-                "reference-plane width to move off 3 x its dielectric height"
+                "board.py has no line that multiplies by 3, or by a module- or "
+                "class-level name assigned 3, under a skill-default label, so the "
+                "check has no reference-plane width to move off 3 x its dielectric "
+                "height"
+            )
+        elif not parses(site[0]):
+            verdict.problems.append(
+                f"moving the default width on board.py line {site[1]} left a file "
+                "that does not parse, so the check cannot show that the tests "
+                "catch a moved width: a fault in mutation_check.py's move, not a "
+                "pass"
             )
         else:
             moved_board, line = site
