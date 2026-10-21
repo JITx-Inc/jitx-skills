@@ -1,0 +1,22 @@
+{"type": "system", "subtype": "init", "tools": ["Read", "Write", "Edit", "Glob", "Grep", "Bash"], "mcp_servers": [], "plugins": []}
+{"type": "assistant", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "toolu_01", "name": "Read", "input": {"file_path": "/work/venv/lib/python3.12/site-packages/jitx/si.py"}}]}}
+{"type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "toolu_01", "content": "", "is_error": false}]}}
+{"type": "assistant", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "toolu_02", "name": "Grep", "input": {"pattern": "initial_offset", "path": "/work/venv/lib/python3.12/site-packages/jitx/constraints.py", "output_mode": "content"}}]}}
+{"type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "toolu_02", "content": "", "is_error": false}]}}
+{"type": "assistant", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "toolu_03", "name": "Glob", "input": {"pattern": "stackup.py", "path": "/work/venv/lib/python3.12/site-packages/jitx"}}]}}
+not a json line
+[1, 2]
+{"type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "toolu_03", "content": "", "is_error": false}]}}
+{"type": "assistant", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "toolu_04", "name": "Bash", "input": {"command": "/work/venv/bin/python -c \"import jitx.via; help(jitx.via.Via)\""}}]}}
+{"type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "toolu_04", "content": "", "is_error": false}]}}
+{"type": "assistant", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "toolu_05", "name": "Read", "input": {"file_path": "/work/venv/lib/python3.12/site-packages/jitx/inspect.py", "offset": 190, "limit": 60}}]}}
+{"type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "toolu_05", "content": "", "is_error": false}]}}
+{"type": "assistant", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "toolu_06", "name": "Read", "input": {"file_path": "/work/venv/lib/python3.12/site-packages/jitx/test.py"}}]}}
+{"type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "toolu_06", "content": "", "is_error": false}]}}
+{"type": "assistant", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "toolu_07", "name": "Grep", "input": {"pattern": "Substrate-shaped", "path": "/work/skills/jitx/references", "glob": "architectural-patterns.md"}}]}}
+{"type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "toolu_07", "content": "", "is_error": false}]}}
+{"type": "assistant", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "toolu_08", "name": "Bash", "input": {"command": "grep -n 'def phase_velocity' /work/venv/lib/python3.12/site-packages/jitxlib/physics/__init__.py"}}]}}
+{"type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "toolu_08", "content": "", "is_error": false}]}}
+{"type": "assistant", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "toolu_09", "name": "Read", "input": {"file_path": "/work/venv/lib/python3.12/site-packages/jitxexamples/patterns/fenced_pour_outline.py"}}]}}
+{"type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "toolu_09", "content": "", "is_error": false}]}}
+{"type": "result", "subtype": "success", "is_error": false, "permission_denials": []}
