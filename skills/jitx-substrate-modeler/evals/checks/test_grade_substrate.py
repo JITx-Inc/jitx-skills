@@ -1,8 +1,11 @@
 """grade_substrate.py and substrate_grader.py grade what they are given, and nothing else.
 
-The JS1 kit board, imported from an installed jitxexamples, passes against a
-verbatim copy of the kit's own report, and so does a copy with every class and
-structure renamed, so nothing is found by name. Copies with one wrong value
+The JS1 kit board, read from an installed jitxexamples and brought to this
+case's rules (each neck region a routing structure of its own, no
+``NeckDown``, drum-side Rz in the foil docstrings; see ``kit_source``),
+passes against a verbatim copy of the kit's own report, and so does a copy
+with every class and structure renamed, so nothing is found by name. The kit
+board as it ships, with its neck-downs, fails. Copies with one wrong value
 fail in the test that owns that value. Temporary copies of the kit report and
 the kit board, edited together, pass, so the grader reads what a report says
 rather than what the JS1 report happens to say. The same kit board fails
@@ -65,11 +68,146 @@ needs_jitx = pytest.mark.skipif(
 )
 
 
-def renamed_kit_source() -> str:
-    """The kit substrate's source with every class, routing-structure attribute
-    and structure ``name=`` replaced by a meaningless one."""
+KIT_NECK_DOWNS = (
+    (
+        "    neck = (\n"
+        "        RoutingStructure.NeckDown(\n"
+        "            trace_width=neck_width,\n"
+        "            clearance=neck_clearance,\n"
+        "        )\n"
+        "        if neck_width is not None or neck_clearance is not None\n"
+        "        else None\n"
+        "    )\n",
+        "",
+    ),
+    ("            neck_down=neck,\n", ""),
+    (
+        "            neck_down=DifferentialRoutingStructure.NeckDown(\n"
+        "                trace_width=neck_width,\n"
+        "                pair_spacing=neck_gap,\n"
+        "                clearance=neck_clearance,\n"
+        "            ),\n",
+        "",
+    ),
+    (
+        "    neck_width: float,\n    neck_gap: float,\n    neck_clearance: float,\n",
+        "    neck_width: float | None = None,\n"
+        "    neck_gap: float | None = None,\n"
+        "    neck_clearance: float | None = None,\n",
+    ),
+)
+"""Edits that take every ``NeckDown`` out of the kit's two layer helpers."""
+
+
+def kit_neck_structure(attribute: str, name: str) -> str:
+    """A single-ended structure carrying the JS1 single-ended neck geometry:
+    the report's Neck_* width and clearance on the microstrip and stripline
+    layers. SE-DEFAULT, SE-40 and SE-50 quote the same neck geometry, so one
+    such structure can serve all three. The report quotes no single impedance,
+    velocity or loss for a neck: the impedance is the stripline rows'
+    Neck_modelled_Z_ohm, and velocity and loss are SE-DEFAULT's, as a runner
+    would label them. The grader checks none of the three."""
+    return f"""    {attribute} = RoutingStructure(
+        name="{name}",
+        impedance=58.35 * ohm,
+        layers={{
+            **_se_layers(
+                MICROSTRIP_LAYERS,
+                width=0.1500,
+                clearance=0.1500,
+                eps_eff=2.4316,
+                insertion_loss=0.00907,
+            ),
+            **_se_layers(
+                STRIPLINE_LAYERS,
+                width=0.0762,
+                clearance=0.0762,
+                eps_eff=2.9600,
+                insertion_loss=0.01367,
+            ),
+        }},
+    )
+"""
+
+
+KIT_DIFF_NECK = """    Neck_DIFF_100 = DifferentialRoutingStructure(
+        name="neck region (DIFF-100)",
+        impedance=106.54 * ohm,
+        layers={
+            **_diff_layers(
+                MICROSTRIP_LAYERS,
+                width=0.1000,
+                pair_gap=0.0750,
+                clearance=0.2000,
+                eps_eff=2.4010,
+                insertion_loss=0.01082,
+            ),
+            **_diff_layers(
+                STRIPLINE_LAYERS,
+                width=0.0635,
+                pair_gap=0.0635,
+                clearance=0.1270,
+                eps_eff=2.9600,
+                insertion_loss=0.01579,
+            ),
+        },
+    )
+"""
+"""The JS1 DIFF-100 neck region as a differential structure of its own."""
+
+KIT_SHARED_NECK = kit_neck_structure(
+    "Neck_SE", "neck region (SE-DEFAULT, SE-40, SE-50)"
+)
+"""One structure for the three single-ended neck regions, whose geometry is
+the same."""
+
+KIT_NECK_STRUCTURES = KIT_SHARED_NECK + KIT_DIFF_NECK
+"""The JS1 neck regions as structures of their own: one shared single-ended
+structure and one differential. The DIFF-100 impedance is its stripline
+row's Neck_modelled_Z_ohm."""
+
+KIT_NECK_PER_REGION = (
+    "".join(
+        kit_neck_structure(f"Neck_{sid.replace('-', '_')}", f"neck region ({sid})")
+        for sid in ("SE-DEFAULT", "SE-40", "SE-50")
+    )
+    + KIT_DIFF_NECK
+)
+"""The same neck regions with a single-ended structure for each region."""
+
+KIT_DRUM_RZ = (
+    (
+        "Rz matte 2.0 um -> roughness 0.0020 mm.",
+        "Rz matte 2.0 um, drum 0.7 um -> roughness 0.0020 mm.",
+    ),
+    (
+        "Rz matte 6.0 um -> roughness 0.0060 mm.",
+        "Rz matte 6.0 um, drum 3.5 um -> roughness 0.0060 mm.",
+    ),
+)
+"""Docstring edits that add the report's drum-side Rz to each kit foil class."""
+
+
+def kit_source(necks: str = KIT_NECK_STRUCTURES) -> str:
+    """The kit board brought to this case's rules: each neck region on a
+    routing structure of its own (``necks``), no ``NeckDown`` anywhere, and
+    the drum-side Rz in each foil class's docstring. Each edit applies only
+    where the installed kit board still has the text it edits, so a kit board
+    already brought to these rules is taken as it is; the neck structures are
+    added only when ``NeckDown`` entries were taken out."""
     assert KIT_BOARD is not None
     source = KIT_BOARD.read_text(encoding="utf-8")
+    had_neck_downs = "NeckDown" in source
+    for old, new in (*KIT_NECK_DOWNS, *KIT_DRUM_RZ):
+        source = source.replace(old, new)
+    assert "NeckDown" not in source, "the kit's NeckDown code has changed shape"
+    return add_to_substrate(necks)(source) if had_neck_downs else source
+
+
+def renamed_kit_source() -> str:
+    """:func:`kit_source` with every class, routing-structure attribute and
+    structure ``name=`` replaced by a meaningless one."""
+    source = kit_source()
     names = re.findall(r"^\s*class (\w+)\(", source, re.MULTILINE)
     names += re.findall(
         r"^    (\w+) = (?:Differential)?RoutingStructure\(", source, re.MULTILINE
@@ -111,11 +249,41 @@ def write(tmp_path: Path, source: str) -> Path:
 
 
 @needs_kit
-def test_kit_board_passes_its_own_report(capsys: pytest.CaptureFixture[str]) -> None:
-    assert KIT_BOARD is not None
-    code, out = grade(capsys, KIT_BOARD, KIT_CSV)
+def test_kit_board_passes_its_own_report(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    code, out = grade(capsys, write(tmp_path, kit_source()), KIT_CSV)
     assert code == 0, out[-3000:]
     assert "PASS  the grader graded" in out
+
+
+@needs_kit
+def test_kit_board_with_its_neck_downs_fails(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The kit board as it ships models its neck regions as ``NeckDown``
+    entries on the controlled structures, which the grader refuses."""
+    assert KIT_BOARD is not None
+    if "NeckDown" not in KIT_BOARD.read_text(encoding="utf-8"):
+        pytest.skip("the installed kit board no longer uses NeckDown")
+    code, out = grade(capsys, KIT_BOARD, KIT_CSV)
+    assert code == 1, out[-3000:]
+    for owner in (
+        "TestNeckRegions::test_no_neck_down_in_the_file",
+        "TestNeckRegions::test_no_structure_carries_a_neck_down",
+        "TestNeckRegions::test_each_neck_region_has_a_structure_of_its_own",
+    ):
+        assert re.search(rf"FAILED.*{owner}", out), owner
+
+
+@needs_kit
+def test_kit_board_with_a_neck_structure_per_region_passes(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """Regions with the same neck geometry may share a structure or each
+    have one of their own."""
+    code, out = grade(capsys, write(tmp_path, kit_source(KIT_NECK_PER_REGION)), KIT_CSV)
+    assert code == 0, out[-3000:]
 
 
 @needs_kit
@@ -261,6 +429,63 @@ STANDARD_STRUCTURE = """    standard = RoutingStructure(
             ),
             "TestStackup::test_material_properties_match_csv",
         ),
+        (
+            # The scalar holds matte Rz only; the drum side is then lost.
+            replace_once(", drum 3.5 um -> roughness", " -> roughness"),
+            "TestStackup::test_material_properties_match_csv",
+        ),
+        (
+            # The shared single-ended neck structure at the line width.
+            sub_once(
+                r'(?s)(name="neck region \(SE[^"]*\)".*?MICROSTRIP_LAYERS,'
+                r"\n\s+width=)0\.1500",
+                r"\g<1>0.3179",
+            ),
+            "TestNeckRegions::test_each_neck_region_has_a_structure_of_its_own",
+        ),
+        (
+            # The shared single-ended neck structure with the stripline neck
+            # clearance of the line.
+            sub_once(
+                r'(?s)(name="neck region \(SE[^"]*\)".*?STRIPLINE_LAYERS,'
+                r"\n\s+width=0\.0762,\n\s+clearance=)0\.0762",
+                r"\g<1>0.1752",
+            ),
+            "TestNeckRegions::test_each_neck_region_has_a_structure_of_its_own",
+        ),
+        (
+            # The shared single-ended neck structure on the microstrip layers only.
+            sub_once(
+                r'(?s)(name="neck region \(SE[^"]*\)".*?\),\n)'
+                r"            \*\*_se_layers\(\n                STRIPLINE_LAYERS,.*?\),\n",
+                r"\g<1>",
+            ),
+            "TestNeckRegions::test_each_neck_region_has_a_structure_of_its_own",
+        ),
+        (
+            # DIFF-100's neck region with the stripline neck gap of the pair.
+            replace_once(
+                "width=0.0635,\n                pair_gap=0.0635,",
+                "width=0.0635,\n                pair_gap=0.0762,",
+            ),
+            "TestNeckRegions::test_each_neck_region_has_a_structure_of_its_own",
+        ),
+        (
+            # The single-ended neck structure left out.
+            sub_once(
+                r"(?ms)^    \w+ = RoutingStructure\(\n        "
+                r'name="neck region \(SE[^"]*\)".*?^    \)\n',
+                "",
+            ),
+            "TestNeckRegions::test_each_neck_region_has_a_structure_of_its_own",
+        ),
+        (
+            # A NeckDown built and never attached is still a NeckDown.
+            add_to_substrate(
+                "    spare = RoutingStructure.NeckDown(trace_width=0.1500)\n"
+            ),
+            "TestNeckRegions::test_no_neck_down_in_the_file",
+        ),
     ],
     ids=[
         "one wrong hole",
@@ -277,6 +502,13 @@ STANDARD_STRUCTURE = """    standard = RoutingStructure(
         "L1 named with no layer id",
         "L1 named with a letter before its id",
         "roughness in neither scalar nor docstring",
+        "the roughness scalar set and drum Rz dropped",
+        "a neck region at the line width",
+        "a neck region with the line clearance",
+        "a neck structure missing a geometry's layers",
+        "a differential neck region with the wrong gap",
+        "the single-ended neck regions with no structure",
+        "an unattached NeckDown",
     ],
 )
 def test_renamed_kit_board_with_one_wrong_value_fails(
@@ -1302,8 +1534,9 @@ def test_a_broken_install_record_does_not_change_a_grade(
     monkeypatch.setenv("PYTHONPATH", str(site))
     # "file:outside" would name tmp_path/outside, where the red board's file is.
     monkeypatch.chdir(tmp_path)
-    assert KIT_BOARD is not None
-    code, out = grade(capsys, KIT_BOARD, KIT_CSV)
+    kit = tmp_path / "kit"
+    kit.mkdir()
+    code, out = grade(capsys, write(kit, kit_source()), KIT_CSV)
     assert code == 0, out[-3000:]
     board = outside_root_board(tmp_path)
     code, out = grade(capsys, board, CASE_CSV)
