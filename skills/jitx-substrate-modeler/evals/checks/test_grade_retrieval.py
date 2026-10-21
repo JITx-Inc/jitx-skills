@@ -10,7 +10,6 @@ question, in the prompt's order.
 
 from __future__ import annotations
 
-import importlib.util
 import json
 import re
 import subprocess
@@ -676,15 +675,8 @@ def test_the_reads_assertion_names_the_logged_questions() -> None:
     assert named == READ_CHECKED
 
 
-needs_jitx = pytest.mark.skipif(
-    importlib.util.find_spec("jitx") is None,
-    reason="jitx is not importable; check_runner.py needs it for its wording list",
-)
-
-
-@needs_jitx
 def test_no_output_reads_as_an_environment_problem(tmp_path: Path) -> None:
-    import check_runner
+    import import_candidate
 
     harmful = "ModuleNotFoundError: No module named jitx; command not found"
     reads = transcript(
@@ -706,6 +698,8 @@ def test_no_output_reads_as_an_environment_problem(tmp_path: Path) -> None:
     for run in runs:
         for line in (run.stdout + run.stderr).splitlines():
             hits = [
-                p for p in check_runner.ENVIRONMENT_WORDING if re.search(p, line, re.I)
+                p
+                for p in import_candidate.ENVIRONMENT_WORDING
+                if re.search(p, line, re.I)
             ]
             assert not hits, line

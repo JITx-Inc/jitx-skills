@@ -42,6 +42,9 @@ STAGED: dict[str, dict[str, Path]] = {
         "board.py": TESTDATA / "case_c" / "board.py",
         "design.py": TESTDATA / "case_c" / "design.py",
     },
+    "substrate-api-retrieval.json": {
+        "transcript.jsonl": TESTDATA / "case_e" / "transcript_reads_all.jsonl"
+    },
 }
 """Case file -> the known-good file to stage under each name the case uses."""
 
@@ -85,12 +88,15 @@ def test_case_command_passes_on_the_known_good_files(
 
 
 def run_in_repo(cmd: str, output: Path, code: int = 0) -> str:
-    """Run ``cmd`` as the case writes it, with ``<output>`` as ``output``;
+    """Run ``cmd`` as the case writes it, with ``<output>`` as ``output`` and
+    ``<transcript>`` as ``output/transcript.jsonl``;
     its output, after failing unless it exits ``code``."""
     why = missing_tool(cmd)
     if why is not None:
         pytest.skip(why)
-    command = cmd.replace("<output>", shlex.quote(str(output)))
+    command = cmd.replace("<output>", shlex.quote(str(output))).replace(
+        "<transcript>", shlex.quote(str(output / "transcript.jsonl"))
+    )
     env = {
         **os.environ,
         "PATH": os.pathsep.join([str(Path(sys.executable).parent), os.environ["PATH"]]),
