@@ -2,7 +2,7 @@
   "name": "symmetric-4-layer-no-report",
   "prompt": "model this as a symmetric 4-layer FR-4 board, no report",
   "inputs": {},
-  "notes": "For whoever reads the grader's output, not for the runner. Whoever launches the runner stages the skill without its evals/ directory, so the runner never sees the graders or these notes. The no-report variant of stackup-from-pdf-report, as its own file because the eval harness reads one case per file. There is no source document, so the graded points are structural (a Symmetric stackup listed down to its centre dielectric, 4 copper layers, a substrate that translates on a 50 x 50 mm board) and the values are left to the judges. The commands run from the repository root. The launcher reads runner_artifacts into the runner prompt verbatim, after the prompt. grade_pdf_report.py prints an ERROR line in Python's wording on an environment problem (this interpreter lacks a grader dependency, or a library the candidate imports does not import) and exits 2; the eval harness reads an environment problem from that wording, not from the exit code. Judges get <output>/board.py and <output>/COMPLETION.md, each as --artifact. The grader's self-tests run with `python -m pytest -q skills/jitx-substrate-modeler` from the repository root.",
+  "notes": "For whoever reads the judges' output, not for the runner. Whoever launches the runner stages the skill without its evals/ directory, so the runner never sees these notes. The no-report variant of stackup-from-pdf-report, as its own file because the eval harness reads one case per file. There is no source document, so the graded points are structural (a Symmetric stackup listed down to its centre dielectric, 4 copper layers) and the values are left to the judges. Judges get <output>/board.py and <output>/COMPLETION.md, each as --artifact. The commands run from the repository root. The launcher reads runner_artifacts into the runner prompt verbatim, after the prompt. Nothing in this case translates or builds the output, so the eval contract's build hard fail is judged from the runner's own Checks row in COMPLETION.md, and a design that fails to translate is seen only by a judge reading it. The label check's self-tests (scripts/test_check_labels.py) run with `python -m pytest -q skills/jitx-substrate-modeler` from the repository root.",
   "runner_models": [
     "sonnet"
   ],
@@ -21,14 +21,13 @@
       "cmd": "python3 -m pyright --pythonpath \"$(command -v python3)\" <output>/board.py"
     },
     {
-      "text": "the stackup is a Symmetric whose last listed layer is a dielectric, it has 4 copper layers, and the substrate translates",
-      "check": "deterministic",
-      "cmd": "python3 skills/jitx-substrate-modeler/evals/checks/grade_pdf_report.py symmetric <output>/board.py"
-    },
-    {
       "text": "ruff format leaves every labeled derivation in board.py whole, on the line with its label, and no label sits on a bracket whose entries carry no label of their own (the judges read the unformatted file)",
       "check": "deterministic",
       "cmd": "python3 skills/jitx-substrate-modeler/scripts/check_labels.py <output>/board.py"
+    },
+    {
+      "text": "the stackup is a Symmetric whose last listed layer is a dielectric, and the mirrored stack has 4 copper layers",
+      "check": "judge"
     },
     {
       "text": "no value is presented as if a source backed it: FR-4's Dk and Df and their frequency, the thicknesses, the fab rules and anything else are either asked about or labeled at their call site as defaults, and listed under Provenance as open items",

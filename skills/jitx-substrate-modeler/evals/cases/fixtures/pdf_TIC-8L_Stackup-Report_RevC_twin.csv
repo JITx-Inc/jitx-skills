@@ -1,6 +1,6 @@
 SECTION,DOCUMENT
 Field,Value,Unit,Notes
-Document type,Impedance-Controlled Stackup Report,,Grader-side twin of the case's PDF report; see NOTES
+Document type,Impedance-Controlled Stackup Report,,Judge-side twin of the case's PDF report; see NOTES
 Fabricator,Tamsworth Interconnect Co.,,Fictional fabricator - see NOTES
 Quote number,TIC-Q-4471,,
 Revision,C,,Supersedes Rev B - see REVISION_HISTORY
@@ -105,7 +105,7 @@ Minimum dielectric between adjacent copper layers,2.50,0.0635,,No JITX field - q
 
 SECTION,NOTES
 Note
-"Grader-side twin of evals/cases/fixtures/pdf_TIC-8L_Stackup-Report_RevC.pdf, in the fab-report SECTION layout so the substrate grader can read it. A runner never sees this file. Where the PDF states a value in mil only, this twin holds its mm conversion (x 0.0254). Where the PDF states no value, this twin holds the one value the PDF backs: the thick core's thickness that balances the stated finished thickness, and 0.0350 mm for 1 oz inner copper, the figure the substrate-modeler skill gives. The PDF's L4-L5 prepreg mm cell reads 0.1000; this twin holds 0.1016, the 4.00 mil the PDF declares controlling."
+"Judge-side twin of evals/cases/fixtures/pdf_TIC-8L_Stackup-Report_RevC.pdf, in the fab-report SECTION layout. A runner never sees this file. Where the PDF states a value in mil only, this twin holds its mm conversion (x 0.0254). Where the PDF states no value, this twin holds the one value the PDF backs: the thick core's thickness that balances the stated finished thickness, and 0.0350 mm for 1 oz inner copper, the figure the substrate-modeler skill gives. The PDF's L4-L5 prepreg mm cell reads 0.1000; this twin holds 0.1016, the 4.00 mil the PDF declares controlling."
 "This is a synthetic example document. Tamsworth Interconnect Co. is a fictional fabricator, and Corvel Coatings, Ashgrove Laminates and Brightwell Foil, with every product named here, are fictional too. The Dk, Df and roughness figures are illustrative and describe no real material."
 "Layer numbering is 1-based from the top (L1 = top copper, L8 = bottom copper). Dielectric and soldermask layers are not numbered."
 "L2 is voided under every L1 controlled route, so L1's controlled lines reference L3 across both build-up plies."
