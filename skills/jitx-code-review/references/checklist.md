@@ -123,7 +123,7 @@ Patterns where the substrate / routing-structure / framework API is being misuse
 
 **Severity:** WARNING. Functional code; structural code-smell.
 
-**Rule source:** the `jitx.si.RoutingStructure.Layer.geometry` docstring in jitx.
+**Rule source:** [architectural patterns 4b](../../jitx/references/architectural-patterns.md#sub-example-4b-routing-structure-per-layer-geometry) in the `jitx` skill.
 
 ### `generic-substrate-design-leak`
 
@@ -133,15 +133,13 @@ Patterns where the substrate / routing-structure / framework API is being misuse
 
 **Severity:** WARNING / CRITICAL depending on how invasive. The substrate is supposed to be reusable; design-specific concepts in it block reuse.
 
-**Rule source:** [architectural patterns 4a](../../jitx/references/architectural-patterns.md#sub-example-4a-substrate-shaped-tables) in the `jitx` skill.
-
 ### `symmetric-mirroring-confusion`
 
 **Look for:** Layer names inside a `Symmetric` stackup that bake in a unique layer position (e.g., `L1_Ground1` — `Symmetric` auto-mirrors so the bottom conductor gets the same name). Or core dielectric that's *not* mirrored while everything else is.
 
 **Severity:** WARNING.
 
-**Rule source:** the `jitx.stackup.Symmetric` docstring in jitx.
+**Rule source:** the `jitx.stackup.Symmetric` docstring in jitx (the last listed layer becomes the centre dielectric) for the core; no written rule covers the layer names.
 
 ### `tag-proliferation`
 
