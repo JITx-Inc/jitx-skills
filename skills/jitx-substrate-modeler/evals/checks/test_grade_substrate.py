@@ -488,6 +488,11 @@ STANDARD_STRUCTURE = """    standard = RoutingStructure(
             "TestNeckRegions::test_each_neck_region_has_a_structure_of_its_own",
         ),
         (
+            # The shared single-ended neck structure at SE-50's target.
+            replace_once("impedance=58.35 * ohm,", "impedance=50 * ohm,"),
+            "TestNeckRegions::test_no_neck_structure_takes_a_target_impedance",
+        ),
+        (
             # DIFF-100's neck region with the stripline neck gap of the pair.
             replace_once(
                 "width=0.0635,\n                pair_gap=0.0635,",
@@ -531,6 +536,7 @@ STANDARD_STRUCTURE = """    standard = RoutingStructure(
         "a neck region at the line width",
         "a neck region with the line clearance",
         "a neck structure missing a geometry's layers",
+        "a single-ended neck structure at a target impedance",
         "a differential neck region with the wrong gap",
         "the single-ended neck regions with no structure",
         "an unattached NeckDown",

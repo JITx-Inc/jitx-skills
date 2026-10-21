@@ -40,7 +40,7 @@
       "cmd": "python3 skills/jitx-substrate-modeler/evals/checks/grade_fenced_rf.py <output>/board.py <output>/design.py skills/jitx-substrate-modeler/evals/cases/fixtures/rf_PC-6L_Fab-Stackup_RevA.csv"
     },
     {
-      "text": "no invented numbers: every value in board.py and design.py that neither the report nor the spec backs (the reference-plane widths, and anything else) carries a skill-default label on the same line at its call site, naming the rule it follows",
+      "text": "no invented numbers: every value in board.py and design.py that neither the report nor the spec backs (the reference-plane widths, and anything else) carries a skill-default label on the same line at its call site, naming the rule it follows; a rule priority or a pour rank is an ordering, not a value, and needs none",
       "check": "judge"
     },
     {

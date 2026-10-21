@@ -55,9 +55,10 @@ What it checks, against the report:
   as the target is, carrying the neck width, gap and clearance on the layers
   of those rows, found by that geometry rather than by impedance; regions
   that quote the same neck geometry may share one structure. Its
-  impedance, velocity and loss are not checked (the report quotes only a
-  modelled impedance for a neck), and how a design applies it, by tag, is not
-  graded here. No ``NeckDown`` may appear in the file or on any structure.
+  velocity and loss are not checked, and its impedance only in that it is no
+  controlled target of its kind, since structures are looked up by impedance
+  (the report quotes only a modelled impedance for a neck). How a design
+  applies it, by tag, is not graded here. No ``NeckDown`` may appear in the file or on any structure.
 
 The substrate is wrapped in the grader's own design, on a board of the
 report's DOCUMENT ``Board size``, and translated offline; that translation is
@@ -1660,6 +1661,29 @@ class TestNeckRegions(TestCase):
                     "and no structure carries it other than the one its target "
                     "impedance finds. Structures no target finds: "
                     f"{nearest or 'none'}"
+                )
+
+    def test_no_neck_structure_takes_a_target_impedance(self) -> None:
+        """A neck structure's impedance is never a controlled target of its
+        kind: ``Substrate.routing_structure()`` looks structures up by
+        impedance, so a neck at a target competes with that target's own
+        structure for the lookup."""
+        for structure_id, structure in neck_lookups(candidate()):
+            differential = isinstance(structure, DifferentialRoutingStructure)
+            targets = {
+                float(impedance_rows(sid)[0]["Target_Z_ohm"]): sid
+                for sid in controlled_ids()
+                if (impedance_rows(sid)[0]["Type"] == "Differential") == differential
+            }
+            impedance = ohm.m_from(structure.impedance)
+            with self.subTest(structure=neck_label(structure_id)):
+                taken = [sid for z, sid in targets.items() if abs(z - impedance) < 1e-6]
+                self.assertEqual(
+                    taken,
+                    [],
+                    f"{structure.name!r} is at {impedance} ohm, the target of "
+                    f"IMPEDANCE {', '.join(taken)}. A neck structure takes one of "
+                    "its rows' Neck_modelled_Z_ohm values, never a target.",
                 )
 
 
