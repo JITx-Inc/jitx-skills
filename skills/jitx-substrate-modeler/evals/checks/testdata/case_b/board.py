@@ -43,7 +43,7 @@ class ThickCore(Dielectric):
     loss_tangent = 0.0090
 
 
-INNER_CU = 0.0350  # skill default: 1 oz finished copper; the report gives 1 oz only
+INNER_CU = 0.0350  # skill default: 1 oz base foil; the report gives 1 oz only
 FINISHED = 2.0320  # report: finished thickness, 80.00 mil
 THICK_CORE = FINISHED - (
     2 * 0.0381 + 6 * INNER_CU + 2 * 0.0762 + 2 * 0.1270 + 2 * 0.1016

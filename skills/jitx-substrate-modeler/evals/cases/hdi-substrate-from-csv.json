@@ -52,5 +52,5 @@
       "check": "judge"
     }
   ],
-  "future_cases": "No micro cases until a run of this case shows a failure the grader cannot see; whoever reads that run's grader output adds one, sized to that failure alone. The no-document case is symmetric-4-layer-no-report, the report with a non-adjacent reference plane is stackup-from-pdf-report (L1 referenced to L3 across a voided L2), and the fenced RF case is fenced-rf-substrate. The label check formats board.py under the candidate's own ruff configuration, as a customer project would, so a candidate that sets `line-length` sets its own bar."
+  "future_cases": "No micro cases until a run of this case shows a failure the grader cannot see; whoever reads that run's grader output adds one, sized to that failure alone. The no-document case is symmetric-4-layer-no-report, the report with a non-adjacent reference plane is stackup-from-pdf-report (L1 referenced to L3 across a voided L2), the fenced RF case is fenced-rf-substrate, and the retrieval case is substrate-api-retrieval. The label check formats board.py under the candidate's own ruff configuration, as a customer project would, so a candidate that sets `line-length` sets its own bar."
 }
