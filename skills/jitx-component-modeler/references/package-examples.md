@@ -4,10 +4,9 @@
 
 - [Example 1: Simple SOIC-8 (NE555 Timer)](#example-1-simple-soic-8-ne555-timer)
 - [Example 2: SOT23-5 (LMV321 Op-Amp)](#example-2-sot23-5-lmv321-op-amp)
-- [Example 3: SON-8 with Thermal Pad (LM1117)](#example-3-son-8-with-thermal-pad-lm1117)
-- [Example 4: QFN-56 with Port Arrays (RP2040)](#example-4-qfn-56-with-port-arrays-rp2040)
-- [Example 5: QFP-48 (STM32F103C8)](#example-5-qfp-48-stm32f103c8)
-- [Example 6: BGA with Named Pins and NC Positions](#example-6-bga-with-named-pins-and-nc-positions)
+- [Example 3: QFN-56 with Port Arrays (RP2040)](#example-3-qfn-56-with-port-arrays-rp2040)
+- [Example 4: QFP-48 (STM32F103C8)](#example-4-qfp-48-stm32f103c8)
+- [Example 5: BGA with Named Pins and NC Positions](#example-5-bga-with-named-pins-and-nc-positions)
 - [BGA-Specific Notes](#bga-specific-notes)
 - [Non-Uniform BGAs (CRITICAL)](#non-uniform-bgas-critical)
 
@@ -137,92 +136,7 @@ Device: type[LMV321] = LMV321
 - To customize lead dimensions: `SOTLeadProfile(span=..., type=SOTLead(length=..., width=...))`.
 - `SOT23_3` and `SOT23_6` follow the same pattern with different pad counts.
 
-## Example 3: SON-8 with Thermal Pad (LM1117)
-
-```python
-"""
-Texas Instruments LM1117 800mA LDO Regulator
-
-Component definition for the LM1117 in SON-8 (WSON) package.
-"""
-
-import jitx
-from jitx import PadMapping
-from jitx.net import Port
-from jitx.toleranced import Toleranced
-from jitx.shapes.composites import rectangle
-from jitxlib.landpatterns.generators.son import SON, SONLead
-from jitxlib.landpatterns.leads import LeadProfile
-from jitxlib.landpatterns.package import RectanglePackage
-from jitxlib.symbols.box import BoxSymbol, PinGroup, Row, Column
-
-
-class LM1117_WSON(jitx.Component):
-    mpn = "LM1117IMPX-3.3/NOPB"
-    manufacturer = "Texas Instruments"
-    reference_designator_prefix = "U"
-    datasheet = "https://www.ti.com/lit/ds/symlink/lm1117.pdf"
-
-    # Pins (SON-8 with exposed pad)
-    TAB = Port()    # Exposed thermal pad (also GND)
-    GND = [Port() for _ in range(2)]   # Pin 1 & 2
-    VOUT = [Port() for _ in range(2)]  # Pin 3 & 4
-    NC = [Port().no_connect() for _ in range(2)] # Pin 5 & 6
-    VIN = [Port() for _ in range(2)]   # Pin 7 & Pin 8 (also VIN)
-
-    landpattern = (
-        SON(num_leads=8)
-        .lead_profile(
-            LeadProfile(
-                span=Toleranced.min_max(2.9, 3.1),  # Terminal span
-                pitch=0.5,
-                type=SONLead(
-                    length=Toleranced.min_max(0.3, 0.5),
-                    width=Toleranced.min_max(0.18, 0.30),
-                ),
-            ),
-        )
-        .package_body(
-            RectanglePackage(
-                width=Toleranced.min_max(2.9, 3.1),
-                length=Toleranced.min_max(2.9, 3.1),
-                height=Toleranced.min_max(0.7, 0.8),
-            )
-        )
-        .thermal_pad(rectangle(1.68, 1.45))  # Exposed pad dimensions
-    )
-
-    # All ports must be in symbol, including NC pins
-    symbol = BoxSymbol(
-        rows=Row(
-            left=PinGroup(VIN[0], VIN[1], NC[0], NC[1]),  # NC pins included
-            right=PinGroup(VOUT[0], VOUT[1]),
-        ),
-        columns=Column(
-            down=PinGroup(GND[0], GND[1], TAB),
-        ),
-    )
-
-    def __init__(self):
-        lp = self.landpattern
-        # Explicit mapping for thermal pad
-        self.mappings = [PadMapping({
-            self.GND[0]: [lp.p[1]],
-            self.GND[1]: [lp.p[2]],
-            self.VOUT[0]: [lp.p[3]],
-            self.VOUT[1]: [lp.p[4]],
-            self.NC[0]: [lp.p[5]],
-            self.NC[1]: [lp.p[6]],
-            self.VIN[0]: [lp.p[7]],
-            self.VIN[1]: [lp.p[8]],
-            self.TAB: [lp.thermal_pads[0]],
-        })]
-
-
-Device: type[LM1117_WSON] = LM1117_WSON
-```
-
-## Example 4: QFN-56 with Port Arrays (RP2040)
+## Example 3: QFN-56 with Port Arrays (RP2040)
 
 ```python
 """
@@ -327,7 +241,7 @@ class RP2040(jitx.Component):
 Device: type[RP2040] = RP2040
 ```
 
-## Example 5: QFP-48 (STM32F103C8)
+## Example 4: QFP-48 (STM32F103C8)
 
 ```python
 """
@@ -465,7 +379,7 @@ Device: type[STM32F103C8] = STM32F103C8
 - Pin numbering: counter-clockwise starting at pin 1 (top-left).
 - For asymmetric lead profiles (different span on X vs Y sides), pass two `LeadProfile` objects: `.lead_profile(x_profile, y_profile)`.
 
-## Example 6: BGA with Named Pins and NC Positions
+## Example 5: BGA with Named Pins and NC Positions
 
 ```python
 """

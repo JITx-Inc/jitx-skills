@@ -110,7 +110,7 @@ Device: type[{ComponentClassName}] = {ComponentClassName}
 
 ## Package-Specific Examples
 
-For complete examples of each package type (SOIC, SOT, SON, QFN, QFP, BGA), including thermal pads,
+For complete examples of each package type (SOIC, SOT, QFN, QFP, BGA), including thermal pads,
 port arrays, inactive positions, and non-uniform BGA grids, see
 [package-examples.md](package-examples.md).
 
