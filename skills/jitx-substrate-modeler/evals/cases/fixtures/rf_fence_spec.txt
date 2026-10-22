@@ -2,7 +2,7 @@ RF fencing requirements for RFE-6L-FENCE (synthetic example)
 
 Fab report: rf_PC-6L_Fab-Stackup_RevA.csv (Pellingham Circuits, fictional).
 Board outline: 30.0 x 20.0 mm rectangle centered on the origin, square corners.
-Fence vias and the cavity ring belong to the GND net.
+Fence vias, the cavity ring and the antipad ring belong to the GND net.
 
 1. 50 ohm grounded coplanar line on L1 (IMPEDANCE row SE-50)
    - Fence both sides of the line with UV-1 (L1 to L2), tied to the L2 ground plane.
@@ -21,3 +21,12 @@ Fence vias and the cavity ring belong to the GND net.
    - Ring the outline with UV-1 fence vias landing on L2: pitch 0.50 mm, one row,
      via centers 0.30 mm outside the outline.
    - No copper on L1 inside the outline.
+
+4. 50 ohm stripline on L4 (IMPEDANCE row SL-50)
+   - Fence both sides of the line with TH-1 (L1 to L6), tied to the L3 and L5 ground planes.
+   - Fence via pitch 1.00 mm, one row on each side.
+   - The first row's via centers sit 0.80 mm out from the trace edge.
+   - The line drops from L1 to L4 through a TH-1 signal via at (-8.0, -4.0) mm.
+   - Antipad: a 1.10 mm diameter circle centered on that via, with no copper on L3 or L5 inside it.
+   - Ring the antipad with TH-1 return vias tied to the L3 and L5 planes: pitch 1.00 mm, one row,
+     via centers 0.60 mm outside the antipad.
