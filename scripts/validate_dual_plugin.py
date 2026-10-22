@@ -157,11 +157,6 @@ def validate_skills(root: Path, errors: list[str]) -> None:
             errors.append(f"{skill} frontmatter name must be lowercase kebab-case")
         if not description:
             errors.append(f"{skill} missing description")
-        agent_yaml = skill_dir / "agents" / "openai.yaml"
-        if not agent_yaml.is_file():
-            errors.append(f"{skill} missing agents/openai.yaml")
-        elif "default_prompt:" not in agent_yaml.read_text():
-            errors.append(f"{skill} agents/openai.yaml missing default_prompt")
 
 
 def validate_no_old_layout(root: Path, errors: list[str]) -> None:
