@@ -139,7 +139,7 @@ Patterns where the substrate / routing-structure / framework API is being misuse
 
 **Severity:** WARNING.
 
-**Rule source:** the `jitx.stackup.Symmetric` docstring in jitx (the last listed layer becomes the centre dielectric) for the core; no written rule covers the layer names.
+**Rule source:** the `jitx.stackup.Symmetric` docstring in jitx (the last listed layer becomes the center dielectric) for the core; no written rule covers the layer names.
 
 ### `tag-proliferation`
 

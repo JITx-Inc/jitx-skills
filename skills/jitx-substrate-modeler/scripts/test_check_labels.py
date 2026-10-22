@@ -329,7 +329,7 @@ class Script(unittest.TestCase):
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
         self.assertEqual(result.stderr, f"check_labels: no file at {missing}\n")
 
-    def test_project_line_length_is_honoured(self) -> None:
+    def test_project_line_length_is_honored(self) -> None:
         label = "# skill default: 3x dielectric height, not a source value"
         body = f"            ).reference(\n                {{\n                    1: 3 * 0.080,  {label}\n"
         source = PREFIX + body + "                }\n            ),\n        }\n    )\n"

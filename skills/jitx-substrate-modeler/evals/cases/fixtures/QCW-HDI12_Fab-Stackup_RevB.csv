@@ -79,7 +79,7 @@ BV-1,Buried,Mechanical,L3,L10,7.87,0.200,17.72,0.450,0.952,4.76,0.125,Resin,Yes,
 TH-1,Through,Mechanical,L1,L12,9.84,0.250,21.65,0.550,1.402,5.61,0.150,None,No,Top,No,Full-stack plated through hole - drilled last; open on the bottom for test probing
 
 SECTION,IMPEDANCE
-Structure_ID,Controlled,Type,Target_Z_ohm,Tolerance_pct,Layers,Geometry,Line_width_mil,Line_width_mm,Pair_gap_mm,Clearance_mm,Ref_layers,Modelled_Z_ohm,Eps_eff,Delay_ps_per_mm,Loss_dB_per_mm,Neck_width_mm,Neck_gap_mm,Neck_clearance_mm,Neck_modelled_Z_ohm
+Structure_ID,Controlled,Type,Target_Z_ohm,Tolerance_pct,Layers,Geometry,Line_width_mil,Line_width_mm,Pair_gap_mm,Clearance_mm,Ref_layers,Modeled_Z_ohm,Eps_eff,Delay_ps_per_mm,Loss_dB_per_mm,Neck_width_mm,Neck_gap_mm,Neck_clearance_mm,Neck_modeled_Z_ohm
 SE-50,Yes,Single-ended,50,7,L1;L12,Coated microstrip,5.79,0.1470,,0.2940,L2 for L1; L11 for L12,49.96,2.6420,5.4218,0.00712,0.1000,,0.1000,60.31
 SE-50,Yes,Single-ended,50,7,L3;L10,Asymmetric stripline,2.99,0.0760,,0.1520,L2+L4; L11+L9,50.03,3.3520,6.1070,0.00981,0.0600,,0.0600,55.12
 SE-42,Yes,Single-ended,42,7,L1;L12,Coated microstrip,7.48,0.1900,,0.3800,L2 for L1; L11 for L12,42.05,2.6810,5.4617,0.00664,0.1000,,0.1000,60.31
@@ -130,10 +130,10 @@ Note
 "TH-1 is not filled and not capped. It is tented on the top side only and left open on the bottom so the bottom side can be probed."
 "Layer numbering in this document is 1-based from the top (L1 = top copper, L12 = bottom copper). Dielectric and soldermask layers are not numbered."
 "Stacked microvias are permitted up to 2 levels. To reach L3 from L1, stack UV-1 on UV-2."
-"Differential pair gap is stated EDGE TO EDGE, not centre to centre. Line width plus pair gap gives the pitch."
+"Differential pair gap is stated EDGE TO EDGE, not center to center. Line width plus pair gap gives the pitch."
 "Clearance is stated edge to edge to the nearest adjacent net, and is the isolation assumed in the impedance model. Each row's Clearance_mm is the clearance its impedance model assumes. Neck-down regions relax it to 1x the neck width for single-ended structures and 2x the neck width for differential structures, as each row's Neck_clearance_mm gives. Impedance is only guaranteed where the stated clearance is met."
 "Ref_layers names the planes each controlled line is referenced to. Microstrip rows name the routing layer explicitly (L2 for L1); stripline rows list one plane pair per entry of the Layers column, in the same order. The L3 and L10 striplines are asymmetric: the build-up ply on one side is 0.080 mm and the core on the other is 0.127 mm."
-"Copper roughness is stated as Rz in MICROMETRES, matte (bonding) side and drum (resist) side separately. The matte side faces the dielectric and dominates conductor loss."
+"Copper roughness is stated as Rz in MICROMETERS, matte (bonding) side and drum (resist) side separately. The matte side faces the dielectric and dominates conductor loss."
 "Copper weight in oz is nominal foil weight before plating. Use the finished thickness column for any electrical model. Outer layers include panel plating and are thicker than the base foil."
 "Dk and Df are quoted at 5 GHz per the laminate datasheet. Insertion loss is quoted at 8 GHz. Both figures are frequency dependent; ask us to re-model if your channel operates elsewhere."
 "Insertion loss is total, comprising conductor loss (including a surface-roughness correction for the stated Rz) and dielectric loss. It excludes via and connector discontinuities."
@@ -141,4 +141,4 @@ Note
 "DIFF-90-UNC is held to +/-10 %, not the 7 % of the other controlled structures: its 52 ohm target is the stripline figure, and its 0.115 mm microstrip width models at 56.60 ohm. Keep DIFF-90-UNC runs on L1 and L12 short."
 "STANDARD is our default line and space for nets with no impedance target. It is one geometry applied on every routing layer, so it does not hold a single impedance - it models 44.72 ohm on the inner stripline layers and 63.41 ohm on the surface microstrip layers. Do not use it for impedance-critical nets."
 "L5 and L8 are signal-capable stripline layers with no controlled-impedance structure specified in this revision. They are reachable only through BV-1 and TH-1."
-"All dimensions are nominal unless a tolerance is stated. Primary units are millimetres; mil values are given alongside for reference and the millimetre value controls where the two disagree."
+"All dimensions are nominal unless a tolerance is stated. Primary units are millimeters; mil values are given alongside for reference and the millimeter value controls where the two disagree."
