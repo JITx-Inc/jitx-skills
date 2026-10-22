@@ -101,6 +101,16 @@
     {
       "text": "the completion summary contains the filled Component completeness check block",
       "check": "judge"
+    },
+    {
+      "text": "<output>/COMPLETION.md has a `References opened:` row that names at least one reference file. An empty value fails, and so does `none matched`, because the verification row of the skill's routing table matches every task that reaches verification. The row may wrap onto continuation lines indented deeper than it; a mention of the row inside prose does not count, only a line that starts with it.",
+      "check": "deterministic",
+      "cmd": "awk '/^[^A-Za-z]*References opened[^A-Za-z0-9]*:/{match($0,/^[[:space:]]*/);i=RLENGTH;p=1;print;next} p{match($0,/^[[:space:]]*/);if(RLENGTH>i&&NF){print;next};p=0}' <output>/COMPLETION.md | grep -qE '[A-Za-z0-9_-]+[.]md'"
+    },
+    {
+      "text": "the family modules sit under components/, optionally inside a namespace package and a category subdirectory, as <manufacturer>_<series>.py files: at least two files named acme_ followed by a series stem. A family computes its MPN per instance, so there is no single <manufacturer>_<mpn> stem, and this case's runner_artifacts pins only COMPLETION.md; shared helpers may carry any name.",
+      "check": "deterministic",
+      "cmd": "python3 -c \"import re,sys;from pathlib import Path;o=Path(sys.argv[1]);h=[r for r in (p.relative_to(o).as_posix() for p in o.rglob('*.py')) if re.fullmatch(sys.argv[2],r,re.I)];sys.exit(0 if len(h)>=int(sys.argv[3]) else 'found '+str(len(h))+' file(s) matching '+sys.argv[2]+', need '+sys.argv[3])\" <output> '([a-z0-9_]+/)?components/([a-z0-9_]+/)?acme_[a-z0-9_]+[.]py' 2"
     }
   ],
   "future_cases": "Planned: promote the markdown fixtures to a generated PDF so the extract_pages.py path is under test on a redistributable input; a fixture publishing no dimension table at all, where taking the generator defaults and saying so is correct; a third family in a component type with a different symbol class; and a dry-build assertion via jitx.run.discover.DryRunBuilder, which translates in-process when the CLI scanner cannot find a packaged layout."

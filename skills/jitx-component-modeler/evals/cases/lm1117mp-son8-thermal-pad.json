@@ -8,7 +8,7 @@
   },
   "reference": {
     "file": "evals/cases/reference/texas_instruments_LM1117MP_reference.py",
-    "notes": "Verbatim copy (79 lines) of a shipped LM1117MP component model. It shows one known-good shape — SON generator with LeadProfile/SONLead, RectanglePackage, a thermal pad with WindowSubdivide paste subdivision, a BoxSymbol with power routed down via Column, and a PadMapping tying the output to three lead pads plus thermal_pads[0] — not the only acceptable one. Judges verify the candidate against the datasheet first. Keep runner directories free of this file.",
+    "notes": "Copy of a shipped LM1117MP component model; only its module docstring was changed, to state the identity problem below. It shows one known-good shape — SON generator with LeadProfile/SONLead, RectanglePackage, a thermal pad with WindowSubdivide paste subdivision, a BoxSymbol with power routed down via Column, and a PadMapping tying the output to three lead pads plus thermal_pads[0] — not the only acceptable one. Judges verify the candidate against the datasheet first. Keep runner directories free of this file. Identity caveat: the reference's mpn (\"LM1117MP\"), class name and filename name the SOT-223 part. The datasheet's PACKAGE OPTION ADDENDUM (lm1117.pdf Rev. Q, PDF page 25) lists every LM1117MP-* and LM1117MPX-* orderable as SOT-223 (DCY), 4 pins, and the 8-pin WSON (NGN) orderables as LM1117LD-* and LM1117LDX-*. The geometry is the WSON outline the prompt asks for. Score MPN and BOM fields against the datasheet's WSON (NGN) orderable list only, never against this file.",
     "excluded_from_runner": true
   },
   "runner_models": [
@@ -68,6 +68,16 @@
     {
       "text": "the completion summary contains the filled Component completeness check block and a task acceptance block whose Footprint source row names the JITX generator used",
       "check": "judge"
+    },
+    {
+      "text": "<output>/COMPLETION.md has a `References opened:` row that names at least one reference file. An empty value fails, and so does `none matched`, because the verification row of the skill's routing table matches every task that reaches verification. The row may wrap onto continuation lines indented deeper than it; a mention of the row inside prose does not count, only a line that starts with it.",
+      "check": "deterministic",
+      "cmd": "awk '/^[^A-Za-z]*References opened[^A-Za-z0-9]*:/{match($0,/^[[:space:]]*/);i=RLENGTH;p=1;print;next} p{match($0,/^[[:space:]]*/);if(RLENGTH>i&&NF){print;next};p=0}' <output>/COMPLETION.md | grep -qE '[A-Za-z0-9_-]+[.]md'"
+    },
+    {
+      "text": "the component file sits under components/, optionally inside a namespace package and a category subdirectory, named texas_instruments_lm1117 followed by the orderable suffix. The suffix depends on the package and output-voltage answers the runner gets, so only the device stem is pinned; whether the MPN is a WSON orderable is the judges' call.",
+      "check": "deterministic",
+      "cmd": "python3 -c \"import re,sys;from pathlib import Path;o=Path(sys.argv[1]);h=[r for r in (p.relative_to(o).as_posix() for p in o.rglob('*.py')) if re.fullmatch(sys.argv[2],r,re.I)];sys.exit(0 if len(h)>=int(sys.argv[3]) else 'found '+str(len(h))+' file(s) matching '+sys.argv[2]+', need '+sys.argv[3])\" <output> '([a-z0-9_]+/)?components/([a-z0-9_]+/)?texas_instruments_lm1117[a-z0-9_]*[.]py' 1"
     }
   ],
   "future_cases": "Planned siblings in this lane: a non-standard package the generators cannot express, forcing the documented parts2jitx-kicad fallback with the reason recorded; and a >40-pin part where the correct answer is a partitioned multi-box symbol rather than one unreadable box."
