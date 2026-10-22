@@ -186,7 +186,6 @@ jitx-skills/
 ├── skills/
 │   ├── jitx/
 │   │   ├── SKILL.md
-│   │   ├── agents/openai.yaml   # Codex UI metadata
 │   │   ├── references/
 │   │   │   ├── domain-checklists.md  # Checklist index
 │   │   │   ├── domains/              # Focused checklist files
@@ -280,5 +279,5 @@ claude plugin validate .
 Keep the shared instructions in `skills/<skill-name>/SKILL.md`. Use platform-specific metadata only where each runtime expects it:
 
 - Claude Code: `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`
-- Codex/GPT: `.codex-plugin/plugin.json`, `.agents/plugins/marketplace.json`, and `skills/<skill-name>/agents/openai.yaml`
+- Codex/GPT: `.codex-plugin/plugin.json` and `.agents/plugins/marketplace.json`
 - Shared skill content: `skills/<skill-name>/SKILL.md`, `references/`, `scripts/`, and `assets/`
