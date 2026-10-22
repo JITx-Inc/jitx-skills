@@ -27,6 +27,6 @@ Fence vias, the cavity ring and the antipad ring belong to the GND net.
    - Fence via pitch 1.00 mm, one row on each side.
    - The first row's via centers sit 0.80 mm out from the trace edge.
    - The line drops from L1 to L4 through a TH-1 signal via at (-8.0, -4.0) mm.
-   - Antipad: a 1.10 mm diameter circle centered on that via, with no copper on L3 or L5 inside it.
-   - Ring the antipad with TH-1 return vias tied to the L3 and L5 planes: pitch 1.00 mm, one row,
+   - Antipad: a 1.10 mm diameter circle centered on that via, with no copper on L2, L3 or L5 inside it.
+   - Ring the antipad with TH-1 return vias tied to the L2, L3 and L5 planes: pitch 1.00 mm, one row,
      via centers 0.60 mm outside the antipad.

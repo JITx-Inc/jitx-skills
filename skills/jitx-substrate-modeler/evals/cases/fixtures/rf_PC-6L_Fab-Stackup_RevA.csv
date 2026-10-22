@@ -62,7 +62,7 @@ SECTION,IMPEDANCE
 Structure_ID,Controlled,Type,Target_Z_ohm,Tolerance_pct,Layers,Geometry,Line_width_mil,Line_width_mm,Pair_gap_mm,Clearance_mm,Ref_layers,Modeled_Z_ohm,Eps_eff,Delay_ps_per_mm,Loss_dB_per_mm,Neck_width_mm,Neck_gap_mm,Neck_clearance_mm,Neck_modeled_Z_ohm
 SE-50,Yes,Single-ended,50,5,L1,Grounded coplanar waveguide with L2 voided under the line,11.02,0.2800,,0.1500,L3 for L1,50.3,2.9100,5.6902,0.00600,,,,
 DIFF-100,Yes,Differential,100,7,L1;L6,Edge-coupled coated microstrip,6.30,0.1600,0.2000,0.4000,L2 for L1; L5 for L6,99.6,2.6800,5.4607,0.00700,,,,
-SL-50,Yes,Single-ended,50,5,L4,Asymmetric stripline,8.07,0.2050,,0.5000,L3 and L5 for L4,50.1,4.1500,6.7952,0.04000,,,,
+SL-50,Yes,Single-ended,50,5,L4,Asymmetric stripline,8.07,0.2050,,0.5250,L3 and L5 for L4,50.1,4.1500,6.7952,0.04000,,,,
 STANDARD,No,Single-ended,,,All routing layers,Default line/space,4.92,0.1250,,0.1250,,60.7 stripline / 61.2 microstrip,,,,,,,
 
 SECTION,FAB_RULES
