@@ -215,9 +215,8 @@ keepout surrounds but does not overlap `gnd_island`, the short pad anchors that
 island to GND, and `AntennaGroundTag` gives the fence-via rule a concrete `Pour`
 target. That rule, `design_constraint(AntennaGroundTag()).fence_via(<substrate via
 class>, ViaFencePattern(...))`, lives with the substrate because its via class and
-fence pattern do; this example owns only the tagged-pour geometry. See
-`jitx-substrate-modeler`,
-[Fenced Pour Outlines (Antipads, RF Cavities, BGA Breakouts)](../../jitx-substrate-modeler/SKILL.md#fenced-pour-outlines-antipads-rf-cavities-bga-breakouts). The realization command names
+fence pattern do; this example owns only the tagged-pour geometry. See the
+jitxexamples package's `jitxexamples.patterns.fenced_pour_outline` module. The realization command names
 `circuit.gnd_island` when a stitch rule also selects it; a fence-via project check
 queries the computed fence-via group separately. See the main skill's
 [Pour realization semantics](../SKILL.md#pour-realization-semantics).

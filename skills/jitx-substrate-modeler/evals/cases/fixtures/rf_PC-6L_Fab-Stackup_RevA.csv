@@ -1,0 +1,101 @@
+SECTION,DOCUMENT
+Field,Value,Unit,Notes
+Document type,Impedance-Controlled Stackup Report,,CSV export of the stackup report issued with the quote
+Fabricator,Pellingham Circuits,,Fictional fabricator - see NOTES
+Quote number,PC-Q-2210-17,,
+Revision,A,,Initial issue
+Issue date,2026-10-12,,
+Customer part number,RFE-6L-FENCE,,
+Board size,30.0 x 20.0,mm,Square corners
+Layer count,6,copper layers,
+Construction,1 + 4 + 1,,One laser microvia level per side on a 4-layer core
+Overall thickness,1.240,mm,48.82 mil - including soldermask both sides
+Finished thickness,1.210,mm,"47.64 mil - copper + dielectric, excluding soldermask"
+Thickness tolerance,+/-10,%,
+Surface finish,Immersion silver,,
+Soldermask,LPI green,,Both sides
+Copper plating class,IPC-6012 Class 2,,
+Impedance tolerance,+/-5,%,SE-50 and SL-50; DIFF-100 is held to +/-7 % - see IMPEDANCE Tolerance_pct
+Impedance model,PC field solver,,2D field solver
+Impedance test frequency,10.0,GHz,Insertion loss quoted at this frequency
+Dk/Df reference frequency,10.0,GHz,
+Primary units,mm,,mil given alongside for reference only
+
+SECTION,REVISION_HISTORY
+Revision,Date,Change
+A,2026-10-12,Initial issue.
+
+SECTION,MATERIALS_DIELECTRIC
+Material_ID,Manufacturer,Product,Type,Glass_style,Resin_pct,Thickness_mil,Thickness_mm,Dk,Df,Tg_C,Usage
+D-SM,Kestle Coatings,PS-40,Soldermask,,,0.59,0.0150,3.60,0.0200,,Outer surfaces both sides
+D-RF,Orrin Laminates,PL-350,RF prepreg,1080,58,3.94,0.1000,3.50,0.0030,280,L1-L2 and L5-L6
+D-CORE,Orrin Laminates,PL-420,Laminate core,2116,52,7.87,0.2000,4.20,0.0150,180,Cores L2-L3 and L4-L5
+D-PP,Orrin Laminates,PL-410,Prepreg,7628,48,15.75,0.4000,4.10,0.0160,180,Center bond L3-L4
+
+SECTION,MATERIALS_COPPER
+Copper_ID,Manufacturer,Product,Foil_type,Nominal_weight_oz,Base_thickness_um,Plating_um,Finished_thickness_um,Finished_thickness_mm,Rz_matte_um,Rz_drum_um,Usage
+CU-1,Fennick Foil,FF-2,RTF,1.0,35.0,0.0,35.0,0.0350,2.0,0.8,"All layers. Outer layers are plated up to the same finished thickness"
+
+SECTION,STACKUP
+Seq,Type,Layer,Function,Material_ID,Thickness_mil,Thickness_mm,Dk,Df
+1,Soldermask,,Soldermask top,D-SM,0.59,0.0150,3.60,0.0200
+2,Copper,L1,Signal - RF microstrip and coplanar,CU-1,1.38,0.0350,,
+3,Dielectric,,RF prepreg,D-RF,3.94,0.1000,3.50,0.0030
+4,Copper,L2,Plane - GND,CU-1,1.38,0.0350,,
+5,Dielectric,,Core,D-CORE,7.87,0.2000,4.20,0.0150
+6,Copper,L3,Plane - GND,CU-1,1.38,0.0350,,
+7,Dielectric,,Prepreg,D-PP,15.75,0.4000,4.10,0.0160
+8,Copper,L4,Signal - stripline,CU-1,1.38,0.0350,,
+9,Dielectric,,Core,D-CORE,7.87,0.2000,4.20,0.0150
+10,Copper,L5,Plane - GND,CU-1,1.38,0.0350,,
+11,Dielectric,,RF prepreg,D-RF,3.94,0.1000,3.50,0.0030
+12,Copper,L6,Signal - RF microstrip,CU-1,1.38,0.0350,,
+13,Soldermask,,Soldermask bottom,D-SM,0.59,0.0150,3.60,0.0200
+
+SECTION,VIAS
+Via_ID,Structure,Drill,From_layer,To_layer,Finished_hole_mil,Finished_hole_mm,Pad_mil,Pad_mm,Depth_mm,Aspect_ratio,Annular_ring_mm,Fill,Capped,Tented,Via_in_pad,Notes
+TH-1,Through,Mechanical,L1,L6,9.84,0.250,21.65,0.550,1.210,4.84,0.150,None,No,Both,No,Signal via and fence via for L4 structures
+UV-1,Microvia,Laser,L1,L2,4.92,0.125,10.83,0.275,0.100,0.80,0.075,Copper,Yes,Both,Yes,Top build-up level; fence via for L1 structures
+UV-2,Microvia,Laser,L6,L5,4.92,0.125,10.83,0.275,0.100,0.80,0.075,Copper,Yes,Both,Yes,Bottom build-up level; drilled from L6; fence via for L6 structures
+
+SECTION,IMPEDANCE
+Structure_ID,Controlled,Type,Target_Z_ohm,Tolerance_pct,Layers,Geometry,Line_width_mil,Line_width_mm,Pair_gap_mm,Clearance_mm,Ref_layers,Modeled_Z_ohm,Eps_eff,Delay_ps_per_mm,Loss_dB_per_mm,Neck_width_mm,Neck_gap_mm,Neck_clearance_mm,Neck_modeled_Z_ohm
+SE-50,Yes,Single-ended,50,5,L1,Grounded coplanar waveguide with L2 voided under the line,11.02,0.2800,,0.1500,L3 for L1,50.3,2.9100,5.6902,0.00600,,,,
+DIFF-100,Yes,Differential,100,7,L1;L6,Edge-coupled coated microstrip,6.30,0.1600,0.2000,0.4000,L2 for L1; L5 for L6,99.6,2.6800,5.4607,0.00700,,,,
+SL-50,Yes,Single-ended,50,5,L4,Asymmetric stripline,8.07,0.2050,,0.5250,L3 and L5 for L4,50.1,4.1500,6.7952,0.04000,,,,
+STANDARD,No,Single-ended,,,All routing layers,Default line/space,4.92,0.1250,,0.1250,,60.7 stripline / 61.2 microstrip,,,,,,,
+
+SECTION,FAB_RULES
+Rule,Value_mil,Value_mm,JITX_attribute,Notes
+Minimum copper width,2.95,0.075,min_copper_width,Engine-enforced
+Minimum copper to copper space,2.95,0.075,min_copper_copper_space,Engine-enforced
+Minimum copper to hole space,5.91,0.150,min_copper_hole_space,Engine-enforced
+Minimum copper to board edge,11.81,0.300,min_copper_edge_space,Engine-enforced
+Minimum annular ring,2.95,0.075,min_annular_ring,
+Minimum drill diameter,3.94,0.100,min_drill_diameter,Laser minimum - see mechanical minimum below
+Minimum pitch - leaded package,15.75,0.400,min_pitch_leaded,
+Minimum pitch - BGA,15.75,0.400,min_pitch_bga,
+Maximum board width,,450.000,max_board_width,Panel limit
+Maximum board height,,600.000,max_board_height,Panel limit
+Minimum silkscreen width,4.72,0.120,min_silkscreen_width,
+Minimum silkscreen to soldermask space,3.94,0.100,min_silk_solder_mask_space,
+Minimum silkscreen text height,27.56,0.700,min_silkscreen_text_height,
+Soldermask registration,1.57,0.040,solder_mask_registration,
+Minimum soldermask opening,3.15,0.080,min_soldermask_opening,
+Minimum soldermask bridge,3.54,0.090,min_soldermask_bridge,
+Minimum through-hole pad expansion outer,3.94,0.100,min_th_pad_expand_outer,
+Minimum hole to hole,9.84,0.250,min_hole_to_hole,
+Minimum PTH pin to soldermask clearance,7.87,0.200,min_pth_pin_solder_clearance,
+Minimum mechanical drill diameter,7.87,0.200,,No JITX field - capability limit only
+Maximum mechanical drill aspect ratio,,10.0:1,,No JITX field - depth divided by finished hole
+Maximum laser microvia aspect ratio,,0.80:1,,No JITX field - depth divided by finished hole
+
+SECTION,NOTES
+Note
+"This is a synthetic example document. Pellingham Circuits is a fictional fabricator, and Kestle Coatings, Orrin Laminates and Fennick Foil, with every product named here (PS-40, PL-350, PL-410, PL-420, FF-2), are fictional too. The Dk, Df and roughness figures are illustrative and describe no real material."
+"Layer numbering is 1-based from the top (L1 = top copper, L6 = bottom copper). Dielectric and soldermask layers are not numbered."
+"Depth_mm for the laser microvias is the ablated dielectric alone, excluding the copper at either end. For the mechanical through hole it is the finished board thickness, copper included. Aspect ratio is depth over finished hole."
+"Every FAB_RULES limit is INCLUSIVE: a value equal to a limit meets it. The microvias sit on the 0.80:1 laser limit by construction."
+"SE-50 is a grounded coplanar line on L1. L2 is voided under the line, so the line's reference plane is L3; the coplanar gap is the Clearance_mm."
+"Differential pair gap is stated edge to edge. Clearance is stated edge to edge to the nearest adjacent copper, fence vias included."
+"Copper roughness is stated as Rz in micrometers, matte and drum side separately."

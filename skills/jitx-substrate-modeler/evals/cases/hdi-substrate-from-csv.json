@@ -2,18 +2,16 @@
   "name": "hdi-substrate-from-csv",
   "prompt": "model this substrate from the csv",
   "inputs": {
-    "csv": "evals/cases/fixtures/ACME-HDI20_Fab-Stackup_RevB.csv",
-    "notes": "A synthetic ACME Circuit Technology stackup report (fictional fabricator): 20-layer HDI, 5+10+5 sequential build-up, 12-via inventory, 5 impedance targets each specified for two geometries, 19 mappable fab rules plus 5 capability limits."
+    "csv": "evals/cases/fixtures/QCW-HDI12_Fab-Stackup_RevB.csv",
+    "notes": "A synthetic Quillmere Circuit Works stackup report (fictional fabricator and products): 12-layer HDI, 2+8+2 sequential build-up, 6-via inventory, 11 IMPEDANCE rows, 19 mappable fab rules plus 5 capability limits."
   },
-  "reference": {
-    "file": "evals/cases/reference/hdi_stackup_reference.py",
-    "notes": "A reference solution that is correct against the CSV row-for-row, with one known exception: its None-width reference() calls at ~lines 446/484 do not translate (an upstream defect, not a shape to imitate) — see SKILL.md on why a None width is a trap rather than a fallback. Judges verify the candidate against the CSV first; this file shows one acceptable shape, not the only one. Keep runner directories free of it — the runner is given the CSV alone."
-  },
+  "notes": "For whoever reads the judges' output, not for the runner. Judges get <output>/board.py, <output>/design.py, every file under <output>/tests/, <output>/COMPLETION.md and a copy of the fixture CSV, each as --artifact. The CSV is the source report the runner was given, not output under judgment: judges need it to tell a value some report row backs from an invented one. Neck regions: the report quotes Neck_* columns for SE-50, SE-42 and DIFF-90. NeckDown is not used, so each of those neck regions belongs on a routing structure of its own, of its parent's kind, on its rows' layers, with the neck width, pair gap and clearance and the parent's reference planes. SE-50 and SE-42 quote the same neck geometry, so one single-ended neck structure for both, or one each, passes. A neck structure's impedance is one of its rows' Neck_modeled_Z_ohm values, never a controlled target; its velocity and loss are the parent row's, as a labeled default. No case asserts the skill's strict source-only branch (omit `.reference()`, docstring the planes, never `None` widths), how design.py applies a neck structure by tag, or listing a structure applied by a `Route` tag as an open item. What design.py and the tests must do is written here, in expected_output and in the assertions, not in runner_artifacts, so the case still sees a skill that stops teaching it. The deterministic graders that compared this case's output with its report value by value were removed after commit e62e991, which still holds them under evals/checks/, for the skillset rework. The commands run from the repository root. The launcher reads runner_artifacts into the runner prompt verbatim, after the prompt. Nothing in this case translates or builds the output, so the eval contract's build hard fail is judged from the runner's own Checks row in COMPLETION.md, and a design that fails to translate is seen only by a judge reading it. The label check's self-tests (scripts/test_check_labels.py) run with `python -m pytest -q skills/jitx-substrate-modeler` from the repository root.",
   "runner_models": [
     "sonnet"
   ],
   "runner_rationale": "Customers drive this skill with mixed-strength agents (Claude Code, Codex, and Devin among them). The skill must carry the goodness checks itself, so the eval runs the skill under a Sonnet-class runner rather than the strongest available model. Judges stay frontier-tier regardless of runner.",
-  "expected_output": "A single-file substrate (board.py) in which every value traces to a CSV row: explicit 20-layer Stackup (not Symmetric — the report names both halves), one material class per CSV material row, exactly the 12 offered vias, routing structures for each impedance target on both geometries with eps_eff-derived velocity, neck-down, uncoupled regions and reference planes, all 19 mappable fab rules, capability limits and no-field values docstringed, STANDARD row documented but not modelled, and the SKILL.md Substrate completeness check block filled in the completion summary.",
+  "runner_artifacts": "The runner MUST write the substrate to exactly <output>/board.py, and its completion summary to <output>/COMPLETION.md, not only into its final chat message. <output>/design.py holds the Design the runner builds to check the substrate, and <output>/tests/ holds its tests. The commands that build design.py and run the tests are `jitx build --dry --no-dependency-check` and `python -m pytest -q tests`, each from a copy of <output> (placed first on PYTHONPATH for the tests). Besides board.py and the report, a test may rely on the standard library, jitx, jitxlib and pytest, and on nothing else. A test that reads the report finds its path in the environment variable FAB_CSV. Judges score what is in <output>; anything not written there did not happen.",
+  "expected_output": "A single-file substrate (board.py) in which every value traces to a report row: an explicit 12-layer Stackup of 25 entries (not Symmetric, since the report names both halves) whose sum reconciles with the 1.402 mm finished and 1.432 mm overall totals; one material class per material row, with D-BU (Dk 3.30) and D-PP (Dk 3.38) kept apart and each dielectric's material_name carrying its Product code (BL-330, BL-340, HC-77); finished copper thickness; copper roughness as matte and drum Rz in um in the copper class's docstring, and, where the roughness scalar is set, the scalar equal to matte Rz in mm; exactly the 6 offered vias, the bottom-side microvias UV-3 and UV-4 coded from L12 and L11, and TH-1 unfilled and tented on the top only; the 19 mappable fab rules with min_drill_diameter holding the 0.075 mm laser minimum and the 0.150 mm mechanical minimum hand-checked; SE-50, SE-42, SE-60 and DIFF-90 on both geometries with velocity from Eps_eff, DIFF-90-UNC as the pair's uncoupled region, and reference planes from Ref_layers at 3x their own dielectric height (0.240 mm to the build-up side, 0.381 mm to the core side of L3 and L10); each neck region the report quotes (SE-50, SE-42 and DIFF-90, none on SE-60) on a routing structure beside its target's, with the neck width, pair gap and clearance on the same layers (SE-50 and SE-42 quote the same neck geometry and may share one structure), an impedance taken from one of the neck rows' Neck_modeled_Z_ohm values (a structure carries one impedance and the rows quote one per geometry), and the parent row's velocity and loss as a labeled default, since the report quotes none for a neck; no NeckDown in board.py; STANDARD documented but not modeled; a design.py whose Design binds that substrate and translates; tests under tests/ that read the report through FAB_CSV, test board.py against it, and fail when a value in it changes; and the SKILL.md Substrate completeness check block filled in the completion summary.",
   "assertions": [
     {
       "text": "generated file parses as Python",
@@ -23,33 +21,33 @@
     {
       "text": "generated file type-checks against the installed jitx package",
       "check": "deterministic",
-      "cmd": "pyright <output>/board.py"
+      "cmd": "python3 -m pyright --pythonpath \"$(command -v python3)\" <output>/board.py"
     },
     {
-      "text": "all 19 mappable fab-rule attribute names from the CSV's JITX_attribute column appear in the generated file",
+      "text": "board.py matches the report CSV row for row: stackup, materials and names, vias with drill direction and each via's tenting per its VIAS Tented cell (TH-1 tented on the top only), capped vias filled, no via models declared, fab rules, routing structures with uncoupled regions and reference planes, each neck region on a structure beside its target's (regions with the same neck geometry may share one), no NeckDown or neck_down in board.py, and no structure for the uncontrolled row",
+      "check": "judge"
+    },
+    {
+      "text": "design.py holds a Design that binds the Substrate board.py defines, not the sample substrate, a subclass or base class of it, or a subclass of the sample design",
+      "check": "judge"
+    },
+    {
+      "text": "the tests under tests/ read their expected values from the report at the path FAB_CSV names, not from constants copied out of board.py, so a changed dielectric thickness, via pad, fab rule or impedance width in the report would fail them, and they check each default reference-plane width against 3 x its dielectric height",
+      "check": "judge"
+    },
+    {
+      "text": "ruff format leaves every labeled derivation in board.py whole, on the line with its label, and no label sits on a bracket whose entries carry no label of their own (the judges read the unformatted file)",
       "check": "deterministic",
-      "cmd": "for a in $(awk -F, '/^SECTION,FAB_RULES/,/^SECTION,NOTES/' evals/cases/fixtures/ACME-HDI20_Fab-Stackup_RevB.csv | awk -F, 'NF>3 && $4!=\"\" && $4!=\"JITX_attribute\" {print $4}'); do grep -q \"$a\" <output>/board.py || { echo \"missing $a\"; exit 1; }; done"
+      "cmd": "python3 skills/jitx-substrate-modeler/scripts/check_labels.py <output>/board.py"
     },
     {
-      "text": "exactly the CSV's 12 via structures are defined (10 microvia levels, 1 buried, 1 through), with correct spans and no speculative extras",
+      "text": "no invented numbers: every value in board.py that no report row backs (the reference-plane widths, and anything else) carries a skill-default label on the same line at its call site, naming the rule it follows. A neck structure's impedance taken from one of its rows' Neck_modeled_Z_ohm values is report-backed when labeled with that source; its velocity and loss, which the report quotes for no neck, are the parent row's figures as a labeled default; neither is invented",
       "check": "judge"
     },
     {
-      "text": "summed stackup thickness reconciles with the CSV's finished (3.161 mm) and overall (3.1864 mm) totals",
-      "check": "judge"
-    },
-    {
-      "text": "each impedance target is modelled on both geometries the CSV lists (surface microstrip and inner stripline) with distinct widths, and the STANDARD row is documented but NOT modelled as a RoutingStructure",
-      "check": "judge"
-    },
-    {
-      "text": "no invented numbers: spot-trace 10 values from the generated file back to CSV rows, including at least one reference-plane mapping and one neck-down",
-      "check": "judge"
-    },
-    {
-      "text": "the completion summary contains the filled Substrate completeness check block",
+      "text": "the completion summary contains the filled Substrate completeness check block, every row with its evidence, and its Verdict follows from those rows: a Checks row showing a check (check.py, check_labels.py, the source-driven tests or the build) with a nonzero exit, failed, skipped or not run under \"Verdict: complete\" fails this assertion, and so does a Verdict \"open items: <list>\" whose list leaves out a check that the Checks row shows with a nonzero exit, failed, skipped or not run",
       "check": "judge"
     }
   ],
-  "future_cases": "This is the first case; later additions planned: modelling the same stackup from a PDF fab report (no CSV structure to lean on), and a smaller JLCPCB predefined-path case."
+  "future_cases": "No micro cases until a run of this case shows a failure the judges cannot see; whoever reads that run's output adds one, sized to that failure alone. The no-document case is symmetric-4-layer-no-report, the report with a non-adjacent reference plane is stackup-from-pdf-report (L1 referenced to L3 across a voided L2), the fenced RF case is fenced-rf-substrate, and the retrieval case is substrate-api-retrieval. The label check formats board.py under the candidate's own ruff configuration, as a customer project would, so a candidate that sets `line-length` sets its own bar."
 }
