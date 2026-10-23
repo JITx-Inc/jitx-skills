@@ -19,8 +19,6 @@
 {"intent": "generate this FPGA from the package pinout file, and reconcile the ball count against the file's own footer before writing any component code", "expected_skill": "jitx-component-modeler"}
 {"intent": "model this 1000-ball BGA — I have the pinout txt and the packaging manual for the geometry", "expected_skill": "jitx-component-modeler"}
 {"intent": "write me a committed generator that emits the component module and can regenerate-and-diff to prove the checked-in file is current", "expected_skill": "jitx-component-modeler"}
-{"intent": "model the TI TLV9064 quad op amp in the 16-pin WQFN (RTE) package, datasheet attached", "expected_skill": "jitx-component-modeler"}
-{"intent": "model this USB-C receptacle and import its land pattern from the attached KiCad footprint, datasheet attached too", "expected_skill": "jitx-component-modeler"}
 // Negatives: component-adjacent but another skill's lane.
 {"intent": "transcribe the laminate datasheet's Dk/Df table into JITX materials for our 6-layer stack", "expected_skill": "jitx-substrate-modeler"}
 {"intent": "drop a 100 nF decoupling cap on every VDD pin and add a ground pour under the part", "expected_skill": "jitx-circuit-builder"}

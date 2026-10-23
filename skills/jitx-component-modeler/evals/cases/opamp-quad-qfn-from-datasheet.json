@@ -16,7 +16,7 @@
     ]
   },
   "reference": {
-    "notes": "No committed reference solution. A reference file would pin one symbol choice (a supply-less jitxlib op-amp class, the stock op-amp symbol with its supply pins left unmapped, or a box), and the case scores that choice against a rule rather than against a file. Every pin number and dimension the judges need is in the assertions, with its page in inputs.notes. Symbol pins with no port are allowed by the installed jitx (jitx/_translate/component.py lines 300-306 log them at debug level), so an unmapped supply pin on a stock op-amp symbol builds; whether it meets the rule is the judges' call, as the symbol assertion states."
+    "notes": "No committed reference solution. A reference file would pin one symbol choice (a supply-less jitxlib op-amp class, the stock op-amp symbol with its supply pins left unmapped, or a box), and the case scores that choice against a rule rather than against a file. Every pin number and dimension the judges need is in the assertions, with its page in inputs.notes. Symbol pins with no port are allowed: translate_component in jitx/_translate/component.py logs \"Missing symbol pin mapping ...\" at debug level only, so an unmapped supply pin on a stock op-amp symbol builds; whether it meets the rule is the judges' call, as the symbol assertion states."
   },
   "runner_models": [
     "sonnet"
@@ -34,9 +34,9 @@
       "cmd": "find <output> -name '*.py' -exec python3 -m py_compile {} +"
     },
     {
-      "text": "<output>/COMPLETION.md has a `References opened:` row that names at least one reference file. An empty value fails, and so does `none matched`, because the verification row of the skill's routing table matches every task that reaches verification. The row may wrap onto continuation lines indented deeper than it; a mention of the row inside prose does not count, only a line that starts with it.",
+      "text": "<output>/COMPLETION.md has a References opened row that names at least one of the skill's reference files, by file name or stem (source-and-package-selection, component-code-patterns, parameterized-families, pin-file-generation, package-examples, verification-and-application). The label may carry a parenthetical and be followed by a colon or a table-cell bar. The row fails when its value on the label line is empty or starts with `none`: the verification row of the skill's routing table matches every task that reaches verification, so `none matched` is never right here. The value may wrap onto continuation lines indented deeper than the label line; a mention of the row inside prose does not count.",
       "check": "deterministic",
-      "cmd": "awk '/^[^A-Za-z]*References opened[^A-Za-z0-9]*:/{match($0,/^[[:space:]]*/);i=RLENGTH;p=1;print;next} p{match($0,/^[[:space:]]*/);if(RLENGTH>i&&NF){print;next};p=0}' <output>/COMPLETION.md | grep -qE '[A-Za-z0-9_-]+[.]md'"
+      "cmd": "awk '/^[^A-Za-z]*References opened[^:|]*[:|]/{v=$0;sub(/^[^A-Za-z]*References opened[^:|]*[:|]/,\"\",v);gsub(/[*|]/,\" \",v);if(v~/^[[:space:]]*$/||v~/^[[:space:]]*[Nn]one/){p=0;next};match($0,/^[[:space:]]*/);i=RLENGTH;p=1;if(v~/(source-and-package-selection|component-code-patterns|parameterized-families|pin-file-generation|package-examples|verification-and-application)/)ok=1;next} p{match($0,/^[[:space:]]*/);if(RLENGTH>i&&NF){if($0~/(source-and-package-selection|component-code-patterns|parameterized-families|pin-file-generation|package-examples|verification-and-application)/)ok=1;next};p=0} END{exit ok?0:1}' <output>/COMPLETION.md"
     },
     {
       "text": "the component file sits under components/, optionally inside a namespace package and a category subdirectory, named texas_instruments_tlv9064irter.py: TLV9064IRTER is the PACKAGE OPTION ADDENDUM's orderable for the TLV9064 in RTE (PDF page 37). The addendum also lists TLV9064IRTER.A, so a _a suffix passes. Matched case-insensitively, because the skill's own filename examples keep the MPN in capitals.",
@@ -44,7 +44,7 @@
       "cmd": "python3 -c \"import re,sys;from pathlib import Path;o=Path(sys.argv[1]);h=[r for r in (p.relative_to(o).as_posix() for p in o.rglob('*.py')) if re.fullmatch(sys.argv[2],r,re.I)];sys.exit(0 if len(h)>=int(sys.argv[3]) else 'found '+str(len(h))+' file(s) matching '+sys.argv[2]+', need '+sys.argv[3])\" <output> '([a-z0-9_]+/)?components/([a-z0-9_]+/)?texas_instruments_tlv9064irter(_a)?[.]py' 1"
     },
     {
-      "text": "one symbol unit per amplifier, four in all, each carrying exactly that channel's OUTn, INn+ and INn– and no supply pin",
+      "text": "one symbol unit per amplifier, four in all, each with exactly that channel's OUTn, INn+ and INn– ports mapped to it and no supply port mapped to it. Supply pins drawn on a unit but left unmapped are scored only by the symbol-choice assertion below.",
       "check": "judge"
     },
     {
@@ -52,7 +52,7 @@
       "check": "judge"
     },
     {
-      "text": "every pin of the WQFN pin table is a port on exactly one unit: four OUT, four IN+, four IN–, V+, V–, and the two NC pins 6 and 7 declared no_connect(), sixteen ports for sixteen pins. The exposed thermal pad (pad 17) is mapped to V– as Figure 5-12 note A directs: onto the V– port alongside pin 11, or onto a port of its own that the code names and documents as V– and places on the supply unit. Pad 17 unmapped, on a ground port, or recorded as floating fails.",
+      "text": "every pin of the WQFN pin table is a port on exactly one unit: four OUT, four IN+, four IN–, V+, V–, and the two NC pins 6 and 7 declared no_connect(), sixteen ports for sixteen pins, or seventeen with a documented pad-17 port. The exposed thermal pad (pad 17) is mapped to V– as Figure 5-12 note A directs: onto the V– port alongside pin 11, or onto a port of its own that the code names and documents as V– and places on the supply unit. Pad 17 unmapped, on a ground port, or recorded as floating fails.",
       "check": "judge"
     },
     {
