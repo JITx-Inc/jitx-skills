@@ -124,7 +124,7 @@ Base: `jitxexamples/jitxexamples.components.<category>.html`
 | Category | Key Examples |
 |----------|--------------|
 | MCUs | `nordic_NRF52840_QIAA_R`, `raspberry_pi_RP2040` |
-| Power regulators | `texas_instruments_LM1117MP`, `AP2125K_2_8TRG1` |
+| Power regulators | `texas_instruments_LM1117LD`, `AP2125K_2_8TRG1` |
 | Switchmode power | `texas_instruments_TPS62933DRLR` |
 | Op-amps | `texas_instruments_OPA189`, `stmicroelectronics_TS971ILT` |
 | N-ch FETs | `BSS138`, `BSN20` |
