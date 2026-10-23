@@ -34,9 +34,9 @@
       "cmd": "find <output> -name '*.py' -exec python3 -m py_compile {} +"
     },
     {
-      "text": "<output>/COMPLETION.md has a References opened row that names at least one of the skill's reference files, by file name or stem (source-and-package-selection, component-code-patterns, parameterized-families, pin-file-generation, package-examples, verification-and-application). The label may carry a parenthetical and be followed by a colon or a table-cell bar. The row fails when its value on the label line is empty or starts with `none`: the verification row of the skill's routing table matches every task that reaches verification, so `none matched` is never right here. The value may wrap onto continuation lines indented deeper than the label line; a mention of the row inside prose does not count.",
+      "text": "<output>/COMPLETION.md has a References opened row that names at least one of the skill's reference files, by file name or stem (source-and-package-selection, component-code-patterns, parameterized-families, pin-file-generation, package-examples, verification-and-application). The label may carry a parenthetical and be followed by a colon or a table-cell bar. The value may sit on the label line or on continuation lines indented deeper than it, and the label's capitalization does not matter. The case fails when any References opened row's value starts with `none`: the verification row of the skill's routing table matches every task that reaches verification, so `none matched` is never right here, in any component's block. A mention of the row inside prose does not count.",
       "check": "deterministic",
-      "cmd": "awk '/^[^A-Za-z]*References opened[^:|]*[:|]/{v=$0;sub(/^[^A-Za-z]*References opened[^:|]*[:|]/,\"\",v);gsub(/[*|]/,\" \",v);if(v~/^[[:space:]]*$/||v~/^[[:space:]]*[Nn]one/){p=0;next};match($0,/^[[:space:]]*/);i=RLENGTH;p=1;if(v~/(source-and-package-selection|component-code-patterns|parameterized-families|pin-file-generation|package-examples|verification-and-application)/)ok=1;next} p{match($0,/^[[:space:]]*/);if(RLENGTH>i&&NF){if($0~/(source-and-package-selection|component-code-patterns|parameterized-families|pin-file-generation|package-examples|verification-and-application)/)ok=1;next};p=0} END{exit ok?0:1}' <output>/COMPLETION.md"
+      "cmd": "awk '/^[^A-Za-z]*References [Oo]pened[^:|]*[:|]/{v=$0;sub(/^[^A-Za-z]*References [Oo]pened[^:|]*[:|]/,\"\",v);gsub(/[*|`]/,\" \",v);if(v~/^[[:space:]]*[Nn]one/){bad=1;p=0;next};match($0,/^[[:space:]]*/);i=RLENGTH;p=1;if(v~/(source-and-package-selection|component-code-patterns|parameterized-families|pin-file-generation|package-examples|verification-and-application)/)ok=1;next} p{match($0,/^[[:space:]]*/);if(RLENGTH>i&&NF){if($0~/(source-and-package-selection|component-code-patterns|parameterized-families|pin-file-generation|package-examples|verification-and-application)/)ok=1;next};p=0} END{exit (ok&&!bad)?0:1}' <output>/COMPLETION.md"
     },
     {
       "text": "the component file sits under components/, optionally inside a namespace package and a category subdirectory, named texas_instruments_tlv9064irter.py: TLV9064IRTER is the PACKAGE OPTION ADDENDUM's orderable for the TLV9064 in RTE (PDF page 37). The addendum also lists TLV9064IRTER.A, so a _a suffix passes. Matched case-insensitively, because the skill's own filename examples keep the MPN in capitals.",
@@ -48,7 +48,7 @@
       "check": "judge"
     },
     {
-      "text": "V+ and V– sit on a unit separate from the four amplifier units, and on no amplifier unit",
+      "text": "the V+ and V– ports are mapped to a unit separate from the four amplifier units, and to no amplifier unit",
       "check": "judge"
     },
     {
