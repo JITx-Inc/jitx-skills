@@ -5,7 +5,7 @@ Component definition for the Texas Instruments LM1117 series
 low dropout linear regulator in WSON-8 package. The class name and the
 mpn "LM1117MP" are the SOT-223 (DCY) part, not a WSON part: the
 datasheet's package option addendum lists the WSON (NGN) orderables as
-LM1117LD-* and LM1117LDX-*.
+LM1117LD-*, LM1117LDX-* and LM1117ILD-*.
 """
 
 import jitx

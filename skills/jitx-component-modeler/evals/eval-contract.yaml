@@ -1,5 +1,7 @@
 # Eval contract for jitx-component-modeler.
-# The dimensions mirror the SKILL.md "Component completeness check" categories —
+# The dimensions mirror the SKILL.md "Component completeness check" categories,
+# except SYMBOL_STRUCTURE, which comes from the routing table's multi-unit row
+# and references/component-code-patterns.md —
 # the skill's own definition of what a good component has is the rubric its
 # outputs are judged against. That block cites, rather than restates, the base
 # skill's jitx/references/domains/component-modeling.md checklist, so the

@@ -213,8 +213,9 @@ part's readable form, and it needs stating as a property rather than a habit:
 
 - **Every port in exactly one partition**, and the partition count reconciles
   against the total pin count. Same property the pin inventory owes (see
-  `pin-file-generation.md`), asserted the same way. Packaging the component
-  rejects a port in two boxes and a port in none.
+  `pin-file-generation.md`), asserted the same way. `jitx build` rejects a port
+  in two boxes and a port in none, but a port listed twice in one box collapses
+  silently and leaves a symbol pin unconnected, so the assertion is still needed.
 - **One box per structural group the source itself defines.** Take the grouping
   from the datasheet's own organizing axis and do not invent one — on an FPGA
   that is typically the IO bank, transceiver quad or power domain; on other
