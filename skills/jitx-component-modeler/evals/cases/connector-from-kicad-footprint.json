@@ -1,0 +1,97 @@
+{
+  "name": "connector-from-kicad-footprint",
+  "prompt": "Model the GCT USB4105-GF-A USB-C receptacle. Import the land pattern from the attached KiCad footprint; the GCT datasheet is attached too.",
+  "inputs": {
+    "footprint_url": "https://gitlab.com/kicad/libraries/kicad-footprints/-/raw/f8440fa61a5690b48b325c891fdb99c0038a5a59/Connector_USB.pretty/USB_C_Receptacle_GCT_USB4105-xx-A_16P_TopMnt_Horizontal.kicad_mod",
+    "footprint_repo": "https://gitlab.com/kicad/libraries/kicad-footprints",
+    "footprint_commit": "f8440fa61a5690b48b325c891fdb99c0038a5a59",
+    "footprint_path": "Connector_USB.pretty/USB_C_Receptacle_GCT_USB4105-xx-A_16P_TopMnt_Horizontal.kicad_mod",
+    "footprint_sha256": "3b8d7da3cae5114ec83022a759a78925113bc2eeec100ea447594f6d8687e4b8",
+    "datasheet_url": "https://gct.co/files/drawings/usb4105.pdf",
+    "datasheet_sha256_at_authoring": "fb331fbabee8392ed2937ed757c1610cb0f174b84625147c0b580a18eea8c0e5",
+    "notes": "Network-dependent, like the lm1117mp-son8-thermal-pad case. The harness fetches the footprint from the pinned commit, checks its sha256, and stages the file in the runner's directory as the attachment; a hash mismatch or an unreachable URL is recorded as 'not run: footprint unreachable or changed', never replaced by another revision or another library's footprint. The datasheet is supplied as its URL, under the LM1117 case's rule: if it is unreachable or serves non-PDF content, record 'not run: datasheet unreachable' rather than substituting a mirror. The GCT PDF is encrypted with standard security but opens without a password (pymupdf reads it).\n\nNeither file is committed. The KiCad library is CC-BY-SA 4.0 with a design exception; its LICENSE.md at the pinned commit says: 'KiCad libraries are licensed in such a way to ensure free use of library data for commercial, closed, and non-commercial projects without restriction.' and 'if you wish to redistribute the KiCad libraries, or parts thereof (including in modified form) as a collection then the exception above does not apply. Redistributed library collections must be shared under the same license agreement.' Fetching the file to build a component is use; committing it into this bundle would be redistribution under share-alike terms. The GCT drawing's title block says 'This drawing must not be copied or disclosed without written consent.'\n\nFootprint file at authoring: KiCad footprint format version 20260206, 6,860 bytes. Datasheet at authoring: GCT drawing USB4105, 2 sheets, title block revision B4, sha256 fb331fbabee8392ed2937ed757c1610cb0f174b84625147c0b580a18eea8c0e5; sheet 1 carries the pin table (Pin / Signal / Mating Sequence), the ordering grid and the 'Recommended PCB Layout', whose dimensions agree with the footprint (2x Ø0.65 holes, 12x 1.15 pad length, 4x 0.60 and 8x 0.30 pad widths).",
+    "offline": false,
+    "traps": [
+      "The two np_thru_hole entries list layers \"*.Cu\" and \"*.Mask\", as KiCad writes every non-plated hole, and their (size 0.65 0.65) equals the 0.65 drill, so there is no copper. A layer-by-layer conversion puts a copper ring, a pad or a port on a locating-peg hole.",
+      "Four lands are listed twice under two pad numbers at identical coordinates: A1 and B12 at (-3.2, -3.68), A4 and B9 at (-2.4, -3.68), A9 and B4 at (2.4, -3.68), A12 and B1 at (3.2, -3.68). The file has 16 SMD pad entries for 12 physical lands. Each pair is one net in the GCT pin table (GND or VBUS). Emitting one pad per entry gives coincident pads, which is acceptable when both are on the same port; what fails is two different ports on one land, or a land lost while de-duplicating. A JITX pad maps to one port only: translate_component in jitx/_translate/component.py raises \"... maps pad ... to ..., which is already mapped to ...\".",
+      "The four SH pads are plated slots (drill oval 0.6 1.7 and 0.6 1.4) flagged pad_prop_mechanical. That is KiCad's fabrication property for a mechanical pad, not 'non-plated': they carry copper on every layer and are the shell's connection, which the GCT pin table lists as SHELL, GND.",
+      "The SH pads list F.Paste, so the footprint expects pin-in-paste on the shell tabs; jitxlib's THPad generates no paste unless asked.",
+      "KiCad's y axis points down and JITX's points up (Anchor.to_point in jitx/anchor.py places N, the top, at the bounding box's maximum y; jitxlib's QFN docstring, pad 1 top-left and numbering counter-clockwise, agrees). Copying each (at x y) across unchanged gives the mirror image. The copper is symmetric left to right, so it looks right, but with the receptacle opening turned the same way every signal land is on the wrong side: A5 (CC1) lands where A8 (SBU1) belongs, B8 (SBU2) where B5 (CC2) belongs, A6 (Dp1) where A7 (Dn1) belongs, and B7 (Dn2) where B6 (Dp2) belongs.",
+      "The footprint's Datasheet property is empty; the drawing URL is in its descr string. The footprint name ends -xx-A because one pattern serves every contact plating; the prompt settles the orderable as USB4105-GF-A, which the drawing's ordering grid (USB4105-XX-A, XX = GF, 15 or 30) and the footprint's tags both list."
+    ]
+  },
+  "reference": {
+    "notes": "No committed reference. The footprint file is the reference for geometry: the harness hands judges the same sha256-checked file the runner got, and the GCT drawing is the reference for contact-to-signal assignment. A committed reference would carry the footprint's geometry, the redistribution inputs.notes avoids.\n\nAPI basis for the land-pattern assertions, in the jitx and jitxlib source: the Pad class docstring in jitx/landpattern.py says a Pad containing a Cutout is a through-hole pad and one without is surface-mount, and _pad_to_copper in the same module gives a Pad with a Cutout copper on every conductor layer and one without copper on layer 0 (plus any layer its shapes mapping names). A non-plated hole is a jitx.feature.Cutout placed on the landpattern outside any Pad, or jitxlib.landpatterns.pads.NPTHPad, which is a Composite rather than a Pad and holds a Cutout with soldermask on both sides. jitxlib's SMDPad defaults to a soldermask opening and a paste shape on its side; THPad defaults to soldermask on both sides and no paste. Soldermask, Paste and Courtyard in jitx/feature.py are SurfaceFeature subclasses carrying a side.\n\nContract mapping for this case: where the eval contract's SOURCE_AUTHORITY dimension, its first hard fail and LANDPATTERN_FIDELITY say 'datasheet page or figure', judges read 'footprint file entry or GCT drawing'. LANDPATTERN_FIDELITY's 'correct generator' and Toleranced min/typ/max clauses score n/a: a .kicad_mod carries nominal values, and the land pattern is imported rather than generated.\n\nContact map from the GCT pin table, for the judges: A1, A12, B1, B12 GND; A4, A9, B4, B9 VBUS; A5 CC1; B5 CC2; A6 Dp1; A7 Dn1; B6 Dp2; B7 Dn2; A8 SBU1; B8 SBU2; SHELL GND. Footprint x positions on the contact row (y = -3.68): B8 -1.75, A5 -1.25, B7 -0.75, A6 -0.25, A7 0.25, B6 0.75, A8 1.25, B5 1.75, which matches the order on the drawing's Recommended PCB Layout."
+  },
+  "runner_models": [
+    "sonnet"
+  ],
+  "runner_rationale": "Same rationale as the sibling cases: customers drive this skill with mixed-strength agents, so the eval runs the skill under a Sonnet-class runner and holds the judges at frontier tier. This case additionally probes whether a runner handed a footprint file converts each entry by what it is (signal pad, plated mechanical pad, non-plated hole) rather than by its layer list.",
+  "runner_isolation": "Start the runner in a scratch directory with the skill, the fetched footprint file and a writable output directory, and nothing else; the datasheet arrives by URL. No KiCad converter is supplied: none on PATH and none in the runner's environment, so the runner reads the .kicad_mod itself. Installing parts2jitx or any other converter is not allowed: the harness preamble, not the prompt, tells the runner it cannot install packages. The skill at this revision routes connectors to parts2jitx-kicad, says to install it when missing, and forbids hand-crafted pad positions when a footprint can be converted, so a faithful runner may stop and report the missing converter. Record that run as 'stopped: skill routes to a converter the case withholds', a conflict between the skill and the case rather than a runner failure, and record the case as not scored: run neither the judges nor run_cases.py on it. A run that installs a converter anyway breaks this isolation: record it and do not score it. Reading the installed jitx/jitxlib source is allowed and expected. Stage this case file, the eval contract and the judge prompt outside the runner's permitted tree: the traps and the contact map give the answers away.",
+  "runner_artifacts": "The runner MUST write its completion summary to <output>/COMPLETION.md, not only into its final chat message, and the component under <output>/components/ per the skill's Output Location. Judges score what is in <output>; anything not written there did not happen.",
+  "runner_build": "Tell the runner to run `jitx find` and build whatever target it prints, recording the exact command and result. Do NOT tell it to skip the build: the contract hard-fails on an available build that was not done. Where the build cannot run, the runner declares it as an open item in COMPLETION.md, which satisfies the hard-fail's own escape clause; remind judges that a declared, unavailable build is not a silent skip.",
+  "substitutions": "<output> = the runner's writable output directory, substituted by the harness before the cmd strings below are executed.",
+  "expected_output": "One component file, components/<category>/gct_usb4105_gf_a.py or the flat equivalent: mpn USB4105-GF-A, manufacturer GCT, the datasheet URL and refdes prefix J set; ports for the contacts in the GCT pin table and the shell; a Landpattern built from the footprint file with 12 SMD lands, 4 plated shell slots, 2 non-plated holes and a courtyard, every coordinate converted from KiCad's y-down frame; an explicit PadMapping; a symbol; and COMPLETION.md with the filled Component check block naming the footprint file by commit or sha256.",
+  "assertions": [
+    {
+      "text": "every generated source file parses as Python",
+      "check": "deterministic",
+      "cmd": "find <output> -name '*.py' -exec python3 -m py_compile {} +"
+    },
+    {
+      "text": "<output>/COMPLETION.md has a References opened row that names at least one of the skill's reference files, by file name or stem (source-and-package-selection, component-code-patterns, parameterized-families, pin-file-generation, package-examples, verification-and-application). The label may carry a parenthetical and be followed by a colon or a table-cell bar. The value may sit on the label line, on continuation lines indented deeper than it, or, under a label line with no value that is not itself a list item, in a list whose items start with -, *, + or a number (blank lines before the first item allowed); the label's capitalization does not matter. The case fails when any References opened row's value starts with `none`: the verification row of the skill's routing table matches every task that reaches verification, so `none matched` is never right here, in any component's block. A mention of the row inside prose does not count.",
+      "check": "deterministic",
+      "cmd": "awk '{l=tolower($0)} l~/^[^a-z]*references opened[^:|]*[:|]/{v=l;sub(/^[^a-z]*references opened[^:|]*[:|]/,\"\",v);gsub(/[*|`]/,\" \",v);if(v~/^[[:space:]]*none/){bad=1;p=0;next};match(l,/^[[:space:]]*/);i=RLENGTH;e=(v~/^[[:space:]]*$/)&&(l!~/^[[:space:]]*([-*+]|[0-9]+[.)])[[:space:]]/);s=0;p=1;if(v~/(source-and-package-selection|component-code-patterns|parameterized-families|pin-file-generation|package-examples|verification-and-application)/)ok=1;next} p&&e&&!s&&!NF{next} p{match(l,/^[[:space:]]*/);if(NF&&(RLENGTH>i||(e&&l~/^[[:space:]]*([-*+]|[0-9]+[.)])[[:space:]]/))){s=1;if(e&&l~/^[[:space:]]*([-*+]|[0-9]+[.)])[[:space:]]*none/)bad=1;if(l~/(source-and-package-selection|component-code-patterns|parameterized-families|pin-file-generation|package-examples|verification-and-application)/)ok=1;next};p=0} END{exit (ok&&!bad)?0:1}' <output>/COMPLETION.md"
+    },
+    {
+      "text": "the component file sits under components/, optionally inside a namespace package and a category subdirectory, named gct_usb4105_gf_a.py (MPN USB4105-GF-A; global_connector_technology is accepted as the manufacturer token). Matched case-insensitively, because the skill's own filename examples keep the MPN in capitals.",
+      "check": "deterministic",
+      "cmd": "python3 -c \"import re,sys;from pathlib import Path;o=Path(sys.argv[1]);h=[r for r in (p.relative_to(o).as_posix() for p in o.rglob('*.py')) if re.fullmatch(sys.argv[2],r,re.I)];sys.exit(0 if len(h)>=int(sys.argv[3]) else 'found '+str(len(h))+' file(s) matching '+sys.argv[2]+', need '+sys.argv[3])\" <output> '([a-z0-9_]+/)?components/([a-z0-9_]+/)?(gct|global_connector_technology)_usb4105_?gf_?a[.]py' 1"
+    },
+    {
+      "text": "the land pattern traces to the footprint file's pad and hole entries: the runner read the staged .kicad_mod, COMPLETION.md names it by path, commit or sha256, and the code's positions, sizes and drills come from its (at), (size) and (drill) values, not from memory, from the GCT drawing alone, or from a generator",
+      "check": "judge"
+    },
+    {
+      "text": "each of the two np_thru_hole entries (0.65 mm at (-2.89, -2.605) and (2.89, -2.605) in the file) becomes a non-plated hole: a jitx.feature.Cutout on the landpattern outside any Pad, or jitxlib's NPTHPad. No copper, no Pad and no port at either hole, whatever the file's layer list says.",
+      "check": "judge"
+    },
+    {
+      "text": "every SMD land has a soldermask opening and a paste opening, both on the land's own (top) side",
+      "check": "judge"
+    },
+    {
+      "text": "every shell pad is a through-hole pad: a Pad holding a Cutout for its slot (0.6 x 1.7 mm for the two at file y = -3.105, 0.6 x 1.4 mm for the two at y = 1.075), so it has copper on every copper layer, with soldermask openings on both sides. The file's F.Paste on these pads is carried over, or its omission is recorded with a reason.",
+      "check": "judge"
+    },
+    {
+      "text": "the plated shell pads are mapped to a port, not left unmapped and not turned into cutouts. The GCT pin table assigns SHELL to GND, so the GND port and a separate shell or shield port are both correct when COMPLETION.md records the choice.",
+      "check": "judge"
+    },
+    {
+      "text": "pad positions, sizes and drill diameters match the footprint file entry by entry, after KiCad's y-down coordinates are converted to JITX's y-up frame (or by a stated transform that is not a mirror image). The judge has the same file and checks all 22 entries: 2 holes, 16 SMD entries over 12 lands, and 4 shell pads.",
+      "check": "judge"
+    },
+    {
+      "text": "the four lands the file lists under two numbers (A1/B12, A4/B9, A9/B4, A12/B1) are each one copper pad, or coincident pads on the same port, carrying the net both contacts share. No land is dropped and no land carries two ports.",
+      "check": "judge"
+    },
+    {
+      "text": "pin-to-pad mapping matches the GCT pin table (contact map in reference.notes): every contact reaches the port for its signal, and the A-row and B-row contacts that sit side by side (B8 beside A5, B7 beside A6, A7 beside B6, A8 beside B5) are not swapped",
+      "check": "judge"
+    },
+    {
+      "text": "a courtyard is present and encloses the pads and the body; the file's F.CrtYd rectangle runs from (-5.32, -4.76) to (5.32, 4.18)",
+      "check": "judge"
+    },
+    {
+      "text": "identity: mpn USB4105-GF-A, manufacturer GCT, the datasheet URL and reference designator prefix J set on the class",
+      "check": "judge"
+    },
+    {
+      "text": "COMPLETION.md carries the filled Component check block; its Landpattern row names the KiCad import and why no jitxlib generator applies, and its Source row records the footprint file (commit or sha256) as well as the GCT drawing",
+      "check": "judge"
+    }
+  ],
+  "future_cases": "Planned siblings in this lane: a footprint whose pad numbers disagree with the manufacturer drawing, where the drawing wins and the disagreement goes back to the user before anything is built; and a through-hole connector whose plated mounting holes carry no signal, where the right answer is a pad on a mechanical or shield port rather than a cutout."
+}

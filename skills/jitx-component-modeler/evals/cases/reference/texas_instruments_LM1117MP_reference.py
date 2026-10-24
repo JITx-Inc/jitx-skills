@@ -1,8 +1,11 @@
 """
-Texas Instruments LM1117MP Low Dropout Linear Regulator
+Texas Instruments LM1117 Low Dropout Linear Regulator, WSON-8 (NGN) outline
 
 Component definition for the Texas Instruments LM1117 series
-low dropout linear regulator in WSON-8 package.
+low dropout linear regulator in WSON-8 package. The class name and the
+mpn "LM1117MP" are the SOT-223 (DCY) part, not a WSON part: the
+datasheet's package option addendum lists the WSON (NGN) orderables as
+LM1117LD-*, LM1117LDX-* and LM1117ILD-*.
 """
 
 import jitx

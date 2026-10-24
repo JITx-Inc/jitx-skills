@@ -1,0 +1,84 @@
+{
+  "name": "opamp-quad-qfn-from-datasheet",
+  "prompt": "model the TI TLV9064 quad op amp in the 16-pin WQFN (RTE) package. The datasheet is attached.",
+  "inputs": {
+    "datasheet_url": "https://www.ti.com/lit/ds/symlink/tlv9064.pdf",
+    "datasheet_sha256_at_authoring": "7a5517d7f74bedddf4b8404fce93e21100d2833a6f4ae16a93f934eaf0c6477c",
+    "notes": "Network-dependent, like the lm1117mp-son8-thermal-pad case, and under the same rule: the runner needs network reach to ti.com and pymupdf installed. If the URL is unreachable or serves non-PDF content, record 'not run: datasheet unreachable' rather than substituting a distributor mirror. The PDF is not committed: it is TI's copyrighted document, and the case links it the way the skill tells a runner to.\n\nThe bytes fetched when this case was written were TI literature number SBOS839N (Rev. N, 'SBOS839N – MARCH 2017 – REVISED JULY 2026' in the page footer), 99 pages, PDF title 'TLV906xS 10MHz, RRIO, CMOS Operational Amplifiers for Cost-Sensitive Systems datasheet (Rev. N)', sha256 7a5517d7f74bedddf4b8404fce93e21100d2833a6f4ae16a93f934eaf0c6477c. TI serves the current revision at this URL, so a later fetch can hash differently. When it does, judges locate the pages below by caption in the fetched revision, record that revision in the receipt, and re-check every number the assertions quote against it rather than against these page numbers.\n\nPages used, as 1-based PDF page index: 1 (Device Information: TLV9064 offered in RTE (WQFN, 16), 3.00mm x 3.00mm); 4 (Device Comparison Table: TLV9064, 4 channels); 8 (Figure 5-12 'TLV9064 RTE Package, 16-Pin WQFN With Exposed Thermal Pad (Top View)' with note A 'Connect thermal pad to V–', and Table 5-5 'Pin Functions: TLV9064', WQFN column); 9 (Figure 5-14 and Table 5-6, the TLV9064S in the same RTE package); 37 (PACKAGE OPTION ADDENDUM: TLV9064IRTER and TLV9064IRTER.A, WQFN (RTE) | 16); 50 (PACKAGE OUTLINE RTE0016C, drawing 4219117/B 04/2022); 51 (EXAMPLE BOARD LAYOUT); 52 (EXAMPLE STENCIL DESIGN: 'EXPOSED PAD 17: 85% PRINTED SOLDER COVERAGE BY AREA UNDER PACKAGE', 0.125 mm stencil).",
+    "offline": false,
+    "traps": [
+      "Two parts, one package: the datasheet covers the TLV9064 and the TLV9064S, both in RTE. On the TLV9064 pins 6 and 7 are NC (Figure 5-12, Table 5-5); on the TLV9064S they are the shutdown inputs SHDN12 and SHDN34 (Figure 5-14, Table 5-6). Reading the wrong figure gives a plausible map with two invented pins.",
+      "Three pin-number columns: Table 5-5 numbers each pin for SOIC/TSSOP, WQFN and X2QFN. The X2QFN (RUC) is also a no-lead quad package, with 14 pins. A map read from the wrong column is internally consistent and wrong.",
+      "The exposed pad is not ground: Figure 5-12 note A says to connect it to V–. Mapping it to a GND port, or leaving it unmapped, fails.",
+      "Many outlines: the PDF carries PACKAGE OUTLINE pages for every package in the family. Dimensions copied from the RUC or another outline are real numbers from the right document and still wrong; the cited drawing must be RTE0016C.",
+      "Pin names carry a minus sign ('IN1–', 'V–') that is not a Python identifier character. Renaming is necessary; the hard fail is renaming silently.",
+      "Supplies on every unit: a per-amplifier symbol with supply pins puts V+ and V– on four units, or leaves them drawn and unconnected; the stock op-amp symbol in jitxlib carries supply pins."
+    ]
+  },
+  "reference": {
+    "notes": "No committed reference solution. A reference file would pin one symbol choice (a supply-less jitxlib op-amp class, the stock op-amp symbol with its supply pins left unmapped, or a box), and the case scores that choice against a rule rather than against a file. Every pin number and dimension the judges need is in the assertions, with its page in inputs.notes. Symbol pins with no port are allowed: translate_component in jitx/_translate/component.py logs \"Missing symbol pin mapping ...\" at debug level only, so an unmapped supply pin on a stock op-amp symbol builds; whether it meets the rule is the judges' call, as the symbol assertion states.\n\nExpected result at this revision: the skill's own multi-unit example (references/component-code-patterns.md, 'By functional group') draws each op-amp unit as a BoxSymbol, and the skill names no jitxlib op-amp symbol class. A run that follows it gives box units with no recorded reason, which fails the symbol-choice assertion and the SYMBOL_STRUCTURE clause on matching jitxlib classes. That failure is the skill gap this case measures, not a regression."
+  },
+  "runner_models": [
+    "sonnet"
+  ],
+  "runner_rationale": "Same rationale as the sibling cases: customers drive this skill with mixed-strength agents, so the eval runs the skill under a Sonnet-class runner and holds the judges at frontier tier. This case additionally probes whether a runner that has seen many quad op-amp pinouts reads this package's own column of the pin table, and whether the skill gets it to a per-amplifier symbol without the prompt asking for one.",
+  "runner_isolation": "Start the runner in a scratch directory with the skill and a writable output directory, and nothing else; the datasheet arrives by URL at run time. Reading the installed jitx/jitxlib source is allowed and expected, including jitxlib's symbol classes. Stage this case file, the eval contract and the judge prompt outside the runner's permitted tree: the traps and the pin table in the assertions give the answers away.",
+  "runner_artifacts": "The runner MUST write its completion summary to <output>/COMPLETION.md, not only into its final chat message, and the component under <output>/components/ per the skill's Output Location. Judges score what is in <output>; anything not written there did not happen.",
+  "runner_build": "Tell the runner to run `jitx find` and build whatever target it prints, recording the exact command and result. Do NOT tell it to skip the build: the contract hard-fails on an available build that was not done. Where the build cannot run, the runner declares it as an open item in COMPLETION.md, which satisfies the hard-fail's own escape clause; remind judges that a declared, unavailable build is not a silent skip.",
+  "substitutions": "<output> = the runner's writable output directory, substituted by the harness before the cmd strings below are executed.",
+  "expected_output": "One component file, components/<category>/texas_instruments_tlv9064irter.py or the flat equivalent: mpn TLV9064IRTER, manufacturer, datasheet URL and refdes prefix U set; sixteen ports for the sixteen WQFN pins (four OUT, four IN+, four IN–, V+, V–, and NC on pins 6 and 7 declared no_connect()); the QFN generator with body, pitch, lead and thermal-pad dimensions as Toleranced values from the RTE0016C outline; the thermal pad mapped to V– with paste reduced per the example stencil or a subdivided window; five symbol units, one per amplifier with OUT, IN+ and IN– only and one carrying V+, V– and the NC pins; an explicit PadMapping; and COMPLETION.md with the filled Component check block.",
+  "assertions": [
+    {
+      "text": "every generated source file parses as Python",
+      "check": "deterministic",
+      "cmd": "find <output> -name '*.py' -exec python3 -m py_compile {} +"
+    },
+    {
+      "text": "<output>/COMPLETION.md has a References opened row that names at least one of the skill's reference files, by file name or stem (source-and-package-selection, component-code-patterns, parameterized-families, pin-file-generation, package-examples, verification-and-application). The label may carry a parenthetical and be followed by a colon or a table-cell bar. The value may sit on the label line, on continuation lines indented deeper than it, or, under a label line with no value that is not itself a list item, in a list whose items start with -, *, + or a number (blank lines before the first item allowed); the label's capitalization does not matter. The case fails when any References opened row's value starts with `none`: the verification row of the skill's routing table matches every task that reaches verification, so `none matched` is never right here, in any component's block. A mention of the row inside prose does not count.",
+      "check": "deterministic",
+      "cmd": "awk '{l=tolower($0)} l~/^[^a-z]*references opened[^:|]*[:|]/{v=l;sub(/^[^a-z]*references opened[^:|]*[:|]/,\"\",v);gsub(/[*|`]/,\" \",v);if(v~/^[[:space:]]*none/){bad=1;p=0;next};match(l,/^[[:space:]]*/);i=RLENGTH;e=(v~/^[[:space:]]*$/)&&(l!~/^[[:space:]]*([-*+]|[0-9]+[.)])[[:space:]]/);s=0;p=1;if(v~/(source-and-package-selection|component-code-patterns|parameterized-families|pin-file-generation|package-examples|verification-and-application)/)ok=1;next} p&&e&&!s&&!NF{next} p{match(l,/^[[:space:]]*/);if(NF&&(RLENGTH>i||(e&&l~/^[[:space:]]*([-*+]|[0-9]+[.)])[[:space:]]/))){s=1;if(e&&l~/^[[:space:]]*([-*+]|[0-9]+[.)])[[:space:]]*none/)bad=1;if(l~/(source-and-package-selection|component-code-patterns|parameterized-families|pin-file-generation|package-examples|verification-and-application)/)ok=1;next};p=0} END{exit (ok&&!bad)?0:1}' <output>/COMPLETION.md"
+    },
+    {
+      "text": "the component file sits under components/, optionally inside a namespace package and a category subdirectory, named texas_instruments_tlv9064irter.py: TLV9064IRTER is the PACKAGE OPTION ADDENDUM's orderable for the TLV9064 in RTE (PDF page 37). The addendum also lists TLV9064IRTER.A, so a _a suffix passes. Matched case-insensitively, because the skill's own filename examples keep the MPN in capitals.",
+      "check": "deterministic",
+      "cmd": "python3 -c \"import re,sys;from pathlib import Path;o=Path(sys.argv[1]);h=[r for r in (p.relative_to(o).as_posix() for p in o.rglob('*.py')) if re.fullmatch(sys.argv[2],r,re.I)];sys.exit(0 if len(h)>=int(sys.argv[3]) else 'found '+str(len(h))+' file(s) matching '+sys.argv[2]+', need '+sys.argv[3])\" <output> '([a-z0-9_]+/)?components/([a-z0-9_]+/)?texas_instruments_tlv9064irter(_a)?[.]py' 1"
+    },
+    {
+      "text": "one symbol unit per amplifier, four in all, each with exactly that channel's OUTn, INn+ and INn– ports mapped to it and no supply port mapped to it. Supply pins drawn on a unit but left unmapped are scored only by the symbol-choice assertion below.",
+      "check": "judge"
+    },
+    {
+      "text": "the V+ and V– ports are mapped to a unit separate from the four amplifier units, and to no amplifier unit",
+      "check": "judge"
+    },
+    {
+      "text": "every pin of the WQFN pin table is a port on exactly one unit: four OUT, four IN+, four IN–, V+, V–, and the two NC pins 6 and 7 declared no_connect(), sixteen ports for sixteen pins, or seventeen with a documented pad-17 port. The exposed thermal pad (pad 17) is mapped to V– as Figure 5-12 note A directs: onto the V– port alongside pin 11, or onto a port of its own that the code names and documents as V– and places on the supply unit. Pad 17 unmapped, on a ground port, or recorded as floating fails.",
+      "check": "judge"
+    },
+    {
+      "text": "pin numbers match Table 5-5's WQFN column: IN1+ 1, V+ 2, IN2+ 3, IN2– 4, OUT2 5, NC 6 and 7, OUT3 8, IN3– 9, IN3+ 10, V– 11, IN4+ 12, IN4– 13, OUT4 14, OUT1 15, IN1– 16. A map read from the SOIC/TSSOP or X2QFN column, or pins 6 and 7 modelled as the TLV9064S shutdown pins SHDN12 and SHDN34, fails.",
+      "check": "judge"
+    },
+    {
+      "text": "the land pattern uses jitxlib's QFN generator with every dimension a Toleranced value traced to the RTE0016C outline (PDF page 50, drawing 4219117/B): body 2.9 to 3.1 mm on both axes, pitch 0.5 mm, terminal length 0.3 to 0.5 mm, terminal width 0.18 to 0.30 mm, thermal pad 1.68 ± 0.07 mm square, height 0.8 mm max. A dimension taken from another package's outline, or a bare nominal where the drawing gives a range, fails.",
+      "check": "judge"
+    },
+    {
+      "text": "paste on the thermal pad is reduced from full-pad coverage and the reduction traces to a source: the example stencil (PDF page 52) prints exposed pad 17 through one 1.55 mm square aperture, 85% coverage on a 0.125 mm stencil. That aperture, or a subdivided window of similar coverage, passes when the code or COMPLETION.md says which and cites the page. Full-pad paste with nothing recorded, or a subdivision with no stated basis, is a finding.",
+      "check": "judge"
+    },
+    {
+      "text": "each amplifier unit's symbol is scored against the rule 'each amplifier is its own unit with no supply pins', and the judge records which choice the runner made. A jitxlib op-amp symbol class with no supply pins meets the rule. The stock jitxlib op-amp symbol with its supply pins left unmapped draws unconnected supply pins on every unit, so it passes only where the runner records that the installed jitxlib has no supply-less op-amp class. A box symbol passes only with a recorded reason that no jitxlib op-amp class fits.",
+      "check": "judge"
+    },
+    {
+      "text": "identity: mpn TLV9064IRTER (or TLV9064IRTER.A, or the runner asked which orderable), manufacturer Texas Instruments, the datasheet URL and reference designator prefix U set on the class",
+      "check": "judge"
+    },
+    {
+      "text": "COMPLETION.md carries the filled Component check block; its Source row names SBOS839N or the revision actually fetched, and the pin table and outline are cited by figure or table caption and page",
+      "check": "judge"
+    }
+  ],
+  "future_cases": "Planned siblings in this lane: the TLV9064S in the same RTE package, where pins 6 and 7 are the shutdown inputs SHDN12 and SHDN34 and need a unit with a stated reason; and a dual op-amp in an 8-pin package with no exposed pad, where the supply unit holds only V+ and V–."
+}
