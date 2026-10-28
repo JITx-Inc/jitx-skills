@@ -1,6 +1,6 @@
 ---
 name: jitx-component-modeler
-description: "Create JITX Python component code from datasheets, KiCad footprints, or user specifications. ALWAYS use this skill when user asks to \"create a component\", \"model a part\", \"generate a component\", \"add a component\", or \"make a JITX component\" - even without a datasheet. Also triggers on part numbers (NE555, LM1117, RP2040, etc.), package types (SOIC, QFN, BGA, SON, SOT), and two-terminal chip sizes (0402, 0603, 2512). Supports user-provided data, JITX generators for standard packages, and optional LCSC/EasyEDA fallback for non-standard footprints. Supports multi-unit symbols, thermal pads, and complex pin mappings. Also covers parameterized catalog families — one class standing in for a manufacturer's whole series (chip resistors, MLCCs) with the part number computed per instance and no parts-database query — and verifying a component against its datasheet with jitx.test.TestCase. Also covers generating a component from a vendor's machine-readable package pinout file rather than a drawing (\"generate the FPGA from the pin file\", \"parse the package pinout file\", \"model this 1000-ball BGA\"): parse-don't-transcribe, reconcile the ball inventory before emitting, and a committed generator with a regenerate-and-diff check. For choosing and placing an ordinary queried passive, use jitx-circuit-builder instead."
+description: "Create JITX Python component code from datasheets, KiCad footprints, vendor pin files, or user specifications. ALWAYS use this skill when user asks to \"create a component\", \"model a part\", \"generate a component\", \"add a component\", or \"make a JITX component\" - even without a datasheet. Also triggers on part numbers (NE555, LM1117, RP2040) and package types (SOIC, QFN, BGA, SON, SOT). Covers JITX generators for standard packages, a vendor's KiCad footprint read directly for non-standard ones, multi-unit symbols, thermal pads, pin mappings, and datasheet checks with jitx.test.TestCase. Also covers generating from a vendor's machine-readable pinout file rather than a drawing (\"generate the FPGA from the pin file\", \"parse the package pinout file\", \"model this 1000-ball BGA\"): parse-don't-transcribe, reconcile the ball inventory before emitting, and a committed generator with a regenerate-and-diff check. For choosing and placing an ordinary queried passive, use jitx-circuit-builder instead."
 ---
 
 # JITX Component Generation Skill
@@ -15,12 +15,11 @@ The agent evaluates the conditions before writing code. It opens every matching 
 
 | Condition the agent can evaluate now | Open |
 |---|---|
-| The evidence source (datasheet, package drawing, URL, sourcing-channel record, KiCad footprint, user artifact) or the package generator is not yet settled. | [references/source-and-package-selection.md](references/source-and-package-selection.md) |
+| The evidence source (datasheet, package drawing, URL, sourcing-channel record, KiCad footprint, user artifact) or the package generator is not yet settled, or a KiCad footprint is the land-pattern source. | [references/source-and-package-selection.md](references/source-and-package-selection.md) |
 | The source and package are known, and the agent is about to write the component class, symbol, generator call, multi-unit partition, or explicit `PadMapping`. | [references/component-code-patterns.md](references/component-code-patterns.md) |
-| The body is a rectangular two-terminal chip, or one class must represent a manufacturer's catalog family and compute the MPN per instance. | [references/parameterized-families.md](references/parameterized-families.md) |
 | The vendor supplied a machine-readable pinout or ball-map file rather than a drawing to transcribe. | [references/pin-file-generation.md](references/pin-file-generation.md) |
-| The selected package is a SOIC, SOT23, QFN, QFP or BGA, or another standard-generator package whose pad numbering, mapping or thermal pad the agent has not built before. The file works those five; any BGA also needs its BGA-specific notes. | [references/package-examples.md](references/package-examples.md) |
-| Code exists and the component still has to be tested, built and reported, or a typical application circuit must be captured. This row matches every task that reaches verification. | [references/verification-and-application.md](references/verification-and-application.md) |
+| The selected package is a SOIC, SOT23, QFN, SON or BGA whose pad numbering, mapping or thermal pad the agent has not built before. The file names a shipped `jitxexamples` module per generator; any BGA also needs its BGA-specific notes. | [references/package-examples.md](references/package-examples.md) |
+| Code exists and the component still has to be tested, built and reported. This row matches every task that reaches verification. | [references/verification-and-application.md](references/verification-and-application.md) |
 
 The agent reads every matched reference before writing code and records the rows matched and the files read in the `References opened` row of the Component check. A reference file absent from disk is reported as a blocker, never replaced by remembered API details.
 
@@ -44,7 +43,7 @@ the environment, not a fact about it. If a probe succeeds, the source gate appli
 normal. If every probe fails, the completion artifact records what was tried and what each
 attempt returned, so a reader can tell an unreachable source from an unattempted one.
 
-A real component with no source is blocked before land-pattern or pin code is written. The only exception is an explicitly authorized non-MPN generic placeholder; the completion artifact records that authorization under `Notes`. A parameterized family may compute its MPN from the source's ordering grammar, but every table and range still traces to that source and a generated MPN reproduces its worked example.
+A real component with no source is blocked before land-pattern or pin code is written. The only exception is an explicitly authorized non-MPN generic placeholder; the completion artifact records that authorization under `Notes`.
 
 When no document states an orderable MPN, the identity gate asks the user while device and package are being confirmed. A device string or package name does not become an MPN. The agreed value records what it does and does not identify. No test or build catches a fabricated MPN, so component generation does not proceed past the identity gate without that answer.
 
@@ -56,7 +55,7 @@ If `extract_pages.py` exits non-zero or no relevant pages are found, the source 
 
 ## Universal construction gate
 
-All component output lives under `components/`, with a category subdirectory when the project uses them and filenames of the form `<manufacturer>_<mpn>.py` in lowercase with underscores.
+All component output lives under `components/`, with a category subdirectory when the project uses them and filenames of the form `<manufacturer>_<mpn>.py`: lowercase manufacturer, MPN as the manufacturer prints it, underscores for separators.
 
 The construction step refuses to proceed with any of these patterns:
 
@@ -64,7 +63,7 @@ The construction step refuses to proceed with any of these patterns:
 - one representative `Port` standing in for several physical pins, or separate ports for alternate functions of one physical pin;
 - numbered sibling attributes plus `getattr`, instead of an indexed list such as `GPIO = [Port() for _ in range(N)]`;
 - a second stored attribute containing ports the component already owns; structural groupings are methods returning fresh records;
-- hand-crafted pad positions for a non-standard package when a sourced KiCad footprint can be converted;
+- pad positions placed from a drawing for a package no generator expresses, when the vendor publishes a KiCad footprint for it;
 - transcribing or sampling a supplied machine-readable pin file, or making ball-reference strings the runtime data model;
 - invented constructor arguments, class-scope `self`, or a JITX class declared inside a function, method, or active instantiation context;
 - a silent package-variant choice when the source covers more than one variant.
@@ -79,7 +78,7 @@ For a machine-readable pin file, no component code is emitted until the parsed r
 
 After code exists, the agent performs these steps in order:
 
-1. Tests that construct components subclass `jitx.test.TestCase`; pure helper tests may use `unittest.TestCase`. Every package variant, and every family case size, gets a pad-count check. For a land pattern `lp`, count pads with the framework's structural traversal, which does not depend on the numbering scheme:
+1. Tests that construct components subclass `jitx.test.TestCase`; pure helper tests may use `unittest.TestCase`. Every package variant gets a pad-count check. For a land pattern `lp`, count pads with the framework's structural traversal, which does not depend on the numbering scheme:
 
    ```python
    from jitx.inspect import visit
@@ -88,9 +87,9 @@ After code exists, the agent performs these steps in order:
    pad_count = sum(1 for _ in visit(lp, Pad))  # every pad the landpattern owns, thermal pads included
    ```
 
-   Verified on jitx 4.4.0 inside a `SubstrateContext`: 8 for a generated SOIC-8, equal to `len(lp.p)`, and 441 for a generated 21 by 21 BGA, where `lp.p` does not exist. Do not count by enumerating attributes: `lp.p` exists only on the linearly numbered generators, a BGA's `AlphaDictNumbering` keeps its row dictionaries outside the instance namespace, and an attribute walk over one-letter row names returned 0 for that BGA. `lp.pads` is not an accessor either. Compare `pad_count` with the datasheet's pin count plus its thermal pads. If the count cannot be established for the package at hand, the pad-count row remains open and verification stops rather than recording an unchecked number.
+   Inside a `SubstrateContext` it gives 8 for a generated SOIC-8, equal to `len(lp.p)`, and 441 for a generated 21 by 21 BGA, where `lp.p` does not exist. Do not count by enumerating attributes: `lp.p` exists only on the linearly numbered generators, a BGA's `AlphaDictNumbering` keeps its row dictionaries outside the instance namespace, and an attribute walk over one-letter row names returned 0 for that BGA. `lp.pads` is not an accessor either. Compare `pad_count` with the datasheet's pin count plus its thermal pads. If the count cannot be established for the package at hand, the pad-count row remains open and verification stops rather than recording an unchecked number.
 
-2. Run the generated test suite and `pyright`. Tests also assert metadata, pin and pad counts, any ordering example or value encoder, the rendered `.value` or its deliberate absence, validation failures, and every relied-on library default.
+2. Run the generated test suite and `pyright`. Tests also assert metadata, pin and pad counts, the rendered `.value` or its deliberate absence, validation failures, and every relied-on library default.
 3. Run `jitx find`, take its printed build target verbatim, then build in the available virtual environment. If no environment is present, stop and ask. JITX builds run sequentially, never in parallel against one project.
 4. Write the task acceptance block from the base skill, with the complete `Component check` below embedded under `Checks run`, into `COMPLETION.md` or the project's existing equivalent.
 
@@ -98,7 +97,7 @@ After code exists, the agent performs these steps in order:
 
 ## Component completeness check — run before calling it done
 
-A component is judged by whether every value in it traces back to a source — the manufacturer's datasheet, a vendor mechanical drawing, or the user's explicit specification. The predictable failure mode is not a missing feature; it is a **plausible number sitting where it looks authoritative**: a termination band read off the wrong dimension line, a library-table default nobody checked, a value label the BOM will print that no test ever read. Before presenting a component as complete, fill this block in the completion summary, each row with its evidence (datasheet page / table / figure → class or attribute). A row you cannot check is an open item to name to the user — not a silent pass.
+A component is judged by whether every value in it traces back to a source — the manufacturer's datasheet, a vendor mechanical drawing, or the user's explicit specification. The predictable failure mode is not a missing feature; it is a **plausible number sitting where it looks authoritative**: a lead length read off the wrong dimension line, a library-table default nobody checked, a value label the BOM will print that no test ever read. Before presenting a component as complete, fill this block in the completion summary, each row with its evidence (datasheet page / table / figure → class or attribute). A row you cannot check is an open item to name to the user — not a silent pass.
 
 ```
 ## Component check
@@ -112,8 +111,7 @@ Source: <manufacturer + document number + revision/date>; page/figure cited per 
         Disagreements found: NONE | <each, with the document's value, and confirmation that
         it went back to the user>
 References opened: <routing rows matched -> reference files read | none matched>
-Identity: <class name> — mpn <literal | computed from <scheme>, cross-checked against
-        <the datasheet's ordering example or a real catalog part>>; manufacturer,
+Identity: <class name> — mpn <literal>; manufacturer,
         refdes prefix and datasheet URL set on the class
 Pins: <N> ports / <N> physical pins or pads on the drawing — every power, ground,
         NC-with-pad and thermal pad present; names from the datasheet's own pin table
@@ -123,8 +121,7 @@ Landpattern: <generator + args> from <page/figure>; <N> pads; dimensions transcr
 Library defaults: generator/table defaults relied on: <list | none> — each checked
         against the source where the source speaks to it; agreements <list>,
         overrides <item + reason | none>; defaults relied on because the source
-        publishes nothing to check against: <list per dimension | none>, and sizes
-        excluded for having neither: <list | none>
+        publishes nothing to check against: <list per dimension | none>
         Density level: <A | B | C> — <what the source asks for, or "no preference stated">;
         installed default is <level> — <set explicitly | default already matches>
 Value / BOM: .value renders as "<string>" — asserted in a test
@@ -144,17 +141,17 @@ Verdict: complete | open items: <list>
 Row-by-row intent — the *why*, so the block stays evidence rather than ceremony:
 
 - **Source** — a page or figure per claim, not one URL for the whole component. "Datasheet (from memory)" and "typical dimensions" are invalid for a real MPN; see [source-and-package-selection.md](references/source-and-package-selection.md#no-fabrication--source-authority-for-geometry-and-pinout).
-- **Identity** — a part number is a claim about the manufacturer's numbering scheme. Where it is a literal from the ordering table, cite that table. Where the class *computes* it, the only thing that tests the claim is reproducing a part number the manufacturer itself printed — one cross-check per scheme. Where **no source document states one** — which happens for parts whose ground truth is a pin file and a packaging manual — this row records what was agreed with the user and what the value does and does not identify. It is never a value you chose yourself; see [source-and-package-selection.md](references/source-and-package-selection.md#when-no-document-states-an-mpn).
+- **Identity** — a part number is a claim about the manufacturer's numbering scheme. Where it is a literal from the ordering table, cite that table. Where **no source document states one** — which happens for parts whose ground truth is a pin file and a packaging manual — this row records what was agreed with the user and what the value does and does not identify. It is never a value you chose yourself; see [source-and-package-selection.md](references/source-and-package-selection.md#when-no-document-states-an-mpn).
 - **Pins** — count first, then compare row by row. A ports-vs-pads mismatch is the one component error the build reliably catches; everything below this row is the class of error the build does not catch.
 - **Landpattern** — dimensions come from the mechanical drawing, not the overview page or the ordering table, and carry the drawing's tolerances. Where the generator could not express the package, the fallback and its reason belong here.
 - **Library defaults** — a generator default is a convenience, not an authority. Wherever the datasheet publishes the same dimension, transcribe it anyway and check the two against each other; where they disagree, override from the datasheet and say so. The whole risk of taking a default is that nobody transcribed the number that would have caught a bad one. A default you took without checking is indistinguishable, in the output, from one you verified.
 
-  **Defaults are not only dimensions.** The one that gets missed is **density level**, because it never appears as a number in your code; on 4.4.0 the installed default is `B` (`jitxlib/landpatterns/ipc.py`), earlier lines defaulted to `C`, and the choice moves real copper. Read what the source asks for, check what your installed `DensityLevelContext` defaults to, and either set the level explicitly (`DensityLevel` from `jitxlib.landpatterns.ipc`) or record in this row that the default already matches. The IPC-7351 levels and their fillets are in `references/parameterized-families.md`.
+  **Defaults are not only dimensions.** The one that gets missed is **density level**, because it never appears as a number in your code; the installed default is `B`, set as `DensityLevelContext._global_default` in `jitxlib/landpatterns/ipc.py`, and the choice moves real copper. Read what the source asks for, check what your installed `DensityLevelContext` defaults to, and either set the level explicitly (`DensityLevel` from `jitxlib.landpatterns.ipc`) or record in this row that the default already matches.
 - **Value / BOM** — no build, type check or land-pattern test looks at the rendered value string. If this row says anything other than an asserted literal, nothing is checking what the BOM will print.
 
   **`n/a` is a claim, and it needs a test like any other.** For an IC there is often no value in the passive sense, and leaving `.value` unset is right — but "right" and "checked" are different, and an unpinned `n/a` is indistinguishable from having forgotten the field. Treat it exactly as you would any other deliberate absence: a component that deliberately ships without a land pattern gets a test asserting no land pattern is present, so a component that deliberately ships without a value gets a test asserting `value is None`. Then the decision cannot silently rot when someone later sets it.
 
-  This row is the one most often filled by declaring rather than checking, which is why it says so twice.
+  This row is the one most often filled by declaring rather than checking.
 - **Provenance** — if the datasheet doesn't state a value, ask the user or document the omission. Never invent a number to satisfy a type checker or complete a table; suppress the type error with a comment saying why instead.
 
 ## Output Format
@@ -165,4 +162,5 @@ A component task delivers files, not chat output:
 2. Its test module, and the `jitx build` result
 3. The `Component check` block, written alongside the code as the completion artifact
 4. Assumptions, decisions, and items needing manual review, in that block's rows
-5. An offer to capture the application circuit when the datasheet includes one
+
+After the component check, the agent offers the datasheet application circuit to the user and, on yes, invokes `jitx-circuit-builder` with the component class's import path and the figure caption.

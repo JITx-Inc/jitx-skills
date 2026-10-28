@@ -46,53 +46,9 @@ For standard packages, use JITX landpattern generators — no external data need
 
 Dimensions come from the datasheet (user-provided or fetched). No footprint download needed.
 
-### 3. LCSC / JLCPCB via parts2jitx (split consent: lookup vs footprint data)
+### 3. KiCad footprints (for packages no generator expresses)
 
-There are **two distinct uses** of parts2jitx; each has its own consent rule. They are routinely confused.
-
-| Use | What it does | Consent rule |
-|-----|--------------|--------------|
-| **Lookup / evidence** | `parts2jitx-lcsc <C-number>` (stock, lifecycle, datasheet URL) and `parts2jitx-lcsc <C-number> --pinout` (pin labels). Cross-checks the datasheet and confirms the part is buyable. | **Implied** when the user names LCSC / JLCPCB / a specific LCSC C-number as the sourcing channel. The orchestrator may `pip install parts2jitx` automatically — naming the channel implies consent for the lookup tool. |
-| **Footprint data ingestion** | `parts2jitx-lcsc --footprint` downloads the EasyEDA-sourced `.kicad_mod`; `parts2jitx-kicad` converts it into JITX landpattern code. Uses the EasyEDA component database as the *primary geometric source*. | **Explicit per-project approval required.** EasyEDA component data has its own terms of use; commercial users in particular may not want EasyEDA-sourced footprint provenance in their project. Always ask before using the footprint download path. |
-
-For standard packages (QFN, SON, DFN, SOIC, SOT, QFP, BGA), the default landpattern source is the **JITX generator** with dimensions from the datasheet mechanical drawing — not the LCSC KiCad footprint. Fall back to KiCad import only when the generator can't represent specialty paddle geometry (split paddles, non-standard thermal pads, asymmetric layouts). See [Standard-Package Decision Rule (parts2jitx + LCSC workflows)](../../jitx-component-modeler/references/source-and-package-selection.md#standard-package-decision-rule-parts2jitx--lcsc-workflows).
-
-For non-standard packages (connectors, RF modules, unusual mechanical), the workflow is:
-
-```bash
-# Install (auto-OK once user has named LCSC/JLCPCB as the channel)
-pip install parts2jitx
-
-# Lookup / evidence (auto-OK once user has named LCSC/JLCPCB)
-parts2jitx-lcsc C165948                                      # stock, lifecycle, datasheet URL
-parts2jitx-lcsc C165948 --pinout                             # pin labels
-
-# Footprint data ingestion (requires explicit per-project user approval)
-parts2jitx-lcsc C165948 --footprint -o kicad_footprints/usb_c.kicad_mod
-parts2jitx-kicad kicad_footprints/usb_c.kicad_mod --class-name USB_C_16P --manufacturer "Korean Hroparts Elec" --mpn "TYPE-C-31-M-12"
-```
-
-**Skip parts2jitx entirely** when:
-- The user has their own footprint data (use it directly)
-- The package is standard and the JITX generator handles it
-- The user explicitly declined LCSC/EasyEDA (use manufacturer KiCad library or ask the user for the footprint)
-
-### Converting User-Provided KiCad Footprints
-
-Users who already have `.kicad_mod` files (from KiCad libraries, vendor downloads, or their own designs) can convert them with `parts2jitx-kicad`:
-
-```bash
-parts2jitx-kicad my_footprint.kicad_mod --class-name MyConnector --manufacturer "Amphenol" --mpn "12345" -o <namespace>/components/connectors/amphenol_12345.py
-```
-
-This works with any `.kicad_mod` file regardless of source — not just LCSC/EasyEDA.
-
-Converter output is an input to component modeling, not build-ready evidence.
-Some output places `Pad` or `Landpattern` subclasses inside a component's
-`__init__`, which the runtime rejects as dynamic JITX class creation. The
-component-modeling task inspects the generated module and moves every JITX class
-definition to module scope before its initial build. `task-execution.md` Step 3
-does not advance when a generated class remains inside a function or method.
+For standard packages (QFN, SON, DFN, SOIC, SOT, QFP, BGA), the default landpattern source is the **JITX generator** with dimensions from the datasheet mechanical drawing, even when a KiCad footprint exists. Fall back to a KiCad footprint only when the generator can't represent the package: connectors, RF modules, unusual mechanical, or specialty paddle geometry (split paddles, non-standard thermal pads, asymmetric layouts). The agent reads the `.kicad_mod` itself and writes each entry into the component, as `jitx-component-modeler` describes in [Packages no generator expresses](../../jitx-component-modeler/references/source-and-package-selection.md#packages-no-generator-expresses).
 
 ## Data Audit (Project Builder)
 
@@ -104,24 +60,18 @@ When the user has named a sourcing channel — LCSC / JLCPCB / "buy from Mouser"
 
 | Channel named | Required evidence | How |
 |---------------|------------------|-----|
-| **LCSC / JLCPCB** | Stock + lifecycle + datasheet URL + pinout for each LCSC C-number | `parts2jitx-lcsc <C-number>` output saved (or piped to the data-source-audit doc). `parts2jitx-lcsc <C-number> --pinout` for pin-label cross-check. The orchestrator may `pip install parts2jitx` automatically — naming LCSC/JLCPCB as the channel implies consent for *lookup/evidence* via parts2jitx. *Footprint data ingestion* (using LCSC/EasyEDA's `.kicad_mod` as the landpattern source) is the separate, opt-in path — see "LCSC / JLCPCB via parts2jitx" above. |
-| **Digi-Key / Mouser / Newark / other distributor** | Saved screenshot or text excerpt of stock + manufacturer/datasheet from the distributor page; user approves the evidence method | Manual save to `datasheets/sourcing/<mpn>-<distributor>.txt` or similar. No automated tool today. |
+| **LCSC / JLCPCB** | Stock + lifecycle + datasheet URL + pinout for each LCSC C-number | Saved text excerpt of the part's channel record (stock, lifecycle, datasheet URL, pin labels) to `datasheets/sourcing/<mpn>-lcsc.txt` or similar, cited in the data source audit row. |
+| **Digi-Key / Mouser / Newark / other distributor** | Saved screenshot or text excerpt of stock + manufacturer/datasheet from the distributor page; user approves the evidence method | Manual save to `datasheets/sourcing/<mpn>-<distributor>.txt` or similar. |
 | **Internal PLM / user library** | Reference to the PLM record or library entry; user confirms the record is current | Cite the record ID or library file path in the data source audit row. |
 | **No channel named** | Treat sourcing as an open question — ask the user before proposing parts | The component-choice rationale table is incomplete without a channel; flag in Phase 0. |
 
-When `parts2jitx` is the required tool (LCSC/JLCPCB channel) and isn't installed, install it:
+The datasheet remains the higher authority for dimensions, pin labels, and pad assignments. A sourcing channel's pinout record is a useful cross-check but does not replace the datasheet's mechanical drawing and pinout table. When the two disagree, the datasheet wins and the conflict is documented in the task acceptance block under `Secondary references`.
 
-```bash
-pip install parts2jitx
-```
+**Standard packages (QFN, SON, DFN, SOIC, SOT, QFP, BGA):** the channel gives you stock and pinout. Use the **JITX generator** for the landpattern, with dimensions from the datasheet mechanical drawing. Do not import a channel's KiCad footprint as the landpattern for a standard package; see [Packages no generator expresses](../../jitx-component-modeler/references/source-and-package-selection.md#packages-no-generator-expresses).
 
-The datasheet remains the higher authority for dimensions, pin labels, and pad assignments. Sourcing-channel pinout (e.g., `parts2jitx-lcsc --pinout`) is a useful cross-check but does not replace the datasheet's mechanical drawing and pinout table. When the two disagree, the datasheet wins and the conflict is documented in the task acceptance block under `Secondary references`.
+**Mechanical / pad-only footprints (Tag-Connect TC2050, fiducials, castellations, pogo pads):** these have no purchasable component — no stock/lifecycle to check. Channel evidence does not apply; the vendor mechanical drawing is the source. See "Mechanical / Vendor-Defined Footprints" below.
 
-**Standard packages (QFN, SON, DFN, SOIC, SOT, QFP, BGA):** parts2jitx-lcsc gives you stock + pinout. Use the **JITX generator** for the landpattern, with dimensions from the datasheet mechanical drawing. Do not import the LCSC KiCad footprint as the landpattern for standard packages — see [Standard-Package Decision Rule (parts2jitx + LCSC workflows)](../../jitx-component-modeler/references/source-and-package-selection.md#standard-package-decision-rule-parts2jitx--lcsc-workflows).
-
-**Mechanical / pad-only footprints (Tag-Connect TC2050, fiducials, castellations, pogo pads):** these have no purchasable component — no stock/lifecycle to check. Channel evidence does not apply; the vendor mechanical drawing is the source. See "Mechanical / Vendor-Defined Footprints" above.
-
-**Standard passives queried via `jitxlib.parts`:** the LCSC channel for an `R 4.7kΩ 0402` is satisfied by the query — `jitxlib.parts` already returns LCSC-stocked options when `mounting="smd"` is set in the design's passive defaults. Don't run `parts2jitx-lcsc` for every passive; only for named ICs and connectors.
+**Standard passives queried via `jitxlib.parts`:** the LCSC channel for an `R 4.7kΩ 0402` is satisfied by the query — `jitxlib.parts` already returns LCSC-stocked options when `mounting="smd"` is set in the design's passive defaults. Don't collect channel evidence for every passive; only for named ICs and connectors.
 
 ## Part Selection Workflow
 
@@ -178,29 +128,29 @@ Don't skip steps, but don't pretend a search produced nothing without recording 
 
 Dimensions from the datasheet mechanical drawing. No external footprint needed.
 
-### Non-standard packages — convert from KiCad
+### Non-standard packages — import from KiCad
 
 Source the `.kicad_mod` from one of:
 - User's existing KiCad library
 - Manufacturer's KiCad library download
-- LCSC/EasyEDA (via `parts2jitx-lcsc --footprint`, only if user has approved this data source)
+- A distributor-hosted or third-party library footprint (LCSC/EasyEDA, SnapEDA and similar), which is third-party data under its own terms: use it as the land-pattern source only with the user's explicit approval for this project, record the approval under `Notes`, and check it pad by pad against the manufacturer's drawing
 
-Then convert: `parts2jitx-kicad <file.kicad_mod> --class-name MyPart`
+Then import it entry by entry, as `jitx-component-modeler` describes in [Packages no generator expresses](../../jitx-component-modeler/references/source-and-package-selection.md#packages-no-generator-expresses).
 
-**NEVER hand-craft pad positions for non-standard packages.** Use the converter output as the base. If you must add pads the converter didn't generate, verify shapes against the datasheet mechanical drawing: round holes use `circle(radius)`, oval holes use `capsule(width, height)`.
+**NEVER place pads from a drawing when a vendor KiCad footprint exists.** If you must add pads the footprint file does not list, verify shapes against the datasheet mechanical drawing: round holes use `Circle(radius=r)` from `jitx.shapes.primitive`, oval holes use `capsule(width, height)` from `jitx.shapes.composites`.
 
 Always use `BoxSymbol`. Never convert KiCad schematic symbol graphics.
 
 ## Mechanical / Vendor-Defined Footprints
 
-The "NEVER hand-craft pad positions" rule above has a legitimate exception: footprints that are board geometry, not a purchasable component. Examples include programming/test pad patterns (Tag-Connect TC2050, pogo-pin fixtures), castellated module edges, fiducials, board-edge shield contacts, and mounting pads with electrical function. For these, no `.kicad_mod` source exists — the source of truth is a vendor mechanical drawing.
+The "NEVER place pads from a drawing" rule above has a legitimate exception: footprints that are board geometry, not a purchasable component. Examples include programming/test pad patterns (Tag-Connect TC2050, pogo-pin fixtures), castellated module edges, fiducials, board-edge shield contacts, and mounting pads with electrical function. For these, no `.kicad_mod` source exists — the source of truth is a vendor mechanical drawing.
 
 ### When this applies
 
 - The "footprint" represents a mechanical/copper feature, not a part with an MPN.
 - Or: the part exists but no purchasable component model is available, and a vendor mechanical drawing is the source of truth.
 
-This exception does **not** authorize hand-crafting pad positions for purchasable components (resistors, ICs, connectors with MPNs). Those still go through the standard JITX generators or `parts2jitx-kicad` conversion.
+This exception does **not** authorize hand-crafting pad positions for purchasable components (resistors, ICs, connectors with MPNs). Those still go through the standard JITX generators or a KiCad footprint import. When neither the user nor the manufacturer supplies a KiCad footprint, place each pad from the drawing's recommended land pattern, citing the figure per dimension, and record "no vendor KiCad footprint found" under `Notes`.
 
 ### Workflow
 

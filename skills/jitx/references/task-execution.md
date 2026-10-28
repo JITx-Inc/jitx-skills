@@ -47,7 +47,7 @@ write the spec note until the relevant page is rendered and read visually. If
 the selected extraction tool cannot render the page, the task reports a tooling
 blocker instead of inferring the missing table structure.
 
-**Parts not in jitxlib:** If a passive or simple component (LED, TVS diode, ferrite bead) is not available from jitxlib queries, check if the user provided a KiCad footprint or ask them for one. If the user has named LCSC/JLCPCB as the sourcing channel, `parts2jitx-lcsc` *lookup/evidence* (stock, lifecycle, datasheet URL, pinout) is implied — install `parts2jitx` and run it. **Footprint data ingestion** via `parts2jitx-lcsc --footprint` + `parts2jitx-kicad` still requires explicit per-project approval (EasyEDA terms-of-use). See `references/parts-sourcing.md` "LCSC / JLCPCB via parts2jitx" for the split-consent table. Do not give up on a component because it's not in the standard library.
+**Parts not in jitxlib:** If a passive or simple component (LED, TVS diode, ferrite bead) is not available from jitxlib queries, model it with `jitx-component-modeler`, which builds the land pattern from a package generator first (two-terminal bodies use `jitxlib.landpatterns.twopin`) and imports a KiCad footprint entry by entry only where no generator expresses the body; for that case, check if the user provided a KiCad footprint or ask them for one. If the user has named a sourcing channel, its stock, lifecycle and pinout records are secondary evidence to the datasheet; see [Required-Sourcing Rule (named channel → channel-specific evidence)](parts-sourcing.md#required-sourcing-rule-named-channel--channel-specific-evidence). Do not give up on a component because it's not in the standard library.
 
 **Common mistakes from not reading the datasheet:**
 - Missing external transistors (e.g., PMOS for power switching on PD controllers)
@@ -63,7 +63,7 @@ blocker instead of inferring the missing table structure.
 All downloaded data must be saved to the project — never use /tmp or transient locations:
 - **Datasheets** → `datasheets/<mpn>.pdf`
 - **Datasheet spec notes (complete-board)** → `datasheets/<MPN>.spec.md`
-- **KiCad footprints** → `kicad_footprints/<mpn>.kicad_mod` (user-provided, manufacturer download, or from `parts2jitx-lcsc --footprint`)
+- **KiCad footprints** → `kicad_footprints/<mpn>.kicad_mod` (user-provided or manufacturer download)
 - **Generated components** → `<namespace>/components/<category>/<file>.py`
 
 This ensures reproducibility across sessions and avoids repeated downloads.
@@ -77,11 +77,6 @@ python scripts/check.py <ns>/ --build <module.path.TestDesign>
 ```
 
 Don't run a concurrent build of the same design in parallel — see [Build Safety — Don't Parallelize Same-Design Work](../SKILL.md#build-safety--dont-parallelize-same-design-work).
-
-Before this command, a task that used `parts2jitx-kicad` inspects the generated
-module for JITX class definitions inside functions or methods and moves them to
-module scope. Step 3 stops before acceptance when any generated `Pad`,
-`Landpattern`, `Component`, `Circuit`, or `Design` subclass remains nested.
 
 In headless bash, the command is
 `yes | python scripts/check.py <ns>/ --build <module.path.TestDesign>` because a

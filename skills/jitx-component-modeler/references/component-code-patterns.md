@@ -53,6 +53,7 @@ from jitxlib.symbols.box import BoxSymbol, PinGroup, Row, Column
 # from jitxlib.landpatterns.generators.sot import SOT23_3, SOT23_5, SOT23_6, SOTLead, SOTLeadProfile
 # from jitxlib.landpatterns.generators.qfn import QFN, QFNLead
 # from jitxlib.landpatterns.generators.son import SON, SONLead
+# from jitxlib.landpatterns.generators.qfp import QFP, QFPLead
 # from jitxlib.landpatterns.generators.bga import BGA
 from jitxlib.landpatterns.leads import LeadProfile
 from jitxlib.landpatterns.package import RectanglePackage
@@ -110,8 +111,8 @@ Device: type[{ComponentClassName}] = {ComponentClassName}
 
 ## Package-Specific Examples
 
-For complete examples of each package type (SOIC, SOT, QFN, QFP, BGA), including thermal pads,
-port arrays, inactive positions, and non-uniform BGA grids, see
+For a shipped `jitxexamples` module per generator (SOIC, SOT, QFN with port arrays, SON with a
+thermal pad), and the BGA notes including inactive positions and non-uniform grids, see
 [package-examples.md](package-examples.md).
 
 Read its **BGA-Specific Notes** before any BGA, not just an unusual one — in particular what
@@ -130,15 +131,6 @@ verification code. Both are places where the obvious reading is the wrong one.
 | b | Lead width | `SMDLead.width` / `QFNLead.width` |
 | L | Lead length | `SMDLead.length` / `QFNLead.length` |
 | D2 / E2 | Thermal pad size | `.thermal_pad(rectangle(E2, D2))` — **E2 is width (X), D2 is height (Y)**. D=along pins, E=across. Do NOT write rectangle(D2, E2). |
-
-**Two-terminal chips use L / W / T instead, and the two symbol sets do not correspond row for row** — do not translate one into the other by position.
-
-| Chip datasheet symbol | Description | JITX Parameter |
-|-----------------|-------------|----------------|
-| L | Body length, termination end face to end face | `LeadProfile.span`, `RectanglePackage.length` |
-| W | Body width (= termination width) | `SMDLead.width`, `RectanglePackage.width` |
-| H / T | Body height / thickness | `RectanglePackage.height` |
-| *(seating-plane band; symbol varies by vendor)* | Solderable termination length | `SMDLead.length` — **not** the end-face wrap-up band. See [parameterized-families.md](parameterized-families.md#the-two-termination-bands--which-one-is-the-solderable-land). |
 
 ## Common Patterns
 
@@ -328,7 +320,7 @@ VDD1 = Port()        # Which power domain?
 Do NOT invent constructor parameters — use only these documented signatures:
 
 ```python
-# SOT — SOTLeadProfile takes ONLY span, nothing else
+# SOT: SOTLeadProfile requires span; pitch defaults to 0.95 and type to SOTLead(), both overridable
 SOTLeadProfile(span=Toleranced.min_max(2.3, 2.5))
 
 # LeadProfile — used for SOIC, SON, QFN

@@ -14,14 +14,12 @@ Generate JITX Python component code from datasheets, user-provided KiCad footpri
 >
 > 1. **Manufacturer's current datasheet** — open the mechanical drawing page (use `extract_pages.py` to pull only those pages — do not read the full PDF). Cite the page/figure where you got each dimension.
 > 2. **Manufacturer's machine-readable pin file** — where the vendor publishes the pin map as data rather than as a drawing (FPGAs, large SoCs, most high-ball-count BGAs). It is the authority for **names, balls and banks only**; geometry still comes from the packaging document, and the two never substitute for each other. Parse it — do not transcribe it, and do not read a sample and extrapolate. See [pin-file-generation.md](pin-file-generation.md).
-> 3. **Sourcing-channel lookup** — if the user has named LCSC/JLCPCB, `parts2jitx-lcsc <C-number>` (stock, lifecycle, datasheet URL) and `parts2jitx-lcsc <C-number> --pinout` (pin labels). Use it as channel evidence and as a pin-label cross-check. Datasheet remains higher authority where they disagree; document the conflict.
-> 4. **Ask the user** — for an LCSC C-number, a user-supplied `.kicad_mod`, or the datasheet itself.
+> 3. **Sourcing-channel records**: if the user has named a sourcing channel, its stock, lifecycle, datasheet-URL and pin-label records. Use them as channel evidence and as a pin-label cross-check. Datasheet remains higher authority where they disagree; document the conflict.
+> 4. **Ask the user** — for a distributor part number, a user-supplied `.kicad_mod`, or the datasheet itself.
 >
 > If none of the four produce a source, the component is **blocked**. Do not proceed by estimating. The only way out is for the user to explicitly authorize a non-MPN generic component (e.g. "use a typical 0.4 mm pitch QFN-56, this is a placeholder"). Record that authorization in the task acceptance block under `Notes`.
 >
-> **Carve-out — parameterized catalog families.** A class that models a manufacturer's whole catalog series has no single MPN by construction: it *computes* one per instance from the datasheet's own part-numbering scheme. That is not the fabrication this rule forbids, and it needs no user authorization — the source authority is the same datasheet, and every dimension, code table and range still traces to a page of it. What the rule still forbids is a family with no datasheet behind it: a size table from memory, a "typical" termination band, an ordering scheme inferred from one example part. In place of the single MPN, a family owes one extra piece of evidence — a generated part number reproduced against the datasheet's own worked ordering example. See [parameterized-families.md](parameterized-families.md).
->
-> The rule is also about values that could be wrong, not about labels the source never supplied. A two-terminal chip datasheet does not name its terminations, so `p1`/`p2` with declaration-order pad mapping is the framework's sanctioned idiom, not an invented pin label.
+> The rule is also about values that could be wrong, not about labels the source never supplied.
 >
 > This callout exists because the failure it forbids is one an agent talks itself into: having read the patterns once, it concludes it can write the remaining components directly from "reasonable typical dimensions" and skip the skill. Every component produced that way is fabricated, and they arrive in a batch, because the reasoning that justifies the first one justifies all of them.
 
@@ -136,7 +134,7 @@ project/
 
 **Category examples:** mcus, connectors, power_linear_regulators, opamp, flash, crystals, leds, logic, timers, buttons, transceivers, diodes_tvs, isolators, power_switchmode
 
-**File naming:** `<manufacturer>_<mpn>.py` - lowercase, underscores for spaces/special chars
+**File naming:** `<manufacturer>_<mpn>.py` - lowercase manufacturer, MPN as the manufacturer prints it, underscores for separators
 - `texas_instruments_NE555.py`
 - `raspberry_pi_RP2040.py`
 - `renesas_DA14705.py`
@@ -211,28 +209,21 @@ From the datasheet (or extracted pages), extract:
 Use this decision tree to select the appropriate generator:
 
 ```
-Is it a two-terminal chip? (rectangular ceramic body, one metallised
-termination band wrapped around each end — chip resistor, MLCC, chip
-inductor, ferrite bead)
-├── Yes → SMT("<size_key>") from jitxlib.landpatterns.twopin.smt
-│         See parameterized-families.md "Two-Terminal Chip Components" for the size key, the
-│         termination band, and the obligation that comes with the defaults.
-│         Other two-terminal bodies are NOT chips — confirm against the
-│         outline drawing before taking this branch: axial → twopin.axial;
-│         molded tantalum or an SOD-/SMA-/SMB-style diode → twopin.molded;
-│         a 2- or 3-lead plastic body with formed leads → the SOT generators.
-└── No → Is it a 2-sided package?
-    ├── Yes, ≤6 pins → SOT23_3, SOT23_5, or SOT23_6
-    ├── Yes, >6 pins with gull-wing leads → SOIC
-    ├── Yes, >6 pins with flat leads (no-lead) → SON
-    └── No (4-sided or array)
-        ├── 4-sided gull-wing leads → QFP
-        ├── 4-sided flat/no-lead → QFN
-        ├── Bottom ball array → BGA
-        └── Custom/unusual (connectors, RF modules, irregular pads)
-            → Convert from a KiCad footprint (.kicad_mod):
-              parts2jitx-kicad fp.kicad_mod --class-name MyPart
-              NEVER hand-craft pad positions for non-standard packages.
+Two-terminal body (rectangular chip, SOD/SMA/SMB molded, axial)?
+→ jitxlib.landpatterns.twopin (smt, molded, axial), dimensions from the outline drawing.
+
+Otherwise: is it a 2-sided package?
+├── Yes, 3 to 6 leads → SOT23_3, SOT23_5, or SOT23_6
+├── Yes, >6 pins with gull-wing leads → SOIC
+├── Yes, >6 pins with flat leads (no-lead) → SON
+└── No (4-sided or array)
+    ├── 4-sided gull-wing leads → QFP
+    ├── 4-sided flat/no-lead → QFN
+    ├── Bottom ball array → BGA
+    └── Custom/unusual (connectors, RF modules, irregular pads)
+        → Import the vendor's KiCad footprint (.kicad_mod) entry by
+          entry; see "Packages no generator expresses" below.
+          NEVER place pads from a drawing when a vendor KiCad footprint exists.
 
 Exception: mechanical / vendor-defined footprints (Tag-Connect TC2050,
 pogo-pin fixtures, castellated edges, fiducials, board-edge contacts).
@@ -241,35 +232,21 @@ the source of truth. See parts-sourcing.md "Mechanical / Vendor-Defined
 Footprints" for the workflow and verification checklist.
 ```
 
-### Standard-Package Decision Rule (parts2jitx + LCSC workflows)
+### Packages no generator expresses
 
-When using `parts2jitx-lcsc` for a part whose package is in the standard set (`QFN`, `SON`, `DFN`, `SOIC`, `SOT-23`, `SOT-223`, `QFP`, `BGA`), use `parts2jitx-lcsc` for stock / pricing / pinout evidence and **default to the JITX generator** for the landpattern, with dimensions from the datasheet's mechanical drawing.
+For a package in the standard set (`QFN`, `SON`, `DFN`, `SOIC`, `SOT-23`, `SOT-223`, `QFP`, `BGA`), **default to the JITX generator** for the landpattern, with dimensions from the datasheet's mechanical drawing, even when a KiCad footprint for the part exists. Generators produce reviewable, parameterized code; a KiCad footprint may use non-standard pad shapes and is harder to audit against the datasheet.
 
-| LCSC package | Use parts2jitx for | Default landpattern |
-|--------------|--------------------|---------------------|
-| QFN-* | Stock, pinout, datasheet URL | `QFN(...)` |
-| SON-* / DFN-* | Stock, pinout, datasheet URL | `SON(...)` |
-| SOIC-* | Stock, pinout, datasheet URL | `SOIC(...)` |
-| SOT-23 / SOT-223 | Stock, pinout, datasheet URL | jitxlib standard library |
-| QFP-* | Stock, pinout, datasheet URL | `QFP(...)` |
-| BGA-* | Stock, pinout, datasheet URL | `BGA(...)` |
-| Non-standard (connectors, RF modules, irregular pads) | Stock, pinout, footprint download | KiCad import via `parts2jitx-kicad` |
-
-Why default to the generator: JITX standard generators use datasheet mechanical dimensions and produce reviewable, parameterized code. KiCad-imported footprints carry the importer's quirks, may use non-standard pad shapes, and are harder to audit against the datasheet.
-
-**Fall back to KiCad import when the generator can't represent the package.** Some "QFN-like" parts (especially regulators from TI, Micrel, Microchip) have specialty paddle geometry — split paddles, non-standard thermal pad dimensions, asymmetric layouts — that the generic `QFN(...)` / `SON(...)` generator can't express cleanly. When this happens:
+**Fall back to the KiCad footprint when the generator can't represent the package.** Some "QFN-like" parts (especially regulators from TI, Micrel, Microchip) have specialty paddle geometry — split paddles, non-standard thermal pad dimensions, asymmetric layouts — that the generic `QFN(...)` / `SON(...)` generator can't express cleanly. When this happens:
 
 1. Try the generator first against the datasheet mechanical drawing.
-2. If the generator can't represent the paddle (or the lead layout), import the KiCad footprint via `parts2jitx-kicad` and verify pad-by-pad against the datasheet.
+2. If the generator can't represent the paddle (or the lead layout), import the KiCad footprint as described below and verify pad-by-pad against the datasheet.
 3. Document the reason for falling back in the task acceptance block under `Notes` (e.g. "TPS62903 split thermal paddle not expressible in QFN generator — imported from KiCad and verified against figure 9-1 page 18").
 
-**Getting a .kicad_mod for non-standard packages** (in priority order):
+**Importing a KiCad footprint.** Read the `.kicad_mod` directly and write each pad, hole, soldermask opening and paste opening from its entries, citing the file and the URL it came from, where it has one. KiCad's y axis points down and JITX's points up, so negate every y coordinate on import; a footprint copied across unchanged builds a mirror image of the part. Check each rotated pad's orientation, and pin 1, against the drawing. For the pad-class code, `jitxexamples.components.connectors.molex_2012670005` builds a custom `Landpattern` with `THPad` pads that carry a cutout. For a package no generator expresses, placing pads from a drawing when the vendor publishes a KiCad footprint for it is refused.
+
+**Getting a KiCad footprint for non-standard packages** (in priority order):
 1. **User-provided** — ask if they have a `.kicad_mod` from their KiCad library or manufacturer download
 2. **Manufacturer KiCad library** — many vendors (Molex, TE, Amphenol) publish official KiCad footprints
-3. **LCSC / EasyEDA footprint ingestion (requires explicit per-project approval)** — using EasyEDA-sourced `.kicad_mod` as the footprint data source needs user opt-in (terms of use). `parts2jitx-lcsc` *lookup/evidence* is implied when LCSC/JLCPCB is the named sourcing channel, but downloading and converting the footprint is the separate, opt-in path. Install `parts2jitx` if not already available, then use:
-   ```bash
-   pip install parts2jitx
-   parts2jitx-lcsc C165948 --footprint -o kicad_footprints/fp.kicad_mod
-   parts2jitx-kicad kicad_footprints/fp.kicad_mod --class-name MyPart
-   ```
-   Ask the user before using LCSC data — commercial users may not want EasyEDA-sourced data in their project.
+3. **Distributor-hosted or third-party library**: a distributor-hosted or third-party library footprint (LCSC/EasyEDA, SnapEDA and similar) is third-party data under its own terms. Use it as the land-pattern source only with the user's explicit approval for this project, record the approval under `Notes`, and check it pad by pad against the manufacturer's drawing.
+
+**No KiCad footprint from any source.** When neither the user nor the manufacturer supplies a KiCad footprint, place each pad from the drawing's recommended land pattern, citing the figure per dimension, and record "no vendor KiCad footprint found" under `Notes`.
