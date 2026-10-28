@@ -46,7 +46,7 @@ Refuse to proceed with:
 - invented constructor arguments, class-scope `self`, or a JITX class declared inside a function, method or active instantiation context;
 - a silent package-variant choice when the source covers more than one.
 
-Every physical pin or ball, NC-with-pad and thermal pad included, gets its own port, and the symbol carries every port. A thermal pad, a shared pad, or a declaration order that is not pad order requires explicit `PadMapping`.
+Every physical pin or ball, NC-with-pad and thermal pad included, gets its own port; contacts sharing one land share one port. The symbol carries every port. A thermal pad, a shared pad, or a declaration order that is not pad order requires explicit `PadMapping`.
 
 Library and generator defaults are inputs to verify: check each one relied on against the source wherever the source speaks, and override from the source where they disagree. Density level is one (installed default `B`): set `DensityLevel` (`jitxlib.landpatterns.ipc`) explicitly or record that the default matches the source.
 
@@ -57,7 +57,7 @@ For a pin file, emit no component code until the parse reconciles and the user a
 After code exists, in order:
 
 1. Tests that construct components subclass `jitx.test.TestCase`; pure helper tests may use `unittest.TestCase`. Every package variant gets a pad-count check by `jitx.inspect.visit(lp, Pad)`; until it runs, verification stops. The snippet and other assertions: [verification-and-application.md](references/verification-and-application.md#verifying-a-component-with-tests).
-2. Run the test suite and `pyright`. Tests assert metadata, pin and pad counts, the rendered `.value` or its absence, and each relied-on default or imported footprint entry against the source.
+2. Run the test suite, and `pyright` on every Python file left in the output. Tests assert metadata, pin and pad counts, the rendered `.value` or its absence, and each relied-on default or imported footprint entry against the source.
 3. Run `jitx find`, take its printed build target verbatim, then build in the available virtual environment.
 4. Write the task acceptance block from the base skill, with the complete `Component check` below embedded under `Checks run`, into `COMPLETION.md` or the project's existing equivalent.
 
