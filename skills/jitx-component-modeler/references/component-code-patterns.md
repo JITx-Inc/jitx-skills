@@ -126,11 +126,17 @@ verification code. Both are places where the obvious reading is the wrong one.
 | D | Package length | `RectanglePackage.length` |
 | E | Package width | `RectanglePackage.width` |
 | A | Package height | `RectanglePackage.height` |
-| E1 / D1 | Lead span | `LeadProfile.span` |
+| E1 / D1 | Lead span (outer terminal edge to outer terminal edge) | `LeadProfile.span` |
 | e | Lead pitch | `LeadProfile.pitch` |
 | b | Lead width | `SMDLead.width` / `QFNLead.width` |
 | L | Lead length | `SMDLead.length` / `QFNLead.length` |
 | D2 / E2 | Thermal pad size | `.thermal_pad(rectangle(E2, D2))` — **E2 is width (X), D2 is height (Y)**. D=along pins, E=across. Do NOT write rectangle(D2, E2). |
+
+A leadless outline (QFN, SON) often dimensions no span. The span is then not the body
+width unless the drawing shows the terminals flush with the body edge: where they sit
+inside it, derive the span from the drawing's terminal position or from the example board
+layout (land centre-to-centre plus one land length), cite which, and check the generated
+lands against that layout.
 
 ## Common Patterns
 
@@ -164,13 +170,21 @@ Toleranced.exact(7.0)                   # BSC = Basic
 
 ### Thermal Pad with Paste Subdivision
 
+The paste comes from the datasheet's example stencil when it prints one: its aperture
+count and size, or its coverage figure, cited by page. `WindowSubdivide` takes `padding`
+(the gap between windows and from the pad edge, one value or an (x, y) pair) and
+`gridShape` (windows per axis, default 2 by 2); solve both from the stencil, and assert the
+window sizes in a test. Its default padding of 0.25 is a library default like any other.
+With no example stencil, record the coverage chosen and why.
+
 ```python
 from jitx.shapes.composites import rectangle
 from jitxlib.landpatterns.pads import SMDPadConfig, WindowSubdivide
 
 .thermal_pad(
     shape=rectangle(3.0, 3.0),
-    config=SMDPadConfig(paste=WindowSubdivide(padding=0.25)),
+    # Stencil prints four 1.2 mm square apertures: padding (3.0 - 2 * 1.2) / 3 = 0.2.
+    config=SMDPadConfig(paste=WindowSubdivide(padding=0.2, gridShape=(2, 2))),
 )
 ```
 
