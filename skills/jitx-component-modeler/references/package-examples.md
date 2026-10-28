@@ -11,7 +11,7 @@ Read the rendered module in the docs (see `jitx/references/docs-index.md` "Examp
 | `SOT23_5` | `jitxexamples.components.opamps.texas_instruments_TLV314IDBVR` | `SOT23_5` with `SOTLeadProfile`, `RectanglePackage` and `PadMapping` |
 | `QFN` | `jitxexamples.components.mcus.raspberry_pi_RP2040` | `QFN(num_leads=56)` with port arrays and a thermal pad mapped through `PadMapping` |
 | `SON` | `jitxexamples.components.power_linear_regulators.texas_instruments_LM1117LD` | `SON(num_leads=8)` with a thermal pad mapped through `PadMapping` |
-| `BGA` | `jitxexamples.jumpstart_kits.js1_stackup_components.versal_fpga.landpattern` | A full-grid `BGA` subclass with a public `get_pad(row, column)` adapter, `ball_diameter` set to the copper land diameter from the vendor's design-rule table |
+| `BGA` | `jitxexamples.jumpstart_kits.js1_stackup_components.versal_fpga.landpattern` (source only, not on the components docs pages) | A full-grid `BGA` subclass with a public `get_pad(row, column)` adapter, `ball_diameter` set to the copper land diameter from the vendor's design-rule table |
 
 QFP has no module in `jitxexamples`. Its constructor signature is in [component-code-patterns.md](component-code-patterns.md#landpattern-constructor-signatures); every BGA also needs the notes below.
 

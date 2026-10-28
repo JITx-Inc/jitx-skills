@@ -19,7 +19,7 @@ Generate JITX Python component code from datasheets, user-provided KiCad footpri
 >
 > If none of the four produce a source, the component is **blocked**. Do not proceed by estimating. The only way out is for the user to explicitly authorize a non-MPN generic component (e.g. "use a typical 0.4 mm pitch QFN-56, this is a placeholder"). Record that authorization in the task acceptance block under `Notes`.
 >
-> The rule is also about values that could be wrong, not about labels the source never supplied.
+> The rule is about values that could be wrong, not about labels the source never supplied: where the source names no pins (a chip resistor's two terminations), positional names such as `p1` and `p2` are not invented labels.
 >
 > This callout exists because the failure it forbids is one an agent talks itself into: having read the patterns once, it concludes it can write the remaining components directly from "reasonable typical dimensions" and skip the skill. Every component produced that way is fabricated, and they arrive in a batch, because the reasoning that justifies the first one justifies all of them.
 
@@ -210,7 +210,9 @@ Use this decision tree to select the appropriate generator:
 
 ```
 Two-terminal body (rectangular chip, SOD/SMA/SMB molded, axial)?
-→ jitxlib.landpatterns.twopin (smt, molded, axial), dimensions from the outline drawing.
+→ jitxlib.landpatterns.twopin (SMT, MoldedTwoPin, AxialTwoPin; the Polarized*
+  variant for a diode or LED, pads a and c). Read the signatures in the module
+  source, and check every library-table dimension against the outline drawing.
 
 Otherwise: is it a 2-sided package?
 ├── Yes, 3 to 6 leads → SOT23_3, SOT23_5, or SOT23_6
@@ -249,4 +251,4 @@ For a package in the standard set (`QFN`, `SON`, `DFN`, `SOIC`, `SOT-23`, `SOT-2
 2. **Manufacturer KiCad library** — many vendors (Molex, TE, Amphenol) publish official KiCad footprints
 3. **Distributor-hosted or third-party library**: a distributor-hosted or third-party library footprint (LCSC/EasyEDA, SnapEDA and similar) is third-party data under its own terms. Use it as the land-pattern source only with the user's explicit approval for this project, record the approval under `Notes`, and check it pad by pad against the manufacturer's drawing.
 
-**No KiCad footprint from any source.** When neither the user nor the manufacturer supplies a KiCad footprint, place each pad from the drawing's recommended land pattern, citing the figure per dimension, and record "no vendor KiCad footprint found" under `Notes`.
+**No KiCad footprint from any source.** When no source above yields a KiCad footprint, or the user declines a third-party one, place each pad from the drawing's recommended land pattern, citing the figure per dimension, and record "no vendor KiCad footprint found" under `Notes`.

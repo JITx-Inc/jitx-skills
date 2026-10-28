@@ -150,7 +150,7 @@ The "NEVER place pads from a drawing" rule above has a legitimate exception: foo
 - The "footprint" represents a mechanical/copper feature, not a part with an MPN.
 - Or: the part exists but no purchasable component model is available, and a vendor mechanical drawing is the source of truth.
 
-This exception does **not** authorize hand-crafting pad positions for purchasable components (resistors, ICs, connectors with MPNs). Those still go through the standard JITX generators or a KiCad footprint import. When neither the user nor the manufacturer supplies a KiCad footprint, place each pad from the drawing's recommended land pattern, citing the figure per dimension, and record "no vendor KiCad footprint found" under `Notes`.
+This exception does **not** authorize hand-crafting pad positions for purchasable components (resistors, ICs, connectors with MPNs). Those still go through the standard JITX generators or a KiCad footprint import. When no source above yields a KiCad footprint, or the user declines a third-party one, place each pad from the drawing's recommended land pattern, citing the figure per dimension, and record "no vendor KiCad footprint found" under `Notes`.
 
 ### Workflow
 
