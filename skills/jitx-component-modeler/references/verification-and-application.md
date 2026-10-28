@@ -58,7 +58,16 @@ Direct construction is what `@pytest.mark.parametrize` forces, since a parametri
 **What a component test asserts,** beyond `status: ok` from the build:
 
 - **It builds in a `SampleDesign`** and its metadata reads back — manufacturer, reference-designator prefix, ratings.
-- **Pad count equals pin count**, once per package variant, so every land pattern is exercised at least once. Count with `jitx.inspect.visit(lp, Pad)`, which does not depend on the numbering scheme; the snippet, and why attribute enumeration undercounts a BGA, are in this skill's `SKILL.md` verification steps. `lp.pads` is not an accessor. The pad-count check stays open, and verification stops, until this count runs.
+- **Pad count equals pin count**, once per package variant, so every land pattern is exercised at least once. Count with the framework's structural traversal, which does not depend on the numbering scheme:
+
+  ```python
+  from jitx.inspect import visit
+  from jitx.landpattern import Pad
+
+  pad_count = sum(1 for _ in visit(lp, Pad))  # every pad the landpattern owns, thermal pads included
+  ```
+
+  Inside a `SubstrateContext` it gives 8 for a generated SOIC-8, equal to `len(lp.p)`, and 441 for a generated 21 by 21 BGA, where `lp.p` does not exist. Do not count by enumerating attributes: `lp.p` exists only on the linearly numbered generators, a BGA's `AlphaDictNumbering` keeps its row dictionaries outside the instance namespace, and an attribute walk over one-letter row names returned 0 for that BGA. `lp.pads` is not an accessor either. Compare `pad_count` with the datasheet's pin count plus its thermal pads. If the count cannot be established for the package at hand, the pad-count check stays open and verification stops rather than recording an unchecked number.
 - **The human-readable value label**, or its deliberate absence, as the SKILL.md `Value / BOM` row requires.
 - **Library defaults against the datasheet**, wherever the land pattern took them — dimensions *and* density level. Pin a known-bad entry as still-wrong, so the override is removed when the table is fixed.
 
