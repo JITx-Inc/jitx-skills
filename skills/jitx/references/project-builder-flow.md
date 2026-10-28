@@ -86,29 +86,27 @@ Before decomposing into tasks, present the user with a data source plan for each
 | Component | Package | Data Source | Footprint Method | Status |
 |-----------|---------|-------------|------------------|--------|
 | MCU (STM32H753) | QFP-100 | User datasheet (provided) | JITX QFP generator | Ready |
-| USB-C connector | Non-std | Need footprint | User to provide .kicad_mod, or LCSC lookup | Needs input |
+| USB-C connector | Non-std | Need footprint | User to provide .kicad_mod, or manufacturer KiCad library | Needs input |
 | LDO (LM1117) | SOT-223 | Datasheet from manufacturer | JITX SOT generator | Will fetch |
 | Buck (TPS62933) | SOT-23-6 | User datasheet (provided) | JITX SOT23_6 generator | Ready |
-| WiFi module | Non-std | Need footprint + datasheet | User to provide, or LCSC lookup | Needs input |
+| WiFi module | Non-std | Need footprint + datasheet | User to provide, or manufacturer KiCad library | Needs input |
 
 **Data sources:**
 - "User datasheet (provided)" — user has already supplied the PDF
 - "Datasheet from manufacturer" — will download from manufacturer site (ti.com, st.com, etc.)
 - "JITX [generator] generator" — standard package, dimensions from datasheet
 - "User to provide .kicad_mod" — non-standard package, user has KiCad footprint
-- "LCSC lookup" — non-standard package, user named LCSC/JLCPCB as the channel; *lookup/evidence* via parts2jitx is implied. *Footprint data ingestion* (EasyEDA `.kicad_mod` as landpattern source) is a separate opt-in.
+- "Manufacturer KiCad library": non-standard package, the vendor publishes a `.kicad_mod`; jitx-component-modeler imports it entry by entry
 
 Please confirm data sources or provide alternatives (datasheets, footprints, specs).
-**Note:** *Lookup/evidence* via parts2jitx is implied when LCSC/JLCPCB is the named channel. *Footprint data ingestion* (using EasyEDA-sourced `.kicad_mod` as the landpattern) requires explicit per-project approval — some users (especially commercial) may not want EasyEDA-sourced data in their project. See `references/parts-sourcing.md` "LCSC / JLCPCB via parts2jitx".
 ```
 
-**Channel evidence is required.** If the user has named a sourcing channel (LCSC/JLCPCB, Digi-Key/Mouser, internal PLM), the audit table must include channel-specific evidence for every named IC and connector before code is written. For LCSC/JLCPCB, that means `parts2jitx-lcsc <C-number>` output (stock, lifecycle, datasheet URL) plus `parts2jitx-lcsc <C-number> --pinout` saved to the project. The orchestrator may `pip install parts2jitx` automatically when LCSC/JLCPCB is the named channel. See [Required-Sourcing Rule (named channel → channel-specific evidence)](parts-sourcing.md#required-sourcing-rule-named-channel--channel-specific-evidence) for the full ladder including non-LCSC channels.
+**Channel evidence is required.** If the user has named a sourcing channel (LCSC/JLCPCB, Digi-Key/Mouser, internal PLM), the audit table must include channel-specific evidence for every named IC and connector before code is written. For LCSC/JLCPCB, that means the part's channel record (stock, lifecycle, datasheet URL, pin labels) saved to the project. See [Required-Sourcing Rule (named channel → channel-specific evidence)](parts-sourcing.md#required-sourcing-rule-named-channel--channel-specific-evidence) for the full ladder including non-LCSC channels.
 
 **Rules:**
 - Always prefer user-provided data over automated lookups
 - Standard packages (QFN, SOIC, SON, SOT, QFP, BGA) use JITX generators — no footprint download needed
-- For non-standard packages, ask the user if they have a `.kicad_mod` before suggesting LCSC
-- LCSC/JLCPCB *lookup/evidence* (parts2jitx CLI) is implied when the user named that channel. LCSC/EasyEDA *footprint data ingestion* (using `.kicad_mod` as the landpattern source) requires explicit per-project approval — do not assume it is acceptable. Ask.
+- For non-standard packages, ask the user if they have a `.kicad_mod` before looking for the manufacturer's
 - Do NOT proceed past the data audit until the user approves the data source plan
 
 ### Exit Gate: Phase 0 → Phase 1
@@ -599,7 +597,7 @@ This is why PLAN.md must be kept up-to-date with every status change.
 
 ### Missing-Dependency Escalation
 
-When a required dependency is missing — `jitxlib` doesn't import, the target substrate package isn't available, `parts2jitx` returns broken output that can't be patched in a smoke build, the datasheet PDF the user said they'd provide hasn't arrived — that is a **blocker**, not a license to drop the design requirement.
+When a required dependency is missing — `jitxlib` doesn't import, the target substrate package isn't available, the datasheet PDF the user said they'd provide hasn't arrived — that is a **blocker**, not a license to drop the design requirement.
 
 A failure seen in practice: `jitxlib` failed to import, so the agent silently dropped controlled-impedance routing from the design rather than fix the environment. **Do not do this.**
 

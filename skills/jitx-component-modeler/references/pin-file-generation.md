@@ -160,10 +160,8 @@ stored. A ball reference loses nothing, so it never does. Read the two rules tog
 apparent inconsistency resolves: it is not "strings in comments good, strings in data bad," it is
 "store what is irrecoverable, compute what is not."
 
-(Both readings have actually happened. Two reviewers of the same generated module reached opposite
-conclusions about whether such a table was permitted, one citing this section and one citing
-"coordinate tables under a formatter-off guard" below — which sanctions the **coordinate** tables,
-the `(row, col)` data itself, not a parallel table of the strings those coordinates replace.)
+"Coordinate tables under a formatter-off guard" below sanctions the **coordinate** tables, the
+`(row, col)` data itself, not a parallel table of the strings those coordinates replace.
 
 ## What the emitted module holds
 

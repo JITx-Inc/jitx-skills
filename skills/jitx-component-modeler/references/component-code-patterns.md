@@ -110,8 +110,8 @@ Device: type[{ComponentClassName}] = {ComponentClassName}
 
 ## Package-Specific Examples
 
-For complete examples of each package type (SOIC, SOT, QFN, QFP, BGA), including thermal pads,
-port arrays, inactive positions, and non-uniform BGA grids, see
+For a shipped `jitxexamples` module per generator (SOIC, SOT, QFN with port arrays, SON with a
+thermal pad), and the BGA notes including inactive positions and non-uniform grids, see
 [package-examples.md](package-examples.md).
 
 Read its **BGA-Specific Notes** before any BGA, not just an unusual one — in particular what
@@ -130,15 +130,6 @@ verification code. Both are places where the obvious reading is the wrong one.
 | b | Lead width | `SMDLead.width` / `QFNLead.width` |
 | L | Lead length | `SMDLead.length` / `QFNLead.length` |
 | D2 / E2 | Thermal pad size | `.thermal_pad(rectangle(E2, D2))` — **E2 is width (X), D2 is height (Y)**. D=along pins, E=across. Do NOT write rectangle(D2, E2). |
-
-**Two-terminal chips use L / W / T instead, and the two symbol sets do not correspond row for row** — do not translate one into the other by position.
-
-| Chip datasheet symbol | Description | JITX Parameter |
-|-----------------|-------------|----------------|
-| L | Body length, termination end face to end face | `LeadProfile.span`, `RectanglePackage.length` |
-| W | Body width (= termination width) | `SMDLead.width`, `RectanglePackage.width` |
-| H / T | Body height / thickness | `RectanglePackage.height` |
-| *(seating-plane band; symbol varies by vendor)* | Solderable termination length | `SMDLead.length` — **not** the end-face wrap-up band. See [parameterized-families.md](parameterized-families.md#the-two-termination-bands--which-one-is-the-solderable-land). |
 
 ## Common Patterns
 
