@@ -225,27 +225,35 @@ part's readable form, and it needs stating as a property rather than a habit:
 Build the boxes from a **method returning fresh partitions**, never a stored
 attribute holding the ports a second time; see "A `Port` has exactly one home".
 
-**By functional group** (the usual case — split where the datasheet does: each
-op-amp unit, the power unit, each peripheral block):
+**By functional group** (the usual case: split where the datasheet does, each
+amplifier, the power unit, each peripheral block). Before drawing a box, check
+`jitxlib.symbols` for a standard-function symbol. Each amplifier of a
+multi-amplifier part takes `OpAmpUnitSymbol` from `jitxlib.symbols.opamp`, which
+has no supply pins, and the supplies go on a box unit of their own; a
+single-amplifier part takes `OpAmpSymbol`, supplies included. Where the installed
+jitxlib has no `OpAmpUnitSymbol`, use a `BoxSymbol` per amplifier and record why
+in the completion block.
 
 ```python
+from jitx.symbol import SymbolMapping
+from jitxlib.symbols.opamp import OpAmpUnitSymbol
+
+# Quad op-amp: OUT, INn and INp are lists of four ports; Vp and Vn are scalars.
 def __init__(self):
-    self.symbol_a = BoxSymbol(rows=Row(
-        left=PinGroup(self.INp[0], self.INn[0]),
-        right=PinGroup(self.OUT[0]),
-    ))
-    self.symbol_b = BoxSymbol(rows=Row(
-        left=PinGroup(self.INp[1], self.INn[1]),
-        right=PinGroup(self.OUT[1]),
-    ))
-    # Power unit: use horizontal layout (left=supplies, right=grounds)
+    self.amps = [OpAmpUnitSymbol() for _ in range(4)]
+    # The box unit maps its own pins.
     self.symbol_power = BoxSymbol(
-        rows=Row(
-            left=PinGroup(self.VCC, self.VBAT),
-            right=PinGroup(self.VSS, self.GND),
-        ),
+        columns=Column(up=PinGroup(self.Vp), down=PinGroup(self.Vn)),
+    )
+    self.mapping = SymbolMapping(
+        [(self.OUT[i], amp.OUT) for i, amp in enumerate(self.amps)]
+        + [(self.INn[i], amp.INn) for i, amp in enumerate(self.amps)]
+        + [(self.INp[i], amp.INp) for i, amp in enumerate(self.amps)]
     )
 ```
+
+A peripheral block or power domain with no standard symbol is a `BoxSymbol`
+unit, one `Row` or `Column` per block.
 
 **By regular slices** — only when the part has **no** natural functional
 grouping (generic connectors, board-to-board headers, pin arrays). For FPGAs,

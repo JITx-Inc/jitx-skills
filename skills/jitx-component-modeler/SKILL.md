@@ -21,8 +21,6 @@ Before writing code, read every matching row's file, and record the rows matched
 
 ## Universal source gate
 
-The base `jitx` skill handles environment setup and runs first.
-
 Never write dimensions, pin labels, pad assignments or an MPN from memory. The source is the manufacturer's current datasheet or package document; a manufacturer pin file is authority for names, balls and banks, never geometry; named sourcing-channel data is secondary evidence the datasheet outranks; failing those, ask the user. With no source, a real component is blocked unless the user explicitly authorizes a non-MPN generic placeholder, recorded under `Notes`. The full ladder is in [source-and-package-selection.md](references/source-and-package-selection.md#no-fabrication--source-authority-for-geometry-and-pinout).
 
 A part fact typed into the request (pin list, package, pin count) is a claim, not a source: check it against the document and send any disagreement back to the user before building.
@@ -48,7 +46,7 @@ Refuse to proceed with:
 - invented constructor arguments, class-scope `self`, or a JITX class declared inside a function, method or active instantiation context;
 - a silent package-variant choice when the source covers more than one.
 
-A thermal pad, a shared pad, or a declaration order that is not pad order requires explicit `PadMapping`.
+Every physical pin or ball, NC-with-pad and thermal pad included, gets its own port, and the symbol carries every port. A thermal pad, a shared pad, or a declaration order that is not pad order requires explicit `PadMapping`.
 
 Library and generator defaults are inputs to verify: check each one relied on against the source wherever the source speaks, and override from the source where they disagree. Density level is one (installed default `B`): set `DensityLevel` (`jitxlib.landpatterns.ipc`) explicitly or record that the default matches the source.
 
@@ -59,7 +57,7 @@ For a pin file, emit no component code until the parse reconciles and the user a
 After code exists, in order:
 
 1. Tests that construct components subclass `jitx.test.TestCase`; pure helper tests may use `unittest.TestCase`. Every package variant gets a pad-count check by `jitx.inspect.visit(lp, Pad)`; until it runs, verification stops. The snippet and other assertions: [verification-and-application.md](references/verification-and-application.md#verifying-a-component-with-tests).
-2. Run the test suite and `pyright`.
+2. Run the test suite and `pyright`. Tests assert metadata, pin and pad counts, the rendered `.value` or its absence, and each relied-on default or imported footprint entry against the source.
 3. Run `jitx find`, take its printed build target verbatim, then build in the available virtual environment.
 4. Write the task acceptance block from the base skill, with the complete `Component check` below embedded under `Checks run`, into `COMPLETION.md` or the project's existing equivalent.
 
@@ -103,11 +101,7 @@ Provenance: values traceable to no datasheet page: NONE | <list + the labeled ru
 Checks: pyright <clean | N errors>; pytest <N passed | not run: <reason>>;
         build <status: ok via <command> | not run: <reason>>
 Verdict: complete | open items: <list>
-        Derive this line from every row above. List each unresolved or unsupported
-        claim, mismatch, and failed, skipped, or unavailable check as an open item.
-        Any open item requires "open items"; "complete" is valid only when every
-        row is supported and resolved and every check ran clean.
-        An unavailable environment is an open item, not an exemption.
+        Derived from every row above; an unavailable environment is an open item.
 ```
 
 Rows whose label leaves the content open:
