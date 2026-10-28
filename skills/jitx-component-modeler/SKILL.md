@@ -15,7 +15,7 @@ The agent evaluates the conditions before writing code. It opens every matching 
 
 | Condition the agent can evaluate now | Open |
 |---|---|
-| The evidence source (datasheet, package drawing, URL, sourcing-channel record, KiCad footprint, user artifact) or the package generator is not yet settled. | [references/source-and-package-selection.md](references/source-and-package-selection.md) |
+| The evidence source (datasheet, package drawing, URL, sourcing-channel record, KiCad footprint, user artifact) or the package generator is not yet settled, or a KiCad footprint is the land-pattern source. | [references/source-and-package-selection.md](references/source-and-package-selection.md) |
 | The source and package are known, and the agent is about to write the component class, symbol, generator call, multi-unit partition, or explicit `PadMapping`. | [references/component-code-patterns.md](references/component-code-patterns.md) |
 | The vendor supplied a machine-readable pinout or ball-map file rather than a drawing to transcribe. | [references/pin-file-generation.md](references/pin-file-generation.md) |
 | The selected package is a SOIC, SOT23, QFN, SON or BGA whose pad numbering, mapping or thermal pad the agent has not built before. The file names a shipped `jitxexamples` module per generator; any BGA also needs its BGA-specific notes. | [references/package-examples.md](references/package-examples.md) |
@@ -63,7 +63,7 @@ The construction step refuses to proceed with any of these patterns:
 - one representative `Port` standing in for several physical pins, or separate ports for alternate functions of one physical pin;
 - numbered sibling attributes plus `getattr`, instead of an indexed list such as `GPIO = [Port() for _ in range(N)]`;
 - a second stored attribute containing ports the component already owns; structural groupings are methods returning fresh records;
-- pad positions placed from a drawing when the vendor publishes a KiCad footprint for the package;
+- pad positions placed from a drawing for a package no generator expresses, when the vendor publishes a KiCad footprint for it;
 - transcribing or sampling a supplied machine-readable pin file, or making ball-reference strings the runtime data model;
 - invented constructor arguments, class-scope `self`, or a JITX class declared inside a function, method, or active instantiation context;
 - a silent package-variant choice when the source covers more than one variant.
@@ -97,7 +97,7 @@ After code exists, the agent performs these steps in order:
 
 ## Component completeness check — run before calling it done
 
-A component is judged by whether every value in it traces back to a source — the manufacturer's datasheet, a vendor mechanical drawing, or the user's explicit specification. The predictable failure mode is not a missing feature; it is a **plausible number sitting where it looks authoritative**: a termination band read off the wrong dimension line, a library-table default nobody checked, a value label the BOM will print that no test ever read. Before presenting a component as complete, fill this block in the completion summary, each row with its evidence (datasheet page / table / figure → class or attribute). A row you cannot check is an open item to name to the user — not a silent pass.
+A component is judged by whether every value in it traces back to a source — the manufacturer's datasheet, a vendor mechanical drawing, or the user's explicit specification. The predictable failure mode is not a missing feature; it is a **plausible number sitting where it looks authoritative**: a lead length read off the wrong dimension line, a library-table default nobody checked, a value label the BOM will print that no test ever read. Before presenting a component as complete, fill this block in the completion summary, each row with its evidence (datasheet page / table / figure → class or attribute). A row you cannot check is an open item to name to the user — not a silent pass.
 
 ```
 ## Component check
@@ -163,4 +163,4 @@ A component task delivers files, not chat output:
 3. The `Component check` block, written alongside the code as the completion artifact
 4. Assumptions, decisions, and items needing manual review, in that block's rows
 
-After the component check, a datasheet application circuit is `jitx-circuit-builder`'s job, handed the component class's import path and the figure caption.
+After the component check, the agent offers the datasheet application circuit to the user and, on yes, invokes `jitx-circuit-builder` with the component class's import path and the figure caption.

@@ -19,6 +19,8 @@ Generate JITX Python component code from datasheets, user-provided KiCad footpri
 >
 > If none of the four produce a source, the component is **blocked**. Do not proceed by estimating. The only way out is for the user to explicitly authorize a non-MPN generic component (e.g. "use a typical 0.4 mm pitch QFN-56, this is a placeholder"). Record that authorization in the task acceptance block under `Notes`.
 >
+> The rule is also about values that could be wrong, not about labels the source never supplied.
+>
 > This callout exists because the failure it forbids is one an agent talks itself into: having read the patterns once, it concludes it can write the remaining components directly from "reasonable typical dimensions" and skip the skill. Every component produced that way is fabricated, and they arrive in a batch, because the reasoning that justifies the first one justifies all of them.
 
 ### When no document states an MPN
@@ -207,8 +209,11 @@ From the datasheet (or extracted pages), extract:
 Use this decision tree to select the appropriate generator:
 
 ```
-Is it a 2-sided package?
-├── Yes, ≤6 pins → SOT23_3, SOT23_5, or SOT23_6
+Two-terminal body (rectangular chip, SOD/SMA/SMB molded, axial)?
+→ jitxlib.landpatterns.twopin (smt, molded, axial), dimensions from the outline drawing.
+
+Otherwise: is it a 2-sided package?
+├── Yes, 3 to 6 leads → SOT23_3, SOT23_5, or SOT23_6
 ├── Yes, >6 pins with gull-wing leads → SOIC
 ├── Yes, >6 pins with flat leads (no-lead) → SON
 └── No (4-sided or array)
@@ -218,7 +223,7 @@ Is it a 2-sided package?
     └── Custom/unusual (connectors, RF modules, irregular pads)
         → Import the vendor's KiCad footprint (.kicad_mod) entry by
           entry; see "Packages no generator expresses" below.
-          NEVER place pads from a drawing when a vendor CAD file exists.
+          NEVER place pads from a drawing when a vendor KiCad footprint exists.
 
 Exception: mechanical / vendor-defined footprints (Tag-Connect TC2050,
 pogo-pin fixtures, castellated edges, fiducials, board-edge contacts).
@@ -237,8 +242,11 @@ For a package in the standard set (`QFN`, `SON`, `DFN`, `SOIC`, `SOT-23`, `SOT-2
 2. If the generator can't represent the paddle (or the lead layout), import the KiCad footprint as described below and verify pad-by-pad against the datasheet.
 3. Document the reason for falling back in the task acceptance block under `Notes` (e.g. "TPS62903 split thermal paddle not expressible in QFN generator — imported from KiCad and verified against figure 9-1 page 18").
 
-**Importing a `.kicad_mod`.** Read the file directly and write each pad, hole, soldermask opening and paste opening from its entries, citing the file and the URL it came from. KiCad's y axis points down and JITX's points up, so negate every y coordinate on import; a footprint copied across unchanged builds a mirror image of the part. Placing pads from a drawing when the vendor publishes a CAD footprint for the package is refused.
+**Importing a KiCad footprint.** Read the `.kicad_mod` directly and write each pad, hole, soldermask opening and paste opening from its entries, citing the file and the URL it came from, where it has one. KiCad's y axis points down and JITX's points up, so negate every y coordinate on import; a footprint copied across unchanged builds a mirror image of the part. Check each rotated pad's orientation, and pin 1, against the drawing. For the pad-class code, `jitxexamples.components.connectors.molex_2012670005` builds a custom `Landpattern` with `THPad` pads that carry a cutout. For a package no generator expresses, placing pads from a drawing when the vendor publishes a KiCad footprint for it is refused.
 
-**Getting a .kicad_mod for non-standard packages** (in priority order):
+**Getting a KiCad footprint for non-standard packages** (in priority order):
 1. **User-provided** — ask if they have a `.kicad_mod` from their KiCad library or manufacturer download
 2. **Manufacturer KiCad library** — many vendors (Molex, TE, Amphenol) publish official KiCad footprints
+3. **Distributor-hosted or third-party library**: a distributor-hosted or third-party library footprint (LCSC/EasyEDA, SnapEDA and similar) is third-party data under its own terms. Use it as the land-pattern source only with the user's explicit approval for this project, record the approval under `Notes`, and check it pad by pad against the manufacturer's drawing.
+
+**No KiCad footprint from any source.** When neither the user nor the manufacturer supplies a KiCad footprint, place each pad from the drawing's recommended land pattern, citing the figure per dimension, and record "no vendor KiCad footprint found" under `Notes`.

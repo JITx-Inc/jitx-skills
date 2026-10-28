@@ -61,7 +61,7 @@ When the user has named a sourcing channel — LCSC / JLCPCB / "buy from Mouser"
 | Channel named | Required evidence | How |
 |---------------|------------------|-----|
 | **LCSC / JLCPCB** | Stock + lifecycle + datasheet URL + pinout for each LCSC C-number | Saved text excerpt of the part's channel record (stock, lifecycle, datasheet URL, pin labels) to `datasheets/sourcing/<mpn>-lcsc.txt` or similar, cited in the data source audit row. |
-| **Digi-Key / Mouser / Newark / other distributor** | Saved screenshot or text excerpt of stock + manufacturer/datasheet from the distributor page; user approves the evidence method | Manual save to `datasheets/sourcing/<mpn>-<distributor>.txt` or similar. No automated tool today. |
+| **Digi-Key / Mouser / Newark / other distributor** | Saved screenshot or text excerpt of stock + manufacturer/datasheet from the distributor page; user approves the evidence method | Manual save to `datasheets/sourcing/<mpn>-<distributor>.txt` or similar. |
 | **Internal PLM / user library** | Reference to the PLM record or library entry; user confirms the record is current | Cite the record ID or library file path in the data source audit row. |
 | **No channel named** | Treat sourcing as an open question — ask the user before proposing parts | The component-choice rationale table is incomplete without a channel; flag in Phase 0. |
 
@@ -133,10 +133,11 @@ Dimensions from the datasheet mechanical drawing. No external footprint needed.
 Source the `.kicad_mod` from one of:
 - User's existing KiCad library
 - Manufacturer's KiCad library download
+- A distributor-hosted or third-party library footprint (LCSC/EasyEDA, SnapEDA and similar), which is third-party data under its own terms: use it as the land-pattern source only with the user's explicit approval for this project, record the approval under `Notes`, and check it pad by pad against the manufacturer's drawing
 
 Then import it entry by entry, as `jitx-component-modeler` describes in [Packages no generator expresses](../../jitx-component-modeler/references/source-and-package-selection.md#packages-no-generator-expresses).
 
-**NEVER place pads from a drawing when a vendor CAD footprint exists.** If you must add pads the footprint file does not list, verify shapes against the datasheet mechanical drawing: round holes use `circle(radius)`, oval holes use `capsule(width, height)`.
+**NEVER place pads from a drawing when a vendor KiCad footprint exists.** If you must add pads the footprint file does not list, verify shapes against the datasheet mechanical drawing: round holes use `Circle(radius=r)` from `jitx.shapes.primitive`, oval holes use `capsule(width, height)` from `jitx.shapes.composites`.
 
 Always use `BoxSymbol`. Never convert KiCad schematic symbol graphics.
 
@@ -149,7 +150,7 @@ The "NEVER place pads from a drawing" rule above has a legitimate exception: foo
 - The "footprint" represents a mechanical/copper feature, not a part with an MPN.
 - Or: the part exists but no purchasable component model is available, and a vendor mechanical drawing is the source of truth.
 
-This exception does **not** authorize hand-crafting pad positions for purchasable components (resistors, ICs, connectors with MPNs). Those still go through the standard JITX generators or a KiCad footprint import.
+This exception does **not** authorize hand-crafting pad positions for purchasable components (resistors, ICs, connectors with MPNs). Those still go through the standard JITX generators or a KiCad footprint import. When neither the user nor the manufacturer supplies a KiCad footprint, place each pad from the drawing's recommended land pattern, citing the figure per dimension, and record "no vendor KiCad footprint found" under `Notes`.
 
 ### Workflow
 

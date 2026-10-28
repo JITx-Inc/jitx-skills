@@ -106,7 +106,7 @@ Please confirm data sources or provide alternatives (datasheets, footprints, spe
 **Rules:**
 - Always prefer user-provided data over automated lookups
 - Standard packages (QFN, SOIC, SON, SOT, QFP, BGA) use JITX generators — no footprint download needed
-- For non-standard packages, ask the user if they have a `.kicad_mod` before looking for the manufacturer's
+- For non-standard packages, ask the user if they have a `.kicad_mod` before looking for the manufacturer's KiCad library
 - Do NOT proceed past the data audit until the user approves the data source plan
 
 ### Exit Gate: Phase 0 → Phase 1

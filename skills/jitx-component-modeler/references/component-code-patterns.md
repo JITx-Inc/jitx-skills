@@ -53,6 +53,7 @@ from jitxlib.symbols.box import BoxSymbol, PinGroup, Row, Column
 # from jitxlib.landpatterns.generators.sot import SOT23_3, SOT23_5, SOT23_6, SOTLead, SOTLeadProfile
 # from jitxlib.landpatterns.generators.qfn import QFN, QFNLead
 # from jitxlib.landpatterns.generators.son import SON, SONLead
+# from jitxlib.landpatterns.generators.qfp import QFP, QFPLead
 # from jitxlib.landpatterns.generators.bga import BGA
 from jitxlib.landpatterns.leads import LeadProfile
 from jitxlib.landpatterns.package import RectanglePackage
@@ -319,7 +320,7 @@ VDD1 = Port()        # Which power domain?
 Do NOT invent constructor parameters — use only these documented signatures:
 
 ```python
-# SOT — SOTLeadProfile takes ONLY span, nothing else
+# SOT: SOTLeadProfile requires span; pitch defaults to 0.95 and type to SOTLead(), both overridable
 SOTLeadProfile(span=Toleranced.min_max(2.3, 2.5))
 
 # LeadProfile — used for SOIC, SON, QFN
