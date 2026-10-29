@@ -46,7 +46,7 @@ Passive queries need a provider chain in `pyproject.toml` (without one: `NoChain
 chain = ["csv:parts/approved-parts.csv", "ideal"]
 ```
 
-`ideal`, last, synthesizes unorderable `IDEAL-...` parts so the design builds before approval, and silently answers most queries the CSV cannot. Before calling a design done, remove `ideal`, then pass `jitx build <design>` and `jitx design export parts-check <design> --fail all`; on the stand-in, the user approves each MPN in `parts.lock.json` or replaces it. CSV format, fall-through to `ideal`, the lockfile, parts databases: https://docs.jitx.com/en/latest/essentials/design/parts.html
+`ideal`, last, synthesizes unorderable `IDEAL-...` parts so the design builds before approval, and silently answers most queries the CSV cannot. Before calling it done, remove `ideal`, then pass `jitx build <design>` and `jitx design export parts-check <design> --fail all`; on the stand-in, the user approves the final build's MPNs or supplies a list. CSV format, fall-through to `ideal`, the lockfile, parts databases: https://docs.jitx.com/en/latest/essentials/design/parts.html
 
 The scaffold skips `git init` (do it and say so). Its `.gitignore` keeps the built design directory tracked on purpose: do not broaden it.
 

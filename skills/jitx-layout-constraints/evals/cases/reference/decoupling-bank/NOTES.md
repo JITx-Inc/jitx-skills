@@ -19,6 +19,12 @@ whatever the row order: in a `jitx.test` probe against this file, the same
 query without `rank=` returned the first row, `C3216X5R1V226M160AC` (1206), and
 with it returned `CL10A226MP8NUNE` (0603).
 
+The reference passes a whole `CapacitorQuery` with its own `case=` tuple, where
+`decoupling.md` passes keywords. `DecouplingReference` sets no Design-level
+`CapacitorQuery` default, so the tuple stands in for one. In a project, the
+case codes belong to the Design default, and an explicit query would replace
+that default instead of adding to it.
+
 Selected capacitor, from `CapacitorQuery(capacitance=22e-6 * F,
 rated_voltage_dc=AtLeast(10.0 * V), type="ceramic", mounting="smd",
 case=("0402", "0603", "0805", "1206"), rank="case")`:

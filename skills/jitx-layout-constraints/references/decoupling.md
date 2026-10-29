@@ -99,9 +99,14 @@ the result that will be built.
 An approved-parts CSV answers with its first matching row in file order
 unless the query passes `rank=`, and a query key (`rank=` keys included) with
 no column in the file is declined and falls through to the next provider
-(`jitxlib/parts/providers/csv_parts.py:399`, `:412`). For the smallest
-qualified package, pass the qualifying `case=` codes and `rank="case"`, which
-minimizes the case code. The CSV reads `case` as text
+(`jitxlib/parts/providers/csv_parts.py:399`, `:412`). The allowed case codes
+come from the Design-level `CapacitorQuery` default (`jitx-circuit-builder`),
+never from the bank. The bank passes its electrical keywords and `rank="case"`
+on top of that default, which minimizes the case code, so the smallest case the
+default allows wins. Pass keywords, not a whole `CapacitorQuery`: an explicit
+query replaces the Design default instead of adding to it
+(`jitxlib/parts/query.py:855-856` reads the default only when no query is
+given), so its own case list would decide. The CSV reads `case` as text
 (`jitxlib/parts/providers/csv_parts.py:100`), so the ranking is by code, and for
 the imperial codes `0402`, `0603`, `0805` and `1206` that order is also size
 order. Do not reorder the user's list to get the same result.
@@ -165,7 +170,7 @@ from jitx.constraints import AnyObject, Tag, Tags, design_constraint
 from jitx.net import ShortTrace
 from jitx.units import F, V
 from jitx.via import Via
-from jitxlib.parts import AtLeast, Capacitor, CapacitorQuery
+from jitxlib.parts import AtLeast, Capacitor
 
 from decoupling_solver import BankSpec, CapacitorGeometry, HintSpec, Solution, solve
 
@@ -185,11 +190,11 @@ class DecouplingBank(Circuit):
         hint_factory: Callable[[Component], HintMap],
         rail_voltage: float,  # volts
         cap_geometry: CapacitorGeometry,
-        capacitance: float = 22e-6,  # farads; Bogatin 2019: largest MLCC, 22 uF typical; pass the datasheet value when it gives one
-        rated_voltage_factor: float = 2.0,  # Bogatin 2019: rated at least 2x the rail; the datasheet wins when it specifies
         keepouts: tuple[tuple[tuple[float, float], ...], ...],
         capacitor_spacing: float,
         package_rotation: int,
+        capacitance: float = 22e-6,  # farads; Bogatin 2019: largest MLCC, 22 uF typical; pass the datasheet value when it gives one
+        rated_voltage_factor: float = 2.0,  # Bogatin 2019: rated at least 2x the rail; the datasheet wins when it specifies
     ) -> None:
         self.ic = ic_type().at(0.0, 0.0)
         hints_by_key = hint_factory(self.ic)
@@ -230,15 +235,18 @@ class DecouplingBank(Circuit):
         )
         self.solution = solve(spec)
 
-        capacitor_spec = CapacitorQuery(
-            capacitance=capacitance * F,
-            rated_voltage_dc=AtLeast(rated_voltage_factor * rail_voltage * V),  # a minimum, not an exact catalog value
-            type="ceramic",
-            mounting="smd",
-            case=("0402", "0603", "0805", "1206"),
-            rank="case",  # smallest qualifying case code wins
-        )
-        self.capacitors = [Capacitor(capacitor_spec) for _ in hints]
+        # Keywords on top of the Design-level CapacitorQuery default, which sets the
+        # allowed case codes; rank="case" picks the smallest one it allows.
+        self.capacitors = [
+            Capacitor(
+                capacitance=capacitance * F,
+                rated_voltage_dc=AtLeast(rated_voltage_factor * rail_voltage * V),  # a minimum, not an exact catalog value
+                type="ceramic",
+                mounting="smd",
+                rank="case",
+            )
+            for _ in hints
+        ]
         self.supply_traces = [
             ShortTrace(capacitor.p1, hint.key)  # supply-side pad to the pin it serves
             for capacitor, hint in zip(self.capacitors, hints, strict=True)

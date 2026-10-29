@@ -396,9 +396,10 @@ def main():
         quiet,
     )
 
-    # Power-rail capacitor rule: a file that constructs Capacitor(...) and no
-    # ShortTrace(...) is a review hit on each capacitor line. Non-power-rail caps
-    # are dispositioned in the task acceptance block.
+    # Power-rail capacitor rule: in a file whose Capacitor(...) and
+    # PolarizedCapacitor(...) call sites outnumber its ShortTrace(...) call sites,
+    # each capacitor call line is a review hit. Non-power-rail caps are
+    # dispositioned in the task acceptance block.
     report(
         "Capacitor(...) call sites outnumber ShortTrace(...) call sites in a file (power-rail cap rule)",
         power_rail_capacitor_hits(source_files),
