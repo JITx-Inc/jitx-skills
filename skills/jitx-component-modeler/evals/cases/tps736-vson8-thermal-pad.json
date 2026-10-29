@@ -1,0 +1,103 @@
+{
+  "name": "tps736-vson8-thermal-pad",
+  "prompt": "model the TI TPS736 in the 8-pin VSON package from the datasheet; it's got a thermal pad",
+  "inputs": {
+    "datasheet_url": "https://www.ti.com/lit/ds/symlink/tps736.pdf",
+    "datasheet_sha256_at_authoring": "6cf8ac9cdf78f1849826526d8e48db630f7fd5c0990039afb941a272d7ee00c1",
+    "notes": "This case is the skill's original lane: one named IC from a real manufacturer PDF, fetched by URL, where the mechanical drawing has to be located among several packages' drawings before it can be read. It carries scripts/extract_pages.py against a real multi-page PDF. The part is chosen so that no shipped example models it: neither jitxexamples nor the skills carry a TPS736 component, so a correct file cannot be copied. Preconditions, and the reason this case is not part of the offline gate: the runner needs network reach to ti.com and pymupdf installed. If the URL is unreachable or serves non-PDF content, record 'not run: datasheet unreachable' rather than substituting a distributor mirror: a mirror is a different document, and mirrors are where bot-block HTML arrives under a .pdf name. The PDF is not committed: it is TI's copyrighted document.\n\nThe bytes fetched when this case was written were TI literature number SBVS038X ('SBVS038X – SEPTEMBER 2003 – REVISED MAY 2025' in the page footer), 49 pages, PDF title 'TPS736 Capacitor-Free, NMOS, 400mA, Low-Dropout Regulator With Reverse Current Protection datasheet (Rev. X)', sha256 6cf8ac9cdf78f1849826526d8e48db630f7fd5c0990039afb941a272d7ee00c1. TI serves the current revision at this URL, so a later fetch can hash differently. When it does, judges locate the pages below by caption in the fetched revision, record that revision in the receipt, and re-check every number the assertions quote against it rather than against these page numbers.\n\nPages used, as 1-based PDF page index: 1 (Package Information: DBV (SOT-23, 5), DCQ (SOT-223, 6), DRB (VSON, 8) 3mm x 3mm); 3 (Figure 4-2 'DRB Package, 8-Pin VSON (Top View)': 1 OUT, 2 N/C, 3 NR/FB, 4 GND, 5 EN, 6 N/C, 7 N/C, 8 IN; Table 4-1 'Pin Functions', VSON column, GND '4, Pad'; NR is pin 3 on fixed-voltage versions only and FB is pin 3 on the adjustable version only); 28 (Table 8-1 'Device Nomenclature': TPS736xxyyy z(M3), xx the nominal output voltage, 01 = Adjustable); 30 to 33 (PACKAGE OPTION ADDENDUM: the SON (DRB) | 8 orderables, for example TPS73601DRBR, TPS73633DRBR, TPS73633DRBT); 39 and 42 (PACKAGE OUTLINE DBV0005A and DCQ0006A, the other two packages); 46 (PACKAGE OUTLINE DRB0008A, drawing 4218875/A 01/2018: body 2.9 to 3.1 by 2.9 to 3.1, 1 MAX height, standoff 0.00 to 0.05, 6X 0.65 pitch, terminal width 8X 0.25 to 0.37, terminal length 8X 0.3 to 0.5, exposed thermal pad 1.5 ± 0.1 across the lead rows by 1.75 ± 0.1 along them, with 4X (0.23) tabs and a pin 1 chamfer; no lead span is dimensioned, the terminals end at the body edge); 47 (EXAMPLE BOARD LAYOUT: 8X (0.31) by 8X (0.6) lands, 6X (0.65), thermal land (1.5) by (1.75), optional vias); 48 (EXAMPLE STENCIL DESIGN: 'EXPOSED PAD 84% PRINTED SOLDER COVERAGE BY AREA', 4X openings on the exposed pad, 0.125 mm thick stencil).",
+    "offline": false,
+    "traps": [
+      "Three packages, three pin-number columns: Table 4-1 numbers each pin for SOT-23, SOT-223 and VSON. A map read from the SOT-23 or SOT-223 column is internally consistent and wrong; on the SOT-223, GND is '3, 6', on the VSON it is '4, Pad'.",
+      "The exposed pad is GND: Table 4-1 lists it with pin 4. Leaving it unmapped, or giving it a port of its own that no ground connects to, fails.",
+      "Three N/C pins (2, 6, 7) have pads. Each still needs a Port, so the pad has an owner; dropping them leaves pads with no port.",
+      "Pin 3 is NR on fixed-voltage versions and FB on the adjustable TPS73601. The orderable decides the name; a file that names it for one version while its MPN is the other is wrong.",
+      "Many outlines: the PDF carries PACKAGE OUTLINE pages for DBV0005A and DCQ0006A before DRB0008A. Dimensions copied from them are real numbers from the right document and still wrong; the cited drawing must be DRB0008A.",
+      "The outline dimensions no lead span: the terminals end at the body edge. The span has to be derived (from the body width, the terminal length, and the example board layout) and the derivation recorded, not taken from a generator default or a remembered 3 mm SON."
+    ]
+  },
+  "reference": {
+    "notes": "No committed reference solution. Every pin number and dimension the judges need is in inputs.notes and the assertions, with its page. Judges score the candidate against the datasheet only."
+  },
+  "runner_models": [
+    "sonnet"
+  ],
+  "runner_rationale": "Same rationale as the sibling cases: customers drive this skill with mixed-strength agents, so the eval runs the skill under a Sonnet-class runner and holds the judges at frontier tier. This case additionally probes whether the skill's no-fabrication ladder binds a weaker model that has seen many 3 mm SON land patterns in training and will otherwise write one from memory.",
+  "runner_isolation": "Start the runner in a scratch directory with the skill, the fixtures and a writable output directory, and nothing else — no access to a repository containing a shipped solution of this shape. Reading the installed jitx/jitxlib API is expected; reading somebody's finished component measures the runner's search, not the skill.",
+  "runner_artifacts": "The runner MUST write its completion summary to <output>/COMPLETION.md, not only into its final chat message. Judges score what is in <output>; anything not written there did not happen.",
+  "runner_build": "Tell the runner to run `jitx find` and build whatever target it prints, recording the exact command and result. Do NOT tell it to skip the build — the contract hard-fails on an available build that was not done, so forbidding it makes the run unwinnable. Where the build genuinely cannot run, the runner declares it as an open item in COMPLETION.md, which satisfies the hard-fail's own escape clause; remind judges that a declared, unavailable build is not a silent skip.",
+  "expected_output": "A single component file under a components/<category>/ folder: mpn (a DRB orderable), manufacturer, datasheet and reference_designator_prefix set; one Port per physical pin, the three N/C pins included; the SON generator (not QFN, not a hand-built pad array) with span, pitch and terminal length and width as Toleranced values from DRB0008A, the span's derivation recorded; the thermal pad written as rectangle(E2, D2) with paste following the example stencil; a BoxSymbol with the input and enable left, the output right and ground down; an explicit PadMapping because the thermal pad must land on thermal_pads[0] beside pin 4's GND; a TestDesign harness that builds; and a completion summary whose Primary source row cites the page and figure for every mechanical dimension, plus the filled Component completeness check block.",
+  "assertions": [
+    {
+      "text": "every generated source file parses as Python",
+      "check": "deterministic",
+      "cmd": "find <output> -name '*.py' -exec python3 -m py_compile {} +"
+    },
+    {
+      "text": "generated files type-check (precondition: the runner project seeded pyright as a dev dependency)",
+      "check": "deterministic",
+      "cmd": "cd <output> && pyright ."
+    },
+    {
+      "text": "the thermal pad is mapped explicitly rather than left to declaration order",
+      "check": "deterministic",
+      "cmd": "grep -rq 'thermal_pads\\[0\\]' <output> --include='*.py'"
+    },
+    {
+      "text": "the design translates",
+      "check": "deterministic",
+      "cmd": "cd <output> && jitx build --dry <target>"
+    },
+    {
+      "text": "the completion block was written to <output>/COMPLETION.md, not only reported in chat",
+      "check": "deterministic",
+      "cmd": "test -s <output>/COMPLETION.md"
+    },
+    {
+      "text": "<output>/COMPLETION.md has a References opened row that names at least one of the skill's reference files, by file name or stem (component-guide, pin-file-generation). The label may carry a parenthetical and be followed by a colon or a table-cell bar. The value may sit on the label line, on continuation lines indented deeper than it, or, under a label line with no value that is not itself a list item, in a list whose items start with -, *, + or a number (blank lines before the first item allowed); the label's capitalization does not matter. The case fails when any References opened row's value starts with `none`: the component-guide row of the skill's routing table matches every component task, so `none matched` is never right here, in any component's block. A mention of the row inside prose does not count.",
+      "check": "deterministic",
+      "cmd": "awk '{l=tolower($0)} l~/^[^a-z]*references opened[^:|]*[:|]/{v=l;sub(/^[^a-z]*references opened[^:|]*[:|]/,\"\",v);gsub(/[*|`]/,\" \",v);if(v~/^[[:space:]]*none/){bad=1;p=0;next};match(l,/^[[:space:]]*/);i=RLENGTH;e=(v~/^[[:space:]]*$/)&&(l!~/^[[:space:]]*([-*+]|[0-9]+[.)])[[:space:]]/);s=0;p=1;if(v~/(component-guide|pin-file-generation)/)ok=1;next} p&&e&&!s&&!NF{next} p{match(l,/^[[:space:]]*/);if(NF&&(RLENGTH>i||(e&&l~/^[[:space:]]*([-*+]|[0-9]+[.)])[[:space:]]/))){s=1;if(e&&l~/^[[:space:]]*([-*+]|[0-9]+[.)])[[:space:]]*none/)bad=1;if(l~/(component-guide|pin-file-generation)/)ok=1;next};p=0} END{exit (ok&&!bad)?0:1}' <output>/COMPLETION.md"
+    },
+    {
+      "text": "every mechanical dimension in the file traces to a cited datasheet page and figure of DRB0008A (page 46), its example board layout (page 47) or example stencil (page 48), and none is a value the model could have written from memory or copied from the DBV0005A or DCQ0006A outlines: spot-check pitch (0.65), terminal width (0.25 to 0.37), terminal length (0.3 to 0.5), body (2.9 to 3.1) and both thermal-pad dimensions (1.5 ± 0.1, 1.75 ± 0.1)",
+      "check": "judge"
+    },
+    {
+      "text": "the lead span is derived from DRB0008A with the derivation recorded (the outline dimensions no span; the terminals end at the body edge), not left to a generator default or written as a bare number",
+      "check": "judge"
+    },
+    {
+      "text": "the thermal pad is written as rectangle(E2, D2) and not rectangle(D2, E2): 1.5 across the lead rows, 1.75 along them, which in the SON generator's frame (lead rows on the left and right) is rectangle(1.5, 1.75)",
+      "check": "judge"
+    },
+    {
+      "text": "the pin map is the VSON column of Table 4-1 and Figure 4-2 (1 OUT, 2 N/C, 3 NR or FB, 4 GND, 5 EN, 6 N/C, 7 N/C, 8 IN); the thermal pad maps to the GND port with pin 4; each N/C pin has a Port",
+      "check": "judge"
+    },
+    {
+      "text": "the runner asked which output-voltage version to model (the orderable decides the MPN and whether pin 3 is NR or FB), or chose one and recorded the choice as an open item; pin 3's name matches the MPN the file sets",
+      "check": "judge"
+    },
+    {
+      "text": "the thermal pad's paste follows the example stencil on page 48 (four openings, 84% coverage on a 0.125 mm stencil) or records why it departs from it",
+      "check": "judge"
+    },
+    {
+      "text": "pages were located with scripts/extract_pages.py and only the extracted pages were read; the full PDF was never read end to end",
+      "check": "judge"
+    },
+    {
+      "text": "the download was checked to be an actual PDF before extraction, rather than fed to pymupdf on faith",
+      "check": "judge"
+    },
+    {
+      "text": "the completion summary contains the filled Component completeness check block and a task acceptance block whose Footprint source row names the JITX generator used",
+      "check": "judge"
+    },
+    {
+      "text": "the component file sits under components/, optionally inside a namespace package and a category subdirectory, named texas_instruments_tps736 followed by the orderable suffix. The suffix depends on the output-voltage answer the runner gets, so only the device stem is pinned; whether the MPN is a DRB orderable is the judges' call.",
+      "check": "deterministic",
+      "cmd": "python3 -c \"import re,sys;from pathlib import Path;o=Path(sys.argv[1]);h=[r for r in (p.relative_to(o).as_posix() for p in o.rglob('*.py')) if re.fullmatch(sys.argv[2],r,re.I)];sys.exit(0 if len(h)>=int(sys.argv[3]) else 'found '+str(len(h))+' file(s) matching '+sys.argv[2]+', need '+sys.argv[3])\" <output> '([a-z0-9_]+/)?components/([a-z0-9_]+/)?texas_instruments_tps736[a-z0-9_]*[.]py' 1"
+    }
+  ],
+  "future_cases": "Planned siblings in this lane: a non-standard package the generators cannot express, forcing the documented import of a vendor KiCad footprint with the reason recorded; and a >40-pin part where the correct answer is a partitioned multi-box symbol rather than one unreadable box."
+}
