@@ -8,7 +8,7 @@
   "expected_output": "One Circuit subclass taking the output voltage (or the divider values) as a parameter, instantiated three times at the level above, with the shared input rail and the three output rails wired at that level.",
   "assertions": [
     {
-      "text": "the bundle's grep gates exit clean on the output: no setattr/getattr on self, no string-keyed spec model",
+      "text": "the bundle's grep gates exit clean on the output. The exit code covers the hard-fail set only: no setattr/getattr on self, no SI application or net symbol outside designs/. A string-keyed spec model (a tag-like f-string) is review-required and exits 0, so the last judge assertion grades it",
       "check": "deterministic",
       "cmd": "python3 skills/jitx/scripts/grep_gates.py <output>/"
     },
