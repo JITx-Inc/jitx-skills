@@ -336,14 +336,14 @@ class LEDDriverApp(Circuit):
         self.VCC += self.mcu.power.Vp
         self.GND += self.mcu.power.Vn
 
-        # Consume GPIOs — layout engine decides which physical pins
+        # Consume GPIOs; layout engine decides which physical pins
         self.r_leds = []
         self.led_nets = []
         for _ in range(2):
             gpio = self.mcu.require(GPIO)
             r = Resistor(resistance=330 * ohm)
             self.r_leds.append(r)
-            self.led_nets.append(gpio.gpio + r.p1)
+            self.led_nets.append(gpio.gpio + r.p1)  # r.p2: LED anode
 
 Device = LEDDriverApp
 ```
