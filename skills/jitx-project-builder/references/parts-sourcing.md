@@ -48,7 +48,7 @@ Dimensions come from the datasheet (user-provided or fetched). No footprint down
 
 ### 3. KiCad footprints (for packages no generator expresses)
 
-For standard packages (QFN, SON, DFN, SOIC, SOT, QFP, BGA), the default landpattern source is the **JITX generator** with dimensions from the datasheet mechanical drawing, even when a KiCad footprint exists. Fall back to a KiCad footprint only when the generator can't represent the package: connectors, RF modules, unusual mechanical, or specialty paddle geometry (split paddles, non-standard thermal pads, asymmetric layouts). The agent reads the `.kicad_mod` itself and writes each entry into the component, as `jitx-component-modeler` describes in [Packages no generator expresses](../../jitx-component-modeler/references/source-and-package-selection.md#packages-no-generator-expresses).
+For standard packages (QFN, SON, DFN, SOIC, SOT, QFP, BGA), the default landpattern source is the **JITX generator** with dimensions from the datasheet mechanical drawing, even when a KiCad footprint exists. Fall back to a KiCad footprint only when the generator can't represent the package: connectors, RF modules, unusual mechanical, or specialty paddle geometry (split paddles, non-standard thermal pads, asymmetric layouts). The agent reads the `.kicad_mod` itself and writes each entry into the component, as `jitx-component-modeler` describes in [KiCad import](../../jitx-component-modeler/references/component-guide.md#kicad-import).
 
 ## Data Audit (Project Builder)
 
@@ -67,7 +67,7 @@ When the user has named a sourcing channel — LCSC / JLCPCB / "buy from Mouser"
 
 The datasheet remains the higher authority for dimensions, pin labels, and pad assignments. A sourcing channel's pinout record is a useful cross-check but does not replace the datasheet's mechanical drawing and pinout table. When the two disagree, the datasheet wins and the conflict is documented in the task acceptance block under `Secondary references`.
 
-**Standard packages (QFN, SON, DFN, SOIC, SOT, QFP, BGA):** the channel gives you stock and pinout. Use the **JITX generator** for the landpattern, with dimensions from the datasheet mechanical drawing. Do not import a channel's KiCad footprint as the landpattern for a standard package; see [Packages no generator expresses](../../jitx-component-modeler/references/source-and-package-selection.md#packages-no-generator-expresses).
+**Standard packages (QFN, SON, DFN, SOIC, SOT, QFP, BGA):** the channel gives you stock and pinout. Use the **JITX generator** for the landpattern, with dimensions from the datasheet mechanical drawing. Do not import a channel's KiCad footprint as the landpattern for a standard package; see [KiCad import](../../jitx-component-modeler/references/component-guide.md#kicad-import).
 
 **Mechanical / pad-only footprints (Tag-Connect TC2050, fiducials, castellations, pogo pads):** these have no purchasable component — no stock/lifecycle to check. Channel evidence does not apply; the vendor mechanical drawing is the source. See "Mechanical / Vendor-Defined Footprints" below.
 
@@ -135,7 +135,7 @@ Source the `.kicad_mod` from one of:
 - Manufacturer's KiCad library download
 - A distributor-hosted or third-party library footprint (LCSC/EasyEDA, SnapEDA and similar), which is third-party data under its own terms: use it as the land-pattern source only with the user's explicit approval for this project, record the approval under `Notes`, and check it pad by pad against the manufacturer's drawing
 
-Then import it entry by entry, as `jitx-component-modeler` describes in [Packages no generator expresses](../../jitx-component-modeler/references/source-and-package-selection.md#packages-no-generator-expresses).
+Then import it entry by entry, as `jitx-component-modeler` describes in [KiCad import](../../jitx-component-modeler/references/component-guide.md#kicad-import).
 
 **NEVER place pads from a drawing when a vendor KiCad footprint exists.** If you must add pads the footprint file does not list, verify shapes against the datasheet mechanical drawing: round holes use `Circle(radius=r)` from `jitx.shapes.primitive`, oval holes use `capsule(width, height)` from `jitx.shapes.composites`.
 
