@@ -127,7 +127,7 @@ self.routes = [
 ]
 ```
 
-Route between physical pads, vias and control points, one segment per hop. A route the router cannot make reports `Unable to find path for requested route` under Routing, and the constraint reports `Missing Connection on Path: <a>, <b>`. Control points and route mechanics belong to `jitx-physical-layout`.
+These routes are what the runtime follows to infer the path between the `Topology` ends, which is why the path needs no `>>`: a path crosses a via, or a part with a pin model, where routes land on both sides of it. Route between physical pads, vias and control points, one segment per hop. A route the router cannot make reports `Unable to find path for requested route` under Routing, and the constraint reports `Missing Connection on Path: <a>, <b>`. Control points and route mechanics belong to `jitx-physical-layout`.
 
 ## Differential Pairs
 
