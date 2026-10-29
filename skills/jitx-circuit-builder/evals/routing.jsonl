@@ -11,7 +11,6 @@
 {"intent": "add a ground pour on the bottom layer of the top-level design", "expected_skill": "jitx-circuit-builder"}
 {"intent": "connect the sensor's I2C to the MCU and put the pull-ups at the bus level", "expected_skill": "jitx-circuit-builder"}
 {"intent": "model this QFN part and its thermal pad from the datasheet", "expected_skill": "jitx-component-modeler", "ambiguous_with": ["jitx-layout-constraints"]}
-{"intent": "build me parameterized component families from these two datasheets — no parts DB, the class should be the data", "expected_skill": "jitx-component-modeler"}
 {"intent": "this MCU can bring SPI out on two different pin groups — let the assignment pick which", "expected_skill": "jitx-pin-assignment"}
 {"intent": "let the solver swap the P and N of this differential pair if it routes better", "expected_skill": "jitx-pin-assignment"}
 {"intent": "keep the 5 V copper 0.3 mm from ground on the inner layers", "expected_skill": "jitx-layout-constraints"}
@@ -23,7 +22,7 @@
 {"intent": "import the board edge and keepout outline from DXF", "expected_skill": "jitx-mechanical", "ambiguous_with": ["jitx-layout-constraints"]}
 {"intent": "I just wired nine subcircuits — check them for string-hacking before I merge", "expected_skill": "jitx-code-review"}
 {"intent": "set up decoupling placement and short routes for the MCU", "expected_skill": "jitx-layout-constraints", "ambiguous_with": ["jitx-circuit-builder"]}
-{"intent": "capture the typical application circuit from this datasheet too — the input caps and the feedback divider", "expected_skill": "jitx-circuit-builder", "ambiguous_with": ["jitx-component-modeler"]}
+{"intent": "capture the typical application circuit from this datasheet too — the input caps and the feedback divider", "expected_skill": "jitx-circuit-builder"}
 {"intent": "calculate the resistor values for an analog filter", "expected_skill": null}
 {"intent": "simulate this power supply's transient response in SPICE", "expected_skill": null}
 {"intent": "Wire the USB-C controller VBUS output through a sense resistor to the regulator input.", "expected_skill": "jitx-circuit-builder"}
@@ -49,4 +48,3 @@
 {"intent": "Define the USB differential-pair topology, reference plane, impedance, and skew limits.", "expected_skill": "jitx-interconnect-constraints", "ambiguous_with": ["jitx-circuit-builder"]}
 {"intent": "Add RGMII timing constraints and length-match the data lanes to the clock.", "expected_skill": "jitx-interconnect-constraints", "ambiguous_with": ["jitx-circuit-builder"]}
 {"intent": "Model this STM32 QFN component from its datasheet and create the landpattern.", "expected_skill": "jitx-component-modeler", "ambiguous_with": ["jitx-circuit-builder"]}
-{"intent": "Create a parameterized 0603 resistor-family component with computed manufacturer part numbers.", "expected_skill": "jitx-component-modeler", "ambiguous_with": ["jitx-circuit-builder"]}

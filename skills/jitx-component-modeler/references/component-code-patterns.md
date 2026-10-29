@@ -53,6 +53,7 @@ from jitxlib.symbols.box import BoxSymbol, PinGroup, Row, Column
 # from jitxlib.landpatterns.generators.sot import SOT23_3, SOT23_5, SOT23_6, SOTLead, SOTLeadProfile
 # from jitxlib.landpatterns.generators.qfn import QFN, QFNLead
 # from jitxlib.landpatterns.generators.son import SON, SONLead
+# from jitxlib.landpatterns.generators.qfp import QFP, QFPLead
 # from jitxlib.landpatterns.generators.bga import BGA
 from jitxlib.landpatterns.leads import LeadProfile
 from jitxlib.landpatterns.package import RectanglePackage
@@ -110,8 +111,8 @@ Device: type[{ComponentClassName}] = {ComponentClassName}
 
 ## Package-Specific Examples
 
-For complete examples of each package type (SOIC, SOT, QFN, QFP, BGA), including thermal pads,
-port arrays, inactive positions, and non-uniform BGA grids, see
+For a shipped `jitxexamples` module per generator (SOIC, SOT, QFN with port arrays, SON with a
+thermal pad), and the BGA notes including inactive positions and non-uniform grids, see
 [package-examples.md](package-examples.md).
 
 Read its **BGA-Specific Notes** before any BGA, not just an unusual one — in particular what
@@ -125,20 +126,17 @@ verification code. Both are places where the obvious reading is the wrong one.
 | D | Package length | `RectanglePackage.length` |
 | E | Package width | `RectanglePackage.width` |
 | A | Package height | `RectanglePackage.height` |
-| E1 / D1 | Lead span | `LeadProfile.span` |
+| E1 / D1 | Lead span (outer terminal edge to outer terminal edge) | `LeadProfile.span` |
 | e | Lead pitch | `LeadProfile.pitch` |
 | b | Lead width | `SMDLead.width` / `QFNLead.width` |
 | L | Lead length | `SMDLead.length` / `QFNLead.length` |
 | D2 / E2 | Thermal pad size | `.thermal_pad(rectangle(E2, D2))` — **E2 is width (X), D2 is height (Y)**. D=along pins, E=across. Do NOT write rectangle(D2, E2). |
 
-**Two-terminal chips use L / W / T instead, and the two symbol sets do not correspond row for row** — do not translate one into the other by position.
-
-| Chip datasheet symbol | Description | JITX Parameter |
-|-----------------|-------------|----------------|
-| L | Body length, termination end face to end face | `LeadProfile.span`, `RectanglePackage.length` |
-| W | Body width (= termination width) | `SMDLead.width`, `RectanglePackage.width` |
-| H / T | Body height / thickness | `RectanglePackage.height` |
-| *(seating-plane band; symbol varies by vendor)* | Solderable termination length | `SMDLead.length` — **not** the end-face wrap-up band. See [parameterized-families.md](parameterized-families.md#the-two-termination-bands--which-one-is-the-solderable-land). |
+A leadless outline (QFN, SON) often dimensions no span. The span is then not the body
+width unless the drawing shows the terminals flush with the body edge: where they sit
+inside it, derive the span from the drawing's terminal position or from the example board
+layout (land centre-to-centre plus one land length), cite which, and check the generated
+lands against that layout.
 
 ## Common Patterns
 
@@ -172,13 +170,21 @@ Toleranced.exact(7.0)                   # BSC = Basic
 
 ### Thermal Pad with Paste Subdivision
 
+The paste comes from the datasheet's example stencil when it prints one: its aperture
+count and size, or its coverage figure, cited by page. `WindowSubdivide` takes `padding`
+(the gap between windows and from the pad edge, one value or an (x, y) pair) and
+`gridShape` (windows per axis, default 2 by 2); solve both from the stencil, and assert the
+window sizes in a test. Its default padding of 0.25 is a library default like any other.
+With no example stencil, record the coverage chosen and why.
+
 ```python
 from jitx.shapes.composites import rectangle
 from jitxlib.landpatterns.pads import SMDPadConfig, WindowSubdivide
 
 .thermal_pad(
     shape=rectangle(3.0, 3.0),
-    config=SMDPadConfig(paste=WindowSubdivide(padding=0.25)),
+    # Stencil prints four 1.2 mm square apertures: padding (3.0 - 2 * 1.2) / 3 = 0.2.
+    config=SMDPadConfig(paste=WindowSubdivide(padding=0.2, gridShape=(2, 2))),
 )
 ```
 
@@ -233,27 +239,35 @@ part's readable form, and it needs stating as a property rather than a habit:
 Build the boxes from a **method returning fresh partitions**, never a stored
 attribute holding the ports a second time; see "A `Port` has exactly one home".
 
-**By functional group** (the usual case — split where the datasheet does: each
-op-amp unit, the power unit, each peripheral block):
+**By functional group** (the usual case: split where the datasheet does, each
+amplifier, the power unit, each peripheral block). Before drawing a box, check
+`jitxlib.symbols` for a standard-function symbol. Each amplifier of a
+multi-amplifier part takes `OpAmpUnitSymbol` from `jitxlib.symbols.opamp`, which
+has no supply pins, and the supplies go on a box unit of their own; a
+single-amplifier part takes `OpAmpSymbol`, supplies included. Where the installed
+jitxlib has no `OpAmpUnitSymbol`, use a `BoxSymbol` per amplifier and record why
+in the completion block.
 
 ```python
+from jitx.symbol import SymbolMapping
+from jitxlib.symbols.opamp import OpAmpUnitSymbol
+
+# Quad op-amp: OUT, INn and INp are lists of four ports; Vp and Vn are scalars.
 def __init__(self):
-    self.symbol_a = BoxSymbol(rows=Row(
-        left=PinGroup(self.INp[0], self.INn[0]),
-        right=PinGroup(self.OUT[0]),
-    ))
-    self.symbol_b = BoxSymbol(rows=Row(
-        left=PinGroup(self.INp[1], self.INn[1]),
-        right=PinGroup(self.OUT[1]),
-    ))
-    # Power unit: use horizontal layout (left=supplies, right=grounds)
+    self.amps = [OpAmpUnitSymbol() for _ in range(4)]
+    # The box unit maps its own pins.
     self.symbol_power = BoxSymbol(
-        rows=Row(
-            left=PinGroup(self.VCC, self.VBAT),
-            right=PinGroup(self.VSS, self.GND),
-        ),
+        columns=Column(up=PinGroup(self.Vp), down=PinGroup(self.Vn)),
+    )
+    self.mapping = SymbolMapping(
+        [(self.OUT[i], amp.OUT) for i, amp in enumerate(self.amps)]
+        + [(self.INn[i], amp.INn) for i, amp in enumerate(self.amps)]
+        + [(self.INp[i], amp.INp) for i, amp in enumerate(self.amps)]
     )
 ```
+
+A peripheral block or power domain with no standard symbol is a `BoxSymbol`
+unit, one `Row` or `Column` per block.
 
 **By regular slices** — only when the part has **no** natural functional
 grouping (generic connectors, board-to-board headers, pin arrays). For FPGAs,
@@ -328,7 +342,7 @@ VDD1 = Port()        # Which power domain?
 Do NOT invent constructor parameters — use only these documented signatures:
 
 ```python
-# SOT — SOTLeadProfile takes ONLY span, nothing else
+# SOT: SOTLeadProfile requires span; pitch defaults to 0.95 and type to SOTLead(), both overridable
 SOTLeadProfile(span=Toleranced.min_max(2.3, 2.5))
 
 # LeadProfile — used for SOIC, SON, QFN
