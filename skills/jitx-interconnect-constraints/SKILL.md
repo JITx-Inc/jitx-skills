@@ -58,15 +58,15 @@ For a same-model self-critique pass on the constraint code after writing (catche
 
 On jitx 4.6 an SI constraint needs only the path's two ends. Connect the path with ordinary nets (`+` or `Net([...])`) and name the ends with `Topology(begin, end)`. The runtime infers the path between them from the routes, crossing parts that carry pin models.
 
-The `>>` operator (`TopologyNet`) is not needed for timing, loss or skew, and it is dispreferred: a topology is complex and rigid, fixing the connection order and segment shape before anything is routed. Use it only for a daisy chain whose order is part of the design, such as a flyby clock ([Daisy chains](#daisy-chains-)).
+The `>>` operator (`TopologyNet`) is not needed for timing, loss or skew, and it is dispreferred: a topology is complex and rigid, fixing the connection order before anything is routed. Use it only for a daisy chain whose order is part of the design, such as a flyby clock ([Daisy chains](#daisy-chains-)).
 
-Nets, constraints, pin models and routes join the design only when the circuit stores them:
+Nets, constraints, constraint helpers, pin models and routes join the design only when the circuit stores them. A dropped constraint or helper logs `Reference to structural object <Class> ... lost during instantiation, it likely needs to be assigned to an object.` and never reaches the report:
 
 ```python
 self.n1 = self.drv.o + self.cap.a           # CORRECT
 self.nets = [self.cap.b + self.rcv.i]       # CORRECT
-self.drv.o + self.cap.a                     # WRONG: built, never stored, silently dropped
-Constrain(Topology(self.drv.o, self.rcv.i)).timing(500e-12)  # WRONG: same
+self.drv.o + self.cap.a                     # WRONG: built, never stored
+Constrain(Topology(self.drv.o, self.rcv.i)).timing(500e-12)  # WRONG: lost during instantiation
 ```
 
 ## Basic Constraints
@@ -89,7 +89,7 @@ self.cst = (
 
 Other forms: `.timing(high=500e-12, low=100e-12)` for a delay window, and `Constrain([topo_a, topo_b])` to give several paths the same constraints individually.
 
-Give every timing or loss constraint a `.structure(...)`. Without it the constraint still measures, but with a delay and loss that are not the structure's, and the report adds `Missing routing structure on Path: ...` per segment: treat that line as a defect to fix. A `Constrain` that carries only `.structure(...)` (no timing, loss or skew) never appears in the design issues report, so the report cannot confirm it applied.
+Cover every timed path with one routing structure: on its own constraint, or, for a daisy chain, on the single constraint over the longest path ([Daisy chains](#daisy-chains-)). Without one the constraint still measures, but with a delay and loss that are not the structure's, and the report adds `Missing routing structure on Path: ...` per segment: treat that line as a defect to fix. A `Constrain` that carries only `.structure(...)` (no timing, loss or skew) never appears in the design issues report, so the report cannot confirm it applied.
 
 `Constrain.structure()` accepts a single-ended `RoutingStructure`. `DifferentialRoutingStructure` is not a `RoutingStructure` subclass; differential work uses `ConstrainDiffPair` or `DiffPairConstraint`.
 
@@ -117,7 +117,7 @@ When the component does not carry one, add it in the circuit: `self.bridge = Bri
 
 ### TerminatingPinModel: package delay at an end
 
-Optional; adds a chip or connector pin's package delay and loss, one per pin:
+Adds a chip or connector pin's package delay and loss, one per pin. Add one whenever package or connector data is supplied:
 
 ```python
 class MyIC(jitx.Component):
@@ -162,17 +162,20 @@ drs100 = current.substrate.differential_routing_structure(100.0)
 self.dp_cst = (
     ConstrainDiffPair(Topology(self.src.tx, self.dst.rx))
     .timing_difference(5e-12)   # max P-to-N skew
+    .timing(400e-12)            # max delay per leg
     .insertion_loss(3.0)        # max loss per leg
     .structure(drs100)
 )
 ```
 
+Timing and loss apply to each leg, so each leg gets its own `Time` and `Loss` line; the skew gives one `Skew` line per pair.
+
 `ConstrainDiffPair` also takes a list of pair topologies. For the same constraint on many pairs, `DiffPairConstraint` is a reusable helper:
 
 ```python
-dp_cst = DiffPairConstraint(skew=Toleranced(0, 5e-12), loss=3.0, structure=drs100)
-dp_cst.constrain(self.src.tx, self.dst.rx)
-dp_cst.constrain(self.src.clk, self.dst.clk)
+self.dp_cst = DiffPairConstraint(skew=Toleranced(0, 5e-12), loss=3.0, structure=drs100)
+self.dp_cst.constrain(self.src.tx, self.dst.rx)
+self.dp_cst.constrain(self.src.clk, self.dst.clk)
 ```
 
 `LanePair` (`jitx.common`) bundles a TX and an RX `DiffPair`.
@@ -259,7 +262,7 @@ class MyConstraint(SignalConstraint[MySerialLink]):
 
 Every subclass that defines `__init__` calls `super().__init__()` first; the base initializer creates the collection that `self.add(...)` extends.
 
-Apply it on plain nets with `constrain(src, dst)`, naming the true ends, and wire the parts between them as usual:
+Apply it on plain nets with `constrain(src, dst)`, naming the true ends, and wire the parts between them as usual. Here `coupler` is an AC coupling part with `DiffPair` ports `a` and `b` and a `BridgingPinModel` on each leg:
 
 ```python
 self.link_cst = MyConstraint(MyStandard())
@@ -291,11 +294,11 @@ For protocol-specific timing parameters (skew, loss, impedance per standard vers
 Via structures (`jitxlib.via_structures`) are `Circuit`s with `sig_in`, `sig_out` and `COMMON` ports around a signal via, with optional ground cage and antipads. Net them in like a part and route to the signal via; the constraint names the outer pads. Measured on jitx 4.6.0rc10 with runtime 4.6.0-rc.16, single-ended and differential, the constraint binds on plain nets and counts the via's `models`.
 
 ```python
-from jitxlib.via_structures import SingleViaStructure, PolarViaGroundCage, SimpleAntiPad
+from jitxlib.via_structures import SingleViaStructure, PolarViaGroundCage
 
 self.vs = SingleViaStructure(
     EscapeVia,                       # a via class with models
-    ground_cages=[PolarViaGroundCage(MySubstrate.THVia, count=8, radius=0.6)],
+    ground_cages=[PolarViaGroundCage(MySubstrate.THVia, count=4, radius=1.5)],
     antipads=[],
 ).at(0, 0)
 self.GND += self.vs.COMMON
@@ -307,6 +310,8 @@ self.routes = [
 self.cst = Constrain(Topology(self.drv.o, self.rcv.i)).timing(1e-9).structure(rs50)
 ```
 
+The cage must leave the routes a way in. On the two-layer `jitx.sample.SampleSubstrate` this four-via cage at 1.5 mm measured `Time: 112.495ps`; an eight-via cage at 0.6 mm closed the via off, and the report gave `Missing Connection on Path` with `Unable to find path for requested route`. Size the cage for your trace and clearance, or leave a gap with `skips=`.
+
 `DifferentialViaStructure(vias, pitch, ground_cages=..., antipads=...)` has `DiffPair` ports and signal vias `via_p` and `via_n`; optional `enterOn` / `exitOn` add pair insertions. Neither class takes an `insertion_points` argument.
 
 **These DO NOT EXIST — never import:**
@@ -314,7 +319,7 @@ self.cst = Constrain(Topology(self.drv.o, self.rcv.i)).timing(1e-9).structure(rs
 
 ## Constraints on pin-assigned ports
 
-A constraint on a `require()`d port measures only once the assignment resolves. Code routes on the provider's physical pins resolve it, including P/N inversion; a route that matches no offered mapping is dropped and the pin reported unassigned. A route cannot end on a `require()`d port, and a `require()`d port cannot be stored on `self`. With the Topology ending on the `require()`d port, an unresolved assignment reports `Unassigned Pin on Path: ...`; with fixed physical ends around the assigned pins, an unresolved or illegal assignment reports `No path for signal constraint`. The full rules and patterns are in [jitx-pin-assignment](../jitx-pin-assignment/SKILL.md).
+A constraint on a `require()`d port measures only once the assignment resolves. Code routes on the provider's physical pins resolve it, including P/N inversion; routes that match no offered mapping are dropped (`Code route dropped: it conflicts with other connections`). A route cannot end on a `require()`d port, and a `require()`d port cannot be stored on `self`. With the Topology ending on the `require()`d port, an unresolved assignment reports `Unassigned Pin on Path: ...`; with fixed physical ends around the assigned pins, an unresolved or illegal assignment reports `No path for signal constraint`. Because proof routes fix one mapping, they belong in a separate verification design, not in the shipping assembly (see Verification). The full rules and patterns are in [jitx-pin-assignment](../jitx-pin-assignment/SKILL.md).
 
 ## Daisy chains (`>>`)
 
@@ -337,7 +342,7 @@ The same chain on a plain `Net([ctrl.a0, dram0.a0, dram1.a0])` also measures onc
 - Declaring `>>` on a point-to-point signal, or telling the user `>>` is required for a constraint to apply. Plain nets plus `Topology(begin, end)` are enough.
 - Claiming a constraint applies from `status: ok`, a clean type check, or an issue report read without `--satisfied`. Only a measured line counts.
 - A part on the path with no `BridgingPinModel`, or a via with no `models`. Add the model; do not accept the placeholder.
-- A timing or loss constraint with no `.structure(...)`. The measurement is not the structure's; the `Missing routing structure` line is a defect.
+- A timed path covered by no routing structure (neither its own constraint nor, for a chain, the longest-path constraint). The measurement is not the structure's; the `Missing routing structure` line is a defect.
 - Ending a constraint on a sub-circuit port or an intermediate pad, so the measurement skips part of the path.
 - Expecting constraints to create copper. They measure routed paths; route in the board view, or with code `Route`s.
 - `DifferentialRoutingStructure` passed to `Constrain.structure`; use `ConstrainDiffPair`.
@@ -349,6 +354,8 @@ The same chain on a plain `Net([ctrl.a0, dram0.a0, dram1.a0])` also measures onc
 
 Layout width and clearance checks belong to `jitx-layout-constraints`; physical-layout checks to `jitx-physical-layout`. This section proves that each SI constraint applied.
 
+Prove binding on a code-routed verification design, one per module that carries SI constraints. It places the parts, code-routes every constrained path between physical pads (on a pin-assigned port, the provider's physical pins), and passes when each constraint has a measured line with the intended ends and no unresolved text. The shipping assembly carries no proof routes, which would fix one placement and one pin mapping. On the assembly, `Unconnected Topology`, `not routed yet`, `No path for signal constraint` with no part named, and `Unassigned Pin` on pin-assigned ends are expected and recorded; `No path ... which has no pin model`, `Missing routing structure`, a placeholder via model, `Virtual connection without a pin model`, and a constraint absent from the report still block.
+
 1. Type check: `pyright path/to/circuit.py`.
 2. Read the design issues with satisfied checks included. A runtime must be running for the project (`jitx runtime start --background`):
 
@@ -356,7 +363,7 @@ Layout width and clearance checks belong to `jitx-layout-constraints`; physical-
    jitx design issues <module.path.DesignClass> --satisfied --wait 30
    ```
 
-   From Python: `RuntimeDesign.issues(satisfied=True)` on the submitted design. JITX builds against the same project run in sequence; see [Build safety](../jitx/SKILL.md#build-safety-dont-parallelize-same-design-work).
+   From Python: `with jitx.runtime as r:` then `r.submit(MyDesign).issues(satisfied=True, wait=30).text()`. The command exits 0 whatever it finds unless `--error` is given. JITX builds against the same project run in sequence; see [Build safety](../jitx/SKILL.md#build-safety-dont-parallelize-same-design-work).
 
 3. A constraint applied only when its measurement appears, naming the intended ends:
 

@@ -16,10 +16,16 @@ jitx design issues <module.path.DesignClass> --satisfied --wait 30
 a met constraint does not appear, so `No design issues.` is the same report a
 never-applied constraint gives. `--wait` gives background tasks time to finish
 before the snapshot (default 5 s). `--category signal_constraint` narrows the
-report. `jitx --format json design issues ...` gives each issue's class, text,
+report. The command exits 0 whatever it finds unless `--error <severity>` is
+given. `jitx --format json design issues ...` gives each issue's class, text,
 pins and, for a measurement, `detail.signal_integrity` with `measured_range`,
 `acceptable_range` and `satisfied`, which a script can check. From Python, the
-submitted design's `issues(satisfied=True)` returns the same report.
+submitted design returns the same report:
+`with jitx.runtime as r:` then `r.submit(MyDesign).issues(satisfied=True, wait=30).text()`.
+
+A second query of a design already submitted, unchanged, has hung on this
+runtime for minutes. Restart the project's runtime (`jitx runtime stop`, then
+`jitx runtime start --background`) before querying it again.
 
 `status: ok`, a clean type check, and the existence of a harness are not
 evidence that a constraint applied.
@@ -66,16 +72,28 @@ not the design's number. Fix the cause and re-run; do not claim the constraint.
 | `No path for signal constraint ...` with no part named | Seen when an unrouted net crosses a circuit's bundle port, and when an assignment around fixed physical ends is unresolved or illegal. | Route first, then read it again; for pin assignment see `jitx-pin-assignment`. |
 | `Missing routing structure on Path: <a>, <b>` (beside a measurement) | The constraint has no `.structure(...)`, so the measured delay and loss are not the structure's. | Add the routing structure. |
 | `Structure model from [i] to [j] not found in "<Via>". Using placeholder model ...` | A via on the path has no `models` entry for that layer pair. The measurement uses a placeholder (20 ps and 0.15 dB on one observed run; not a documented default). | Give the via class a `models` entry from its data. |
-| `Missing Connection on Path: <a>, <b>`, with `Unable to find path for requested route` under Routing | A code route the router cannot make, for example to a part rotated so the routed pad faces away, or to a part inside a sub-circuit that has no placement. | Fix the route or the placement. |
+| `Missing Connection on Path: <a>, <b>`, with `Unable to find path for requested route` under Routing | A code route the router cannot make. Observed causes: a part rotated so the routed pad faces away, a part with no `.at(...)` placement, and a via-structure ground cage that closes the via off. | Fix the route or the placement. |
 | `Unassigned Pin on Path: <net>` | A `require()`d end whose assignment has not resolved. | Code routes on the provider's physical pins that match an offered mapping. |
 | `Code route dropped: it conflicts with other connections` | A route that matches no offered pin mapping. | Route to a legal mapping. |
 | `Overlapping routing structures along path from <a> to <b>` | Two constraints put a structure on a shared segment of a chain. | Apply the structure once, over the longest path. |
 
-## Harness and assembly parity
+## Verification design and assembly
 
-When a constraint is proved in a module harness and again in the assembled
-board, run the command on both designs and compare the measured lines: the same
-constraint must measure in both, between the same physical ends (the dotted
-prefix changes with the hierarchy), through the same parts. A measurement in the
-harness only, or ends that differ, returns the assembly for rework unless the
-difference is named with its reason.
+Proof routes fix one placement and, on a pin-assigned port, one pin mapping, so
+they go in a code-routed verification design, one per module that carries SI
+constraints, and not in the shipping assembly. The verification design places
+the parts, code-routes every constrained path between physical pads (on a
+pin-assigned port, the provider's physical pins), and passes when each
+constraint has a measured line with the intended ends and none of the
+unresolved texts above.
+
+Run the command on the assembly too, and disposition each SI line. Expected
+there, and recorded: `Unconnected Topology`, `not routed yet`, `No path for
+signal constraint` with no part named, and `Unassigned Pin` on pin-assigned
+ends. Blocking there as anywhere: `No path ... which has no pin model`,
+`Missing routing structure`, a placeholder via model, `Virtual connection
+without a pin model`, and a constraint that is absent from the report. Each
+constraint in the assembly must name the same physical ends, through the same
+parts, as its verification design (the dotted prefix changes with the
+hierarchy); a difference returns the assembly for rework unless it is named
+with its reason.
