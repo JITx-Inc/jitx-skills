@@ -2,22 +2,16 @@
   "name": "typed-port-composition",
   "prompt": "I have a 3.3 V LDO circuit, an MCU circuit and an I2C temperature-sensor circuit. Give each a typed boundary, feed both consumers from the LDO's output, put the sensor on the MCU's I2C, and compose the three in a top-level circuit. Write tests that prove the composition, offline.",
   "inputs": {
-    "reference": "evals/cases/reference/typed-ports/design.py",
     "notes": "Composition through typed ports is the core of a multi-circuit design: a `Power` output netted to `Power` inputs, an `I2C` bundle netted to an `I2C` bundle, each child carrying its boundary members inward to its own pins, and the parent touching only boundary ports. The reference uses stand-in parts with bare ports; the shape of the composition is under test.",
     "environment": "Offline. jitx.test.TestCase activates the instantiation context with no runtime and no parts database."
   },
+  "reference": {
+    "file": "evals/cases/reference/typed-ports/design.py",
+    "check": "evals/cases/reference/typed-ports/check.py",
+    "notes": "The reference's self-test, not scored against the run's output: check.py runs the composition checks offline and pyright over design.py and check.py. Run it with `python3 skills/jitx-circuit-builder/evals/cases/reference/typed-ports/check.py`."
+  },
   "expected_output": "Three Circuit subclasses whose boundaries are class-level `Power` and `I2C` ports, a top-level circuit that nets the LDO's `vout` to both consumers' `vin` and the MCU's `i2c` to the sensor's `i2c` with `+`, and `jitx.test.TestCase` tests that assert bundle membership over `list(net)`, the regulator input kept off the output rail, and each child's boundary member reaching its pin.",
   "assertions": [
-    {
-      "text": "the reference composition checks pass offline, with no runtime running (this checks the reference design, not the run's output)",
-      "check": "deterministic",
-      "cmd": "python3 skills/jitx-circuit-builder/evals/cases/reference/typed-ports/check.py"
-    },
-    {
-      "text": "the reference design and its checks type-check against the installed JITX package (this checks the reference, not the run's output)",
-      "check": "deterministic",
-      "cmd": "python3 -m pyright --pythonpath \"$(command -v python3)\" skills/jitx-circuit-builder/evals/cases/reference/typed-ports/design.py skills/jitx-circuit-builder/evals/cases/reference/typed-ports/check.py"
-    },
     {
       "text": "the output declares typed boundary ports as class attributes (Power and I2C)",
       "check": "deterministic",

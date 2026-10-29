@@ -134,7 +134,7 @@ def main(design):
 jitx design session --stop <design>
 ```
 
-It prints the MPNs as a JSON list, the parts the chain resolved and no modeled components. If `exec` reports `message could not be delivered`, the session is not up yet: run it again. If the background session has exited, read its output instead.
+It prints the MPNs as a JSON list, the parts the chain resolved and no modeled components. If `exec` reports `message could not be delivered`, the session is not up yet: run it again. If the background session has exited, read its output, fix the error it reports, and start the session again.
 
 When the user's list replaces the stand-in, delete `parts.lock.json` (the lock keys a CSV on its path, so a file overwritten in place re-resolves nothing), rebuild, and update the `Data Sources` row.
 
@@ -277,13 +277,13 @@ A single sub-agent assembles the top-level design. The orchestrator reviews its 
 
 ### Passive query defaults — match manufacturing and circuit role
 
-A query assigned in the Design class body is the default for every passive of its category built below it, and keywords on one part are added on top of it. Without one, a passive takes the first row of the approved-parts list that matches its value: on the example CSV, a 100 nF capacitor and a 10 kΩ resistor both resolve to 0201 parts. Filter only on keys the approved-parts list has a column for. A key with no column makes the CSV decline the query, and `ideal` then answers it without a warning while the chain still holds `ideal` (base `jitx` skill, Step 2). The example CSV's columns include `case`, `mounting`, `tolerance`, `rated_voltage_dc`, `type` and `temperature_coefficient_code`. The right values depend on the design:
+A query assigned in the Design class body is the default for every passive of its category built below it, and keywords on one part are added on top of it. Without one, a passive takes the first row of the approved-parts list that matches its value: on the example CSV, a 100 nF capacitor and a 10 kΩ resistor both resolve to 0201 parts. Filter only on keys the approved-parts list has a column for. A key with no column, or a bound no row meets, makes the CSV decline the query, and `ideal` then answers it without a warning while the chain still holds `ideal` (base `jitx` skill, Step 2). The example CSV's columns include `case`, `mounting`, `tolerance`, `rated_voltage_dc`, `type` and `temperature_coefficient_code`. The right values depend on the design:
 
 | Design class | Typical defaults | Why |
 |--------------|------------------|-----|
 | **SMT production / economy** (JLCPCB, full-machine assembly) | SMD-only, ceramic for caps, small case (0402–0805) | Through-hole picks are wrong; small case fits typical decoupling |
 | **Hand-build / prototype** (hand-soldered, mixed assembly) | SMD or mixed, larger case (0603–1206) for ease, allow common through-hole on large parts | Hand-rework needs accessible sizes |
-| **Specialty** (high-voltage, RF-heavy, precision analog, high-current, automotive temp) | Per-circuit refinement is the rule; design-level defaults stay broad | Circuit role dominates — bulk caps, film, RF passives, shunts, etc. need local choice |
+| **Specialty** (high-voltage, RF-heavy, precision analog, high-current, automotive temp) | Per-circuit refinement of ratings and dielectric is the rule; design-level defaults stay broad | Circuit role dominates: bulk caps, film, RF passives and shunts each state their voltage, power or dielectric need |
 
 ```python
 from jitxlib.parts import CapacitorQuery, ResistorQuery
@@ -307,15 +307,20 @@ class Design(...):
     circuit = TopCircuit()
 ```
 
-**How to override.** Keywords on one part are added to the design default, so `Capacitor(capacitance=22e-6 * F, rated_voltage_dc=AtLeast(10 * V))` keeps its case, mounting and type. A `with CapacitorQuery(...)` block replaces the design default for every capacitor built inside it rather than adding to it, so restate the keys the default sets. If a circuit needs a 22 µF bulk capacitor in a larger case on a power rail, scope the block around just that capacitor:
+**How to override.** A part that needs more than the default states its electrical need as keywords on itself, never a `case=`: the keywords are added to the design default, which keeps the case, mounting and type. A 22 µF bulk capacitor on a 3.3 V rail loses capacitance under DC bias, so it asks for voltage headroom and a dielectric:
 
 ```python
-from jitx.units import F, V
-from jitxlib.parts import AtLeast, Capacitor, CapacitorQuery
+from jitx.units import V, uF
+from jitxlib.parts import AtLeast, Capacitor
 
-with CapacitorQuery(mounting="smd", type="ceramic", case=("1206", "1210")):
-    self.c_bulk = Capacitor(capacitance=22e-6 * F, rated_voltage_dc=AtLeast(10 * V))
+self.c_bulk = Capacitor(
+    capacitance=22 * uF,
+    rated_voltage_dc=AtLeast(10 * V),
+    temperature_coefficient_code="X5R",
+)
 ```
+
+A `with CapacitorQuery(...)` block replaces the design default for every capacitor built inside it rather than adding to it, so restate the keys the default sets.
 
 **The point:** every design has a default that matches its manufacturing path, plus per-circuit overrides where the role demands them. The Phase 3 exit gate confirms defaults exist and overrides are documented — not that any specific filter is set.
 
@@ -424,7 +429,7 @@ A bare net or topology expression builds with `status: ok` and passes every JITX
 
 JITX warns for *some* lost objects (you'll see `WARNING:jitx._structural:Reference to structural object <Class> at <file>:<line> lost during instantiation, it likely needs to be assigned to an object` for unassigned constraint objects and similar structural classes), but **the warning does not cover bare net or topology expressions** (`+` / `>>` between ports), which is exactly where this trap is easiest to fall into. Treat all such warnings as errors, and code review for the pattern below regardless.
 
-A passive held only in a local variable, or constructed inline inside a net, is not silent: once its ports join a net, `jitx build` fails with `Unable to map local reference ..., parent <Circuit> is not an ancestor of child <Port>`. Assign it to an attribute on `self` (`self.r_nrst = Resistor(resistance=10e3 * ohm)`). A passive whose ports join nothing builds with the `lost during instantiation` warning above.
+A passive held only in a local variable, or constructed inline inside a net, is not silent: once its ports join a net, `jitx build` fails with `Unable to map local reference ..., parent <Circuit> is not an ancestor of child <Port>`, which a `jitx.test.TestCase` does not catch. Assign it to an attribute on `self` (`self.r_nrst = Resistor(resistance=10e3 * ohm)`). A passive whose ports join nothing builds with the `lost during instantiation` warning above.
 
 #### Bare net or topology expressions
 

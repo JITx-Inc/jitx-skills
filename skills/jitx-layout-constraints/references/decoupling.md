@@ -193,6 +193,7 @@ class DecouplingBank(Circuit):
         package_rotation: int,
         capacitance: float = 22e-6,  # farads; Bogatin 2019: largest MLCC, 22 uF typical; pass the datasheet value when it gives one
         rated_voltage_factor: float = 2.0,  # Bogatin 2019: rated at least 2x the rail; the datasheet wins when it specifies
+        dielectric: str = "X5R",  # temperature_coefficient_code; pass the datasheet's when it gives one
     ) -> None:
         self.ic = ic_type().at(0.0, 0.0)
         hints_by_key = hint_factory(self.ic)
@@ -239,6 +240,7 @@ class DecouplingBank(Circuit):
             Capacitor(
                 capacitance=capacitance * F,
                 rated_voltage_dc=AtLeast(rated_voltage_factor * rail_voltage * V),  # a minimum, not an exact catalog value
+                temperature_coefficient_code=dielectric,
                 type="ceramic",
                 mounting="smd",
                 rank="case",

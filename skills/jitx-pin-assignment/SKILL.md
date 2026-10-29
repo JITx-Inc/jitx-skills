@@ -44,8 +44,6 @@ from jitx import Circuit, Net
 **Key locations:**
 - `provide` (lowercase, decorator) is in `jitx.net`
 - `Provide` (uppercase, constructor class) is in `jitx.net` (also re-exported from `jitx`)
-- `GPIO` is in `jitx.common`
-- `I2C`, `SPI`, `UART` are in `jitxlib.protocols.serial`
 - All constraint classes are in `jitx.si`
 
 ## When to Use Pin Assignment
@@ -141,7 +139,6 @@ Every `@provide` method returns a list of dictionaries. Each dictionary maps **b
 @provide(GPIO)
 def provide_gpio(self, g: GPIO):
     # g is a GPIO bundle instance — it has a .gpio sub-port
-    # Each dict maps {bundle_sub_port: component_pin}
     return [
         {g.gpio: self.mcu.GPIO[0]},   # Option 1: GPIO[0] fulfills this GPIO
         {g.gpio: self.mcu.GPIO[1]},   # Option 2: GPIO[1] fulfills this GPIO
@@ -260,13 +257,11 @@ class AppCircuit(Circuit):
         # Request a GPIO — returns a GPIO bundle instance
         gpio = self.mcu_circuit.require(GPIO)
 
-        # Wire using the bundle's sub-ports with + (net) operator
         self.led_net = gpio.gpio + self.led.anode
 
         # Request an I2C — returns an I2C bundle instance
         i2c = self.mcu_circuit.require(I2C)
 
-        # Wire both sub-ports
         self.sda_net = i2c.sda + self.sensor.SDA
         self.scl_net = i2c.scl + self.sensor.SCL
 ```
@@ -280,8 +275,8 @@ import jitx
 from jitx import Circuit, Net
 from jitx.common import GPIO, Power
 from jitx.net import Port, ShortTrace, provide
-from jitx.units import F, ohm
-from jitxlib.parts import Resistor, Capacitor
+from jitx.units import F, V, ohm
+from jitxlib.parts import AtLeast, Capacitor, Resistor
 
 
 class MCUComponent(jitx.Component):
@@ -311,8 +306,11 @@ class MCUCircuit(Circuit):
         self.VCC += self.power.Vp + self.mcu.VCC
         self.GND += self.power.Vn + self.mcu.GND
 
-        # Bypass cap: supply-side pad on a ShortTrace to the pin it serves.
-        self.c_bypass = Capacitor(capacitance=100e-9 * F)
+        self.c_bypass = Capacitor(
+            capacitance=100e-9 * F,
+            rated_voltage_dc=AtLeast(10 * V),
+            temperature_coefficient_code="X7R",
+        )
         self.GND += self.c_bypass.p2
         self.r_reset = Resistor(resistance=10e3 * ohm)
         self.VCC += self.r_reset.p1
@@ -345,7 +343,7 @@ class LEDDriverApp(Circuit):
             gpio = self.mcu.require(GPIO)
             r = Resistor(resistance=330 * ohm)
             self.r_leds.append(r)
-            self.led_nets.append(gpio.gpio + r.p1)  # r.p2 to the LED anode
+            self.led_nets.append(gpio.gpio + r.p1)
 
 Device = LEDDriverApp
 ```

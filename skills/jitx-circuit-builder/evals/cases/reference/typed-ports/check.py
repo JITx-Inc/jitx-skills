@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
-"""Composition checks for the typed-ports reference. Offline: no runtime, no parts DB.
+"""Self-test of the typed-ports reference: its composition checks, and pyright over
+this file and design.py. Offline: no runtime, no parts DB.
 
 Exit 0 = every check passed. Exit 1 = a check failed.
 
 Run:  python3 skills/jitx-circuit-builder/evals/cases/reference/typed-ports/check.py
 """
 
+import subprocess
 import sys
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
 
 import jitx.test
 from design import Board, McuCircuit, MixedTypes, RegulatorCircuit, SensorCircuit
@@ -80,6 +83,17 @@ class TypedPortChecks(jitx.test.TestCase):
         """Guards the skill's rule that a port nets only to its own concrete type."""
         with self.assertRaises(ValueError):
             MixedTypes()
+
+    def test_reference_type_checks(self) -> None:
+        """The reference and this file type-check against the installed JITX package."""
+        files = [str(HERE / "design.py"), str(HERE / "check.py")]
+        proc = subprocess.run(
+            [sys.executable, "-m", "pyright", "--pythonpath", sys.executable, *files],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
 
 
 if __name__ == "__main__":
