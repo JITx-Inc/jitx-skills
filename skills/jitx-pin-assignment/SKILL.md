@@ -467,7 +467,7 @@ class EsdProtection(Circuit):
     gnd = Port()
 
     def __init__(self) -> None:
-        self.esd = FlowThroughEsd4().at(0, 0)
+        self.esd = FlowThroughEsd4()  # unplaced: placement is the board's choice
         self.gnd_net = self.gnd + self.esd.gnd
 
     @provide.one_of(ProtectedPair)
@@ -485,12 +485,11 @@ class EsdProtection(Circuit):
 
 
 class UsbThroughEsd(Circuit):
-    """proof_channels: (D+ channel, D- channel) to code-route, verification designs only."""
+    """The product module: unplaced and route-free, so the assignment stays open."""
 
-    def __init__(self, proof_channels: tuple[int, int] | None = None) -> None:
-        # Placed: unplaced parts give Missing Connection instead of a measurement.
-        self.host = UsbHost().at(-12, 0)
-        self.conn = UsbConnector().at(12, 0)
+    def __init__(self) -> None:
+        self.host = UsbHost()
+        self.conn = UsbConnector()
         self.prot = EsdProtection()
 
         pair = self.prot.require(ProtectedPair)  # local, never self.pair
@@ -502,19 +501,6 @@ class UsbThroughEsd(Circuit):
         ]
         self.gnd = Net([self.host.gnd, self.prot.gnd, self.conn.gnd], name="GND")
 
-        # Proof routes land on the ESD part's physical pins and fix one mapping.
-        # The product design passes None and keeps the assignment open.
-        esd = self.prot.esd
-        self.routes: list[Route] = []
-        if proof_channels is not None:
-            p, n = proof_channels
-            self.routes = [
-                Route(self.host.usb.p, esd.ch_in[p], layer=0),
-                Route(self.host.usb.n, esd.ch_in[n], layer=0),
-                Route(esd.ch_out[p], self.conn.usb.p, layer=0),
-                Route(esd.ch_out[n], self.conn.usb.n, layer=0),
-            ]
-
         # Fixed physical ends either side of the assigned pins.
         self.usb_constraint = (
             ConstrainDiffPair(Topology(self.host.usb, self.conn.usb))
@@ -524,16 +510,43 @@ class UsbThroughEsd(Circuit):
         )
 
 
+# Verification design: everything below is proof scaffolding and never goes in
+# the product. It places the module's parts and routes one mapping.
+ChannelPair = tuple[int, int]  # (D+ channel, D- channel), 0-based
+
+
+class UsbThroughEsdProof(Circuit):
+    """The module, placed, with code routes landing on chosen ESD channels."""
+
+    def __init__(self, host_channels: ChannelPair, conn_channels: ChannelPair) -> None:
+        self.dut = UsbThroughEsd()
+        dut, esd = self.dut, self.dut.prot.esd
+        # Unplaced parts give Missing Connection instead of a measurement.
+        dut.host.at(-12, 0)
+        esd.at(0, 0)
+        dut.conn.at(12, 0)
+
+        # Proof routes end on the ESD part's physical pins and fix one mapping.
+        hp, hn = host_channels
+        cp, cn = conn_channels
+        self.routes = [
+            Route(dut.host.usb.p, esd.ch_in[hp], layer=0),
+            Route(dut.host.usb.n, esd.ch_in[hn], layer=0),
+            Route(esd.ch_out[cp], dut.conn.usb.p, layer=0),
+            Route(esd.ch_out[cn], dut.conn.usb.n, layer=0),
+        ]
+
+
 class VerifyUsbThroughEsd(ProjectDesign):  # your project's Design subclass
-    """Verification design: D+ on channel 1, D- on channel 2."""
+    """D+ on channel 1, D- on channel 2, both sides."""
 
     def __init__(self) -> None:
-        self.circuit = UsbThroughEsd(proof_channels=(0, 1))
+        self.circuit = UsbThroughEsdProof(host_channels=(0, 1), conn_channels=(0, 1))
 ```
 
 `USB.v2.skew` is jitxlib-standard's USB 2.0 intra-pair skew limit, `Toleranced(0, 3.75e-12)`. `ESD_DELAY`, `ESD_LOSS` and `TIMING_BUDGET` come from the part's datasheet and the design's budget; for a fixture or placeholder part, label the part fictional and its values as given. `substrate.DRS_90` comes from your substrate (USB 2.0 asks for 90 ohm differential).
 
-The same design with five routings, run on jitx 4.6.0rc10 against runtime 4.6.0-rc.16 with a fictional ESD part (3 ps and 0.05 dB per channel) on `jitx.sample.SampleSubstrate`. The runnable version is this repository's `evals/cases/reference/usb-through-esd-swap/` case.
+The verification design with five routings (each row sets `host_channels` and `conn_channels`; the last row leaves the routes out), run on jitx 4.6.0rc10 against runtime 4.6.0-rc.16 with a fictional ESD part (3 ps and 0.05 dB per channel) on `jitx.sample.SampleSubstrate`. The runnable version is this repository's `evals/cases/reference/usb-through-esd-swap/` case.
 
 | Routes (D+, D- channel; host side / connector side) | What `jitx design issues --satisfied` reports |
 |---|---|
@@ -763,7 +776,7 @@ A clean build says nothing about whether an SI constraint on a pin-assigned path
 jitx design issues <module.path.VerifyDesignClass> --satisfied
 ```
 
-`--satisfied` is required: without it, satisfied constraints are not printed. From Python, `RuntimeDesign.issues(satisfied=True)` returns the same report. The command exits 0 whatever it reports unless `--error` is given, so a script must read the text.
+`--satisfied` is required: without it, satisfied constraints are not printed. From Python, `with jitx.runtime as r: r.submit(MyDesign).issues(satisfied=True, wait=30).text()` returns the same report. The command exits 0 whatever it reports unless `--error` is given, so a script must read the text.
 
 | Report text | Meaning |
 |---|---|
@@ -771,7 +784,7 @@ jitx design issues <module.path.VerifyDesignClass> --satisfied
 | `No path for signal constraint from host.usb.p to conn.usb.p` | Ends on fixed pins around the assigned part, and the assignment did not resolve: no routes, or routes that match no offered mapping. |
 | `Unassigned Pin on Path: nets[0].p` | The Topology ends on the required port, and the assignment did not resolve. |
 | `Code route dropped: it conflicts with other connections` | The routes matched no offered mapping; the conflicting routes were dropped. A leg whose routes fit an offered mapping can still measure. |
-| `Missing Connection on Path: ...`, `Unable to find path for requested route` | A code route could not be made, for example because the parts are not placed. Place every part with `.at(...)`. |
+| `Missing Connection on Path: ...`, `Unable to find path for requested route` | A code route could not be made, for example because the parts are not placed. Place every part with `.at(...)` in the verification design. |
 | `No path for signal constraint ... which has no pin model` | A pass-through part on the path needs a `BridgingPinModel`. |
 
 To show the offered mappings are enforced, also run one routing that matches none of them: it must report a dropped route and no measurement for that leg.
