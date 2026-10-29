@@ -11,8 +11,8 @@ Base skill for JITX hardware design automation. JITX is a Python framework for p
 
 The `jitx` CLI owns project scaffolding, auth, runtime install/start, and design build for VSCode-free workflows. Drive everything through it.
 
-> **Supported version line — one owner for this fact.** This bundle documents and is verified
-> against **jitx 4.4.x** (`jitx >= 4.4, < 4.5`), the public PyPI line as of the 4.4.0 release.
+> **Supported version line — one owner for this fact.** This bundle documents
+> **jitx 4.6.x** (`jitx >= 4.6, < 4.7`), the public PyPI line as of the 4.6.0 release.
 > Every "verified on 4.4.0" note elsewhere in the bundle is evidence for a specific claim; this
 > line is the only place the *supported range* is stated, so no sibling skill restates it.
 > Earlier lines (4.0.x, 4.2.x) are no longer described here — APIs, defaults and CLI behaviour
@@ -37,7 +37,7 @@ if ! command -v jitx >/dev/null 2>&1; then
   [ -d .venv ] || python3 -m venv .venv 2>/dev/null || python -m venv .venv
   # venv layout: .venv/bin on macOS/Linux/WSL, .venv/Scripts under Git Bash (Windows Python).
   source .venv/bin/activate 2>/dev/null || source .venv/Scripts/activate
-  pip install "jitx>=4.4,<4.5" jitxlib-standard jitxlib-parts jitxlib-voltage-divider ruff --quiet 2>&1 | tail -1
+  pip install "jitx>=4.6,<4.7" jitxlib-standard jitxlib-parts jitxlib-voltage-divider ruff --quiet 2>&1 | tail -1
 else
   # `jitx` is on PATH — activate the project venv if one exists so build/runtime calls resolve consistently.
   [ -d .venv ] && { source .venv/bin/activate 2>/dev/null || source .venv/Scripts/activate; }
@@ -51,7 +51,7 @@ if (-not (Get-Command jitx -ErrorAction SilentlyContinue)) {
   # Everything below is on public PyPI. No index flags, no pre-release flags.
   if (-not (Test-Path .venv)) { python -m venv .venv }
   .\.venv\Scripts\Activate.ps1
-  pip install "jitx>=4.4,<4.5" jitxlib-standard jitxlib-parts jitxlib-voltage-divider ruff --quiet 2>&1 | Select-Object -Last 1
+  pip install "jitx>=4.6,<4.7" jitxlib-standard jitxlib-parts jitxlib-voltage-divider ruff --quiet 2>&1 | Select-Object -Last 1
 } else {
   # `jitx` is on PATH — activate the project venv if one exists so build/runtime calls resolve consistently.
   if (Test-Path .venv) { .\.venv\Scripts\Activate.ps1 }
@@ -90,7 +90,7 @@ fi
 # distributions and installing `jitx` alone brings none of them (Step 1 table).
 # The scaffold pins `jitx<5`, so pip may resolve an older 4.x that still satisfies
 # it; the explicit range below re-pins to the line this bundle documents.
-pip install -e . "jitx>=4.4,<4.5" jitxlib-standard jitxlib-parts jitxlib-voltage-divider --quiet 2>&1 | tail -1
+pip install -e . "jitx>=4.6,<4.7" jitxlib-standard jitxlib-parts jitxlib-voltage-divider --quiet 2>&1 | tail -1
 jitx --version
 ```
 ```powershell
@@ -104,7 +104,7 @@ if ((-not (Test-Path pyproject.toml)) -or (-not (Select-String -Quiet -Pattern "
 # distributions and installing `jitx` alone brings none of them (Step 1 table).
 # The scaffold pins `jitx<5`, so pip may resolve an older 4.x that still satisfies
 # it; the explicit range below re-pins to the line this bundle documents.
-pip install -e . "jitx>=4.4,<4.5" jitxlib-standard jitxlib-parts jitxlib-voltage-divider --quiet 2>&1 | Select-Object -Last 1
+pip install -e . "jitx>=4.6,<4.7" jitxlib-standard jitxlib-parts jitxlib-voltage-divider --quiet 2>&1 | Select-Object -Last 1
 jitx --version
 ```
 
