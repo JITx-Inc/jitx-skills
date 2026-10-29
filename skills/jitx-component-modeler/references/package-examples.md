@@ -36,95 +36,20 @@ QFP has no module in `jitxexamples`. Its constructor signature is in [component-
 
 5. **Package dimensions**: Body size is overall package. Ball array centered within.
 
-6. **`ball_diameter` is the PCB land diameter, not the package's ball.** This is the one BGA
-   parameter whose name points at the wrong document. The mechanical drawing gives you a ball
-   diameter — often as a min/nom/max triple, sitting right next to the pitch, which is exactly where
-   you are already reading — and it is *not* what this argument wants. The land diameter comes from
-   the manual's **PCB design-rule table**, keyed by pitch, and it is a different number.
+6. **`ball_diameter` is the PCB land diameter, not the package's ball.** The generator draws the pad
+   from it (`jitxlib/landpatterns/generators/bga.py`: `pad_shape(Circle(diameter=ball_diameter))`),
+   so it takes the land diameter from the manual's PCB design-rule table, keyed by pitch, never the
+   ball diameter printed beside the pitch on the mechanical drawing. Passing the ball builds a
+   plausible, silently oversized land pattern. The Versal module's docstring (table above) works
+   one example; record in a comment which document each number came from.
 
-   **Don't take that on trust: open `jitxlib/landpatterns/generators/bga.py` and read what the
-   parameter drives** (`self.pad_shape(Circle(diameter=ball_diameter))`) before you pass anything to
-   it. Reading the source for yourself is what makes this stick — an assertion here reads like
-   trivia and gets skipped.
+7. **Reach pads through a public adapter.** Verification code needs pad-by-position access and the
+   framework's accessor is `_`-prefixed: wrap it once in a subclass, taking 0-indexed `(row, column)`
+   to match the generated coordinates and adding the framework's 1-based column offset inside, as
+   `VersalBGA.get_pad` in the Versal module does. State the convention in its docstring.
 
-   Passing the physical ball builds a valid, plausible, silently oversized land pattern. Record in a
-   comment which document each number came from.
+## Non-Uniform BGAs
 
-7. **Reaching pads: add a public adapter, don't touch `_`-prefixed members.** Verification code needs
-   pad-by-position access, and the framework's accessor is internal. Wrap it once in a subclass:
+Some BGAs put balls off a regular grid: a second pitch in one region, offset ball groups, split grids. Check the mechanical drawing. For these, subclass `BGADecorated` (not `BGA`, which already mixes in `A1` and `AlphaDictNumbering`), override `_generate_layout` to yield a `GridPosition` per ball, and compose `class MyBGA(A1, AlphaDictNumbering, MyBGADecorated)`. `HexBGA` in `jitxexamples.demos.si_bga_optimization.generic_bga` (source only) is the worked example, a hex-staggered grid.
 
-   ```python
-   class MyBGA(BGA):
-       def get_pad(self, row: int, column: int) -> Pad:
-           """Both 0-indexed, matching emitted coordinates: ball A1 is get_pad(0, 0)."""
-           return self._get_pad(row, column + 1)
-   ```
-
-   Design code never reaches into `_`-prefixed framework members directly — the adapter is the
-   sanctioned boundary.
-
-   **Make the adapter's convention the same one your coordinates use.** The framework numbers
-   columns from 1 (matching the ball reference "A1"), while a generated module carries fully
-   zero-indexed `(row, col)` coordinates. Those differ by one, and the whole value of the adapter is
-   that it absorbs that difference *once* — so take 0-indexed arguments and do the `+ 1` inside.
-   Write it the other way, taking a 1-indexed column, and every call site converts instead
-   (`get_pad(row, col + 1)`), which is the same off-by-one risk you added the adapter to remove, now
-   scattered. State the convention in the docstring either way, because a reader cannot tell from
-   the signature.
-
-## Non-Uniform BGAs (CRITICAL)
-
-**IMPORTANT:** Some BGAs have balls NOT on a regular grid. Check mechanical drawing for:
-- Different pitch in some regions
-- Offset ball groups
-- Split grids
-
-**Pattern for non-uniform BGAs:**
-
-```python
-from collections.abc import Iterable
-
-from jitx.transform import Transform
-from jitxlib.landpatterns.generators.bga import BGADecorated
-from jitxlib.landpatterns.grid_layout import A1, AlphaDictNumbering, GridPosition
-
-
-class CustomBGA_Base(BGADecorated):
-    """Custom BGA base with offset for specific pad positions.
-
-    IMPORTANT: Extend BGADecorated, NOT BGA!
-    BGA already includes A1 and AlphaDictNumbering mixins.
-    """
-
-    def __init__(self, num_rows: int, num_cols: int, ball_diameter: float, pitch: float):
-        super().__init__(num_rows, num_cols, ball_diameter, pitch)
-        self._pitch = pitch
-        self._offset_rows = {0, 1, 2, 3}
-        self._offset_cols = {8, 9, 10, 11}
-        self._x_offset = 0.2975
-        self._y_offset = 0.2075
-
-    def _generate_layout(self) -> Iterable[GridPosition]:
-        num_rows = self._num_rows
-        num_cols = self._num_cols
-        pitch = self._pitch
-        center_row = (num_rows - 1) / 2.0
-        center_col = (num_cols - 1) / 2.0
-
-        for r in range(num_rows):
-            row_y = (center_row - r) * pitch
-            for c in range(num_cols):
-                x = (c - center_col) * pitch
-                if r in self._offset_rows and c in self._offset_cols:
-                    x += self._x_offset
-                    y = row_y + self._y_offset
-                else:
-                    y = row_y
-                yield GridPosition(r, c, Transform.translate(x, y))
-
-
-class CustomBGA(A1, AlphaDictNumbering, CustomBGA_Base):
-    pass
-```
-
-**Key:** Row index 0 = TOP row (`A`), row 11 = BOTTOM (`M` in a 12-row BGA). The `(center_row - r)` term is what puts row 0 at the largest y.
+Row index 0 is the top row (`A`), at the largest y: compute y as `(center_row - r) * pitch`.

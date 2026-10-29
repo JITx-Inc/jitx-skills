@@ -32,92 +32,9 @@ not — those ports already have a home.
 Design the groupings as methods from the start. Retrofitting this after the fact means unpicking
 every consumer, and the error message names the symptom rather than the attribute that caused it.
 
-### Step 3: Generate Component Code
+## Starting the component class
 
-Use this template structure:
-
-```python
-"""
-{Manufacturer} {MPN} - {Description}
-
-Component definition for the {full description}.
-"""
-
-import jitx
-from jitx import PadMapping
-from jitx.net import Port
-from jitx.toleranced import Toleranced
-from jitxlib.symbols.box import BoxSymbol, PinGroup, Row, Column
-# Import appropriate landpattern generator:
-# from jitxlib.landpatterns.generators.soic import SOIC, SOIC_DEFAULT_LEAD_PROFILE
-# from jitxlib.landpatterns.generators.sot import SOT23_3, SOT23_5, SOT23_6, SOTLead, SOTLeadProfile
-# from jitxlib.landpatterns.generators.qfn import QFN, QFNLead
-# from jitxlib.landpatterns.generators.son import SON, SONLead
-# from jitxlib.landpatterns.generators.qfp import QFP, QFPLead
-# from jitxlib.landpatterns.generators.bga import BGA
-from jitxlib.landpatterns.leads import LeadProfile
-from jitxlib.landpatterns.package import RectanglePackage
-
-
-class {ComponentClassName}(jitx.Component):
-    """Brief description of the component."""
-
-    mpn = "{MPN}"
-    manufacturer = "{Manufacturer}"
-    reference_designator_prefix = "U"  # or "Q" for transistors, etc.
-    datasheet = "{datasheet_url}"
-
-    # Define ports for each pin
-    # Single pins:
-    VCC = Port()
-    GND = Port()
-
-    # Pin arrays (for many similar pins):
-    GPIO = [Port() for _ in range(N)]
-
-    # Landpattern definition
-    landpattern = (
-        {Generator}(num_leads=N)
-        .lead_profile(...)
-        .package_body(...)
-        # Optional: .thermal_pad(...)
-    )
-
-    # Symbol definition — use BARE attribute names (GND, VCC), NEVER self.GND
-    # (self does not exist at class scope)
-    symbol = BoxSymbol(
-        rows=Row(
-            left=PinGroup(...),
-            right=PinGroup(...),
-        ),
-        columns=Column(
-            up=PinGroup(...),    # Power pins typically go up
-            down=PinGroup(...),  # Ground pins typically go down
-        ),
-    )
-
-    # For non-standard pin ordering, add explicit mapping in __init__:
-    def __init__(self):
-        lp = self.landpattern
-        self.mappings = [PadMapping({
-            self.PIN1: [lp.p[1]],
-            self.PIN2: [lp.p[2]],
-            # ...
-        })]
-
-
-Device: type[{ComponentClassName}] = {ComponentClassName}
-```
-
-## Package-Specific Examples
-
-For a shipped `jitxexamples` module per generator (SOIC, SOT, QFN with port arrays, SON with a
-thermal pad), and the BGA notes including inactive positions and non-uniform grids, see
-[package-examples.md](package-examples.md).
-
-Read its **BGA-Specific Notes** before any BGA, not just an unusual one — in particular what
-`ball_diameter` actually sets, and the public `get_pad` adapter for reaching pads from test and
-verification code. Both are places where the obvious reading is the wrong one.
+Start from the `jitxexamples` module for your generator in [package-examples.md](package-examples.md): it shows the imports, class-level ports, generator chain, `BoxSymbol` and `PadMapping` on a real part. Two conventions it does not state: end the module with `Device: type[MyPart] = MyPart`, which the test harness in `verification-and-application.md` imports, and set `mpn`, `manufacturer`, `reference_designator_prefix` and `datasheet` as class attributes. Read **BGA-Specific Notes** in that file before any BGA.
 
 ## Dimension Mapping Reference
 
