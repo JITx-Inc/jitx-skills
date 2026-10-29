@@ -28,6 +28,6 @@ hard_fails:
   - "The circuit is presented as complete without a build and a `jitx.test.TestCase` run, or with a failing build or test reported as complete."
   - "A parallel string-keyed model of the design maintained alongside the JITX objects (a dict of net names, a list of pin-name strings) where the framework's own objects carry the same facts."
   - "A passive query the approved CSV cannot meet: a key it has no column for, or a bound no row matches. The query falls through to `ideal`, which drops the constraint while the design builds clean."
-  - "A power-rail decoupling capacitor not joined to the pin it serves through `ShortTrace(cap.p1, pin)`, or a `ShortTrace` given a net. A net has no position, so the cap is decoupling nothing in particular."
+  - "A power-rail decoupling capacitor not joined to the pin it serves through `ShortTrace(cap.p1, pin)`, or a `ShortTrace` given a net or a net's `.port`. A net has no position, so the cap is decoupling nothing in particular."
   - "A rating floor written as a bare value. A bare value on a query field is an exact match; a floor is `AtLeast(... * V)` and a ceiling `AtMost(...)`, both from `jitxlib.parts`."
   - "jitxlib-parts 1.x API in the output: `.insert(...)` on a passive, `short_trace=`, `jitx.interval`, or `rated_voltage=`."
