@@ -103,7 +103,7 @@ Example triggers:
 
 ### jitx-circuit-builder
 
-Build JITX circuits with wiring, passives, power connections, application circuits, placement, and basic copper geometry.
+Build JITX circuits with wiring, typed ports, hierarchy, passives, power connections, application circuits, and placement.
 
 Example triggers:
 
@@ -123,7 +123,7 @@ Example triggers:
 
 ### jitx-physical-layout
 
-Author PCB physical layout from code: copper, custom shapes, pad features, explicit placement, vias, code-based routes, and layout-intent tags.
+Author PCB physical layout from code: copper, pours, custom shapes, pad features, explicit placement, vias, code-based routes, and layout-intent tags.
 
 Example triggers:
 

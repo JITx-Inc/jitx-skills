@@ -17,7 +17,7 @@
     "sonnet"
   ],
   "runner_rationale": "The skill must carry enough API and verification detail for a normal coding agent to produce a buildable bank, while judges remain frontier-tier.",
-  "expected_output": "A pure deterministic solver with frozen dataclasses and stdlib unittest coverage, a DecouplingBank that owns one largest-value, smallest-qualified-package capacitor per structural hint (skill default: one capacitor per hint) with short_trace=True, two substrate-via instances per capacitor (skill default: two vias per capacitor), local rail puddles, tagged escape routes at rung 4 of the skill's priority ladder, a captured reference design, and a check script that fails on unrealized routes or placement mismatch and reports the solver loop areas.",
+  "expected_output": "A pure deterministic solver with frozen dataclasses and stdlib unittest coverage, a DecouplingBank that owns one largest-value, smallest-qualified-package capacitor per structural hint (skill default: one capacitor per hint), held as an attribute with its supply-side pad joined to the served IC power pin through ShortTrace(cap.p1, pin) and its other pad on the return net, two substrate-via instances per capacitor (skill default: two vias per capacitor), local rail puddles, tagged escape routes at rung 4 of the skill's priority ladder, a captured reference design, and a check script that fails on unrealized routes or placement mismatch and reports the solver loop areas.",
   "assertions": [
     {
       "text": "the pure solver unit suite passes, covering success, infeasibility, determinism, competing placements, and the loop-area objective",

@@ -37,18 +37,18 @@ pip install -e . "jitx>=4.6,<4.7" jitxlib-standard jitxlib-parts
 python -c "import jitxlib.landpatterns, jitxlib.parts"
 ```
 
-`jitx project layout init` writes `pyproject.toml`, a flat `<ns>/` package (not `src/<ns>/`) with `main.py` defining a buildable two-resistor design and `components/resistor.py`, a `.gitignore` and `.vscode/`. Its `jitx>=4.4.0,<5` admits older lines: change it to `jitx>=4.6,<4.7`, and add `jitxlib-parts>=2,<3` (and `jitxlib-jlcpcb` when used) to `dependencies` so the project is reproducible. The `pip install -e .` is not optional: without it `jitx find` reports `import failed: ModuleNotFoundError` and lists no designs, with exit 0.
+`jitx project layout init` writes a flat `<ns>/` package (not `src/<ns>/`) and `pyproject.toml`. Change its `jitx>=4.4.0,<5` to `jitx>=4.6,<4.7`; add `jitxlib-parts>=2,<3` (and `jitxlib-jlcpcb` when used) to `dependencies`. Without `pip install -e .`, `jitx find` exits 0 listing no designs (`import failed: ModuleNotFoundError`).
 
-Passive queries need a provider chain in `pyproject.toml` (without one: `NoChainConfigured`). Create and commit `parts/approved-parts.csv`, rows from the user's approved parts only, and the `parts.lock.json` a build writes (never hand-made):
+Passive queries need a provider chain in `pyproject.toml` (without one: `NoChainConfigured`). Commit `parts/approved-parts.csv` (user-approved parts only) and the build-written `parts.lock.json` (never hand-made). If the user has none, copy the example CSV `jitxexamples` ships there (`jitx-project-builder` Phase 0) and tell the user it is not an approval:
 
 ```toml
 [tool.jitx.parts]
 chain = ["csv:parts/approved-parts.csv", "ideal"]
 ```
 
-`csv` serves approved parts. `ideal`, last, synthesizes E-series values as unorderable `IDEAL-...` parts so the design builds before approval, and silently answers most queries the CSV cannot; the lockfile keeps parts after approval changes. Before calling a design done, remove `ideal`, then pass `jitx build <design>` and `jitx design export parts-check <design> --fail all`. CSV format, lock modes, and a `Provider` for internal parts databases: [references/parts-chain.md](references/parts-chain.md).
+`ideal`, last, synthesizes unorderable `IDEAL-...` parts so the design builds before approval, silently answering most queries the CSV cannot. Before calling it done, remove `ideal`, then pass `jitx build <design>` and `jitx design export parts-check <design> --fail all`; on the stand-in, the user approves the final build's MPNs (`jitx-project-builder` Phase 0) or supplies a list. Before writing that list over the stand-in, delete `parts.lock.json`: the lock would keep the stand-in's MPNs. CSV format, lockfile, parts databases: https://docs.jitx.com/en/latest/essentials/design/parts.html
 
-The scaffold does not run `git init` (do it and say so). Its `.gitignore` keeps the built design directory under version control on purpose: do not broaden it.
+The scaffold skips `git init` (do it and say so). Its `.gitignore` keeps the built design directory tracked on purpose: do not broaden it.
 
 ### Step 3: Auth
 
@@ -173,9 +173,9 @@ Invoke it before writing that code.
 |---|---|
 | A whole board from requirements: PLAN.md, phases, gates, sub-agents | `jitx-project-builder` |
 | A component from a datasheet, part number, pin file or footprint | `jitx-component-modeler` |
-| Wiring, nets, passives, basic pours | `jitx-circuit-builder` |
+| Wiring, nets, typed ports and bundles, hierarchy, placement, passives | `jitx-circuit-builder` |
 | Stackup, materials, vias, routing structures, fab rules | `jitx-substrate-modeler` |
-| Copper, shapes, pad features, code-placed vias and routes, realized-geometry checks | `jitx-physical-layout` |
+| Pours, copper, shapes, pad features, code-placed vias and routes, realized-geometry checks | `jitx-physical-layout` |
 | Design rules, clearances, net classes, power widths, decoupling placement, fanout step-down | `jitx-layout-constraints` |
 | Topology, SI constraints, diff pairs, protocol constraints | `jitx-interconnect-constraints` |
 | provide/require, pin muxing, lane and polarity swapping | `jitx-pin-assignment` |

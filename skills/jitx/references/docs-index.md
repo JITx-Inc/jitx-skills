@@ -14,6 +14,7 @@ Base URL: `https://docs.jitx.com/en/latest/`
 | Query design programmatically | `essentials/design/introspection.html` |
 | Build recursive circuits | `essentials/design/recursive_designs.html` |
 | Avoid common mistakes | `essentials/design/footguns.html` |
+| Choose passives, approved-parts CSV, parts database (Parts and Providers) | `essentials/design/parts.html` |
 | Place components (kinematic tree) | `essentials/physical_design/kinematic-tree.html` |
 | Route traces (autorouter) | `essentials/physical_design/autorouter.html` |
 | Add copper pours | `essentials/physical_design/pours.html` |
@@ -114,7 +115,7 @@ Base: `jitxlib/jitxlib.<module>.html`
 | JLCPCB stackups | `jitxlib.jlcpcb.html` | Pre-defined JLCPCB stackups |
 | JLCPCB rules | `jitxlib.jlcpcb.rules.html` | Manufacturing rules |
 | JLCPCB vias | `jitxlib.jlcpcb.vias.html` | Via definitions |
-| Parts query | `jitxlib.parts.query_api.html` | Parts database API |
+| Parts query | `jitxlib.parts.query.html` | Part queries and their keys |
 
 ## Example Components
 

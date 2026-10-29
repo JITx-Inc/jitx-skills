@@ -131,9 +131,7 @@ for rec in self._build_pair_records():
     via = Via(layer=rec["via_layer"], offset=rec["via_offset"])
     antipad = KeepOut(shape=rec["antipad_shape"])
     fence = Pour(radius=rec["fence_radius"])
-    self.insert(via)
-    self.insert(antipad)
-    self.insert(fence)
+    self.escape_parts.append((via, antipad, fence))
 ```
 
 **Good:**

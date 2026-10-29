@@ -1,0 +1,42 @@
+{
+  "name": "typed-port-composition",
+  "prompt": "I have a 3.3 V LDO circuit, an MCU circuit and an I2C temperature-sensor circuit. Give each a typed boundary, feed both consumers from the LDO's output, put the sensor on the MCU's I2C, and compose the three in a top-level circuit. Write tests that prove the composition, offline.",
+  "inputs": {
+    "notes": "Composition through typed ports is the core of a multi-circuit design: a `Power` output netted to `Power` inputs, an `I2C` bundle netted to an `I2C` bundle, each child carrying its boundary members inward to its own pins, and the parent touching only boundary ports. The reference uses stand-in parts with bare ports; the shape of the composition is under test.",
+    "environment": "Offline. jitx.test.TestCase activates the instantiation context with no runtime and no parts database."
+  },
+  "reference": {
+    "file": "evals/cases/reference/typed-ports/design.py",
+    "check": "evals/cases/reference/typed-ports/check.py",
+    "notes": "The reference's self-test, not scored against the run's output: check.py runs the composition checks offline and pyright over design.py and check.py. Run it with `python3 skills/jitx-circuit-builder/evals/cases/reference/typed-ports/check.py`."
+  },
+  "expected_output": "Three Circuit subclasses whose boundaries are class-level `Power` and `I2C` ports, a top-level circuit that nets the LDO's `vout` to both consumers' `vin` and the MCU's `i2c` to the sensor's `i2c` with `+`, and `jitx.test.TestCase` tests that assert bundle membership over `list(net)`, the regulator input kept off the output rail, and each child's boundary member reaching its pin.",
+  "assertions": [
+    {
+      "text": "the output declares typed boundary ports as class attributes (Power and I2C)",
+      "check": "deterministic",
+      "cmd": "grep -qE '^\\s+\\w+ = Power\\(\\)' <output>/*.py && grep -qE '^\\s+\\w+ = I2C\\(' <output>/*.py"
+    },
+    {
+      "text": "the candidate's own tests subclass jitx.test.TestCase: outside the instantiation context a design reads as empty and the suite goes green having compared nothing",
+      "check": "deterministic",
+      "cmd": "grep -q 'jitx.test' <output>/*test*.py && ! grep -qE 'class .*\\(unittest\\.TestCase\\)' <output>/*test*.py"
+    },
+    {
+      "text": "the rail is made bundle to bundle (`reg.vout + mcu.vin + sensor.vin`), not member by member across circuits (`reg.vout.Vp + mcu.vin.Vp`, then `Vn`), which loses the typed boundary and invites a dropped member",
+      "check": "judge"
+    },
+    {
+      "text": "the I2C connection is one bundle net between the two circuits' `I2C` ports, not two loose sda/scl nets in the parent",
+      "check": "judge"
+    },
+    {
+      "text": "the parent wires only its children's boundary ports and its own; it never reaches into a child's components, and no child reaches up",
+      "check": "judge"
+    },
+    {
+      "text": "the tests assert bundle membership over `list(net)`, assert the regulator input is NOT on the output rail, and assert inside each child that a boundary member reaches the component pin",
+      "check": "judge"
+    }
+  ]
+}

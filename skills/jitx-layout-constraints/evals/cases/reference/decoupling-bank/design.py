@@ -3,11 +3,13 @@
 The IC is a four-pad placeholder QFN (skill default: four pads) used only to
 expose two power pins and two ground pins (skill default: two of each). The
 capacitors, via locations, and route endpoints come from the geometry solver.
-The pure solver is copied beside this module before build.
+The pure solver is copied beside this module before build. The capacitor
+comes from `approved-capacitors.csv` beside this module.
 """
 
 from dataclasses import dataclass
 from math import hypot
+from pathlib import Path
 
 from decoupling_solver import (  # pyright: ignore[reportMissingImports]
     BankSpec,
@@ -20,15 +22,16 @@ import jitx
 from jitx import Board, Circuit, Design, Net, Polygon, Pour, current
 from jitx.circuit import Route
 from jitx.constraints import AnyObject, IsCopper, IsPad, IsTrace, Tag, Tags, design_constraint
-from jitx.interval import AtLeast
 from jitx.feature import Courtyard, Paste, Soldermask
 from jitx.inspect import visit
 from jitx.landpattern import Landpattern, Pad, PadMapping, PadShape
-from jitx.net import Port
+from jitx.net import Port, ShortTrace
 from jitx.shapes import Shape
 from jitx.shapes.composites import rectangle
+from jitx.units import F, V
 from jitxlib.jlcpcb import JLC04161H_7628  # pyright: ignore[reportMissingImports]
-from jitxlib.parts import Capacitor, CapacitorQuery, SortDir, SortKey
+from jitxlib.parts import AtLeast, Capacitor, CapacitorQuery, Lock, LockMode, PartSource
+from jitxlib.parts.providers.csv_parts import CsvParts
 from jitxlib.symbols.box import BoxSymbol
 
 
@@ -53,6 +56,7 @@ DEFAULT_CLEARANCE_MM = 0.125  # skill default: JLC04161H-class, above the 0.09 m
 THERMAL_SPOKE_WIDTH_MM = 0.2  # skill default: 0.2 mm thermal spokes
 THERMAL_SPOKE_COUNT = 4  # skill default: 4 thermal spokes
 POWER_WIDTH_MM = 0.4  # skill default: tagged power and ground width, between the Bogatin 0.15 and 0.5 tiers
+APPROVED_CAPACITORS = Path(__file__).with_name("approved-capacitors.csv")
 
 
 class PlaceholderIcPad(Pad):
@@ -142,7 +146,7 @@ def query_capacitor_geometry(
                 (bounds[2] - bounds[0], bounds[3] - bounds[1]),
             )
         )
-    if len(pad_rows) != 2:  # jitxlib/parts/query_api.py:1434
+    if len(pad_rows) != 2:
         raise ValueError("selected capacitor must query to exactly two pads")
 
     (p1_center, _), (p2_center, _) = pad_rows
@@ -259,15 +263,18 @@ class DecouplingBank(Circuit):
             ),
         }
         hints = tuple(hints_by_key.values())
-        cap_query = CapacitorQuery(
-            capacitance=22e-6,  # Bogatin basis: typical 22 uF MLCC
-            rated_voltage=AtLeast(10.0),  # skill default: at least 2x a 5.0 V rail (Bogatin)
+        # `rank="case"` minimizes the case code, so the smallest qualified
+        # package wins whatever the row order of the approved list.
+        capacitor_spec = CapacitorQuery(
+            capacitance=22e-6 * F,  # Bogatin basis: typical 22 uF MLCC
+            rated_voltage_dc=AtLeast(10.0 * V),  # skill default: at least 2x a 5.0 V rail (Bogatin)
+            temperature_coefficient_code="X5R",
             type="ceramic",
             mounting="smd",
-            case=["0402", "0603", "0805", "1206"],
-            sort=SortKey("area", SortDir.INCREASING),
+            case=("0402", "0603", "0805", "1206"),
+            rank="case",
         )
-        self.capacitors = [Capacitor(cap_query) for _ in hints]
+        self.capacitors = [Capacitor(capacitor_spec) for _ in hints]
         queried_geometry = tuple(
             query_capacitor_geometry(capacitor) for capacitor in self.capacitors
         )
@@ -320,12 +327,17 @@ class DecouplingBank(Circuit):
         for cap, hint, placement in zip(
             self.capacitors, hints, self.solution.placements, strict=True
         ):
-            cap.insert(hint.power_ports[0], hint.return_ports[0], short_trace=True)
             cap.at(
                 placement.center[0],
                 placement.center[1],
                 rotate=placement.rotation + self.package_rotation,
             )
+
+        # Supply-side pad to the pin it serves; the return pad joins `ground_net`.
+        self.supply_traces = [
+            ShortTrace(cap.p1, hint.power_ports[0])
+            for cap, hint in zip(self.capacitors, hints, strict=True)
+        ]
 
         self.power_vias = [
             via_cls().at(*placement.power_via)
@@ -427,6 +439,8 @@ class ReferenceCircuit(Circuit):
 
 
 class DecouplingReference(Design):
+    parts = PartSource([CsvParts(str(APPROVED_CAPACITORS))])
+    parts_lock = Lock(mode=LockMode.OFF)  # a fixed CSV, so no lockfile is written
     substrate = JLC04161H_7628()
     board = ReferenceBoard()
     circuit = ReferenceCircuit()

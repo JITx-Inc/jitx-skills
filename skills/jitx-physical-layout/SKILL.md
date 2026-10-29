@@ -1,6 +1,6 @@
 ---
 name: jitx-physical-layout
-description: "Use when the user asks to author PCB physical layout from code: draw copper, antennas, filters, net ties, custom shapes, board outlines, custom pads, soldermask or paste openings, thermal pads with vias, code-placed vias, fanout or escape tags, direct-connect or thermal-relief tags, control points, code-based routes, diff-pair fans/trunks, escape routing, or deskew, or to inspect or verify realized geometry from Python (jitx.query, RuntimeDesign capture, missing or Empty pours, missing stitch vias, route realization checks). Covers shapely geometry, Copper, OverlappableCopper, Pour realization semantics, pad features, PortAttachment, explicit placement, layout-intent tags, Route/control-point APIs, and the 4.3 reverse-flow geometry-verification workflow. Use jitx-layout-constraints to author pour and via-stitching rules, jitx-substrate-modeler for stackups, via definitions, routing structures, fence-via rules, and fenced pours, and jitx-circuit-builder for net wiring, passives, and basic pours."
+description: "Use when the user asks to author PCB physical layout from code: draw pours or copper, antennas, filters, net ties, custom shapes, board outlines, custom pads, soldermask or paste openings, thermal pads with vias, code-placed vias, fanout or escape tags, direct-connect or thermal-relief tags, control points, code-based routes, diff-pair fans/trunks, escape routing, or deskew, or to inspect or verify realized geometry from Python (jitx.query, RuntimeDesign capture, missing or Empty pours, missing stitch vias, route realization checks). Covers shapely geometry, Copper, OverlappableCopper, Pour realization semantics, pad features, PortAttachment, explicit placement, layout-intent tags, Route/control-point APIs, and the 4.3 reverse-flow geometry-verification workflow. Use jitx-layout-constraints to author pour and via-stitching rules, jitx-substrate-modeler for stackups, via definitions, routing structures, fence-via rules, and fenced pours, and jitx-circuit-builder for net wiring, typed ports, and passives."
 ---
 
 # JITX Physical Layout
@@ -21,14 +21,14 @@ geometry by **capturing and asserting the realized copper**
 
 | You want to… | Skill |
 |---|---|
-| Draw copper shapes, antennas, filters, net-ties, custom board/pad geometry | **this skill** |
+| Draw pours, copper shapes, antennas, filters, net-ties, custom board/pad geometry | **this skill** |
 | Build a shape with shapely and feed it to any feature | **this skill** |
 | Add soldermask/paste/thermal-pad features, place vias/components from code | **this skill** |
 | Tag layout objects (fanout, escape, direct-connect) for selection | **this skill** (rule *mechanics* → `jitx-layout-constraints`) |
 | Code-based routes & control points (escape lanes, deskew) | **this skill** (advanced — see reference) |
 | Diagnose whether pours or stitch vias materialized and inspect captured pour geometry | **this skill** |
 | Design rules: clearances, widths, net classes, escape rule ladders, after-build width/clearance checks | `jitx-layout-constraints` |
-| Wire nets, add passives, basic pours | `jitx-circuit-builder` |
+| Wire nets, typed ports, sub-circuits, passives | `jitx-circuit-builder` |
 | Define the stackup, vias, routing structures, fence-via rules, fenced pour outlines | `jitx-substrate-modeler` |
 | Author a component's package/landpattern from a datasheet | `jitx-component-modeler` |
 | SI constraints: timing, skew, insertion loss, impedance | `jitx-interconnect-constraints` |
@@ -511,10 +511,9 @@ enforced gate.
 realization and verification rules.
 
 **Local vs global pours.** Board-wide return-path pours belong in the **top-level**
-design (the convention in `jitx-circuit-builder`). The exception: a local pour or
-keepout that must **track a placed sub-circuit** lives **inside that circuit** so it
-follows the circuit wherever it is placed. To ring an arbitrary shape with fence
-vias (antipads, RF cavities, BGA
+design. The exception: a local pour or keepout that must **track a placed
+sub-circuit** lives **inside that circuit** so it follows the circuit wherever it
+is placed. To ring an arbitrary shape with fence vias (antipads, RF cavities, BGA
 breakouts), see `jitx-substrate-modeler`,
 [Fenced Pour Outlines (Antipads, RF Cavities, BGA Breakouts)](../jitx-substrate-modeler/SKILL.md#fenced-pour-outlines-antipads-rf-cavities-bga-breakouts).
 
