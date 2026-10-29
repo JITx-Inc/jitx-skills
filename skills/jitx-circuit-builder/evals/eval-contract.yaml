@@ -15,9 +15,9 @@ goal: |
   the connectivity right by following the skill, because the skill carries the
   operator discipline rather than assuming the model remembers it.
 dimensions:
-  - "NET_INTEGRITY: is every connection the request implies actually made, with `+`/`+=`/`>>` rather than `=`, each net stored (an unstored `a + b` is a lost connection), and no port silently dropped from a multi-port tie?"
+  - "NET_INTEGRITY: is every connection the request implies actually made, with `+`/`+=` rather than `=`, each net stored (an unstored `a + b` is a lost connection), and no port silently dropped from a multi-port tie?"
   - "POWER_STRUCTURE: do rails and grounds resolve to the right domains, is every supply pin tied, and is each power-rail capacitor joined to the pin it serves through `ShortTrace(cap.p1, pin)` with its other pad on the return net, scaled to the pin count?"
-  - "PASSIVE_SELECTION: are passives `jitxlib.parts` queries with `jitx.units` values, bounds written as `AtLeast`/`AtMost`, filters only on keys the approved CSV has columns for, a stated tolerance, dielectric and derated voltage, and values on a named E-series?"
+  - "PASSIVE_SELECTION: are passives `jitxlib.parts` queries with `jitx.units` values, bounds written as `AtLeast`/`AtMost`, filters only on keys the approved CSV has columns for and bounds its rows meet, a stated tolerance on resistors whose value matters, and a stated dielectric and derated voltage on ceramics?"
   - "STRUCTURAL_ECONOMY: circuits composed through typed boundary ports (`Power`, protocol bundles) wired port to port by the parent, a subcircuit where the request has a repeated block, and no parallel model of the design held alongside the JITX objects?"
   - "VERIFICATION_INTEGRITY: is the result built, and tested with `jitx.test.TestCase`, with tests that assert connectivity (net membership over `list(net)`, port counts) rather than only that the module imports?"
 hard_fails:
@@ -27,7 +27,7 @@ hard_fails:
   - "An invented part: an MPN written from memory instead of a query the chain resolves."
   - "The circuit is presented as complete without a build and a `jitx.test.TestCase` run, or with a failing build or test reported as complete."
   - "A parallel string-keyed model of the design maintained alongside the JITX objects (a dict of net names, a list of pin-name strings) where the framework's own objects carry the same facts."
-  - "A passive query filters on a key the approved CSV has no column for. The CSV declines it, `ideal` answers and ignores the key, so the constraint is silently dropped while the design builds clean."
+  - "A passive query the approved CSV cannot meet: a key it has no column for, or a bound no row matches. The query falls through to `ideal`, which drops the constraint while the design builds clean."
   - "A power-rail decoupling capacitor not joined to the pin it serves through `ShortTrace(cap.p1, pin)`, or a `ShortTrace` given a net. A net has no position, so the cap is decoupling nothing in particular."
   - "A rating floor written as a bare value. A bare value on a query field is an exact match; a floor is `AtLeast(... * V)` and a ceiling `AtMost(...)`, both from `jitxlib.parts`."
-  - "jitxlib-parts 1.x API in the output: `.insert(...)`, `short_trace=`, `jitx.interval`, or `rated_voltage=`."
+  - "jitxlib-parts 1.x API in the output: `.insert(...)` on a passive, `short_trace=`, `jitx.interval`, or `rated_voltage=`."

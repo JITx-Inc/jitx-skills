@@ -24,7 +24,7 @@
       "cmd": "grep -q 'jitx.test.TestCase' <output>/*test*.py && ! grep -qE 'class .*\\(unittest\\.TestCase\\)' <output>/*test*.py"
     },
     {
-      "text": "no bare list is passed to `+=` anywhere in the output. pyright rejects the form; onto an empty net the list is stored as one member, so an offline TestCase passes and the build fails with `TypeError: unhashable type: 'list'`; onto a net that holds ports it raises `Incompatible ports on Net: Port and list` at instantiation. Neither message names the call or the fix",
+      "text": "no bare list is passed to `+=` anywhere in the output. pyright reports it only on a net built from ports; onto an empty `Net(name=...)`, where pyright is silent, the list is stored as one member, so an offline TestCase passes and the build fails with `TypeError: unhashable type: 'list'`; onto a net that holds ports it raises `Incompatible ports on Net: Port and list` at instantiation. Neither message names the call or the fix",
       "check": "deterministic",
       "cmd": "! grep -nE '\\+=\\s*\\[' <output>/*.py"
     },

@@ -36,3 +36,4 @@
 {"intent": "write a KiCad plugin that exports netlists", "expected_skill": null}
 {"intent": "explain how a buck converter works", "expected_skill": null}
 {"intent": "order these parts from LCSC for me", "expected_skill": null}
+{"intent": "Check cache/netlist.json to confirm U4.EN moved from the old rail to the new enable net.", "expected_skill": "jitx"}

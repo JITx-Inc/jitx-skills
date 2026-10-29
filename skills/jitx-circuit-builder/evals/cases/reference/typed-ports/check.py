@@ -14,10 +14,19 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import jitx.test
 from design import Board, McuCircuit, MixedTypes, RegulatorCircuit, SensorCircuit
-from jitx import Circuit
+from jitx import Circuit, Net
 from jitx.common import Power
 from jitx.inspect import decompose
+from jitx.net import Port
 from jitxlib.protocols.serial import I2C
+
+
+def joined(circuit: Circuit, a: Port, b: Port) -> bool:
+    """Whether some net the circuit holds, under any attribute name, carries both ports."""
+    return any(
+        a in members and b in members
+        for members in (list(n) for n in decompose(circuit, Net))
+    )
 
 
 class TypedPortChecks(jitx.test.TestCase):
@@ -58,13 +67,14 @@ class TypedPortChecks(jitx.test.TestCase):
 
     def test_each_child_carries_its_boundary_to_the_pins(self) -> None:
         s = self.b.sensor
-        self.assertIn(s.u1.VDD, list(s.VDD))
-        self.assertIn(s.vin.Vp, list(s.VDD))
-        self.assertIn(s.u1.SDA, list(s.SDA))
-        self.assertIn(s.i2c.sda, list(s.SDA))
+        self.assertTrue(joined(s, s.vin.Vp, s.u1.VDD))
+        self.assertTrue(joined(s, s.i2c.sda, s.u1.SDA))
+        self.assertTrue(joined(s, s.i2c.scl, s.u1.SCL))
         r = self.b.reg
-        self.assertIn(r.vout.Vp, list(r.VOUT))
-        self.assertIn(r.u1.VOUT, list(r.VOUT))
+        self.assertTrue(joined(r, r.vout.Vp, r.u1.VOUT))
+        m = self.b.mcu
+        self.assertTrue(joined(m, m.vin.Vp, m.u1.VDD))
+        self.assertTrue(joined(m, m.i2c, m.u1.i2c))
 
     def test_mixed_bundle_types_refuse_to_net(self) -> None:
         """Guards the skill's rule that a port nets only to its own concrete type."""

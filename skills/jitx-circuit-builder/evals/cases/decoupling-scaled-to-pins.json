@@ -3,7 +3,7 @@
   "prompt": "Decouple this FPGA's core rail. VCCINT is 96 balls, VCCAUX is 12, and there's a 3.3 V I/O rail on 24 more. Bulk plus HF, and I want the caps actually near the pins they serve.",
   "inputs": {
     "notes": "The rail is wide enough that a bank at the regulator is not decoupling. This case tests whether the skill's per-pin rule survives contact with a part big enough to make the shortcut tempting.",
-    "environment": "A parts-database query is available. If it is not, the runner should say so and state what it would have queried rather than inventing part numbers."
+    "environment": "A project whose `[tool.jitx.parts] chain` resolves passive queries. If the chain has no approved source, the runner says so and states what it would have queried rather than inventing part numbers."
   },
   "expected_output": "One HF capacitor per one-or-two core balls, each its own attribute on the circuit (singly or in a list), joined to its ball through `ShortTrace(cap.p1, ball)` with its other pad on the ground net; bulk per rail; and a stated count per rail with the reasoning behind it.",
   "assertions": [
@@ -13,12 +13,12 @@
       "cmd": "python3 skills/jitx/scripts/grep_gates.py <output>/"
     },
     {
-      "text": "no jitxlib-parts 1.x API in the output: no `.insert(`, `short_trace`, `jitx.interval`, `rated_voltage=` or `tcr_pos`/`tcr_neg`, none of which exist in 2.x",
+      "text": "no jitxlib-parts 1.x API in the output: no `.insert(` on a passive or a `self.` attribute, no `short_trace=`, `jitx.interval`, `rated_voltage=` or `tcr_pos`/`tcr_neg`, none of which exist in 2.x",
       "check": "deterministic",
-      "cmd": "! grep -nE '\\.insert\\s*\\(|short_trace|jitx\\.interval|rated_voltage=|tcr_pos|tcr_neg' <output>/*.py"
+      "cmd": "! grep -nE '(^|[^A-Za-z0-9_.])(self\\.[A-Za-z0-9_.]+(\\[[^]]*\\])?|(Resistor|Capacitor|Inductor)\\(.*\\))\\.insert[[:space:]]*\\(|short_trace=|jitx\\.interval|rated_voltage=|tcr_pos|tcr_neg' <output>/*.py"
     },
     {
-      "text": "decoupling capacitors are joined to pins through ShortTrace",
+      "text": "the output constructs at least one ShortTrace, a presence check only: the judge assertions below grade one ShortTrace per capacitor, each to a ball",
       "check": "deterministic",
       "cmd": "grep -qE 'ShortTrace\\(' <output>/*.py"
     },

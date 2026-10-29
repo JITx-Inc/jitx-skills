@@ -9,12 +9,12 @@
   "expected_output": "Three Circuit subclasses whose boundaries are class-level `Power` and `I2C` ports, a top-level circuit that nets the LDO's `vout` to both consumers' `vin` and the MCU's `i2c` to the sensor's `i2c` with `+`, and `jitx.test.TestCase` tests that assert bundle membership over `list(net)`, the regulator input kept off the output rail, and each child's boundary member reaching its pin.",
   "assertions": [
     {
-      "text": "the reference composition checks pass offline, with no runtime running",
+      "text": "the reference composition checks pass offline, with no runtime running (this checks the reference design, not the run's output)",
       "check": "deterministic",
       "cmd": "python3 skills/jitx-circuit-builder/evals/cases/reference/typed-ports/check.py"
     },
     {
-      "text": "the reference design and its checks type-check against the installed JITX package",
+      "text": "the reference design and its checks type-check against the installed JITX package (this checks the reference, not the run's output)",
       "check": "deterministic",
       "cmd": "python3 -m pyright --pythonpath \"$(command -v python3)\" skills/jitx-circuit-builder/evals/cases/reference/typed-ports/design.py skills/jitx-circuit-builder/evals/cases/reference/typed-ports/check.py"
     },
@@ -42,10 +42,6 @@
     },
     {
       "text": "the tests assert bundle membership over `list(net)`, assert the regulator input is NOT on the output rail, and assert inside each child that a boundary member reaches the component pin",
-      "check": "judge"
-    },
-    {
-      "text": "`>>` appears only where order or an SI constraint calls for it; plain connectivity uses `+`",
       "check": "judge"
     }
   ]
