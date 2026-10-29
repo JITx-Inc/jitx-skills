@@ -29,6 +29,8 @@ def provide_tx(self, link: TXLink):
     ]
 ```
 
+Worked pattern: `jitxexamples.patterns.pin_lane_polarity` (lane choice and P/N inversion, with an SI constraint that begins on the required pair).
+
 ## PCIe Lane Flexibility
 
 The PCIe specification permits lane reversal and polarity inversion, but **the controller must explicitly support these features**. Many PCIe switches and root complexes do; some endpoint devices do not. Check the controller datasheet for a "lane reversal" or "polarity inversion" feature description.
@@ -65,7 +67,7 @@ DDR4 byte and bit swapping is **entirely controller-dependent**. The DDR4 JEDEC 
 | Feature | Possible | Controller-Dependent? | Scope | Provider Pattern | Constraint |
 |---------|----------|----------------------|-------|-----------------|------------|
 | Byte lane reorder | Yes | **Yes** — controller must have byte-swap logic | Channel | `Provide().one_of()` with byte permutations | `ConstrainReferenceDifference` per byte |
-| Bit swap in byte | Yes | **Yes** — controller must have bit-swap logic | Per byte lane | `Provide().one_of()` with bit permutations | `Constrain` per DQ |
+| Bit swap in byte | Yes | **Yes** — controller must have bit-swap logic | Per byte lane | Per-slot bit bundle offered `all_of`, required `count=8` inside the byte `one_of` (SKILL.md, DDR Byte/Bit Swapping) | `Constrain` per DQ |
 | DQS-to-byte assoc | Fixed | No — always DQS0 with byte 0 | Per byte | N/A | `ConstrainReferenceDifference` DQ-to-DQS |
 | Address/CMD bits | No | — | Global | Fixed wiring | `Constrain` timing |
 | CK P/N swap | No | — | Per rank | Fixed wiring | `ConstrainDiffPair` |
@@ -85,6 +87,10 @@ require(DDR4Data) -> byte_lane[bl].DQ[i] + mem.DQ[offset+i]      (plain nets)
                   -> rt.submit(Design).issues(satisfied=True, wait=30)
                      (report.complete; measurements; group.satisfied)
 ```
+
+## LPDDR4/4X on an AMD Versal DDRMC
+
+AMD's PG313 pin rules for LPDDR4/4X allow two swaps: DQ bits within a byte, and a byte with the other byte of the same x16 channel, its DQS and DM going with it. Channel A never swaps with channel B, and every command, address, control, reset and clock pin is fixed. `jitxexamples.jumpstart_kits.js4_fpga_lpddr4x.pinout` holds the rules with their PG313 sections, and `js4_fpga_lpddr4x.fpga` offers them on a VP1002.
 
 ## LPDDR5 Pin Flexibility
 
@@ -115,6 +121,8 @@ MCU peripheral pin muxing is the most straightforward case — the MCU datasheet
 |---------|-----------------|-------|
 | SDA/SCL mux | Hierarchical: `@provide.one_of(I2C_SDA)` + `@provide.one_of(I2C_SCL)` composed via `@provide(I2C)` | SDA and SCL can be independently muxed per the MCU's AF table |
 | Multiple I2C instances | Separate `@provide.one_of` per instance | I2C1 and I2C2 with different pin options |
+
+Worked pattern: `jitxexamples.components.mcus.raspberry_pi_RP2040` composes I2C, SPI and UART from per-signal `one_of` pin lists taken from the RP2040 datasheet's Table 279; `jitxexamples.jumpstart_kits.js3_pin_assignment.mcu_muxing` requires them and proves a legal and an illegal routing.
 
 ### SPI
 
