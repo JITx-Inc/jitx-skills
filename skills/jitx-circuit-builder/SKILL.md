@@ -42,7 +42,7 @@ I2C pull-ups belong to the circuit that composes the bus (usually the top-level 
 
 ## Key rules
 
-1. Store every component and every net expression on `self`, singly or in a list attribute. An unstored `a + b` is a lost connection. A component no attribute holds fails the build once its ports join a net (`Unable to map local reference`), which a `TestCase` misses; unjoined, it only logs `... lost during instantiation`.
+1. Store every component and net expression on `self`, singly or in a list. An unstored `a + b` is a lost connection. An unstored component fails the build once its ports join a net (`Unable to map local reference`), which a `TestCase` that only instantiates the design misses; unjoined, it only logs `lost during instantiation`.
 2. Boundary ports are class attributes. Components, nets and wiring go in `__init__`, with no `build()` or `circuit()` methods.
 3. Subclass `Circuit` for a circuit and `jitx.Component` for a part.
 4. Never alias a component's port (`self.x = self.r1.p2`): the build fails with `Child object ... has multiple parents`. To expose a pin, net it to a boundary port.
@@ -56,7 +56,7 @@ Construct JITX objects directly. Never walk a `list[dict[str, Any]]` spec to emi
 
 A circuit's boundary is typed ports: `Power` from `jitx.common` (members `Vp`, `Vn`) and protocol bundles from `jitxlib.protocols` (`I2C`, `SPI`, `RGMII`, `MIIM`, `MDI1000BaseT`). Find one with `grep -rn "class RGMII"` under the venv's `jitxlib/protocols` and read its module path and members. Never write member names from memory, and check constructor options (`SPI(cs=True)` adds `cs`).
 
-A port nets only to a port of the same concrete type and parameters: `+` between two `Power` ports joins them member for member, and `Power + I2C` raises `ValueError: Incompatible ports on Net`. `+` pairs members by name, so cross members named per device: `UART` `tx` to `rx`, `LanePair` `TX` to `RX`. `RGMII`, named from the MAC side, connects by name. SI constraints and topology are `jitx-interconnect-constraints`.
+A port nets only to a port of the same concrete type and parameters: `+` between two `Power` ports joins them member for member, and `Power + I2C` raises `ValueError: Incompatible ports on Net`. `+` pairs members by name, so cross members named per device: `UART` `tx` to `rx`, `LanePair` `TX` to `RX`. `RGMII` connects by name: `RGMII.Standard.Constraint` pairs `src.TX` with `dst.TX`. SI constraints and topology are `jitx-interconnect-constraints`.
 
 ```python
 class EthernetPort(Circuit):

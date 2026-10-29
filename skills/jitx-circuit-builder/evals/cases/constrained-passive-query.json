@@ -8,29 +8,29 @@
   "expected_output": "Divider resistors with a stated tolerance bound, output capacitors with a stated dielectric and derated `rated_voltage_dc` floor, values in `jitx.units`, and a stated account of the resistor temperature coefficient the CSV cannot filter on.",
   "assertions": [
     {
-      "text": "every Resistor query states tolerance, in the call or in a `ResistorQuery(` default in the same output; a Capacitor tolerance bound is optional, so it is not required here",
+      "text": "every `Resistor(` call gets a tolerance bound: in the call, in the query passed to it, from an enclosing `with ResistorQuery(...)` block, or, outside any such block, from a `ResistorQuery(` assigned as a class attribute of the Design. A `with` block replaces the Design default for the parts inside it and covers none outside it. A Capacitor tolerance bound is optional, so it is not required here",
       "check": "deterministic",
-      "cmd": "python3 -c \"import glob,re,sys; s=''.join(open(f).read() for f in glob.glob('<output>/*.py')); q=re.findall(r'\\bResistor\\((?:[^()]|\\([^()]*\\))*\\)', s); d=any('tolerance' in x for x in re.findall(r'\\bResistorQuery\\((?:[^()]|\\([^()]*\\))*\\)', s)); bad=[] if d else [x for x in q if 'tolerance' not in x]; print('\\n'.join(bad)); sys.exit(1 if bad or not q else 0)\""
+      "cmd": "python3 skills/jitx-circuit-builder/evals/checks/passive_calls.py require-key <output> Resistor tolerance"
     },
     {
-      "text": "temperature_coefficient_code is passed only to Capacitor queries: no resistor or inductor row in the example CSV carries one, so on a Resistor or Inductor the query matches no row and leaves the CSV for `ideal`",
+      "text": "temperature_coefficient_code is passed only to Capacitor queries: no `Resistor(` or `Inductor(` call, and no `ResistorQuery(` or `InductorQuery(` (passed to one, a `with` block or a Design default), carries it. No resistor or inductor row in the example CSV carries one, so on a Resistor or Inductor the query matches no row and leaves the CSV for `ideal`",
       "check": "deterministic",
-      "cmd": "python3 -c \"import glob,re,sys; s=''.join(open(f).read() for f in glob.glob('<output>/*.py')); q=re.findall(r'\\b(?:Resistor|Inductor)\\((?:[^()]|\\([^()]*\\))*\\)', s); bad=[x for x in q if 'temperature_coefficient_code' in x]; print('\\n'.join(bad)); sys.exit(1 if bad else 0)\""
+      "cmd": "python3 skills/jitx-circuit-builder/evals/checks/passive_calls.py no-key <output> Resistor,Inductor temperature_coefficient_code"
     },
     {
-      "text": "every Capacitor query (not `PolarizedCapacitor`) states temperature_coefficient_code, a column the example CSV has, in the call or in a `CapacitorQuery(` default in the same output",
+      "text": "every `Capacitor(` call (not `PolarizedCapacitor`) gets temperature_coefficient_code, a column the example CSV has: in the call, in the query passed to it, from an enclosing `with CapacitorQuery(...)` block, or, outside any such block, from a `CapacitorQuery(` assigned as a class attribute of the Design",
       "check": "deterministic",
-      "cmd": "python3 -c \"import glob,re,sys; s=''.join(open(f).read() for f in glob.glob('<output>/*.py')); q=re.findall(r'\\bCapacitor\\((?:[^()]|\\([^()]*\\))*\\)', s); d=any('temperature_coefficient_code' in x for x in re.findall(r'\\bCapacitorQuery\\((?:[^()]|\\([^()]*\\))*\\)', s)); bad=[] if d else [x for x in q if 'temperature_coefficient_code' not in x]; print('\\n'.join(bad)); sys.exit(1 if bad or not q else 0)\""
+      "cmd": "python3 skills/jitx-circuit-builder/evals/checks/passive_calls.py require-key <output> Capacitor temperature_coefficient_code"
     },
     {
-      "text": "no jitxlib-parts 1.x API in the output: no passive `.insert(`, on a call result (`Capacitor(...).insert(`) or with a port as its first argument (`cap.insert(self.u1.vdd, ...)`), while a list's `xs.insert(0, item)` passes; no `short_trace=`, `jitx.interval`, `rated_voltage=` or `tcr_pos`/`tcr_neg`, none of which exist in 2.x",
+      "text": "no jitxlib-parts 1.x API in the output: no passive `.insert(`, meaning any `.insert(` whose first argument is not index-like (an integer literal, `len(...)`, or a name such as `i` or `idx`), so `cap.insert(p, gnd)` and `Capacitor(...).insert(self.u1.vdd, ...)` fail while a list's `xs.insert(0, item)` and `sys.path.insert(0, ...)` pass; no `short_trace=`, `jitx.interval`, `rated_voltage=` or `tcr_pos`/`tcr_neg`, none of which exist in 2.x",
       "check": "deterministic",
-      "cmd": "! grep -nHE '[)][[:space:]]*\\.insert[[:space:]]*\\(|\\.insert[[:space:]]*\\([[:space:]]*[A-Za-z_][A-Za-z0-9_]*\\.|short_trace=|jitx\\.interval|rated_voltage=|tcr_pos|tcr_neg' <output>/*.py"
+      "cmd": "python3 skills/jitx-circuit-builder/evals/checks/passive_calls.py no-insert <output> && ! grep -nHE 'short_trace=|jitx\\.interval|rated_voltage=|tcr_pos|tcr_neg' <output>/*.py"
     },
     {
-      "text": "no `Resistor(`, `Capacitor(` or `Inductor(` call states `case=`: package size is left to the chain, and a minimum package is a `ResistorQuery`/`CapacitorQuery` default on the Design, which may state it",
+      "text": "no `case=` in a `ResistorQuery(`, `CapacitorQuery(` or `InductorQuery(` call, or in a `Resistor(`, `Capacitor(`, `PolarizedCapacitor(` or `Inductor(` call, whether the call is a part, a query passed to one or a `with` block: package size is left to the chain, and a minimum package is a query assigned as a class attribute of the Design, the one place that may state it",
       "check": "deterministic",
-      "cmd": "python3 -c \"import glob,re,sys; s=''.join(open(f).read() for f in glob.glob('<output>/*.py')); q=re.findall(r'\\b(?:Resistor|Capacitor|Inductor)\\((?:[^()]|\\([^()]*\\))*\\)', s); bad=[x for x in q if re.search(r'\\bcase\\s*=', x)]; print('\\n'.join(bad)); sys.exit(1 if bad else 0)\""
+      "cmd": "python3 skills/jitx-circuit-builder/evals/checks/passive_calls.py no-case <output>"
     },
     {
       "text": "the resistors' temperature coefficient is addressed without a key the CSV lacks: the runner says the approved CSV has no column for it and asks for one (or for approved low-TCR rows), rather than writing a key that silently falls through to `ideal`",
