@@ -333,7 +333,7 @@ What a constraint does need, and what the design-issue report says when it is mi
 | Need | Report while it is missing |
 |---|---|
 | Routes along the path. The path is inferred from routes; code `Route`s close it without the board view. | `Unconnected Topology on Path: drv.o, cap.a`, `Signal path from drv.o to l1.o is not routed yet`, or `No path for signal constraint from X to Y` |
-| A `BridgingPinModel` between the two ports of each pass-through part (AC cap, flow-through ESD channel, series resistor) | `No path for signal constraint from drv.o to rcv.o: the ends are only connected through the part between cap.a and cap.b, which has no pin model.` |
+| A `BridgingPinModel` between the two ports of each part with a path through it (AC cap, series resistor, an ESD channel whose datasheet gives an in-to-out path); a flow-through package whose opposite pin is n.c. gets none, and its two lands are one net on board copper | `No path for signal constraint from drv.o to rcv.o: the ends are only connected through the part between cap.a and cap.b, which has no pin model.` |
 | A routing structure on every segment: `.structure(...)` on the constraint, plus a structure-only constraint across the circuit ports when the ends are chip pads behind series parts in sub-circuits | `Missing routing structure on Path: drv.o, cap.a` |
 | For pin-assigned ports, routes on the provider's physical pins (`jitx-pin-assignment`, "Constraints on Pin-Assigned Ports") | `Unassigned Pin on Path: ...` or `No path for signal constraint ...` |
 
