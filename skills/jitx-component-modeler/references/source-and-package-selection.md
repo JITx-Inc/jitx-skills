@@ -174,7 +174,7 @@ Then read only the extracted PDF.
 
 ### Step 1: Extract Key Information
 
-**Before generating from scratch:** for a reusable IC family or common package pattern, search existing references first — see `jitx/references/parts-sourcing.md` "Reference Search Order for Component Modeling". User libraries → `jitxexamples.components` → vendor reference design → generate. Document `searched: found <path>` or `searched: no analog` in the task acceptance block.
+**Before generating from scratch:** for a reusable IC family or common package pattern, search existing references first — see `jitx-project-builder/references/parts-sourcing.md` "Reference Search Order for Component Modeling". User libraries → `jitxexamples.components` → vendor reference design → generate. Document `searched: found <path>` or `searched: no analog` in the task acceptance block.
 
 **IMPORTANT: Multiple Packages/Variants**
 

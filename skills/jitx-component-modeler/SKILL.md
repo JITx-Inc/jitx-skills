@@ -5,7 +5,7 @@ description: "Create JITX Python component code from datasheets, KiCad footprint
 
 # JITX Component Generation Skill
 
-A component task is not complete until the [Component completeness check — run before calling it done](#component-completeness-check--run-before-calling-it-done) block is filled row by row in `COMPLETION.md` next to the components, under the `Checks run` field of the base `jitx` skill's task acceptance block. A block only in chat is not the block.
+A component task is not complete until the [Component completeness check — run before calling it done](#component-completeness-check--run-before-calling-it-done) block is filled row by row in `COMPLETION.md` next to the components, under the `Checks run` field of the task acceptance block in `jitx-project-builder/references/completion-blocks.md`. A block only in chat is not the block.
 
 ## Route before reading detail
 
@@ -59,7 +59,7 @@ After code exists, in order:
 1. Tests that construct components subclass `jitx.test.TestCase`; pure helper tests may use `unittest.TestCase`. Every package variant gets a pad-count check by `jitx.inspect.visit(lp, Pad)`; until it runs, verification stops. The snippet and other assertions: [verification-and-application.md](references/verification-and-application.md#verifying-a-component-with-tests).
 2. Run the test suite, and `pyright` on every Python file left in the output. Tests assert metadata, pin and pad counts, `.value` unset, and each relied-on default or imported footprint entry against the source.
 3. Run `jitx find`, take its printed build target verbatim, then build in the available virtual environment.
-4. Write the task acceptance block from the base skill, with the complete `Component check` below embedded under `Checks run`, into `COMPLETION.md` or the project's existing equivalent.
+4. Write the task acceptance block from `jitx-project-builder`, with the complete `Component check` below embedded under `Checks run`, into `COMPLETION.md` or the project's existing equivalent.
 
 **Halt:** no filled block, no "done". Any non-clean type check, failing test, failed build, unrun available check, missing source, or unresolved row forces `Verdict: open items`. `Verdict: complete` is invalid until every row closes.
 

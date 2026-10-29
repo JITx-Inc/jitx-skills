@@ -1,0 +1,16 @@
+// Routing fixtures for jitx-project-builder.
+// Positives: whole-board requests, tier classification, PLAN.md and ARCHITECTURE.md, phase gates, resuming a board.
+// Negatives: environment and single-artifact asks owned by the base skill or a design sub-skill.
+{"intent": "build me a board with an STM32, a USB-C connector, an IMU on SPI and a microSD socket", "expected_skill": "jitx-project-builder", "ambiguous_with": ["jitx"]}
+{"intent": "design a PCB from these requirements", "expected_skill": "jitx-project-builder", "ambiguous_with": ["jitx"]}
+{"intent": "I need a complete JITX project from scratch, 4-layer JLCPCB", "expected_skill": "jitx-project-builder", "ambiguous_with": ["jitx"]}
+{"intent": "what workflow tier is this, single task or complete board?", "expected_skill": "jitx-project-builder", "ambiguous_with": ["jitx"]}
+{"intent": "write PLAN.md and ARCHITECTURE.md for this design before we start coding", "expected_skill": "jitx-project-builder", "ambiguous_with": ["jitx"]}
+{"intent": "the plan doc for this board is enormous, trim it to what the sub-agents actually need", "expected_skill": "jitx-project-builder", "ambiguous_with": ["jitx"]}
+{"intent": "we're at the Phase 1 to Phase 2 gate, what has to be true to advance?", "expected_skill": "jitx-project-builder", "ambiguous_with": ["jitx"]}
+{"intent": "resume the board project, what's left in the task graph?", "expected_skill": "jitx-project-builder", "ambiguous_with": ["jitx"]}
+// Near-miss negatives.
+{"intent": "set up the jitx environment and get the runtime running", "expected_skill": "jitx"}
+{"intent": "model the TPS54302 from this datasheet", "expected_skill": "jitx-component-modeler", "ambiguous_with": ["jitx"]}
+{"intent": "review the jitx code I just wrote for string-hacking and framework-boundary problems", "expected_skill": "jitx-code-review", "ambiguous_with": ["jitx"]}
+{"intent": "where does components/ go in a jitx project?", "expected_skill": "jitx-project-builder", "ambiguous_with": ["jitx"]}

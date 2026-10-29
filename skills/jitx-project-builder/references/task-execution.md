@@ -76,7 +76,7 @@ Run the required checks and test build once from the project root:
 python scripts/check.py <ns>/ --build <module.path.TestDesign>
 ```
 
-Don't run a concurrent build of the same design in parallel — see [Build Safety — Don't Parallelize Same-Design Work](../SKILL.md#build-safety--dont-parallelize-same-design-work).
+Don't run a concurrent build of the same design in parallel — see [Build safety: don't parallelize same-design work](../../jitx/SKILL.md#build-safety-dont-parallelize-same-design-work).
 
 In headless bash, the command is
 `yes | python scripts/check.py <ns>/ --build <module.path.TestDesign>` because a

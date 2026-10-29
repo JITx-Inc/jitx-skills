@@ -1,8 +1,8 @@
-# Eval contract — jitx skill, complete-board tier (Phase 0 planning artifacts)
+# Eval contract — jitx-project-builder skill, complete-board tier (Phase 0 planning artifacts)
 #
 # Scope: the artifacts the complete-board workflow produces before any code is
-# written — PLAN.md and ARCHITECTURE.md at the Phase 0 exit gate. Other parts of
-# the jitx skill (environment setup, single-task tier, build/verify) are outside
+# written — PLAN.md and ARCHITECTURE.md at the Phase 0 exit gate. Later phases,
+# and the base jitx skill (environment setup, build/verify), are outside
 # this contract and get their own task_slug if they are ever evaled.
 
 goal: |

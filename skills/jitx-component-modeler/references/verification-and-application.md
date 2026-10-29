@@ -50,7 +50,7 @@ please create new classes separately.
 
 So a `SampleDesign`, a `Circuit` harness, or a throwaway component built to exercise one case all
 belong at module scope, even when only one test uses them. This is the same instantiation-tracking
-rule as the base skill's "no subclassing JITX classes inside functions or methods"; it bites here
+rule as the base skill's "no JITX subclass defined inside a function"; it bites here
 because a test method is the natural place to reach for a one-off fixture.
 
 Direct construction is what `@pytest.mark.parametrize` forces, since a parametrized case cannot drive a class-body `SampleDesign`. The jitxlib land-pattern generators read fabrication values off the active substrate — silkscreen-to-soldermask spacing, via `jitx.current.substrate.constraints` — so with no substrate active they raise instead of building. **Never rely on a context an earlier test left set**: that passes in suite order and fails when the test runs alone, which is the order a bisect or a `-k` filter uses.
@@ -86,7 +86,7 @@ Always use the available virtual environment. If one is not present, stop and as
 jitx build <module>.TestDesign
 ```
 
-Don't run parallel JITX builds against the same project — sequence them. See [Build Safety — Don't Parallelize Same-Design Work](../../jitx/SKILL.md#build-safety--dont-parallelize-same-design-work).
+Don't run parallel JITX builds against the same project — sequence them. See [Build safety: don't parallelize same-design work](../../jitx/SKILL.md#build-safety-dont-parallelize-same-design-work).
 
 **Success:** `status: ok`
 **Failure:** Python traceback or `status: error`
@@ -105,6 +105,6 @@ Don't run parallel JITX builds against the same project — sequence them. See [
 
 ### Verification Report
 
-Emit the **task acceptance block** from `jitx/references/completion-blocks.md` "Task Acceptance Block", with the [Component completeness check — run before calling it done](../SKILL.md#component-completeness-check--run-before-calling-it-done) filled in under its `Checks run` field. For a component task, the block's `Primary source` field cites the datasheet pages with the pinout and mechanical drawing; the `Footprint source` field names the JITX generator used (or KiCad import with reason); the `Checks run` field includes the Component checklist from `jitx/references/domains/component-modeling.md` with N/N items and any issues fixed (pin count vs datasheet, pad count vs landpattern, dimensions vs datasheet mechanical drawing). The acceptance block is the report; do not invent a parallel format.
+Emit the **task acceptance block** from `jitx-project-builder/references/completion-blocks.md` "Task Acceptance Block", with the [Component completeness check — run before calling it done](../SKILL.md#component-completeness-check--run-before-calling-it-done) filled in under its `Checks run` field. For a component task, the block's `Primary source` field cites the datasheet pages with the pinout and mechanical drawing; the `Footprint source` field names the JITX generator used (or KiCad import with reason); the `Checks run` field includes the Component checklist from `jitx-project-builder/references/domains/component-modeling.md` with N/N items and any issues fixed (pin count vs datasheet, pad count vs landpattern, dimensions vs datasheet mechanical drawing). The acceptance block is the report; do not invent a parallel format.
 
 The checklist and the completeness check are complementary, not interchangeable. The **domain checklist is the per-pin / per-pad enumeration you walk while writing** the component; the **completeness check is the evidence you present when claiming it is done**, one row per way a component fails quietly. Report each build, type check and test run **once** — the completeness check's `Checks` row is where they live, and it satisfies the checklist's Build Test items.

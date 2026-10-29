@@ -2,7 +2,7 @@
 
 Five-phase workflow for building complete JITX hardware designs from requirements. The orchestrator drives the flow, spawns parallel sub-agents, and enforces exit gates with acceptance reviews.
 
-**This file applies to the complete-board tier only.** Tier classification happens before Phase 0 — see `jitx/SKILL.md` "First: Pick the Workflow Tier" and `references/completion-blocks.md`. Single-task tier does not enter the formal phase chain. If a single-task grows beyond a single artifact mid-work, upgrade to complete-board and apply Phase 0 retroactively (write PLAN.md + ARCHITECTURE.md, run the data audit) before continuing.
+**This file applies to the complete-board tier only.** Tier classification happens before Phase 0 — see this skill's SKILL.md "First: Pick the Workflow Tier" and `references/completion-blocks.md`. Single-task tier does not enter the formal phase chain. If a single-task grows beyond a single artifact mid-work, upgrade to complete-board and apply Phase 0 retroactively (write PLAN.md + ARCHITECTURE.md, run the data audit) before continuing.
 
 Every task in every phase emits a **task acceptance block** (template in `references/completion-blocks.md`) and the orchestrator appends the acceptance verdict to it. A task without an accepted block does not count toward an exit gate.
 
@@ -140,7 +140,7 @@ Please confirm data sources or provide alternatives (datasheets, footprints, spe
 
 ### Parallel Safety
 
-Phase 1 tasks are independent at the *design* level. Each sub-agent writes its own component file with its own test design. Parallel sub-agents each build their own test design; because each agent's design is distinct (different module paths, different component class names), concurrent builds against the same project are acceptable. The JITX backend serializes internally on the WebSocket. What is NOT safe is two agents building the same design at the same time; the orchestrator should never spawn two tasks targeting the same test design class. The spawn-batch rule does not change this same-design build-safety rule. See [Build Safety — Don't Parallelize Same-Design Work](../SKILL.md#build-safety--dont-parallelize-same-design-work).
+Phase 1 tasks are independent at the *design* level. Each sub-agent writes its own component file with its own test design. Parallel sub-agents each build their own test design; because each agent's design is distinct (different module paths, different component class names), concurrent builds against the same project are acceptable. The JITX backend serializes internally on the WebSocket. What is NOT safe is two agents building the same design at the same time; the orchestrator should never spawn two tasks targeting the same test design class. The spawn-batch rule does not change this same-design build-safety rule. See [Build safety: don't parallelize same-design work](../../jitx/SKILL.md#build-safety-dont-parallelize-same-design-work).
 
 ### Exit Gate: Phase 1 → Phase 2
 
