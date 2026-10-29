@@ -12,8 +12,8 @@
       - AC coupling caps for DC-blocking (check value for frequency range)
 - [ ] Impedance targets documented for constrained signals
 - [ ] Routing structure assigned matches impedance target
-- [ ] Topologies created with `>>` inside the circuit for constrained signal paths
-- [ ] **SI constraints (Constrain, ConstrainDiffPair, ReferencePlanes) are NOT applied here** — they go at the top-level design where the full path is visible. The circuit only creates the topology segments.
+- [ ] Constrained signal paths wired with plain `+` nets (no `>>` needed for a constraint to bind), and every pass-through part on them (AC cap, flow-through ESD channel, series resistor) has a `BridgingPinModel`
+- [ ] **SI constraints (Constrain, ConstrainDiffPair, ReferencePlanes) are NOT applied here** — they go at the top-level design where the full path is visible. The circuit only wires the path and models its pass-through parts.
 
 ### Level Translation
 - [ ] Voltage domains of connected ICs compared — level shifter needed if they differ

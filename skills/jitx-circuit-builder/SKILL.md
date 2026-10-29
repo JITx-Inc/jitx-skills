@@ -130,8 +130,10 @@ self.i2c_nets = [
     i2c.scl + self.sensor.SCL,
 ]
 
-# >> topology operator for ordered routing (intermediate nodes are RoutingStructure instances)
-self.topology = self.driver.out >> self.trace >> self.receiver.inp
+# SI constraints (timing, skew, loss) apply across these plain nets; no >> is
+# needed (jitx-interconnect-constraints). >> builds an ordered TopologyNet, for
+# a daisy chain whose order the router must follow, such as a flyby clock:
+self.clk_chain = self.clk_drv.out >> self.dram0.CK >> self.dram1.CK
 ```
 
 **`+=` takes a port or a `Net`, never a bare list — wrap a rail list in a `Net`.** A component's repeated-name rail (`GND`, `VCCO_*`) is a Python `list` of ports. `Net(...)` accepts an iterable, so there is a one-liner; `+=` does not, so the obvious splice is the thing that breaks:

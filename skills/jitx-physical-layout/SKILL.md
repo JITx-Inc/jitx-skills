@@ -31,7 +31,7 @@ geometry by **capturing and asserting the realized copper**
 | Wire nets, add passives, basic pours | `jitx-circuit-builder` |
 | Define the stackup, vias, routing structures, fence-via rules, fenced pour outlines | `jitx-substrate-modeler` |
 | Author a component's package/landpattern from a datasheet | `jitx-component-modeler` |
-| Topology (`>>`), timing/skew/impedance constraints | `jitx-interconnect-constraints` |
+| SI constraints: timing, skew, insertion loss, impedance | `jitx-interconnect-constraints` |
 
 This skill covers the design-side *geometry and placement*; `jitx-layout-constraints`
 owns the `design_constraint(...)` rules that act on it, and the substrate owns the via
@@ -340,14 +340,20 @@ Rules learned in production (saturn-ethernet, 4.3.0-rc.3):
   `PinModel(delay=, loss=)` declared per leg, a `ConstrainDiffPair` /
   `DiffPairConstraint` topology spans the authored copper end to end — this
   is how an authored deskew fan participates in intra-pair skew matching.
-- **The topology itself must be `>>` TopologyNets, never `+` Nets.** A
-  constrained path is valid only when every pad-to-pad segment is declared
-  with `>>` (docs: essentials/SI/topology): one plain `+` tie anywhere in
-  the chain is an "invalid segment" and the walker reports NO PATH for the
-  whole topology — the VC/pin-model machinery never even gets asked.
-  Series components (AC caps) are crossed by their `BridgingPinModel`;
-  `TopologyNet` sequences also accept `Via` and `ControlPoint` elements,
-  and TopologyNets are tag-able (routing-structure rules carry over).
+  A model-less leg reports `Virtual connection without a pin model on Path:
+  drv.d.p, ins1.p` and nothing measures.
+- Plain `+` nets carry a constrained path through control points and
+  virtual connections on JITX 4.6; no `>>` is needed. Checked on 2026-10-29
+  (jitx 4.6.0rc10, runtime 4.6.0-rc.16, sample substrate): a diff pair netted
+  with `+` through two `PairInsertion`s, legs and coupled trunk code-routed,
+  measured under `ConstrainDiffPair(Topology(drv.d, rcv.d))` (`Time:
+  105.311ps` per leg, `Skew: 0s`). With the driver-side legs replaced by
+  `VirtualConnection`s carrying `PinModel(delay=5e-12, loss=0.05)` it measured
+  `Time: 78.215ps`; a 50 ps model raised that by exactly 45 ps, so the model
+  is consumed. With no routes the report was `No path for signal constraint`.
+  Series components (AC caps) are crossed by their `BridgingPinModel`.
+  `>>` remains for an ordered daisy chain; `TopologyNet` sequences accept
+  `Via` and `ControlPoint` elements and are tag-able.
 - **Model MEASURED delay, not drawn length.** On curved/wrapped legs the
   drawn centreline over-states delay (a verified deskew hook measured
   ~0.07 ps of real skew where drawn lengths implied ~2 ps). Encode the

@@ -14,7 +14,7 @@ goal: |
   connectivity right by following the skill, because the skill carries the
   operator discipline rather than assuming the model remembers it.
 dimensions:
-  - "NET_INTEGRITY — is every connection the request implies actually made, with `+`/`+=`/`>>` rather than `=`, each net stored (an unstored `a + b` is a lost connection), and no port silently dropped from a multi-port tie?"
+  - "NET_INTEGRITY — is every connection the request implies actually made, with `+`/`+=` (or `>>` only for an ordered daisy chain) rather than `=`, each net stored (an unstored `a + b` is a lost connection), and no port silently dropped from a multi-port tie?"
   - "POWER_STRUCTURE — do rails and grounds resolve to the right domains, is every supply pin tied, and is decoupling present, valued and placed against the pin it serves rather than scattered?"
   - "PASSIVE_SELECTION — are queried passives real parts with stated tolerance/package/voltage rating, values on the right E-series, and is a component's purpose readable from the code rather than from a comment?"
   - "STRUCTURAL_ECONOMY — Circuit composition and declared ports over reflection and string-keyed lookup; a subcircuit where the request has a repeated block; no parallel model of the design held alongside the JITX objects?"

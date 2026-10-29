@@ -60,12 +60,14 @@ self.routes = [r]                      # store on self so the structural walk se
   `require(...)` pin-assignment raises
   `NotImplementedError: Using require ports as route ends ... is not implemented`
   at build time — route the component-side port or the pad instead.
-- **A code `Route` is also a connectivity path.** Combining it with a `>>` topology
-  segment on the same net double-connects the net → invalid physical state. When
-  code-routing a net fully, drop the parallel topology and rely on nets +
-  tag-applied structures. (Conversely, `topology + ConstrainDiffPair` alone routes
-  NO copper — constraints bind auto-routed topologies, they never synthesize
-  geometry for code topologies.)
+- **A code `Route` is also a connectivity path.** If the same net also carries a
+  `>>` segment (an ordered daisy chain) between the same ends, the two
+  double-connect the net: invalid physical state. A code-routed net needs no
+  `>>`: plain nets plus tag-applied structures, and SI constraints bind across
+  them once the routes close the path (`jitx-interconnect-constraints`).
+  Constraints never synthesize copper: a `ConstrainDiffPair` on an unrouted path
+  measures nothing and reports `No path for signal constraint` or
+  `Unconnected Topology`.
 - **After capture** (`rd.capture()` — see geometry-verification.md), `route.traces`
   holds the realized copper (`Route.Trace.shapes`, **design-global coordinates**)
   and `route.derived` any structure-driven extras (soldermask openings, keepouts).

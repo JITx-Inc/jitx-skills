@@ -12,7 +12,7 @@ After the domain-specific checklist, verify these universal items:
 ### JITX Code Correctness
 - [ ] All nets stored on `self` — bare `a + b` expressions without assignment are silently dropped
 - [ ] All components stored on `self` — anonymous `Component().insert()` fails at build time
-- [ ] All topologies stored on `self` — bare `a >> b` without assignment is silently dropped
+- [ ] Every net expression stored on `self` or added with `self +=`, including those on SI-constrained paths; a bare `a + b` is silently dropped
 - [ ] No aliasing of component ports: `self.x = self.r1.p2` causes multiple-parent errors
 - [ ] Port definitions at class level (not inside `__init__`) except for PadMapping and dynamically-configured ports set at instantiation time
 
