@@ -173,9 +173,9 @@ Timing and loss apply to each leg, so each leg gets its own `Time` and `Loss` li
 `ConstrainDiffPair` also takes a list of pair topologies. For the same constraint on many pairs, `DiffPairConstraint` is a reusable helper:
 
 ```python
-self.dp_cst = DiffPairConstraint(skew=Toleranced(0, 5e-12), loss=3.0, structure=drs100)
-self.dp_cst.constrain(self.src.tx, self.dst.rx)
-self.dp_cst.constrain(self.src.clk, self.dst.clk)
+self.dp_helper = DiffPairConstraint(skew=Toleranced(0, 5e-12), loss=3.0, structure=drs100)
+self.dp_helper.constrain(self.src.tx, self.dst.rx)
+self.dp_helper.constrain(self.src.clk, self.dst.clk)
 ```
 
 `LanePair` (`jitx.common`) bundles a TX and an RX `DiffPair`.
@@ -354,7 +354,7 @@ The same chain on a plain `Net([ctrl.a0, dram0.a0, dram1.a0])` also measures onc
 
 Layout width and clearance checks belong to `jitx-layout-constraints`; physical-layout checks to `jitx-physical-layout`. This section proves that each SI constraint applied.
 
-Prove binding on a code-routed verification design, one per module that carries SI constraints. It places the parts, code-routes every constrained path between physical pads (on a pin-assigned port, the provider's physical pins), and passes when each constraint has a measured line with the intended ends and no unresolved text. The shipping assembly carries no proof routes, which would fix one placement and one pin mapping. On the assembly, `Unconnected Topology`, `not routed yet`, `No path for signal constraint` with no part named, and `Unassigned Pin` on pin-assigned ends are expected and recorded; `No path ... which has no pin model`, `Missing routing structure`, a placeholder via model, `Virtual connection without a pin model`, and a constraint absent from the report still block.
+Prove binding on a code-routed verification design, one per module that carries SI constraints. It places the parts, code-routes every constrained path between physical pads (on a pin-assigned port, the provider's physical pins), and passes when each constraint has a measured line with the intended ends and no unresolved text. The shipping assembly carries no proof routes, which would fix one placement and one pin mapping. While the assembly is unrouted, `Unconnected Topology`, `not routed yet`, a bare `No path for signal constraint`, and `Unassigned Pin` are expected and recorded; `No path ... which has no pin model`, `Virtual connection without a pin model`, and a constraint absent from the report still block. Once routed, the assembly is held to the verification-design bar. [references/verification.md](references/verification.md) has the full disposition rule and parity evidence.
 
 1. Type check: `pyright path/to/circuit.py`.
 2. Read the design issues with satisfied checks included. A runtime must be running for the project (`jitx runtime start --background`):
@@ -363,7 +363,7 @@ Prove binding on a code-routed verification design, one per module that carries 
    jitx design issues <module.path.DesignClass> --satisfied --wait 30
    ```
 
-   From Python: `with jitx.runtime as r:` then `r.submit(MyDesign).issues(satisfied=True, wait=30).text()`. The command exits 0 whatever it finds unless `--error` is given. JITX builds against the same project run in sequence; see [Build safety](../jitx/SKILL.md#build-safety-dont-parallelize-same-design-work).
+   From Python: `with jitx.runtime as r:` then `r.submit(MyDesign).issues(satisfied=True, wait=30).text()`. The command exits 0 whatever it finds unless `--error` is given. A repeated query of an unchanged design can hang; restart the runtime first ([references/verification.md](references/verification.md)). JITX builds against the same project run in sequence; see [Build safety](../jitx/SKILL.md#build-safety-dont-parallelize-same-design-work).
 
 3. A constraint applied only when its measurement appears, naming the intended ends:
 
@@ -374,7 +374,7 @@ Prove binding on a code-routed verification design, one per module that carries 
      - Skew: 0fs - Target: ± 1ps (longer from bga.tx0.p to conn.tx0.p, shorter from bga.tx0.n to conn.tx0.n)
    ```
 
-   Without `--satisfied`, a met constraint does not appear at all, so `No design issues.` proves nothing. Anything else in the constraint's group is unresolved: `Unconnected Topology`, `not routed yet`, `No path for signal constraint`, `Missing routing structure`, a placeholder via model, `Missing Connection on Path`, `Unable to find path for requested route`, `Unassigned Pin`, `Code route dropped`. [references/verification.md](references/verification.md) gives each message's cause and fix.
+   Without `--satisfied`, a met constraint does not appear at all, so `No design issues.` proves nothing. On a verification design (or a routed assembly), any of these is unresolved, whether it sits under `Signal Constraint:`, `Topology:` or `Routing:`: `Unconnected Topology`, `not routed yet`, `No path for signal constraint`, `Missing routing structure`, a placeholder via model, `Virtual connection without a pin model`, `Missing Connection on Path`, `Unable to find path for requested route`, `Unassigned Pin`, `Code route dropped`. [references/verification.md](references/verification.md) gives each message's cause and fix.
 
 4. Keep binding apart from compliance. Binding: the measurement exists. Compliance: the measured value lies inside the `Target` window (`200ps ± 200ps` means 0 to 400 ps). A violated constraint prints the same line, also without `--satisfied`. Report both, and report a measurement outside its target as a violation, not a pass.
 

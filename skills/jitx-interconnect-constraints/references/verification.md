@@ -16,7 +16,9 @@ jitx design issues <module.path.DesignClass> --satisfied --wait 30
 a met constraint does not appear, so `No design issues.` is the same report a
 never-applied constraint gives. `--wait` gives background tasks time to finish
 before the snapshot (default 5 s). `--category signal_constraint` narrows the
-report. The command exits 0 whatever it finds unless `--error <severity>` is
+report, but do not narrow it while debugging: unresolved texts also land under
+`Topology:` (`No path ... no pin model`, `not routed yet`) and `Routing:`
+(`Unable to find path for requested route`). The command exits 0 whatever it finds unless `--error <severity>` is
 given. `jitx --format json design issues ...` gives each issue's class, text,
 pins and, for a measurement, `detail.signal_integrity` with `measured_range`,
 `acceptable_range` and `satisfied`, which a script can check. From Python, the
@@ -73,6 +75,7 @@ not the design's number. Fix the cause and re-run; do not claim the constraint.
 | `Missing routing structure on Path: <a>, <b>` (beside a measurement) | The constraint has no `.structure(...)`, so the measured delay and loss are not the structure's. | Add the routing structure. |
 | `Structure model from [i] to [j] not found in "<Via>". Using placeholder model ...` | A via on the path has no `models` entry for that layer pair. The measurement uses a placeholder (20 ps and 0.15 dB on one observed run; not a documented default). | Give the via class a `models` entry from its data. |
 | `Missing Connection on Path: <a>, <b>`, with `Unable to find path for requested route` under Routing | A code route the router cannot make. Observed causes: a part rotated so the routed pad faces away, a part with no `.at(...)` placement, and a via-structure ground cage that closes the via off. | Fix the route or the placement. |
+| `Virtual connection without a pin model` | A `VirtualConnection` on the path has no `PinModel`. | Give it a `pin_model=PinModel(delay=..., loss=...)` (`jitx-physical-layout` covers `VirtualConnection`). |
 | `Unassigned Pin on Path: <net>` | A `require()`d end whose assignment has not resolved. | Code routes on the provider's physical pins that match an offered mapping. |
 | `Code route dropped: it conflicts with other connections` | A route that matches no offered pin mapping. | Route to a legal mapping. |
 | `Overlapping routing structures along path from <a> to <b>` | Two constraints put a structure on a shared segment of a chain. | Apply the structure once, over the longest path. |
@@ -87,13 +90,23 @@ pin-assigned port, the provider's physical pins), and passes when each
 constraint has a measured line with the intended ends and none of the
 unresolved texts above.
 
-Run the command on the assembly too, and disposition each SI line. Expected
-there, and recorded: `Unconnected Topology`, `not routed yet`, `No path for
-signal constraint` with no part named, and `Unassigned Pin` on pin-assigned
-ends. Blocking there as anywhere: `No path ... which has no pin model`,
-`Missing routing structure`, a placeholder via model, `Virtual connection
-without a pin model`, and a constraint that is absent from the report. Each
-constraint in the assembly must name the same physical ends, through the same
-parts, as its verification design (the dotted prefix changes with the
-hierarchy); a difference returns the assembly for rework unless it is named
-with its reason.
+Run the command on the assembly too, and disposition each SI line. While the
+assembly is unrouted, these are expected and recorded: `Unconnected Topology`,
+`not routed yet`, `No path for signal constraint` with no part named, and
+`Unassigned Pin` on pin-assigned ends. These block even unrouted: `No path ...
+which has no pin model`, `Virtual connection without a pin model`, and a
+constraint that is absent from the report. `Missing routing structure` and the
+placeholder via model appear only beside a measurement, so an unrouted
+assembly cannot show them; check them on the verification design and on the
+routed assembly. Once the assembly is routed, it is held to the
+verification-design bar: every constraint measures between its intended ends,
+with none of the unresolved texts above.
+
+Parity: the assembly applies the same constraint class and parameters as its
+verification design, routing structure included, through the same pin models.
+The evidence on the verification side is its measured lines; on the assembly
+side it is the same Topology ends and pin models in code, plus, while unrouted,
+the `Unconnected Topology on Path:` segment list, which names each segment
+between bridged parts. The physical ends must match (the dotted prefix
+changes with the hierarchy); any other difference returns the assembly for
+rework unless it is named with its reason.
