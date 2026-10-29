@@ -75,7 +75,7 @@ DDR4 byte and bit swapping is **entirely controller-dependent**. The DDR4 JEDEC 
 
 ### DDR4 Constraint Parameters
 
-`jitxexamples.protocols.memory.ddr4` applies cited point-to-point values; the table is in `jitx-interconnect-constraints` [protocol-standards.md](../../jitx-interconnect-constraints/references/protocol-standards.md#ddr4). For another controller, take the values from its layout guide.
+`jitxexamples.protocols.memory.ddr4` applies cited point-to-point values, and its docstring cites the source table for each number. For another controller, take the values from its layout guide.
 
 ### DDR4 Byte Swap Constraint Pattern
 ```
