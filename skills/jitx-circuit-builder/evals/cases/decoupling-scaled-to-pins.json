@@ -13,9 +13,9 @@
       "cmd": "python3 skills/jitx/scripts/grep_gates.py <output>/"
     },
     {
-      "text": "no jitxlib-parts 1.x API in the output: no passive `.insert(`, on a call result (`Capacitor(...).insert(`) or with a port as its first argument (`cap.insert(self.u1.vdd, ...)`), while a list's `xs.insert(0, item)` passes; no `short_trace=`, `jitx.interval`, `rated_voltage=` or `tcr_pos`/`tcr_neg`, none of which exist in 2.x",
+      "text": "no jitxlib-parts 1.x API in the output: no passive `.insert(`, meaning any `.insert(` whose first argument is not index-like (an integer literal, `len(...)`, or a name such as `i` or `idx`), so `cap.insert(p, gnd)` and `Capacitor(...).insert(self.u1.vdd, ...)` fail while a list's `xs.insert(0, item)` and `sys.path.insert(0, ...)` pass; no `short_trace=`, `jitx.interval`, `rated_voltage=` or `tcr_pos`/`tcr_neg`, none of which exist in 2.x",
       "check": "deterministic",
-      "cmd": "! grep -nHE '[)][[:space:]]*\\.insert[[:space:]]*\\(|\\.insert[[:space:]]*\\([[:space:]]*[A-Za-z_][A-Za-z0-9_]*\\.|short_trace=|jitx\\.interval|rated_voltage=|tcr_pos|tcr_neg' <output>/*.py"
+      "cmd": "python3 skills/jitx-circuit-builder/evals/checks/passive_calls.py no-insert <output> && ! grep -nHE 'short_trace=|jitx\\.interval|rated_voltage=|tcr_pos|tcr_neg' <output>/*.py"
     },
     {
       "text": "the power-rail capacitor count rule (completion-blocks review-required row 12) has no hits: no output file has more `Capacitor(` or `PolarizedCapacitor(` call sites than `ShortTrace(` call sites, and the output has at least one `ShortTrace(`. Every capacitor this prompt asks for decouples a supply pin, so a hit here is a failure, not a disposition. The count cannot see what a `ShortTrace` joins: the judge assertions below grade one per capacitor, each to a ball",
