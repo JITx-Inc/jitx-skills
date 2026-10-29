@@ -11,7 +11,7 @@ After the domain-specific checklist, verify these universal items:
 
 ### JITX Code Correctness
 - [ ] All nets stored on `self` — bare `a + b` expressions without assignment are silently dropped
-- [ ] All components stored on `self` — a passive held in a local variable fails the build once its ports join a net (`Unable to map local reference`)
+- [ ] All components stored on `self` — a passive held in a local variable fails the build once its ports join a net (`Unable to map local reference`), which a `TestCase` does not catch
 - [ ] All topologies stored on `self` — bare `a >> b` without assignment is silently dropped
 - [ ] No aliasing of component ports: `self.x = self.r1.p2` causes multiple-parent errors
 - [ ] Port definitions at class level (not inside `__init__`) except for PadMapping and dynamically-configured ports set at instantiation time

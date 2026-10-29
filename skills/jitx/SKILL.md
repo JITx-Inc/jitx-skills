@@ -37,16 +37,16 @@ pip install -e . "jitx>=4.6,<4.7" jitxlib-standard jitxlib-parts
 python -c "import jitxlib.landpatterns, jitxlib.parts"
 ```
 
-`jitx project layout init` writes a flat `<ns>/` package (not `src/<ns>/`) and `pyproject.toml`. Change its `jitx>=4.4.0,<5` to `jitx>=4.6,<4.7`; add `jitxlib-parts>=2,<3` (and `jitxlib-jlcpcb` when used) to `dependencies`. Without `pip install -e .`, `jitx find` reports `import failed: ModuleNotFoundError` and lists no designs, with exit 0.
+`jitx project layout init` writes a flat `<ns>/` package (not `src/<ns>/`) and `pyproject.toml`. Change its `jitx>=4.4.0,<5` to `jitx>=4.6,<4.7`; add `jitxlib-parts>=2,<3` (and `jitxlib-jlcpcb` when used) to `dependencies`. Without `pip install -e .`, `jitx find` exits 0 listing no designs (`import failed: ModuleNotFoundError`).
 
-Passive queries need a provider chain in `pyproject.toml` (without one: `NoChainConfigured`). Create and commit `parts/approved-parts.csv`, rows from the user's approved parts only, and the `parts.lock.json` a build writes (never hand-made). If the user has none, copy the example CSV that `jitxexamples` ships to `parts/approved-parts.csv` (command: `jitx-project-builder` Phase 0) and tell the user it is not an approval:
+Passive queries need a provider chain in `pyproject.toml` (without one: `NoChainConfigured`). Commit `parts/approved-parts.csv` (user-approved parts only) and the build-written `parts.lock.json` (never hand-made). If the user has none, copy the example CSV `jitxexamples` ships there (`jitx-project-builder` Phase 0) and tell the user it is not an approval:
 
 ```toml
 [tool.jitx.parts]
 chain = ["csv:parts/approved-parts.csv", "ideal"]
 ```
 
-`ideal`, last, synthesizes unorderable `IDEAL-...` parts so the design builds before approval, and silently answers most queries the CSV cannot. Before calling it done, remove `ideal`, then pass `jitx build <design>` and `jitx design export parts-check <design> --fail all`; on the stand-in, the user approves the final build's MPNs (read: `jitx-project-builder` Phase 0) or supplies a list. CSV format, lockfile, parts databases: https://docs.jitx.com/en/latest/essentials/design/parts.html
+`ideal`, last, synthesizes unorderable `IDEAL-...` parts so the design builds before approval, silently answering most queries the CSV cannot. Before calling it done, remove `ideal`, then pass `jitx build <design>` and `jitx design export parts-check <design> --fail all`; on the stand-in, the user approves the final build's MPNs (`jitx-project-builder` Phase 0) or supplies a list. Before writing that list over the stand-in, delete `parts.lock.json`: the lock would keep the stand-in's MPNs. CSV format, lockfile, parts databases: https://docs.jitx.com/en/latest/essentials/design/parts.html
 
 The scaffold skips `git init` (do it and say so). Its `.gitignore` keeps the built design directory tracked on purpose: do not broaden it.
 

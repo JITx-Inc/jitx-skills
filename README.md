@@ -123,7 +123,7 @@ Example triggers:
 
 ### jitx-physical-layout
 
-Author PCB physical layout from code: copper, custom shapes, pad features, explicit placement, vias, code-based routes, and layout-intent tags.
+Author PCB physical layout from code: copper, pours, custom shapes, pad features, explicit placement, vias, code-based routes, and layout-intent tags.
 
 Example triggers:
 

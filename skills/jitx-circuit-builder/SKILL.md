@@ -42,7 +42,7 @@ I2C pull-ups belong to the circuit that composes the bus (usually the top-level 
 
 ## Key rules
 
-1. Store every component and every net expression on `self`, singly or in a list attribute. An unstored `a + b` is a lost connection; a component no attribute holds earns only a logged warning, `Reference to structural object ... lost during instantiation`.
+1. Store every component and every net expression on `self`, singly or in a list attribute. An unstored `a + b` is a lost connection. A component no attribute holds fails the build once its ports join a net (`Unable to map local reference`), which a `TestCase` misses; unjoined, it only logs `... lost during instantiation`.
 2. Boundary ports are class attributes. Components, nets and wiring go in `__init__`, with no `build()` or `circuit()` methods.
 3. Subclass `Circuit` for a circuit and `jitx.Component` for a part.
 4. Never alias a component's port (`self.x = self.r1.p2`): the build fails with `Child object ... has multiple parents`. To expose a pin, net it to a boundary port.
@@ -56,7 +56,7 @@ Construct JITX objects directly. Never walk a `list[dict[str, Any]]` spec to emi
 
 A circuit's boundary is typed ports: `Power` from `jitx.common` (members `Vp`, `Vn`) and protocol bundles from `jitxlib.protocols` (`I2C`, `SPI`, `RGMII`, `MIIM`, `MDI1000BaseT`). Find one with `grep -rn "class RGMII"` under the venv's `jitxlib/protocols` and read its module path and members. Never write member names from memory, and check constructor options (`SPI(cs=True)` adds `cs`).
 
-A port nets only to a port of the same concrete type and parameters: `+` between two `Power` ports joins them member for member, and `Power + I2C` raises `ValueError: Incompatible ports on Net`. `+` pairs members by name, so cross a directional bundle's members explicitly: `UART` `tx` to `rx`, `LanePair` `TX` to `RX`. SI constraints and topology are `jitx-interconnect-constraints`.
+A port nets only to a port of the same concrete type and parameters: `+` between two `Power` ports joins them member for member, and `Power + I2C` raises `ValueError: Incompatible ports on Net`. `+` pairs members by name, so cross members named per device: `UART` `tx` to `rx`, `LanePair` `TX` to `RX`. `RGMII`, named from the MAC side, connects by name. SI constraints and topology are `jitx-interconnect-constraints`.
 
 ```python
 class EthernetPort(Circuit):
@@ -83,7 +83,7 @@ self.jack = RJ45().at(0, 0, on=Side.Bottom)  # Side from jitx.layerindex
 self.phy = PhyCircuit().at(floating=True)  # Circuit only: placed interactively
 ```
 
-`.at(...)` sets the instance's own transform in its parent's frame. A sub-circuit without `.at` sits at its parent's origin on top, so one meant for interactive placement takes `.at(floating=True)`. Until a placement is stored, a floating circuit sits off the board: routes stay unrealized and pours `Empty()` while the build reports `status: ok`. That trap, placement relative to another instance (`Circuit.place`), code-placed vias and copper are `jitx-physical-layout`.
+A sub-circuit without `.at` sits at its parent's origin on top, so one meant for interactive placement takes `.at(floating=True)`. Until a placement is stored, a floating circuit sits off the board: routes stay unrealized and pours `Empty()` while the build reports `status: ok`. That trap, placement relative to another instance (`Circuit.place`), code-placed vias and copper are `jitx-physical-layout`.
 
 ## Nets
 
@@ -135,11 +135,11 @@ A part's own query or a `with` block replaces the whole default.
 
 ## Decouple against the pins
 
-A power-rail capacitor is its own attribute on `self`, its supply-side pad joins the pin it serves through `ShortTrace(self.c_x.p1, <the IC power pin port>)` and its other pad joins the return net. `jitx.net.ShortTrace(p1, p2)` takes two ports, never a net: a net has no position, only the pin does, and pyright rejects a net argument.
+A power-rail capacitor is its own attribute on `self`, its supply-side pad joins the pin it serves through `ShortTrace(self.c_x.p1, <the IC power pin port>)` and its other pad joins the return net. `jitx.net.ShortTrace(p1, p2)` takes two ports, never a net (pyright rejects one).
 
-This covers capacitors that decouple a supply pin. A bootstrap capacitor takes a `ShortTrace` to its BOOT pin, other pad to SW per the datasheet; a crystal load capacitor takes one to its crystal pin, other pad to the return net. AC-coupling, RC timing, compensation and RF matching capacitors are not power-rail capacitors; say so for each.
+This covers decoupling, bulk (to the supply pin it serves nearest) and output-filter capacitors (to the regulator output pin); a `PolarizedCapacitor` uses `.a`. A bootstrap capacitor takes a `ShortTrace` to its BOOT pin, other pad to SW per the datasheet; a crystal load capacitor takes one to its crystal pin, other pad to the return net. AC-coupling, RC timing, compensation and RF matching capacitors are not power-rail; say so for each.
 
-Scale with the pin count. Two caps on a 96-ball core net are two caps for ninety-six balls:
+Scale with the pin count, never two caps for a 96-ball core net:
 
 ```python
 self.c_vccint = [
@@ -156,4 +156,4 @@ Start at one HF cap per one or two core balls plus bulk per rail; fewer is a dec
 
 ## Extract the repeated block at the second instance
 
-Three regulator stages that differ only in output voltage are one `Circuit` subclass instantiated three times, not three copies; so are per-rail decoupling banks. Blocks that differ only in their arguments are one subcircuit with a parameter, and copies that drift apart are the bug this rule prevents.
+Blocks that differ only in their arguments are one subcircuit with a parameter, not copies that drift apart: three regulator stages differing in output voltage are one `Circuit` subclass instantiated three times, and so are per-rail decoupling banks.
