@@ -1,0 +1,46 @@
+{
+  "name": "usb-through-esd-swap",
+  "prompt": "I have a USB 2.0 host pair going to a USB connector through a 4-channel flow-through ESD part. The part is fictional for this exercise: each channel is an in pin and an out pin on opposite sides, the four channels are identical, and each channel has 3 ps delay and 0.05 dB loss in to out. For routing I want freedom to put D+ and D- on either channel pair (1,2) or (3,4), with either channel of the pair on D+. Wire it up with pin assignment, constrain the pair's intra-pair skew and total delay from host to connector, and prove the constraint actually applies, including what happens when the routing does not match an allowed mapping.",
+  "inputs": {
+    "jitx": "jitx 4.6.0rc10 with jitxlib-standard 4.6.0rc3, runtime 4.6.0-rc.16, jitx.sample.SampleSubstrate",
+    "reference": "evals/cases/reference/usb-through-esd-swap/usb_esd_swap_design.py",
+    "environment": "Commands run from the repository root with python3 resolving to the interpreter of a venv that has jitx installed and its jitx entry point beside it; the check stages its own project under the system temp directory and starts and stops that project's runtime."
+  },
+  "expected_output": "A provider circuit around the ESD part offers one bundle covering both sides of a channel pair through provide.one_of, with four mappings: channels (1,2) and (3,4), each either way round, host side and connector side moving together, and no end-to-end D+/D- crossing. The consumer keeps the required bundle local, nets it to host and connector with +, puts a BridgingPinModel on each ESD channel, and applies ConstrainDiffPair(Topology(host.usb, conn.usb)) with a sourced skew limit and a labelled delay budget. Code routes on the ESD part's physical pins resolve the assignment. jitx design issues --satisfied shows Time and Skew lines for the straight and swapped-inverted routings, Code route dropped and No path for signal constraint for a routing that splits the pairs or whose two sides disagree, and No path with no measurement when unrouted.",
+  "assertions": [
+    {
+      "text": "the reference module and its check type-check against the installed jitx package",
+      "check": "deterministic",
+      "cmd": "python3 -m pyright --pythonpath \"$(command -v python3)\" skills/jitx-pin-assignment/evals/cases/reference/usb-through-esd-swap/*.py"
+    },
+    {
+      "text": "Straight: D+ on channel 1, D- on channel 2 resolves and measures time and skew end to end",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-pin-assignment/evals/cases/reference/usb-through-esd-swap/check_usb_esd_swap.py straight"
+    },
+    {
+      "text": "SwappedInverted: D+ on channel 4, D- on channel 3 resolves to the inverted mapping and measures",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-pin-assignment/evals/cases/reference/usb-through-esd-swap/check_usb_esd_swap.py swapped_inverted"
+    },
+    {
+      "text": "Illegal: D+ and D- on different channel pairs drops a route, leaves a leg with no path, and measures no skew",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-pin-assignment/evals/cases/reference/usb-through-esd-swap/check_usb_esd_swap.py illegal"
+    },
+    {
+      "text": "SidesDisagree: host side on (1,2) and connector side on (3,4) drops routes and measures nothing",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-pin-assignment/evals/cases/reference/usb-through-esd-swap/check_usb_esd_swap.py sides_disagree"
+    },
+    {
+      "text": "Unrouted: with no routes the assignment does not resolve and nothing measures",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-pin-assignment/evals/cases/reference/usb-through-esd-swap/check_usb_esd_swap.py unrouted"
+    },
+    {
+      "text": "the answer routes the ESD part's physical pins rather than the required port, keeps the required port local (never on self), uses no >>, puts a BridgingPinModel on each ESD channel, offers no end-to-end D+/D- inversion, labels the part fictional and its values as given, and proves the constraint with jitx design issues --satisfied measured lines rather than a clean build",
+      "check": "judge"
+    }
+  ]
+}

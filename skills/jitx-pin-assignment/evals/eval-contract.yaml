@@ -1,0 +1,34 @@
+# Eval contract for jitx-pin-assignment.
+#
+# Scope: provide/require modelling of what a part lets the solver choose (MCU
+# peripheral muxing, FPGA bank freedom, channel and polarity swaps on parts
+# whose datasheet allows them), SI constraints whose path runs through
+# assigned pins, and proving on jitx 4.6 that the assignment resolved and the
+# constraint measures. Ground truth for 4.6 behavior:
+# jitx-knowledge raw/si-constraints-without-topology-spike-2026-10-29.md and
+# the usb-through-esd-swap reference case.
+goal: |
+  An engineer describes which pins of a part may serve which role and gets back
+  JITX Python where a provider circuit offers exactly the mappings the part's
+  datasheet allows, a consumer requires the interface and nets it with plain
+  `+` nets, and any SI constraint on a path through the assigned pins is shown
+  to measure once the assignment resolves. Excellent = the offered mappings
+  are no wider than the part and protocol allow, a swap that must move two
+  sides of a part together (both ends of a pass-through channel) is offered as
+  one mapping over both sides, the required port stays a local, code routes
+  land on the provider's physical pins, pass-through parts carry a pin model,
+  and every claim that a constraint applies is backed by a measured line from
+  `jitx design issues --satisfied`, with the unresolved and illegal cases shown
+  to fail visibly.
+dimensions:
+  - "PROVIDE_REQUIRE_MODELLING: is the flexibility on a provider Circuit through @provide, @provide.one_of, @provide.subset_of or Provide, with each option a mapping keyed by Port objects of the bundle (never strings), one_of where only one instance exists, all_of where every option can be used at once, and a custom bundle where one choice must fix pins on more than one side of a part?"
+  - "SWAPPABILITY_FIDELITY: does every offered mapping correspond to a swap the part's datasheet or the protocol allows, with polarity inversion offered only where both ends tolerate it (end-to-end USB 2.0 D+/D- never crosses; USB 3.x and PCIe inversion only with confirmed controller support), and no lane, byte or polarity freedom invented to make routing easier?"
+  - "CONSTRAINTS_THROUGH_ASSIGNMENT: do SI constraints name fixed physical ends with Topology(begin, end) over plain nets, give each pass-through part on the path a BridgingPinModel, and close the path with code Routes whose ends are the provider's physical pins, so the constraint measures once the assignment resolves?"
+  - "VERIFICATION_BY_DESIGN_ISSUES: is the result proven with `jitx design issues <module.Design> --satisfied` (or RuntimeDesign.issues(satisfied=True)) on each variant, reading Time and Skew lines for the resolved cases and `Code route dropped`, `No path for signal constraint` or `Unassigned Pin` for the unresolved and illegal ones, and is binding kept separate from numeric compliance?"
+hard_fails:
+  - "A require()d port is stored on self (a member field of the circuit)."
+  - "A code Route ends on a require()d port instead of the provider's physical pins."
+  - "A constraint is claimed to apply without a measured Time, Loss or Skew line from the design-issue report, including claims based on status: ok, a clean build or type checking alone."
+  - "`>>` (TopologyNet) is used where no daisy chain whose order matters exists."
+  - "Part data is invented: a real part number, pinout, swap capability, delay or loss with no datasheet or cited source, or a fictional fixture not labelled fictional."
+  - "A mapping offers a swap the part or protocol does not allow, such as end-to-end USB 2.0 D+/D- inversion or a channel that splits a pass-through pair across sides."
