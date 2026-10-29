@@ -56,7 +56,7 @@ Construct JITX objects directly. Never walk a `list[dict[str, Any]]` spec to emi
 
 A circuit's boundary is typed ports: `Power` from `jitx.common` (members `Vp`, `Vn`) and protocol bundles from `jitxlib.protocols` (`I2C`, `SPI`, `RGMII`, `MIIM`, `MDI1000BaseT`). Find one with `grep -rn "class RGMII"` under the venv's `jitxlib/protocols` and read its module path and members. Never write member names from memory, and check constructor options (`SPI(cs=True)` adds `cs`).
 
-A port nets only to a port of the same concrete type and parameters: `+` between two `Power` ports joins them member for member, and `Power + I2C` raises `ValueError: Incompatible ports on Net`. `+` pairs members by name, so cross members named per device: `UART` `tx` to `rx`, `LanePair` `TX` to `RX`. `RGMII` connects by name: `RGMII.Constraint` pairs `src.TX` with `dst.TX`. SI constraints and topology are `jitx-interconnect-constraints`.
+A port nets only to a port of the same concrete type and parameters: `+` between two `Power` ports joins them member for member, and `Power + I2C` raises `ValueError: Incompatible ports on Net`. `+` pairs members by name, so cross members named per device: `UART` `tx` to `rx`, `LanePair` `TX` to `RX`. `RGMII` connects by name: `RGMII.Standard.Constraint` pairs `src.TX` with `dst.TX`. SI constraints and topology are `jitx-interconnect-constraints`.
 
 ```python
 class EthernetPort(Circuit):
