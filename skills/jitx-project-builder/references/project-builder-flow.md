@@ -168,6 +168,7 @@ Phase 2 tasks have partial dependencies. Group into clusters:
 - **Cluster A: Pin assignment wrappers** — depend on components from Phase 1. These define the provide/require flexibility for the central IC(s). Other Phase 2 tasks may depend on these.
 - **Cluster B: Power circuits** — depend on power components. Often independent of other clusters.
 - **Cluster C: Interface circuits + constraints** — depend on components, substrate routing structures, and possibly pin assignment wrappers.
+- **SI verification tasks (`ver-`)**: one per constrained interface, each depending on every module task on the path (the modules at both ends and any module it passes through) and the constraint (`cst-`) task, so it starts once those are accepted. See [SI verification designs (CRITICAL)](#si-verification-designs-critical).
 
 Run independent clusters in parallel. Within a cluster, respect dependencies.
 
@@ -182,7 +183,7 @@ Run independent clusters in parallel. Within a cluster, respect dependencies.
 
 Subcircuits that expose bundles (I2C, ULPI, USB2, etc.) wire the bundle sub-ports to component pins with `+`, including for signals that will receive an SI constraint at top level. On jitx 4.6 a constraint binds across plain nets; no `>>` is needed. What it does need is a `BridgingPinModel` on every pass-through part inside the subcircuit and, before it measures, routes along the path. See [Plain nets carry SI constraints (CRITICAL)](#plain-nets-carry-si-constraints-critical).
 
-The Phase 2 task that owns a module carrying SI constraints also writes and passes that module's verification design; see [SI verification designs (CRITICAL)](#si-verification-designs-critical).
+Each constrained interface's verification design belongs to its own Phase 2 `ver-` task, not to the module tasks on its path; see [SI verification designs (CRITICAL)](#si-verification-designs-critical).
 
 ### Exit Gate: Phase 2 → Phase 3
 
@@ -194,7 +195,7 @@ The Phase 2 task that owns a module carrying SI constraints also writes and pass
 - [ ] For any signal that will receive an SI constraint at top level, every pass-through part on its path inside the subcircuit has a `BridgingPinModel`, and the bundle wiring uses plain `+` nets with no `>>` added to make the constraint bind; see [Plain nets carry SI constraints (CRITICAL)](#plain-nets-carry-si-constraints-critical). The gate block records this in its `Constrained-path wiring and pin models` row
 - [ ] **No anonymous `Resistor` / `Capacitor` / `Inductor` `.insert(...)` calls and no bare `+` expressions** in the subcircuit; every structural object is stored on `self` (see [Silent-drop patterns (CRITICAL)](#silent-drop-patterns-critical)). The `grep gates` line from `python scripts/check.py <ns>/` enforces this rule; hard-fail hits block this gate.
 - [ ] **Every power-rail capacitor `.insert(...)` call uses `short_trace=True`** for decoupling, bypass, bulk, and output filter capacitors. Non-power-rail caps (AC coupling, RC time constants, RF matching, compensation, crystal load) and non-cap inserts (resistors, inductors) are dispositioned in the task acceptance block as exceptions or N/A. See `jitx-circuit-builder/SKILL.md` "short_trace=True is the default for power-rail capacitors". The `grep gates` line from `python scripts/check.py <ns>/` flags every `.insert(...)` missing `short_trace=` as review-required.
-- [ ] Every module that carries SI constraints has a verification design at `<ns>/designs/verify_<module>.py` that passes per [SI verification designs (CRITICAL)](#si-verification-designs-critical), quoted in that task's `SI measurements` row
+- [ ] Every constrained interface has an accepted `ver-` task whose verification design, `<ns>/designs/verify_<iface>.py`, passes per [SI verification designs (CRITICAL)](#si-verification-designs-critical), quoted in that task's `SI measurements` row. The gate block records this in its `SI verification designs` row
 - [ ] Port names and bundle types match between providers and consumers
 - [ ] Power circuit outputs match the voltage/current needs documented in ARCHITECTURE.md
 
@@ -238,7 +239,7 @@ A single sub-agent assembles the top-level design. The orchestrator reviews its 
            .timing_difference(0.1e-12)
    ```
    Every protocol with impedance or timing requirements needs constraints here. Read [Plain nets carry SI constraints (CRITICAL)](#plain-nets-carry-si-constraints-critical) below: a constraint measures only once routes close its path.
-8. The assembly agent compares every SI constraint against the module's
+8. The assembly agent compares every SI constraint against its interface's
    accepted verification design: constraint class, parameters, routing
    structure, Topology ends and pin models, with the evidence listed under
    [SI verification designs (CRITICAL)](#si-verification-designs-critical). A
@@ -305,7 +306,7 @@ are present.
 
 ### Plain nets carry SI constraints (CRITICAL)
 
-On jitx 4.6, `Constrain`, `ConstrainDiffPair` and `ConstrainReferenceDifference` apply to `Topology(begin, end)` when the ports between the two ends are joined by ordinary `+` nets. A subcircuit wires its bundle sub-ports to component pins with `+`, the top level merges the bundles with `+`, and the constraint follows the signal across both. No `>>` is needed. On jitx 4.6.0rc10 with runtime 4.6.0-rc.16, a diff pair netted to a circuit-level `DiffPair` port with `+` in each of two subcircuits, joined with `+` at the top and code-routed, measured `Time: 104.529ps` and `Skew: 0s` whether the Topology named the component pins or the two circuit bundle ports. A circuit bundle port resolves to the first pad behind it, so with a series part inside the sub-circuit, name the chip pad instead.
+On jitx 4.6, `Constrain`, `ConstrainDiffPair` and `ConstrainReferenceDifference` apply to `Topology(begin, end)` when the ports between the two ends are joined by ordinary `+` nets. A subcircuit wires its bundle sub-ports to component pins with `+`, the top level merges the bundles with `+`, and the constraint follows the signal across both. No `>>` is needed. On jitx 4.6.0rc10 with runtime 4.6.0-rc.16, a diff pair netted to a circuit-level `DiffPair` port with `+` in each of two subcircuits, joined with `+` at the top and code-routed, measured `Time: 104.529ps` and `Skew: 0s`, with no unresolved text in any group, whether the Topology named the component pins or the two circuit bundle ports. A circuit bundle port resolves to the first pad behind it, so with a series part inside the sub-circuit, name the chip pad instead, and on a single-ended net also put a structure-only constraint on the circuit ports: without it the segment joined through the ports reports `Missing routing structure` (with it the measured Time changes; not tried on a diff pair). `jitx-interconnect-constraints` "Choosing the ends" has the measured case.
 
 ```python
 # Subcircuit: the bundle port and the component pin share a plain net.
@@ -333,7 +334,7 @@ What a constraint does need, and what the design-issue report says when it is mi
 |---|---|
 | Routes along the path. The path is inferred from routes; code `Route`s close it without the board view. | `Unconnected Topology on Path: drv.o, cap.a`, `Signal path from drv.o to l1.o is not routed yet`, or `No path for signal constraint from X to Y` |
 | A `BridgingPinModel` between the two ports of each pass-through part (AC cap, flow-through ESD channel, series resistor) | `No path for signal constraint from drv.o to rcv.o: the ends are only connected through the part between cap.a and cap.b, which has no pin model.` |
-| A routing structure on the constraint (`.structure(...)`) | `Missing routing structure on Path: drv.o, cap.a` |
+| A routing structure on every segment: `.structure(...)` on the constraint, plus a structure-only constraint across the circuit ports when the ends are chip pads behind series parts in sub-circuits | `Missing routing structure on Path: drv.o, cap.a` |
 | For pin-assigned ports, routes on the provider's physical pins (`jitx-pin-assignment`, "Constraints on Pin-Assigned Ports") | `Unassigned Pin on Path: ...` or `No path for signal constraint ...` |
 
 A via on the path takes its delay and loss from its via class's `models = {(start, stop): PinModel(...)}`.
@@ -341,38 +342,39 @@ A via on the path takes its delay and loss from its via class's `models = {(star
 #### Quick checklist
 
 For every signal that will have an SI constraint applied at the top level:
-- [ ] Both Topology ends are the chip pads at the two ends of the path. A circuit bundle port also works as an end, but it resolves to the first pad behind it, so a series part between that port and the chip is left out of the measurement
+- [ ] Both Topology ends are the chip pads at the two ends of the path, except where a pin-assignment provider is itself an end: there the Topology begins on the `require()`d port (`jitx-pin-assignment`, "Constraints on Pin-Assigned Ports"). A circuit bundle port also works as an end, but it resolves to the first pad behind it, so a series part between that port and the chip is left out of the measurement
+- [ ] Where the ends are chip pads behind series parts in sub-circuits joined through their ports, a structure-only constraint across those ports covers the segment between them (`jitx-interconnect-constraints` "Choosing the ends")
 - [ ] Every pass-through part between the ends has a `BridgingPinModel`
 - [ ] `>>` appears only for a daisy chain whose order the router must follow (a flyby clock), never to make a constraint bind
-- [ ] The module's verification design (code-routed) shows a Time, Loss or Skew line for the constraint (one with a timing, loss or skew target) under `jitx design issues ... --satisfied`; see [SI verification designs (CRITICAL)](#si-verification-designs-critical). Without `--satisfied`, satisfied constraints are not printed. A measured line means the constraint applied; compare the value to its target separately.
+- [ ] The path's verification design (code-routed) shows a Time, Loss or Skew measurement for the constraint (one with a timing, loss or skew target) in its SI check; see [SI verification designs (CRITICAL)](#si-verification-designs-critical). Without `satisfied=True`, satisfied constraints are left out. A measurement means the constraint applied; whether it is met is `group.satisfied`.
 
 ### SI verification designs (CRITICAL)
 
 Binding is proven on a code-routed verification design, not on the shipping assembly. Proof routes fix one path and, on a pin-assigned port, one mapping. In the shipping assembly they would take away the routing and pin-assignment freedom the board is built to keep, so the assembly carries none.
 
-In Phase 2, the task that owns a module carrying SI constraints (an interface circuit, or a pin-assignment wrapper whose ports carry them) also writes that module's verification design, at `<ns>/designs/verify_<module>.py`. The Phase 3 assembly checks its constraints against it for parity. The task's PLAN entry depends on the module at the far end of each constrained path and on the constraint (`cst-`) task. The worked model is `jitx-pin-assignment`'s USB-through-ESD example, "Constraints on Pin-Assigned Ports".
+A constrained interface is all the paths one constraint spans between the same modules: the two legs of a `ConstrainDiffPair`, every lane of a `DiffPairConstraint` or bus constraint, a byte lane and its strobe under one `ConstrainReferenceDifference`. Each constrained interface gets its own Phase 2 `ver-` task (`ver-01`, `ver-02`, ...), which writes the verification design at `<ns>/designs/verify_<iface>.py`. Its PLAN entry depends on every module task on the path (the modules at both ends and any module the path passes through) and the constraint (`cst-`) task. The module tasks verify on their own `TestDesign` and do not depend on each other for SI, so two modules that share a path never wait on each other. The Phase 3 assembly checks its constraints against the verification design for parity. For routing and placement, follow `jitx-pin-assignment`'s USB-through-ESD example ("Constraints on Pin-Assigned Ports"), but keep the constraint out of the product module: that example applies `ConstrainDiffPair` inside its circuit, which grep gate Pattern 1 hard-fails under `<ns>/circuits/`. Here the constraint goes in `verify_<iface>.py` and in the assembly.
 
 A verification design:
-- instantiates the module with the parts at both ends of each constrained path, and places every part with `.at(...)`;
+- instantiates every module on the interface's paths with the parts between them, and places every part with `.at(...)`;
 - applies the SI constraints the assembly will apply, with the same Topology ends and pin models;
-- code-routes every constrained path between physical pads; for a pin-assigned port, the routes land on the provider's physical pins and fix one legal mapping;
-- is checked with `jitx design issues <ns>.designs.verify_<module>.<VerifyDesign> --satisfied`.
+- code-routes every path of the interface between physical pads; for a pin-assigned port, the routes land on the provider's physical pins and fix one legal mapping;
+- is checked with its SI check script, `<ns>/designs/check_si_<iface>.py`, run as `python -m <ns>.designs.check_si_<iface>`: the Python check in `jitx-interconnect-constraints` "Verification" (`issues(satisfied=True, wait=30)`, a `report.complete` check, then each group's `satisfied` and text, all in `main()` behind the `__name__` guard) with the verification design imported. The assembly's script, `<ns>/designs/check_si_main.py`, belongs to the assembly task (`asm-01`).
 
-It passes when every constraint with a timing, loss or skew target shows a measured Time, Loss or Skew line from its intended begin pad to its intended end pad, and its group (under `Signal Constraint:`, `Topology:` or `Routing:`) has no unresolved text. Unplaced parts give `Missing Connection on Path` and `Unable to find path for requested route` instead of a measurement.
+It passes when every constraint with a timing, loss or skew target shows a Time, Loss or Skew measurement from its intended begin pad to its intended end pad, and no group for it holds unresolved text. Unplaced parts give `Missing Connection on Path` and `Unable to find path for requested route` instead of a measurement.
 
 A constraint that carries only `.structure(...)`, with no timing, loss or skew target, never appears in the report, satisfied or not. It is exempt from the measured-line rule and from the absent-from-report rule; its evidence is the constraint in code (class, Topology ends, structure), recorded in the parity row.
 
-On the shipping assembly, run `jitx design issues <ns>.main.Design --satisfied` and sort each SI line by whether its constraint's path has copper yet:
+On the shipping assembly, run `python -m <ns>.designs.check_si_main` and sort each SI group by whether its constraint's path has copper yet:
 
 - No route on the path: `Unconnected Topology`, `not routed yet`, `No path for signal constraint` with no part named, and `Unassigned Pin` on a pin-assigned end are expected and recorded.
-- Any route on the path: the constraint is held to the verification-design bar, a measured line between its intended ends with no unresolved text, `Missing routing structure` and a placeholder via model (`... Using placeholder model`) included. Those two appear only beside a measurement, so they are checked on the verification design and on routed paths.
+- Any route on the path: the constraint is held to the verification-design bar, a measurement between its intended ends with no unresolved text, `Missing routing structure` and a placeholder via model (`... Using placeholder model`) included. Those two appear only beside a measurement, so they are checked on the verification design and on routed paths.
 - Blocking wherever it appears: `No path for signal constraint ... which has no pin model`, `Virtual connection without a pin model`, and a constraint with a timing, loss or skew target that is absent from the report.
 
-Compliance is read from the routed assembly's own measured lines. A verification design's values are proof-route numbers, not the board's.
+Compliance is read from the routed assembly's own groups (`group.satisfied`); the printed text reads the same met or unmet. A verification design's values are proof-route numbers, not the board's.
 
-Parity compares constraint class, parameters, routing structure, Topology ends and pin models between the verification design and the assembly. The verification side's evidence is its measured lines (for a structure-only constraint, its code). The assembly side's is its constraint code, plus the `Unconnected Topology on Path:` segment list where the report gives one; a pin-assigned end reports `Unassigned Pin`, and an unrouted plain chain may report `not routed yet` or a bare `No path`, and then the code comparison stands alone. A missing comparison or a mismatch returns the assembly task to `rework`.
+Parity compares constraint class, parameters, routing structure, Topology ends and pin models between the verification design and the assembly. The verification side's evidence is its measurements (for a structure-only constraint, its code). The assembly side's is its constraint code, plus the `Unconnected Topology on Path:` segment list where the report gives one; a pin-assigned end reports `Unassigned Pin`, and an unrouted plain chain may report `not routed yet` or a bare `No path`, and then the code comparison stands alone. A missing comparison or a mismatch returns the assembly task to `rework`.
 
-Where the evidence goes: the module task's `SI measurements` row in its task acceptance block quotes the verification design's command and measured lines. The `Gate: Phase 3 → Phase 3b` block's `SI design issues dispositioned` row quotes the assembly's sorted lines. The Phase 4 Verification Block's `SI constraint binding` row quotes each verification design's measured lines and the assembly's sorted lines.
+Where the evidence goes: the `ver-` task's `SI measurements` row in its task acceptance block quotes the verification design's check command and its printed groups. The `Gate: Phase 3 → Phase 3b` block's `SI design issues dispositioned` row quotes the assembly's sorted groups. The Phase 4 Verification Block's `SI constraint binding` row quotes each verification design's measurements and the assembly's sorted groups.
 
 ### Silent-drop patterns (CRITICAL)
 
@@ -431,11 +433,11 @@ These editor-side checks won't catch Pattern 1 (the `.insert(...)` call has a si
 - [ ] All require() calls have matching provides
 - [ ] `GroundSymbol` on GND net, `PowerSymbol` on every power rail
 - [ ] SI constraints applied **at this level** (not inside subcircuits) for every protocol with impedance/timing requirements
-- [ ] Every SI constraint matches its module's accepted verification design in
+- [ ] Every SI constraint matches its interface's accepted verification design in
       constraint class, parameters, routing structure, Topology ends and pin
       models; the assembly acceptance block cites the parity evidence per
       [SI verification designs (CRITICAL)](#si-verification-designs-critical)
-- [ ] `jitx design issues <ns>.main.Design --satisfied` run on the assembly and every SI line sorted per [SI verification designs (CRITICAL)](#si-verification-designs-critical): unrouted texts recorded only on constraints whose path has no copper, routed constraints held to the verification-design bar, and no line that blocks wherever it appears. The gate block records this in its `SI design issues dispositioned` row
+- [ ] `python -m <ns>.designs.check_si_main` run on the assembly and every SI group sorted per [SI verification designs (CRITICAL)](#si-verification-designs-critical): unrouted texts recorded only on constraints whose path has no copper, routed constraints held to the verification-design bar, and no text that blocks wherever it appears. The gate block records this in its `SI design issues dispositioned` row
 - [ ] **No `Reference to structural object … lost during instantiation` warnings in the build output**: every structural object stored on `self`; no bare `+` expressions (see [Silent-drop patterns (CRITICAL)](#silent-drop-patterns-critical))
 - [ ] `ReferencePlanes(...)` context wraps all constraint applications
 - [ ] Board geometry defined (shape, mounting holes, pours)
@@ -523,7 +525,7 @@ Do not accept "noted for future refactoring" — if it's broken, fix it now.
 - [ ] Outside-voice attempts record completed and skipped counts; every skipped
       pass has a reason and the user's explicit approval to proceed quoted (else the
       verdict is block), and every completed-pass finding has a disposition
-- [ ] Every high-speed interface has SI constraints applied and functional: applied in the assembly, each constraint meeting the bar for its routing state, and functional because its module's verification design passes (see [SI verification designs (CRITICAL)](#si-verification-designs-critical))
+- [ ] Every high-speed interface has SI constraints applied and functional: applied in the assembly, each constraint meeting the bar for its routing state, and functional because its interface's verification design passes (see [SI verification designs (CRITICAL)](#si-verification-designs-critical))
 - [ ] PLAN.md updated with all rework tasks completed
 
 **Emit the `Gate: Phase 3b → Phase 4` block** from `references/completion-blocks.md` before advancing. The gate references the Phase 3b audit block (in the same file), which the read-only audit agent emits during Phase 3b.
@@ -541,7 +543,7 @@ Do not accept "noted for future refactoring" — if it's broken, fix it now.
 3. Check output for:
    - Every summary line reports `PASS`: proceed to verification
    - Any `FAIL` or `ERROR`: read the full tool output, dispatch a fix sub-agent, review its acceptance block, and re-run the command
-4. Run `jitx design issues <VerifyDesign> --satisfied` on each verification design and `jitx design issues <ns>.main.Design --satisfied` on the assembly, and apply [SI verification designs (CRITICAL)](#si-verification-designs-critical): each verification design passes, and each assembly constraint meets the bar for its routing state with no blocking line. Read compliance from the assembly's own measured lines. Rerun after any change to routing, a pin model or an SI constraint.
+4. Run each verification design's SI check (`python -m <ns>.designs.check_si_<iface>`) and the assembly's (`python -m <ns>.designs.check_si_main`), and apply [SI verification designs (CRITICAL)](#si-verification-designs-critical): each verification design passes, and each assembly constraint meets the bar for its routing state with no blocking line. Read compliance from the assembly's own `group.satisfied`. A constraint whose path has no route on the assembly has no compliance measurement: its `SI constraints` row reads `not measured: unrouted`, and the block lists the Deferred item `SI compliance pending routing: rerun python -m <ns>.designs.check_si_main after routing`, which goes to the user. Rerun after any change to routing, a pin model or an SI constraint.
 5. Open the popout viewer (`jitx ui open --board --design <ns>.main.Design` and `jitx ui open --schematic --design <ns>.main.Design`) and verify:
    - Schematic: all connections present, symbols readable
    - Board: components placed (or floating), no overlaps
@@ -551,7 +553,7 @@ Do not accept "noted for future refactoring" — if it's broken, fix it now.
    - Build errors → dispatch a code fix, review, and re-run the verification command
    - DRC violations → dispatch a clearance or routing-structure fix
    - SI constraint failures → dispatch parameter and routing-structure review
-   - A verification design that does not pass, or an assembly constraint below the bar for its routing state: dispatch a fix to the owning module or the assembly, then rerun step 4
+   - A verification design that does not pass, or an assembly constraint below the bar for its routing state: dispatch a fix to the owning `ver-` task, module or assembly, then rerun step 4
    - Missing connections → trace back to Phase 2/3 and dispatch the fix
 
 7. **Emit the Phase 4 Verification Block** from `references/completion-blocks.md`. The block requires the parts gate field and JITX UI / Issues List / DRC / SI / placement-overlap rows with explicit pass/fail status, or a `not run` reason for any row the environment can't run (e.g. headless CI). PLAN reconciliation, deferred items, and blocking items also belong in the block. **Blocking items must be empty for `Verdict: done`.**
@@ -565,6 +567,7 @@ The Phase 4 Verification Block is the completion criterion. The block enforces:
 - [ ] JITX UI verification rows pass or are `not run` with reason
 - [ ] Issues List, DRC, SI rows have status (or `not run` with reason)
 - [ ] `SI constraint binding` row: every verification design passes and each assembly constraint meets the bar for its routing state, per [SI verification designs (CRITICAL)](#si-verification-designs-critical)
+- [ ] Every assembly constraint read `not measured: unrouted` has the `SI compliance pending routing` Deferred item, shown to the user
 - [ ] All PLAN.md tasks accepted; all gate blocks emitted; Phase 3b audit verdict `clean`
 - [ ] No blocking items
 - [ ] User-approved deferrals documented

@@ -2,8 +2,8 @@
 
 Parameter tables for the protocol constraints JITX ships. All timing values in seconds, impedance in ohms.
 
-- `jitxlib.protocols`, installed with jitx, carries USB, DisplayPort, Ethernet MDI, RGMII and others. The Ethernet tables below are the values those modules apply.
-- `jitxexamples.protocols.memory`, in the jitx-examples package, carries point-to-point DDR4 and LPDDR4. Each module's docstring cites the source table for every number, and each has a worked example design (`ddr4_example`, `lpddr4_example`).
+- `jitxlib.protocols`, in the `jitxlib-standard` package (installed separately from jitx), carries USB, DisplayPort, Ethernet MDI, RGMII and others. The Ethernet tables below are the values those modules apply.
+- `jitxexamples.protocols.memory`, in the `jitxexamples` distribution, carries point-to-point DDR4 and LPDDR4. Each module's docstring cites the source table for every number, and each has a worked example design (`ddr4_example`, `lpddr4_example`).
 
 For a protocol not listed here, write the constraint from the controller's layout guide and cite it; do not use typical values.
 

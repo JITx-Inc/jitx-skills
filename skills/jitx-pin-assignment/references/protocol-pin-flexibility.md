@@ -51,7 +51,8 @@ require(PCIeLink) -> lane[i].TX + dst.lane[i].RX                 (plain nets)
                   -> ConstrainReferenceDifference(guide=Topology(lane[0].TX.p, ...),
                                                   topologies=[lane[1:] legs])
                   -> Route on the switch's physical lane pins   (resolves the mapping)
-                  -> jitx design issues --satisfied             (measured lines)
+                  -> rt.submit(Design).issues(satisfied=True, wait=30)
+                     (report.complete; measurements; group.satisfied)
 ```
 The reference guide must be a single pin, so inter-lane skew uses one leg (`TX.p`) as the guide. See the SKILL.md section [Constraints on Pin-Assigned Ports](../SKILL.md#constraints-on-pin-assigned-ports).
 
@@ -81,7 +82,8 @@ require(DDR4Data) -> byte_lane[bl].DQ[i] + mem.DQ[offset+i]      (plain nets)
                   -> ConstrainReferenceDifference(guide=Topology(DQS.p, mem.DQS_P[bl]),
                                                   topologies=DQ_topos)
                   -> Route on the controller's physical DQ/DQS pins (resolves the mapping)
-                  -> jitx design issues --satisfied             (measured lines)
+                  -> rt.submit(Design).issues(satisfied=True, wait=30)
+                     (report.complete; measurements; group.satisfied)
 ```
 
 ## LPDDR5 Pin Flexibility

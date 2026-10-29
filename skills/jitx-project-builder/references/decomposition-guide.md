@@ -252,11 +252,13 @@ Phase 1 (parallel, ~6 tasks):
   comp-04: QSFP/SFP connector
   comp-05: SMA connectors + JTAG header
 
-Phase 2 (clustered parallel, ~7 tasks):
+Phase 2 (clustered parallel, ~9 tasks):
   Cluster A: cir-01 power tree — depends on comp-03
   Cluster B: cst-01 DDR5 constraints, cir-02 DDR5 interface — depends on comp-01, comp-02, sub-01
   Cluster C: cst-02 SerDes constraints, cir-03 SerDes interface — depends on comp-01, comp-04, sub-01
   pin-01: FPGA provides — depends on comp-01
+  ver-01: DDR5 SI verification (depends on pin-01, cir-02, cst-01)
+  ver-02: SerDes SI verification (depends on pin-01, cir-03, cst-02)
 
 Phase 3: Top-level assembly (complex — ReferencePlanes, pours, many constraints)
 Phase 4: Build + verify + iterate

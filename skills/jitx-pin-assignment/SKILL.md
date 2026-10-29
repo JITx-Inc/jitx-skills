@@ -419,7 +419,7 @@ On jitx 4.6 an SI constraint (timing, insertion loss, intra-pair skew, skew agai
 4. Pick the Topology ends by where the assigned part sits.
    - The assigned part is mid-path (an ESD array): put the ends on fixed physical pins on either side, such as `Topology(self.host.usb, self.conn.usb)`. While the assignment is unresolved or illegal, the report says `No path for signal constraint from host.usb.p to conn.usb.p`.
    - The provider is itself an end (a PCIe switch's lanes, a DDR controller's byte lanes): the Topology begins on the required port. While the assignment is unresolved, the report says `Unassigned Pin on Path: nets[0].p`. Once routes resolve it, the measured line names the physical pin, such as `from src.u.a.p to conn.tx.p`.
-5. Prove it with design issues ([Step 3](#step-3-prove-constraints-with-design-issues)). A constraint counts as applied only when its Time, Loss or Skew line appears.
+5. Prove it with design issues ([Step 3](#step-3-prove-constraints-with-design-issues)). A constraint counts as applied only when its group carries a Time, Loss or Skew measurement; whether it is met is `group.satisfied`.
 
 ### Worked example: USB 2.0 through a channel-swappable ESD array
 
@@ -548,7 +548,7 @@ class VerifyUsbThroughEsd(ProjectDesign):  # your project's Design subclass
 
 The verification design with five routings (each row sets `host_channels` and `conn_channels`; the last row leaves the routes out), run on jitx 4.6.0rc10 against runtime 4.6.0-rc.16 with a fictional ESD part (3 ps and 0.05 dB per channel) on `jitx.sample.SampleSubstrate`. The runnable version is this repository's `evals/cases/reference/usb-through-esd-swap/` case.
 
-| Routes (D+, D- channel; host side / connector side) | What `jitx design issues --satisfied` reports |
+| Routes (D+, D- channel; host side / connector side) | What the design issues report holds |
 |---|---|
 | (1, 2) / (1, 2), offered | `Time: 112.879ps` on each leg, `Skew: 0s - Target: ± 3.75ps` |
 | (4, 3) / (4, 3), offered, inverted | `Time: 115.823ps` and `137.724ps`, `Skew: 21.9ps - Target: ± 3.75ps` |
@@ -556,7 +556,7 @@ The verification design with five routings (each row sets `host_channels` and `c
 | (1, 2) / (3, 4), sides disagree | `Code route dropped`; `No path for signal constraint` on both legs; nothing measured |
 | none | `No path for signal constraint` on both legs; nothing measured |
 
-Binding is not compliance. The inverted routing measures 21.9 ps of skew against a 3.75 ps limit, from its crossed D+/D- routes on one layer. The constraint applied, and the routing violates it. Read the measured value against the target; a measured line means the constraint bound, not that it passed.
+Binding is not compliance. The inverted routing measures 21.9 ps of skew against a 3.75 ps limit, from its crossed D+/D- routes on one layer. The constraint applied, and the routing violates it. A measurement means the constraint bound; whether it passed is `group.satisfied`, not the printed text.
 
 ### PCIe pattern: lane providers + per-lane constraints
 
@@ -766,21 +766,41 @@ jitx build <module.path.DesignClass>
 
 Don't run parallel JITX builds against the same project — sequence them. See [Build safety: don't parallelize same-design work](../jitx/SKILL.md#build-safety-dont-parallelize-same-design-work).
 
-The design-issue report (Step 3) groups its lines under headings such as `Signal Constraint:`, `Topology:` and `Routing:`.
+The design-issue report (Step 3) groups its issues by category, such as signal constraint, topology and routing.
 
 ### Step 3: Prove constraints with design issues
 
 A clean build says nothing about whether an SI constraint on a pin-assigned path applied. Run the check on a verification design: a separate Design whose parts are placed and whose code routes land on the provider's physical pins, fixing one mapping (see [Constraints on Pin-Assigned Ports](#constraints-on-pin-assigned-ports)). The product design keeps no proof routes, so its assignment stays open and its report shows `No path for signal constraint` or `Unassigned Pin` for these constraints until the board is routed.
 
-```bash
-jitx design issues <module.path.VerifyDesignClass> --satisfied
+Run this as a script from the project root while the project's runtime is running:
+
+```python
+import jitx
+
+from mypkg.verify import VerifyDesign
+
+
+def main() -> None:
+    with jitx.runtime as rt:
+        report = rt.submit(VerifyDesign).issues(satisfied=True, wait=30)
+        if not report.complete:
+            print("report incomplete: raise wait and run again")
+        for group in report.groups():
+            print("met" if group.satisfied else "NOT MET", group.text)
+            if len(group.issues) > 1:
+                for issue in group:
+                    print("   ", issue.text)
+
+
+if __name__ == "__main__":
+    main()
 ```
 
-`--satisfied` is required: without it, satisfied constraints are not printed. From Python, `with jitx.runtime as r: r.submit(MyDesign).issues(satisfied=True, wait=30).text()` returns the same report. The command exits 0 whatever it reports unless `--error` is given, so a script must read the text.
+`satisfied=True` is required: without it, satisfied constraints are left out. `group.satisfied` is each check's verdict; the text reads the same met or unmet. A group of several issues shows only the first in `group.text`. The body stays in `main()` because design discovery imports every `.py` in the project. `jitx-interconnect-constraints` `references/verification.md` covers the rest of the report API.
 
 | Report text | Meaning |
 |---|---|
-| `Time: 112.879ps - Target: ...`, `Skew: 0s - Target: ...`, `Loss: ...` | The assignment resolved and the constraint applied. Compare the value to the target separately. |
+| `Time: 112.879ps - Target: ...`, `Skew: 0s - Target: ...`, `Loss: ...` | The assignment resolved and the constraint applied. Whether it is met is `group.satisfied`. |
 | `No path for signal constraint from host.usb.p to conn.usb.p` | Ends on fixed pins around the assigned part, and the assignment did not resolve: no routes, or routes that match no offered mapping. |
 | `Unassigned Pin on Path: nets[0].p` | The Topology ends on the required port, and the assignment did not resolve. |
 | `Code route dropped: it conflicts with other connections` | The routes matched no offered mapping; the conflicting routes were dropped. A leg whose routes fit an offered mapping can still measure. |
