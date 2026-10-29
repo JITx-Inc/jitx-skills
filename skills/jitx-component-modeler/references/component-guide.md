@@ -74,7 +74,7 @@ Split a part over about 40 pins into boxes, one per functional group the datashe
 
 - `ball_diameter` is the copper land from the manual's PCB design-rule table, not the ball on the mechanical drawing; the ball builds a silently oversized pattern. The `BGA` docstring has the chain, pad access and row alphabet. Comment which document each number came from.
 - A vendor-defined NC ball gets a port and symbol pin, marked `no_connect()` in the component's `__init__`, so unconnected-port checks can tell it from a forgotten wire. A depopulated position has no port; `GridPlanner.is_active` returns `False` for it.
-- Off-grid balls need a `BGADecorated` subclass; `HexBGA` in `jitxexamples.demos.si_bga_optimization.generic_bga` is a worked one.
+- Off-grid balls (a second pitch, offset groups, a staggered grid) take an override of `_generate_layout`, per the `BGADecorated` docstring; `HexBGA` in `jitxexamples.demos.si_bga_optimization.generic_bga` is a worked one.
 - Tests reach pads by position through a public adapter, as `VersalBGA.get_pad` does: zero-indexed `(row, column)`, stated in its docstring.
 
 ## Testing and build
