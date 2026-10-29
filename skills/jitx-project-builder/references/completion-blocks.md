@@ -223,8 +223,8 @@ Pattern 1 skips `constraints/` directories, `main.py`, and test modules
 (`test_*.py`, `*_test.py`, `tests/`) because the prescribed layout puts SI
 constraint definitions, the seeded top-level design, and test harnesses there.
 It also skips `<ns>/designs/`, where SI verification designs
-(`verify_<module>.py`) apply their constraints. A hit anywhere else is an SI constraint applied inside an ordinary subcircuit and
-blocks acceptance.
+(`verify_<module>.py`) apply their constraints. A hit anywhere else is an SI
+constraint applied inside an ordinary subcircuit and blocks acceptance.
 
 Pattern 9 catches f-strings that look like they're building tag-style identifiers (`ALL_CAPS` prefix + brace). Legitimate uses (log lines like `f"ERROR_{code}"`) need disposition with rationale. The disposition workflow keeps this from becoming compliance theater.
 

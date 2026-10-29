@@ -9,7 +9,6 @@ P/N inversion is only safe when both endpoints handle the inverted signal correc
 | Protocol | P/N Swap Possible | Controller-Dependent? | Notes | Constraint Class |
 |----------|-------------------|----------------------|-------|------------------|
 | PCIe | Yes (spec allows) | Yes — controller must have RX polarity inversion | Per-lane; most modern PCIe PHYs support this | `DiffPairConstraint` |
-| SATA | No | — | Strict polarity per spec | `DiffPairConstraint` |
 | USB 2.0 | No | — | D+/D- polarity is protocol-critical | N/A |
 | USB 3.x | Not covered | n/a | This reference has no cited source for USB 3.x lane or polarity freedom. Offer none unless the controller datasheet documents it, and cite that datasheet in the provider. | `DiffPairConstraint` |
 | DisplayPort | Yes (spec allows) | Yes — source must support lane polarity inversion | Per lane (ML0-ML3) | `DiffPairConstraint` |
@@ -41,15 +40,9 @@ The PCIe specification permits lane reversal and polarity inversion, but **the c
 | Width variants (x1/x2/x4/x8/x16) | Yes | Yes — controller must support the narrower width | Separate `Provide` per width | `DiffPairConstraint` per lane |
 | Lane-to-port remapping | Yes | Yes — requires lane reversal support | `one_of` with different `lane_offset` | `ConstrainReferenceDifference` for inter-lane skew |
 
-### PCIe Constraint Parameters (from specification)
+### PCIe Constraint Parameters
 
-| Generation | Intra-pair Skew | Inter-lane Skew | Diff Impedance | Max Loss |
-|------------|----------------|----------------|----------------|----------|
-| Gen 1 (2.5 GT/s) | 25 ps | 20 ns | 85 ohm | 12 dB |
-| Gen 2 (5.0 GT/s) | 15 ps | 8 ns | 85 ohm | 12 dB |
-| Gen 3 (8.0 GT/s) | 10 ps | 6 ns | 85 ohm | 12 dB |
-| Gen 4 (16.0 GT/s) | 5 ps | 4 ns | 85 ohm | 20 dB |
-| Gen 5 (32.0 GT/s) | 3 ps | 2 ns | 85 ohm | 28 dB |
+This reference carries no PCIe skew or loss numbers. Take them from the controller's or retimer's layout guide and cite it in the constraint.
 
 ### PCIe Constraint Pattern
 ```
@@ -77,16 +70,9 @@ DDR4 byte and bit swapping is **entirely controller-dependent**. The DDR4 JEDEC 
 | CK P/N swap | No | — | Per rank | Fixed wiring | `ConstrainDiffPair` |
 | Bank address | No | — | Global | Fixed wiring | `Constrain` timing |
 
-### DDR4 Constraint Parameters (typical, verify against controller/memory datasheets)
+### DDR4 Constraint Parameters
 
-| Signal Group | Constraint Type | Typical Value |
-|-------------|-----------------|---------------|
-| DQ-to-DQS (read) | `ConstrainReferenceDifference` | +/- 25 ps |
-| DQ-to-DQS (write) | `ConstrainReferenceDifference` | +/- 25 ps |
-| CK intra-pair skew | `ConstrainDiffPair` | 5 ps |
-| CMD/ADDR-to-CK | `ConstrainReferenceDifference` | +/- 50 ps |
-| DQS diff impedance | `DifferentialRoutingStructure` | 100 ohm |
-| DQ single-ended | `RoutingStructure` | 50 ohm |
+`jitxexamples.protocols.memory.ddr4` applies cited point-to-point values; the table is in `jitx-interconnect-constraints` [protocol-standards.md](../../jitx-interconnect-constraints/references/protocol-standards.md#ddr4). For another controller, take the values from its layout guide.
 
 ### DDR4 Byte Swap Constraint Pattern
 ```
@@ -113,15 +99,9 @@ Like DDR4, LPDDR5 data bus flexibility is **controller-dependent**. The JEDEC sp
 | CK/WCK/RDQS P/N | No | — | Strict | Polarity is always fixed |
 | CS per rank | No | — | Per channel | Fixed mapping |
 
-### LPDDR5 Constraint Parameters (typical, verify against datasheets)
+### LPDDR5 Constraint Parameters
 
-| Signal Group | Constraint Type | Typical Value |
-|-------------|-----------------|---------------|
-| DQ-to-WCK | `ConstrainReferenceDifference` | +/- 50 ps |
-| WCK intra-pair | `ConstrainDiffPair` | 5 ps |
-| RDQS intra-pair | `ConstrainDiffPair` | 5 ps |
-| CA-to-CK | `ConstrainReferenceDifference` | +/- 100 ps |
-| CK intra-pair | `ConstrainDiffPair` | 5 ps |
+This reference carries no LPDDR5 numbers. Take them from the controller's layout guide and cite it in the constraint.
 
 ## MCU Peripheral Muxing (I2C, SPI, UART)
 

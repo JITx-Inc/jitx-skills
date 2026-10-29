@@ -273,7 +273,7 @@ self.rx_nets = [self.phy.serial.tx + self.fpga.serial.rx]
 
 `constrain_topology(src, dst)` calls `constrain(src, dst)` immediately and returns a context manager that yields `(src, dst)`; it only moves an end along a `>>` chain already in the circuit. On plain nets it adds nothing over `constrain`.
 
-For protocols with several signal groups, compose: a `DDR4Constraint` holds a data constraint and an address/command constraint and calls each from its own `constrain`. See [jitx_protocols_ext](https://github.com/JITx-Inc/jitx-protocols-ext) for complete protocol implementations including PCIe, SATA, SFP, DDR4, LPDDR4, LPDDR5, and GDDR7.
+For protocols with several signal groups, compose: a `DDR4Constraint` holds a data constraint and an address/command constraint and calls each from its own `constrain`. `jitxexamples.protocols.memory` (jitx-examples) implements DDR4 and LPDDR4 this way, with every number cited to its source.
 
 ## Working with Built-in Protocols
 
