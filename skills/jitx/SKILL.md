@@ -11,12 +11,11 @@ Base skill for JITX hardware design automation. JITX is a Python framework for p
 
 The `jitx` CLI owns project scaffolding, auth, runtime install/start, and design build for VSCode-free workflows. Drive everything through it.
 
-> **Supported version line — one owner for this fact.** This bundle documents
-> **jitx 4.6.x** (`jitx >= 4.6, < 4.7`), the public PyPI line as of the 4.6.0 release.
-> Every "verified on 4.4.0" note elsewhere in the bundle is evidence for a specific claim; this
-> line is the only place the *supported range* is stated, so no sibling skill restates it.
-> Earlier lines (4.0.x, 4.2.x) are no longer described here — APIs, defaults and CLI behaviour
-> below differ from what these pages say. On an older install, either upgrade or expect the
+> **Supported version line: one owner for this fact.** This bundle targets
+> **jitx 4.6.x** (`jitx >= 4.6, < 4.7`), the public PyPI line from the 4.6.0 release.
+> A note naming 4.4.0 records where one claim was measured; it was not re-run on 4.6.
+> This is the only place the *supported range* is stated; no sibling skill restates it.
+> Earlier lines (4.0.x, 4.2.x, 4.4.x) are not described here. On one, upgrade or expect the
 > pages to disagree with your package; verify every import with `pyright` either way.
 
 > **Platform note (read once).** These commands run in **your** shell on **your** OS. macOS / Linux / WSL / Git Bash use **bash**; native Windows uses **PowerShell**. Commands identical in both (all `jitx ...`, `pip ...`, `pyright`, `ruff`, every `python scripts/...`) are shown once; where they diverge, a `bash` block and a `powershell` block are given — run the one for your shell.
@@ -76,6 +75,7 @@ arrives late — the Phase 0 environment probe, or the first divider. Install it
 
 **Pre-release builds** live on the internal index and are not needed for any of the above:
 `PIP_PRE=1 pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple ...`.
+A 4.6 release candidate sorts below `4.6`; pin `"jitx>=4.6.0rc1,<4.7"` for one.
 
 ### Step 2 — Project layout (scaffold if missing)
 
