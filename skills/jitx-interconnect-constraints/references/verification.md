@@ -18,19 +18,20 @@ never-applied constraint gives. `--wait` gives background tasks time to finish
 before the snapshot (default 5 s). `--category signal_constraint` narrows the
 report, but do not narrow it while debugging: unresolved texts also land under
 `Topology:` (`No path ... no pin model`, `not routed yet`) and `Routing:`
-(`Unable to find path for requested route`). The command exits 0 whatever it finds unless `--error <severity>` is
-given. `jitx --format json design issues ...` gives each issue's class, text,
-pins and, for a measurement, `detail.signal_integrity` with `measured_range`,
-`acceptable_range` and `satisfied`, which a script can check. From Python, the
-submitted design returns the same report:
+(`Unable to find path for requested route`). The command exits 0 whatever it
+finds unless `--error <severity>` is given.
+`jitx --format json design issues ...` gives each issue's class, text, pins
+and, for a measurement, `detail.signal_integrity` with `measured_range`,
+`acceptable_range` and `satisfied`, which a script can check. From Python,
+the submitted design returns the same report:
 `with jitx.runtime as r:` then `r.submit(MyDesign).issues(satisfied=True, wait=30).text()`.
 
 A second query of a design already submitted, unchanged, has hung on this
 runtime for minutes. Restart the project's runtime (`jitx runtime stop`, then
 `jitx runtime start --background`) before querying it again.
 
-`status: ok`, a clean type check, and the existence of a harness are not
-evidence that a constraint applied.
+`status: ok`, a clean type check, and the existence of a harness or
+verification design are not evidence that a constraint applied.
 
 ## What applied looks like
 
@@ -54,7 +55,8 @@ Signal Constraint:
   and an end, or between pads inside a sub-circuit, covers a shorter span than
   intended.
 - A `Constrain` that carries only `.structure(...)` produces no line, so the
-  report cannot confirm it applied.
+  report cannot confirm it applied. The verification rule below exempts it and
+  takes its code as the evidence.
 
 Binding and compliance are separate claims. Binding: the measurement exists.
 Compliance: the measured value lies inside its target. A violated constraint
@@ -85,28 +87,44 @@ not the design's number. Fix the cause and re-run; do not claim the constraint.
 Proof routes fix one placement and, on a pin-assigned port, one pin mapping, so
 they go in a code-routed verification design, one per module that carries SI
 constraints, and not in the shipping assembly. The verification design places
-the parts, code-routes every constrained path between physical pads (on a
-pin-assigned port, the provider's physical pins), and passes when each
-constraint has a measured line with the intended ends and none of the
+the parts and code-routes every constrained path between physical pads (on a
+pin-assigned port, the provider's physical pins). It passes when every
+constraint with a timing, loss or skew target shows a measured Time, Loss or
+Skew line from its intended begin pad to its intended end pad, and its group
+(under `Signal Constraint:`, `Topology:` or `Routing:`) has none of the
 unresolved texts above.
 
-Run the command on the assembly too, and disposition each SI line. While the
-assembly is unrouted, these are expected and recorded: `Unconnected Topology`,
-`not routed yet`, `No path for signal constraint` with no part named, and
-`Unassigned Pin` on pin-assigned ends. These block even unrouted: `No path ...
-which has no pin model`, `Virtual connection without a pin model`, and a
-constraint that is absent from the report. `Missing routing structure` and the
-placeholder via model appear only beside a measurement, so an unrouted
-assembly cannot show them; check them on the verification design and on the
-routed assembly. Once the assembly is routed, it is held to the
-verification-design bar: every constraint measures between its intended ends,
-with none of the unresolved texts above.
+A constraint that carries only `.structure(...)`, with no timing, loss or skew
+target, never appears in the report, satisfied or not. It is exempt from the
+measured-line rule and from the absent-from-report rule; its evidence is the
+constraint in code (class, Topology ends, structure), recorded in the parity
+evidence.
 
-Parity: the assembly applies the same constraint class and parameters as its
-verification design, routing structure included, through the same pin models.
-The evidence on the verification side is its measured lines; on the assembly
-side it is the same Topology ends and pin models in code, plus, while unrouted,
-the `Unconnected Topology on Path:` segment list, which names each segment
-between bridged parts. The physical ends must match (the dotted prefix
-changes with the hierarchy); any other difference returns the assembly for
-rework unless it is named with its reason.
+Run the command on the assembly too, and sort each SI line by whether its
+constraint's path has copper yet:
+
+- No route on the path: `Unconnected Topology`, `not routed yet`, `No path for
+  signal constraint` with no part named, and `Unassigned Pin` on a pin-assigned
+  end are expected and recorded.
+- Any route on the path: the constraint is held to the verification-design
+  bar, a measured line between its intended ends with none of the unresolved
+  texts above, `Missing routing structure` and a placeholder via model
+  included. Those two appear only beside a measurement, so they are checked on
+  the verification design and on routed paths.
+- Blocking wherever it appears: `No path for signal constraint ... which has no
+  pin model`, `Virtual connection without a pin model`, and a constraint with a
+  timing, loss or skew target that is absent from the report.
+
+Compliance is read from the routed assembly's own measured lines. A
+verification design's values are proof-route numbers, not the board's.
+
+Parity compares constraint class, parameters, routing structure, Topology ends
+and pin models between the verification design and the assembly. The
+verification side's evidence is its measured lines (for a structure-only
+constraint, its code). The assembly side's is its constraint code, plus the
+`Unconnected Topology on Path:` segment list where the report gives one; a
+pin-assigned end reports `Unassigned Pin`, and an unrouted plain chain may
+report `not routed yet` or a bare `No path`, and then the code comparison
+stands alone. The physical ends must match (the dotted prefix changes with the
+hierarchy); any other difference returns the assembly for rework unless it is
+named with its reason.
