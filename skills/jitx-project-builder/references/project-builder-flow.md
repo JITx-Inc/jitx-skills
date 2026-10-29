@@ -429,7 +429,7 @@ A bare net or topology expression builds with `status: ok` and passes every JITX
 
 JITX warns for *some* lost objects (you'll see `WARNING:jitx._structural:Reference to structural object <Class> at <file>:<line> lost during instantiation, it likely needs to be assigned to an object` for unassigned constraint objects and similar structural classes), but **the warning does not cover bare net or topology expressions** (`+` / `>>` between ports), which is exactly where this trap is easiest to fall into. Treat all such warnings as errors, and code review for the pattern below regardless.
 
-A passive held only in a local variable, or constructed inline inside a net, is not silent: once its ports join a net, `jitx build` fails with `Unable to map local reference ..., parent <Circuit> is not an ancestor of child <Port>`, which a `jitx.test.TestCase` does not catch. Assign it to an attribute on `self` (`self.r_nrst = Resistor(resistance=10e3 * ohm)`). A passive whose ports join nothing builds with the `lost during instantiation` warning above.
+A passive held only in a local variable, or constructed inline inside a net, is not silent: once its ports join a net, `jitx build` fails with `Unable to map local reference ..., parent <Circuit> is not an ancestor of child <Port>`, which a `TestCase` that only instantiates the design misses. Assign it to an attribute on `self` (`self.r_nrst = Resistor(resistance=10e3 * ohm)`). A passive whose ports join nothing builds with the `lost during instantiation` warning above.
 
 #### Bare net or topology expressions
 
