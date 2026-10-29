@@ -68,7 +68,7 @@ Direct construction is what `@pytest.mark.parametrize` forces, since a parametri
   ```
 
   Inside a `SubstrateContext` it gives 8 for a generated SOIC-8, equal to `len(lp.p)`, and 441 for a generated 21 by 21 BGA, where `lp.p` does not exist. Do not count by enumerating attributes: `lp.p` exists only on the linearly numbered generators, a BGA's `AlphaDictNumbering` keeps its row dictionaries outside the instance namespace, and an attribute walk over one-letter row names returned 0 for that BGA. `lp.pads` is not an accessor either. Compare `pad_count` with the datasheet's pin count plus its thermal pads. If the count cannot be established for the package at hand, the pad-count check stays open and verification stops rather than recording an unchecked number.
-- **The human-readable value label**, or its deliberate absence, as the SKILL.md `Value / BOM` row requires.
+- **The value field left unset**, as the SKILL.md `Value / BOM` row requires.
 - **Library defaults against the datasheet**, wherever the land pattern took them — dimensions *and* density level. Pin a known-bad entry as still-wrong, so the override is removed when the table is fixed.
 
 **For a generated component**, add the assertions in [pin-file-generation.md](pin-file-generation.md#testing-a-generated-component). Note that a spot-check expression indexing a `PadMapping` needs the narrowing in [component-code-patterns.md](component-code-patterns.md#padmapping-requirements); written literally it does not type-check, and a suite gated on "pyright clean" will contradict itself.
