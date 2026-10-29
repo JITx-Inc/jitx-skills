@@ -12,8 +12,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import jitx.test  # noqa: E402
-from design import (  # noqa: E402
+import jitx.test
+from design import (
     CORE_BALLS,
     GND_BALLS,
     RSVD_GND_BALLS,
