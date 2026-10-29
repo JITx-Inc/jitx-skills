@@ -71,7 +71,7 @@ The datasheet remains the higher authority for dimensions, pin labels, and pad a
 
 **Mechanical / pad-only footprints (Tag-Connect TC2050, fiducials, castellations, pogo pads):** these have no purchasable component — no stock/lifecycle to check. Channel evidence does not apply; the vendor mechanical drawing is the source. See "Mechanical / Vendor-Defined Footprints" below.
 
-**Standard passives queried via `jitxlib.parts`:** the LCSC channel for an `R 4.7kΩ 0402` is satisfied by the query — `jitxlib.parts` already returns LCSC-stocked options when `mounting="smd"` is set in the design's passive defaults. Don't collect channel evidence for every passive; only for named ICs and connectors.
+**Standard passives queried via `jitxlib.parts`:** an `R 4.7kΩ 0402` is served by the approved-parts chain (rows in `parts/approved-parts.csv`, or the user's parts provider), so its sourcing is the user's approval of that row, not channel evidence. Don't collect channel evidence for every passive; only for named ICs and connectors.
 
 ## Part Selection Workflow
 

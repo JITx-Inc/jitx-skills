@@ -279,7 +279,8 @@ class AppCircuit(Circuit):
 import jitx
 from jitx import Circuit, Net
 from jitx.common import GPIO, Power
-from jitx.net import Port, provide
+from jitx.net import Port, ShortTrace, provide
+from jitx.units import F, ohm
 from jitxlib.parts import Resistor, Capacitor
 
 
@@ -310,11 +311,15 @@ class MCUCircuit(Circuit):
         self.VCC += self.power.Vp + self.mcu.VCC
         self.GND += self.power.Vn + self.mcu.GND
 
-        self.c_bypass = Capacitor(capacitance=100e-9)
-        self.c_bypass.insert(self.mcu.VCC, self.mcu.GND, short_trace=True)
-
-        self.r_reset = Resistor(resistance=10e3)
-        self.r_reset.insert(self.mcu.VCC, self.mcu.RESET)
+        # Bypass cap: supply-side pad on a ShortTrace to the pin it serves.
+        self.c_bypass = Capacitor(capacitance=100e-9 * F)
+        self.GND += self.c_bypass.p2
+        self.r_reset = Resistor(resistance=10e3 * ohm)
+        self.VCC += self.r_reset.p1
+        self.nets = [
+            ShortTrace(self.c_bypass.p1, self.mcu.VCC),
+            self.r_reset.p2 + self.mcu.RESET,
+        ]
 
 
 class LEDDriverApp(Circuit):
@@ -335,11 +340,12 @@ class LEDDriverApp(Circuit):
 
         # Consume GPIOs — layout engine decides which physical pins
         self.r_leds = []
-        for i in range(2):
+        self.led_nets = []
+        for _ in range(2):
             gpio = self.mcu.require(GPIO)
-            r = Resistor(resistance=330.0)
+            r = Resistor(resistance=330 * ohm)
             self.r_leds.append(r)
-            r.insert(gpio.gpio, ...)  # wire to LED anode
+            self.led_nets.append(gpio.gpio + r.p1)  # r.p2 to the LED anode
 
 Device = LEDDriverApp
 ```

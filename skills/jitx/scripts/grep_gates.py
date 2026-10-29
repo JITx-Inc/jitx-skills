@@ -4,7 +4,7 @@
 # Runs the pattern set defined in jitx-project-builder/references/completion-blocks.md.
 # Reports hard-fail and review-required hits in the project's Python source.
 #
-# Pure stdlib (os/re/sys), so one file runs from bash AND PowerShell on every OS —
+# Pure stdlib (io/os/re/sys/tokenize), so one file runs from bash AND PowerShell on every OS, with
 # no `bash`, `grep`, or `ripgrep` dependency.
 #
 # Usage:
@@ -29,11 +29,15 @@
 # SELECTION is a deliberate contract change from the old script: it scans every *.py
 # and does NOT honor .gitignore (the rg branch did, the grep branch didn't — so the
 # old gate's coverage depended on whether rg was installed; this removes that drift).
-# The file list is sorted, so output is deterministic.
+# The file list is sorted, so output is deterministic. The power-rail capacitor
+# check is the exception: it reads each file with `tokenize` and counts call sites,
+# so comments and strings never count.
 
+import io
 import os
 import re
 import sys
+import tokenize
 
 TOP_LEVEL_PATH = os.environ.get("TOP_LEVEL_PATH", "designs")
 
@@ -164,22 +168,75 @@ def is_si_definition_site(path):
     )
 
 
-def report_insert(hits, quiet):
-    # Special case keeps the .sh's two slightly different labels (ok vs HIT line).
-    global review
-    if not hits:
-        if not quiet:
-            print(
-                "  ok    no hits: .insert(...) missing short_trace= (power-rail cap default)"
-            )
-        return
-    count = len(hits)
-    print(
-        f"  HIT {count} .insert(...) calls missing short_trace= (power-rail cap default)"
-    )
-    for path, lineno, line in hits:
-        print(f"      {path}:{lineno}:{line}")
-    review += count
+CAPACITOR_NAMES = frozenset({"Capacitor", "PolarizedCapacitor"})
+CAPACITOR_LINE = re.compile(r"\b(Polarized)?Capacitor\s*\(")
+
+
+def call_sites(text: str, names: frozenset[str]) -> list[int]:
+    """Line numbers of each call to one of `names`, read from Python tokens.
+
+    A call is a name token followed directly by `(`. Tokens inside comments,
+    strings and docstrings are not names, so they never count, and a
+    `class Capacitor(` or `def Capacitor(` definition is not a call.
+    """
+    lines: list[int] = []
+    tokens = list(tokenize.generate_tokens(io.StringIO(text).readline))
+    code_tokens = [
+        token
+        for token in tokens
+        if token.type
+        not in (tokenize.COMMENT, tokenize.NL, tokenize.NEWLINE, tokenize.INDENT)
+    ]
+    for index, token in enumerate(code_tokens[:-1]):
+        if token.type != tokenize.NAME or token.string not in names:
+            continue
+        if code_tokens[index + 1].string != "(":
+            continue
+        previous = code_tokens[index - 1] if index else None
+        if previous is not None and previous.string in ("class", "def"):
+            continue
+        lines.append(token.start[0])
+    return lines
+
+
+def power_rail_capacitor_hits(
+    source_files: dict[str, list[str]],
+) -> list[tuple[str, int, str]]:
+    """Capacitor call lines in files with fewer `ShortTrace(` calls than capacitors.
+
+    A power-rail capacitor joins the pin it serves through
+    `ShortTrace(self.c_x.p1, <IC power pin>)` (`.a` for a `PolarizedCapacitor`).
+    Per file, the gate counts `Capacitor(` and `PolarizedCapacitor(` call sites
+    and `ShortTrace(` call sites; when capacitors outnumber short traces, every
+    capacitor call line in the file is a hit. Call sites are counted, not
+    iterations: one `[Capacitor(...) for ...]` against one
+    `[ShortTrace(...) for ...]` passes. Comments, strings and docstrings never
+    count. The task acceptance block dispositions the hits that are not
+    power-rail capacitors: AC coupling, RC timing, compensation and RF matching.
+    A crystal's load capacitors and a bootstrap capacitor are not exceptions:
+    each takes a `ShortTrace` to the pin it serves (the crystal pin; the BOOT
+    pin, with the other pad on SW).
+    """
+    hits: list[tuple[str, int, str]] = []
+    for path, lines in source_files.items():
+        text = "\n".join(lines) + "\n"
+        try:
+            capacitors = call_sites(text, CAPACITOR_NAMES)
+            trace_calls = call_sites(text, frozenset({"ShortTrace"}))
+        except (tokenize.TokenError, SyntaxError):
+            # Untokenizable source: review every line that looks like a call.
+            capacitors = [
+                lineno
+                for lineno, line in enumerate(lines, start=1)
+                if CAPACITOR_LINE.search(line)
+            ]
+            trace_calls = []
+        if len(capacitors) <= len(trace_calls):
+            continue
+        hits.extend(
+            (path, lineno, lines[lineno - 1]) for lineno in sorted(set(capacitors))
+        )
+    return hits
 
 
 def main():
@@ -252,19 +309,6 @@ def main():
         quiet,
     )
 
-    # Anonymous structural insert anywhere — silent-drop pattern 1
-    # Misses nested constructor args (e.g., Resistor(resistance=Toleranced.percent(...)).insert(...))
-    # but catches the most common form.
-    run_check(
-        "Anonymous structural .insert(...) — silent-drop pattern 1",
-        r"\b(Capacitor|Resistor|Inductor)\s*\([^)]*\)\s*\.insert\s*\(",
-        False,
-        "hard-fail",
-        src_dir,
-        source_files,
-        quiet,
-    )
-
     if not quiet:
         print()
         print("=== review-required patterns ===")
@@ -292,10 +336,10 @@ def main():
         quiet,
     )
 
-    # Bare net/topology expression — silent-drop pattern 2
+    # Bare net/topology expression — silent-drop pattern
     # Allows trailing comments and bracket indexes (self.mcu.PA[5]).
     run_check(
-        "Bare net/topology expression — silent-drop pattern 2",
+        "Bare net/topology expression — silent-drop pattern",
         r"^\s*self\.\w+(\.\w+|\[[^\]]+\])*\s*(\+|>>)\s*self\.\w+(\.\w+|\[[^\]]+\])*(\s*#.*)?$",
         False,
         "review",
@@ -352,18 +396,16 @@ def main():
         quiet,
     )
 
-    # .insert(...) calls missing short_trace= — Phase 2 power-rail cap gate.
-    # Search .insert( then drop lines whose code text already passes short_trace=
-    # (substring test is on the matched line, not the file path). False
-    # positives on resistor/inductor inserts and non-power-rail caps (AC coupling,
-    # RC, RF, crystal load) — agent dispositions each per
-    # jitx-circuit-builder/SKILL.md "short_trace=True is the default for power-rail capacitors".
-    insert_hits = [
-        (p, n, t)
-        for (p, n, t) in run_search(r"\.insert\s*\(", False, src_dir, source_files)
-        if "short_trace" not in t
-    ]
-    report_insert(insert_hits, quiet)
+    # Power-rail capacitor rule: in a file whose Capacitor(...) and
+    # PolarizedCapacitor(...) call sites outnumber its ShortTrace(...) call sites,
+    # each capacitor call line is a review hit. Non-power-rail caps are
+    # dispositioned in the task acceptance block.
+    report(
+        "Capacitor(...) call sites outnumber ShortTrace(...) call sites in a file (power-rail cap rule)",
+        power_rail_capacitor_hits(source_files),
+        "review",
+        quiet,
+    )
 
     if not quiet:
         print()
