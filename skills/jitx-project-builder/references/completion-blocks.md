@@ -74,7 +74,7 @@ Run `python scripts/check.py <ns>/ --build <module.path.DesignClass>` once from 
 | Domain checklist | <name; N/N; M fixed; K N/A + reasons> |
 | General Gotcha Scrub | N/N |
 | Layout rules | <command; exit; witnessed/unwitnessed> |
-| SI spans | <`python scripts/check_si_spans.py <cache>`; exit code; exact span labels checked / not applicable + reason> |
+| SI measurements | <`jitx design issues <module.Design> --satisfied` command; one measured Time / Loss / Skew line per claimed constraint, quoted; no unresolved text in those groups / not applicable + reason> |
 | Physical realization | <`python scripts/check_realization.py <module.Design> [witness args]`; exit code; authored pours, stitch targets, board-wide pours / not applicable + reason> |
 | `ruff check` | <`ruff check` summary line; PASS, or FAIL fixed and re-run> |
 | `ruff format` | <`ruff format` summary line; PASS, or reformatted and re-run> |
@@ -121,11 +121,16 @@ The orchestrator (or user) then appends the acceptance decision:
 - **`N/A` requires a reason.** Bare `N/A` in any field is rejected on review.
 - **Primary source must be ground truth.** A prior project as primary source is a flag — the orchestrator should reject and ask for the datasheet (or user-confirmed exception). Prior projects belong under "Secondary references".
 - **Static checks are required where Python was touched.** `python scripts/check.py <ns>/` always runs `ruff check`, `ruff format --check`, `pyright`, and the grep gates. Every check reports `PASS`, `FAIL` or `ERROR`, and only `PASS` reaches acceptance. A `FAIL` is fixed and the command re-run, so the block carries the passing line rather than a recorded violation; a `FAIL` line in a submitted block returns the task to `rework`. An `ERROR` means the check did not run, which is not a pass: it blocks acceptance until the tool is available, or the orchestrator records why the environment cannot run it.
-- **SI-span and physical-realization rows are executable evidence.** When their
-  scope applies, the row carries the command, exit 0, and the witness names. A
-  missing row, exit 1, exit 2, or a claimed pass without named witnesses blocks
-  acceptance. `not applicable` names the concrete reason no SI span or authored
-  physical witness exists; it is not a substitute for an unavailable command.
+- **SI-measurement and physical-realization rows are executable evidence.** When
+  their scope applies, the SI row carries the design issues command and a quoted
+  measured line for every constraint it claims, and the physical row carries the
+  command, exit 0, and the witness names. A missing row, a constraint with no
+  measured line, an unresolved text (`Unconnected Topology`, `not routed yet`,
+  `No path`, `Missing routing structure`, a placeholder via model, `Missing
+  Connection`, `Unassigned Pin`), exit 1, exit 2, or a claimed pass without named
+  witnesses blocks acceptance. `not applicable` names the concrete reason no SI
+  constraint or authored physical witness exists; it is not a substitute for an
+  unavailable command.
 - **JITX code review (self) is required for complete-board tier.** A complete-board task acceptance block with `JITX code review (self): not run` defaults to `block`. Bulk dispositions on findings ("all accepted, framework code") without per-line rationale fail review. See `jitx-code-review/SKILL.md`.
 - **Harness / assembly constraint parity is required at assembly acceptance.** The
   assembly block names each constrained endpoint span in its accepted harness and
@@ -172,7 +177,7 @@ A review-required hit does not block, but each hit must appear in the task accep
 |---|------|---------|----|
 | 5 | Module-scope `for` loop — anti-string-hacking theme 9. Module-import-time logic that *might* populate a global table; legitimate uses (dispatch registration, static data generation) exist. Disposition: `fix (move into function)` or `accept (legitimate import-time logic: <reason>)`. See `jitx/SKILL.md` Don'ts and `jitx/references/architectural-patterns.md` § "No code at module-import time". | `^for\s+\w+\s+in\s+` | anywhere in `<ns>/` |
 | 6 | `Pour(..., isolate=...)` — legacy parameter (Pass 3 deprecates in favor of `design_constraint(...)` with Tags) | `\bPour\s*\([^)]*\bisolate\s*=` | anywhere in `<ns>/` |
-| 7 | Bare net/topology expression (silent-drop pattern 2 — `self.a + self.b` or `self.a >> self.b` with no LHS assignment) | `^\s*self\.\w+(\.\w+\|\[[^]]+\])*\s*(\+\|>>)\s*self\.\w+(\.\w+\|\[[^]]+\])*(\s*#.*)?$` | anywhere in `<ns>/` |
+| 7 | Bare net/topology expression (silent-drop pattern 2 — `self.a + self.b`, or the same with the daisy-chain operator, with no LHS assignment) | `^\s*self\.\w+(\.\w+\|\[[^]]+\])*\s*(\+\|>>)\s*self\.\w+(\.\w+\|\[[^]]+\])*(\s*#.*)?$` | anywhere in `<ns>/` |
 | 8 | `type(...)` call — verify not used for runtime type construction (use `isinstance` for type checks) | `\btype\s*\(` | anywhere in `<ns>/` |
 | 9 | Tag-like f-string — anti-string-hacking theme 1. f-strings (single- or double-quoted, lowercase or uppercase `f`/`F`) starting with an uppercase letter and building names via brace-substitution (`f"TX_b{i}"`, `f'L{n}_via'`, `F"GND_via_{n}"`) are the canonical string-keyed-name failure mode. See `jitx/SKILL.md` Don'ts and `jitx/references/architectural-patterns.md` § "String-keyed dicts → structural objects". Disposition: `fix (use structural object)` or `accept (legitimate use: <reason>)`. | `[fF]["'][A-Z][A-Za-z0-9_]*\{` | anywhere in `<ns>/` |
 | 10 | Broader `getattr(` — narrower hard-fail Pattern 3 catches `getattr(self, ...)`. This wider net catches `getattr(other, "...")` where strings are still the indirection mechanism. Most are still smells; legitimate framework uses (e.g., `getattr` on a known-typed external object) are dispositioned per-hit. | `\bgetattr\s*\(` | anywhere in `<ns>/` |
@@ -444,7 +449,7 @@ For each item: pass | fail with details | not run (with reason)
 | Issues List | <count> issues | <list, each with disposition> |
 | DRC | pass | <or list of violations with disposition> |
 | SI constraints | all satisfied | <or list of failures with disposition> |
-| SI span binding | exit 0 / not applicable | <exact `check_si_spans.py` command; exact printed span labels / concrete reason no SI span is expected> |
+| SI constraint binding | measured / not applicable | <exact `jitx design issues <module.Design> --satisfied` command; one quoted measured line per constraint / concrete reason no SI constraint is expected> |
 | Placement overlap | none | <or list> |
 | Physical realization | exit 0 | <exact `check_realization.py` command; authored pour names; stitch targets; board-wide pours> |
 
@@ -480,9 +485,10 @@ User-approved deferrals only. Each item: description + reason + follow-up plan.
 Rules:
 
 - A `not run` row with no reason fails the gate.
-- When SI spans are expected, the SI span-binding row is blocking. Absence,
-  `not run`, exit 1, or exit 2 makes the verdict `not-yet`; rerun the command
-  after final rework that changes topology or an SI constraint.
+- When SI constraints are expected, the SI constraint-binding row is blocking.
+  Absence, `not run`, a constraint with no measured line, or an unresolved text
+  in its group makes the verdict `not-yet`; rerun the command after final rework
+  that changes routing, a pin model, or an SI constraint.
 - The Physical realization row is blocking. Absence, `not run`, exit 1, or exit
   2 makes the verdict `not-yet`; a clean build does not substitute for it.
 - A `not run` row also requires fallback artifacts: if the JITX UI isn't available, name the build-output files used to substitute for it. Conventional fallbacks:
