@@ -2,7 +2,7 @@
 
 Five-phase workflow for building complete JITX hardware designs from requirements. The orchestrator drives the flow, spawns parallel sub-agents, and enforces exit gates with acceptance reviews.
 
-**This file applies to the complete-board tier only.** Tier classification happens before Phase 0 — see `jitx/SKILL.md` "First: Pick the Workflow Tier" and `references/completion-blocks.md`. Single-task tier does not enter the formal phase chain. If a single-task grows beyond a single artifact mid-work, upgrade to complete-board and apply Phase 0 retroactively (write PLAN.md + ARCHITECTURE.md, run the data audit) before continuing.
+**This file applies to the complete-board tier only.** Tier classification happens before Phase 0 — see this skill's SKILL.md "First: Pick the Workflow Tier" and `references/completion-blocks.md`. Single-task tier does not enter the formal phase chain. If a single-task grows beyond a single artifact mid-work, upgrade to complete-board and apply Phase 0 retroactively (write PLAN.md + ARCHITECTURE.md, run the data audit) before continuing.
 
 Every task in every phase emits a **task acceptance block** (template in `references/completion-blocks.md`) and the orchestrator appends the acceptance verdict to it. A task without an accepted block does not count toward an exit gate.
 
@@ -140,7 +140,7 @@ Please confirm data sources or provide alternatives (datasheets, footprints, spe
 
 ### Parallel Safety
 
-Phase 1 tasks are independent at the *design* level. Each sub-agent writes its own component file with its own test design. Parallel sub-agents each build their own test design; because each agent's design is distinct (different module paths, different component class names), concurrent builds against the same project are acceptable. The JITX backend serializes internally on the WebSocket. What is NOT safe is two agents building the same design at the same time; the orchestrator should never spawn two tasks targeting the same test design class. The spawn-batch rule does not change this same-design build-safety rule. See [Build Safety — Don't Parallelize Same-Design Work](../SKILL.md#build-safety--dont-parallelize-same-design-work).
+Phase 1 tasks are independent at the *design* level. Each sub-agent writes its own component file with its own test design. Parallel sub-agents each build their own test design; because each agent's design is distinct (different module paths, different component class names), concurrent builds against the same project are acceptable. The JITX backend serializes internally on the WebSocket. What is NOT safe is two agents building the same design at the same time; the orchestrator should never spawn two tasks targeting the same test design class. The spawn-batch rule does not change this same-design build-safety rule. See [Build safety: don't parallelize same-design work](../../jitx/SKILL.md#build-safety-dont-parallelize-same-design-work).
 
 ### Exit Gate: Phase 1 → Phase 2
 
@@ -548,27 +548,29 @@ Do not accept "noted for future refactoring" — if it's broken, fix it now.
 
 ### Phase 4 Process
 
-1. Run the full verification command: `python scripts/check.py <ns>/ --build <ns>.main.Design`
-2. Check output for:
+1. Run the parts gate first (base `jitx` skill, [`references/parts-chain.md`](../../jitx/references/parts-chain.md)): remove `ideal` from `[tool.jitx.parts] chain`, then `jitx build <design>` and `jitx design export parts-check <design> --fail all` must pass. Approved parts can change footprints, so every later check runs on the approved parts. A `no part found` goes to the user, not to a fix sub-agent: ask for the approved part, and change a value only with the user's sign-off and the affected circuit recomputed.
+2. Run the full verification command: `python scripts/check.py <ns>/ --build <ns>.main.Design`
+3. Check output for:
    - Every summary line reports `PASS`: proceed to verification
    - Any `FAIL` or `ERROR`: read the full tool output, dispatch a fix sub-agent, review its acceptance block, and re-run the command
-3. Open the popout viewer (`jitx ui open --board --design <ns>.main.Design` and `jitx ui open --schematic --design <ns>.main.Design`) and verify:
+4. Open the popout viewer (`jitx ui open --board --design <ns>.main.Design` and `jitx ui open --schematic --design <ns>.main.Design`) and verify:
    - Schematic: all connections present, symbols readable
    - Board: components placed (or floating), no overlaps
    - Issues List: SI constraints satisfied or flagged
    - DRC: clean or flagged
-4. Iterate:
+5. Iterate:
    - Build errors → dispatch a code fix, review, and re-run the verification command
    - DRC violations → dispatch a clearance or routing-structure fix
    - SI constraint failures → dispatch parameter and routing-structure review
    - Missing connections → trace back to Phase 2/3 and dispatch the fix
 
-5. **Emit the Phase 4 Verification Block** from `references/completion-blocks.md`. The block requires JITX UI / Issues List / DRC / SI / placement-overlap rows with explicit pass/fail status, or a `not run` reason for any row the environment can't run (e.g. headless CI). PLAN reconciliation, deferred items, and blocking items also belong in the block. **Blocking items must be empty for `Verdict: done`.**
+6. **Emit the Phase 4 Verification Block** from `references/completion-blocks.md`. The block requires the parts gate field and JITX UI / Issues List / DRC / SI / placement-overlap rows with explicit pass/fail status, or a `not run` reason for any row the environment can't run (e.g. headless CI). PLAN reconciliation, deferred items, and blocking items also belong in the block. **Blocking items must be empty for `Verdict: done`.**
 
 ### Completion Criteria
 
 The Phase 4 Verification Block is the completion criterion. The block enforces:
 
+- [ ] Parts gate passed: `ideal` removed, `parts-check --fail all` exit 0 (or a user-approved deferral)
 - [ ] `status: ok` on final build
 - [ ] JITX UI verification rows pass or are `not run` with reason
 - [ ] Issues List, DRC, SI rows have status (or `not run` with reason)
@@ -604,7 +606,7 @@ A failure seen in practice: `jitxlib` failed to import, so the agent silently dr
 Concrete rule:
 
 1. **Surface the missing dependency to the user immediately.** Name what's missing and what work it blocks.
-2. **Do not substitute a lower-fidelity design as a workaround** — no removing SI constraints because the SI module didn't load, no skipping `voltage_divider_from_constraints()` because the solver isn't available, no swapping a custom substrate for a fallback because the predefined package didn't import.
+2. **Do not substitute a lower-fidelity design as a workaround**: no removing SI constraints because the SI module didn't load, no swapping a custom substrate for a fallback because the predefined package didn't import.
 3. **Wait for user confirmation** before making any design-scope change. If the user explicitly accepts a reduced scope ("ship without controlled impedance, we'll fix the env after"), record that as a deferred item with their approval in the relevant gate block.
 4. **Environment fixes go before design fixes.** If the missing dependency is a setup issue (wrong venv, missing pip install, wrong Python version), fix the setup. If it's a real availability gap (`jitxexamples` not installed but referenced), confirm with the user before proceeding.
 

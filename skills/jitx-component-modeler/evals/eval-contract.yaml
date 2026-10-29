@@ -4,7 +4,7 @@
 # and references/component-guide.md.
 # The skill's own definition of what a good component has is the rubric its
 # outputs are judged against. That block cites, rather than restates, the base
-# skill's jitx/references/domains/component-modeling.md checklist, so the
+# skill's jitx-project-builder/references/domains/component-modeling.md checklist, so the
 # checklist keeps a single owner and the block stays the completion gate.
 goal: |
   An engineer hands the skill a datasheet PDF, a vendor's machine-readable pin file, or a

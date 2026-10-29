@@ -11,6 +11,7 @@ from pathlib import Path
 
 SKILLS = [
     "jitx",
+    "jitx-project-builder",
     "jitx-component-modeler",
     "jitx-circuit-builder",
     "jitx-substrate-modeler",

@@ -73,13 +73,23 @@ For local-path marketplaces, update the checkout instead of running `marketplace
 
 ### jitx
 
-Base workflow skill for JITX projects. Triggers on JITX-related tasks and provides environment setup, build commands, project structure guidance, and navigation to specialized skills.
+Base workflow skill for JITX projects: install, the jitx CLI and runtime, building designs, the board and schematic viewers, code quality checks, design introspection, and navigation to specialized skills.
 
 Example triggers:
 
 - "Build my JITX design"
 - "Set up JITX environment"
+- "List every port in my design from Python"
+
+### jitx-project-builder
+
+Turn board requirements into a complete, verified JITX design: tier classification, PLAN.md and ARCHITECTURE.md, phased sub-agent work with exit gates, and the Phase 3b design audit.
+
+Example triggers:
+
 - "Create a full JITX project"
+- "Design a PCB from these requirements"
+- "Resume the board project, what's left in the task graph?"
 
 ### jitx-component-modeler
 
@@ -187,10 +197,14 @@ jitx-skills/
 │   ├── jitx/
 │   │   ├── SKILL.md
 │   │   ├── references/
+│   │   └── scripts/                  # check.py, grep_gates.py
+│   ├── jitx-project-builder/
+│   │   ├── SKILL.md
+│   │   ├── references/
 │   │   │   ├── domain-checklists.md  # Checklist index
 │   │   │   ├── domains/              # Focused checklist files
 │   │   │   └── net-classes.md        # Cross-domain net taxonomy
-│   │   └── scripts/
+│   │   └── scripts/                  # plan_status.py
 │   ├── jitx-component-modeler/
 │   ├── jitx-circuit-builder/
 │   ├── jitx-substrate-modeler/

@@ -31,7 +31,6 @@
 {"intent": "Add a 10 kΩ pull-up and a 100 nF bypass capacitor to this existing JITX circuit.", "expected_skill": "jitx-circuit-builder"}
 {"intent": "Choose assemblable resistor and capacitor packages instead of the tiny parts my passive queries currently resolve.", "expected_skill": "jitx-circuit-builder"}
 {"intent": "Make the feedback resistors no worse than one percent tolerance without excluding tighter parts.", "expected_skill": "jitx-circuit-builder"}
-{"intent": "Create a 3.3 V to 0.8 V divider with the JITX voltage-divider solver.", "expected_skill": "jitx-circuit-builder"}
 {"intent": "Remove the series resistor, leave the IC input deliberately unconnected, and prove the netlist changed only there.", "expected_skill": "jitx-circuit-builder"}
 {"intent": "Why does this a + b connection vanish even though pyright passes?", "expected_skill": "jitx-circuit-builder"}
 {"intent": "Fix my capacitor insert call: short_trace says its first argument cannot be a net.", "expected_skill": "jitx-circuit-builder"}

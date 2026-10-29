@@ -3,7 +3,6 @@
 ## Table of Contents
 
 - [Query Refinement](#query-refinement)
-- [Voltage Divider Solver](#voltage-divider-solver)
 - [Net Symbols](#net-symbols)
 - [Provider / Require Pattern](#provider--require-pattern) (→ jitx-pin-assignment skill)
 - [Pours](#pours)
@@ -65,35 +64,6 @@ with CapacitorQuery.refine(type="ceramic", case="0805"):
 
     self.c_hf = Capacitor(capacitance=100e-9)
     self.c_hf.insert(self.buck.VIN, self.buck.GND, short_trace=True)
-```
-
-## Voltage Divider Solver
-
-**NEVER manually pick resistor values for voltage dividers** — use this solver instead. It finds real, purchasable E-series resistor pairs automatically.
-
-Two critical requirements:
-- **`v_out` MUST use `Toleranced.percent()`** — e.g., `Toleranced.percent(0.8, 3.0)` gives ±3%. Using `Toleranced.exact(0.8)` or bare `0.8` gives zero tolerance and the solver WILL fail with `NoPrecisionSatisfiesConstraintsError`.
-- **`prec_series` is required** — e.g., `[1.00, 0.10]`. Tells the solver which resistor precision grades to search.
-
-```python
-# jitxlib.voltage_divider ships as the jitxlib-voltage-divider distribution; the base skill's Step 2 installs it.
-from jitxlib.voltage_divider import VoltageDividerConstraints, voltage_divider_from_constraints
-from jitxlib.parts import ResistorQuery
-from jitx.toleranced import Toleranced
-
-cons = VoltageDividerConstraints(
-    v_in=Toleranced.exact(3.3),
-    v_out=Toleranced.percent(0.8, 3.0),     # ±3% tolerance window
-    current=0.8 / 10e3,
-    prec_series=[1.00, 0.10],               # resistor precision grades
-    base_query=ResistorQuery(case=["0402"]),
-)
-self.fb_div = voltage_divider_from_constraints(cons, name="feedback")
-
-# Wire: hi=input, lo=ground, out=feedback tap
-self.VOUT += self.fb_div.hi
-self.GND += self.fb_div.lo
-self.nets.append(self.fb_div.out + self.buck.FB)
 ```
 
 ## Net Symbols
@@ -220,10 +190,7 @@ from jitx import Circuit, Net
 from jitx.common import Power
 from jitx.constraints import Tag, design_constraint
 from jitx.interval import AtLeast
-from jitxlib.parts import Capacitor, CapacitorQuery, Resistor, Inductor, ResistorQuery
-# jitxlib.voltage_divider ships as the jitxlib-voltage-divider distribution; the base skill's Step 2 installs it.
-from jitxlib.voltage_divider import VoltageDividerConstraints, voltage_divider_from_constraints
-from jitx.toleranced import Toleranced
+from jitxlib.parts import Capacitor, CapacitorQuery, Resistor, Inductor
 
 from .my_buck_ic import MyBuckIC
 
@@ -237,7 +204,7 @@ class BuckConverterCircuit(Circuit):
     vin = Power()
     vout = Power()
 
-    def __init__(self, output_voltage=3.3, output_current=3.0):
+    def __init__(self, output_current=3.0, fb_r_top=31.6e3, fb_r_bot=10e3):
         self.GND = Net(name="GND")
         self.VOUT = Net(name="VOUT")
         self.VIN = Net(name="VIN")
@@ -260,18 +227,13 @@ class BuckConverterCircuit(Circuit):
             self.c_in_hf = Capacitor(capacitance=100e-9)
             self.c_in_hf.insert(self.buck.VIN, self.buck.GND, short_trace=True)
 
-        # Feedback voltage divider
-        vdiv_cons = VoltageDividerConstraints(
-            v_in=Toleranced.exact(output_voltage),
-            v_out=Toleranced.percent(0.8, 3.0),
-            current=0.8 / 10e3,
-            prec_series=[1.00, 0.10],
-            base_query=ResistorQuery(case=["0402"]),
-        )
-        self.fb_div = voltage_divider_from_constraints(vdiv_cons)
-        self.VOUT += self.fb_div.hi + self.vout.Vp
-        self.GND += self.fb_div.lo
-        self.feedback_nets = [self.fb_div.out + self.buck.FB]
+        # Feedback divider, E96 values: VOUT = 0.8 V * (1 + fb_r_top / fb_r_bot).
+        # The defaults give 3.33 V, +0.85 % against a 3.3 V target.
+        self.r_fb_top = Resistor(resistance=fb_r_top, tolerance=0.01)
+        self.r_fb_bot = Resistor(resistance=fb_r_bot, tolerance=0.01)
+        self.VOUT += self.r_fb_top.p1 + self.vout.Vp
+        self.GND += self.r_fb_bot.p2
+        self.feedback_nets = [self.r_fb_top.p2 + self.r_fb_bot.p1 + self.buck.FB]
 
         # Output inductor
         self.L = Inductor(

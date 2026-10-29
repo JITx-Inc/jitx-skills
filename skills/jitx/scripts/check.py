@@ -86,8 +86,8 @@ def is_import_error(output):
     )
     missing_module = re.search(r"(?m)^.*python.*: No module named ", output)
     # pyright reports a missing package as a diagnostic, not a traceback. In this
-    # bundle that is the wrong-interpreter case (see SKILL.md, "Run pyright in the
-    # environment the project's dependencies are installed in"), so it is ERROR,
+    # bundle that is the wrong-interpreter case (see SKILL.md, "Run pyright inside
+    # the project's environment"), so it is ERROR,
     # not a FAIL to "fix" by editing correct imports.
     pyright_unresolved = re.search(r'Import "[^"]+" could not be resolved', output)
     return bool(traceback_import or missing_module or pyright_unresolved)

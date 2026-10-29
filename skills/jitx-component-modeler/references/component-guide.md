@@ -11,7 +11,7 @@ For every named part (an MPN, a distributor part number or a user-supplied datas
 3. Records from a sourcing channel the user named, as a cross-check; the datasheet wins and the conflict is recorded.
 4. The user, for the datasheet, a distributor part number or a `.kicad_mod`.
 
-With none, the part is blocked unless the user explicitly authorizes a non-MPN generic placeholder, recorded under `Notes`. Writing "typical", "approximate" or "refine later" about a real part's geometry is the signal to stop: the reasoning that excuses one guessed part excuses a batch. Positional names (`p1`, `p2`) for terminals the source does not name are not invented labels. Before modeling a reusable family, search for an existing model per `jitx/references/parts-sourcing.md` "Reference Search Order for Component Modeling" and record `searched: found <path>` or `searched: no analog`.
+With none, the part is blocked unless the user explicitly authorizes a non-MPN generic placeholder, recorded under `Notes`. Writing "typical", "approximate" or "refine later" about a real part's geometry is the signal to stop: the reasoning that excuses one guessed part excuses a batch. Positional names (`p1`, `p2`) for terminals the source does not name are not invented labels. Before modeling a reusable family, search for an existing model per `jitx-project-builder/references/parts-sourcing.md` "Reference Search Order for Component Modeling" and record `searched: found <path>` or `searched: no analog`.
 
 ### MPN identity
 
@@ -33,7 +33,7 @@ Four-sided: QFP (gull-wing), QFN (no-lead)
 Ball array: BGA
 Anything else (connectors, RF modules, irregular pads): KiCad import
 Mechanical or vendor-defined (Tag-Connect, pogo pins, edge contacts):
-  jitx/references/parts-sourcing.md "Mechanical / Vendor-Defined Footprints"
+  jitx-project-builder/references/parts-sourcing.md "Mechanical / Vendor-Defined Footprints"
 ```
 
 A standard package uses its generator, even when a KiCad footprint exists: generated code is auditable. Fall back to KiCad only after the generator fails to express the package (a split paddle, an irregular lead layout), with the reason under `Notes`.
@@ -97,6 +97,6 @@ class TestDesign(SampleDesign):
 
 Tests constructing a component subclass `jitx.test.TestCase`; its docstring covers `SubstrateContext` and module-scope classes. A `SubstrateContext` stays active for the rest of the `TestCase` class, so a test leaning on an earlier test's context passes in suite order and fails alone. Count pads per package variant with `sum(1 for _ in visit(lp, Pad))`, never `lp.p` (a BGA has none), against pins plus thermal pads. Pin a known-bad library entry as still wrong, so the override goes when the table is fixed. A generated part adds [pin-file-generation.md](pin-file-generation.md#testing-a-generated-component). A skipped test is green: confirm the ones you rely on ran. "Can't run here" is a claim to test: `jitx build --dry` needs no runtime, and a missing `pyproject.toml` is four lines.
 
-Build in the available virtual environment (none: stop and ask) with `jitx build <target>`, expecting `status: ok`, one build per design at a time ([Build Safety](../../jitx/SKILL.md#build-safety--dont-parallelize-same-design-work)).
+Build in the available virtual environment (none: stop and ask) with `jitx build <target>`, expecting `status: ok`, one build per design at a time ([Build safety](../../jitx/SKILL.md#build-safety-dont-parallelize-same-design-work)).
 
-Report with the task acceptance block (`jitx/references/completion-blocks.md`) carrying the SKILL.md component check under `Checks run`, plus the `jitx/references/domains/component-modeling.md` checklist as N/N. `Footprint source` names the generator, or the KiCad import and why. Each check appears once, in the `Checks` row.
+Report with the task acceptance block (`jitx-project-builder/references/completion-blocks.md`) carrying the SKILL.md component check under `Checks run`, plus the `jitx-project-builder/references/domains/component-modeling.md` checklist as N/N. `Footprint source` names the generator, or the KiCad import and why. Each check appears once, in the `Checks` row.

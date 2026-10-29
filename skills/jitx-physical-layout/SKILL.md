@@ -28,7 +28,7 @@ geometry by **capturing and asserting the realized copper**
 | Code-based routes & control points (escape lanes, deskew) | **this skill** (advanced — see reference) |
 | Diagnose whether pours or stitch vias materialized and inspect captured pour geometry | **this skill** |
 | Design rules: clearances, widths, net classes, escape rule ladders, after-build width/clearance checks | `jitx-layout-constraints` |
-| Wire nets, add passives, voltage dividers, basic pours | `jitx-circuit-builder` |
+| Wire nets, add passives, basic pours | `jitx-circuit-builder` |
 | Define the stackup, vias, routing structures, fence-via rules, fenced pour outlines | `jitx-substrate-modeler` |
 | Author a component's package/landpattern from a datasheet | `jitx-component-modeler` |
 | Topology (`>>`), timing/skew/impedance constraints | `jitx-interconnect-constraints` |

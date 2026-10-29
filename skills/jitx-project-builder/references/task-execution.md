@@ -76,7 +76,7 @@ Run the required checks and test build once from the project root:
 python scripts/check.py <ns>/ --build <module.path.TestDesign>
 ```
 
-Don't run a concurrent build of the same design in parallel — see [Build Safety — Don't Parallelize Same-Design Work](../SKILL.md#build-safety--dont-parallelize-same-design-work).
+Don't run a concurrent build of the same design in parallel — see [Build safety: don't parallelize same-design work](../../jitx/SKILL.md#build-safety-dont-parallelize-same-design-work).
 
 In headless bash, the command is
 `yes | python scripts/check.py <ns>/ --build <module.path.TestDesign>` because a
@@ -110,7 +110,7 @@ This step typically catches 3-5 issues. Common misses by domain:
 
 **MCU/FPGA**: not all power domains modeled (only VCC but missed VCCA, VCCIO per bank), boot/config pins missing, debug interface incomplete
 
-**Power**: enable pin floating (needs pull-up or tie to VIN), PGOOD is open-drain but no pull-up, feedback divider uses manual resistor values instead of solver, thermal pad not connected to ground
+**Power**: enable pin floating (needs pull-up or tie to VIN), PGOOD is open-drain but no pull-up, feedback divider values off a named E-series or VOUT not recomputed from the datasheet equation, thermal pad not connected to ground
 
 **Interface**: missing decoupling on one of several power pins, I2C missing pull-ups, UART TX/RX crossed wrong, unused inputs floating
 
@@ -194,7 +194,7 @@ Do not re-run the entire checklist. Focus on the items most commonly missed for 
 | Component | Power/ground pin count matches the datasheet pages the spec note cites, thermal pad present, pin naming. Check against the PDF, not the note (CD-1). |
 | Component (footprint) | Pad positions plausible for package size, row spacing correct, pad dimensions match the datasheet mechanical drawing on the page the note cites, not the note's transcription of it and not memory |
 | MCU/FPGA | All power domains present, programming interface complete, reset pin present |
-| Power circuit | Enable pin handling, PGOOD output type + pull-up, **feedback divider uses solver not manual values**, bootstrap cap present |
+| Power circuit | Enable pin handling, PGOOD output type + pull-up, **feedback divider on a named E-series, VOUT recomputed**, bootstrap cap present |
 | Interface circuit | **Exposes bundle-typed ports**, decoupling on every IC power pin, **I2C pull-ups only if this circuit is the bus-aggregation level** (encloses both ends of a private bus); otherwise pull-ups go at the level that composes the bus |
 | **Any circuit** | **Did the sub-agent implement the datasheet's application circuit?** Compare the code against the application circuit on the datasheet page the note cites, not against the note's summary of it. Count external components; are any missing (transistors, caps, resistors)? Check pull-up voltage domains; nothing should pull to a high-voltage rail like VBUS. |
 | Substrate | All via types defined, ground plane continuity, impedance achievable |

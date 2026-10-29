@@ -184,7 +184,7 @@ apparent inconsistency resolves: it is not "strings in comments good, strings in
   correct rather than one per shape.
 
   Note the consequence for supplies: a rail the vendor gives exactly one pin lands as a *scalar*,
-  not a one-element list. The base skill's [MCU / FPGA Components (Additional)](../../jitx/references/domains/component-modeling.md#mcu--fpga-components-additional) checklist owns what follows
+  not a one-element list. The `jitx-project-builder` skill's [MCU / FPGA Components (Additional)](../../jitx-project-builder/references/domains/component-modeling.md#mcu--fpga-components-additional) checklist owns what follows
   from that.
 
 - Coordinate tables under a formatter-off guard, so the grid stays readable.

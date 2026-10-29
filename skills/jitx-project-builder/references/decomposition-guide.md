@@ -133,7 +133,7 @@ Within each cluster, tasks may need to be sequential (e.g., constraints before c
 
 ## Step 3b: Architectural decomposition for parametric tasks
 
-For any task that is *parametric* or *generator-shaped* — BGA ballout, deskew geometry, antipad fence pattern, N-lane fanout, per-layer table, repeating-block scene graph — ask the conditional architectural questions in the PLAN.md task before any code is written, then commit the answers once in ARCHITECTURE.md `Object-Hierarchy Decisions`. This is the decision point where the dominant AI failure mode (parallel string-keyed models — see `jitx/SKILL.md` Don'ts and `references/architectural-patterns.md`) becomes hard to reverse later.
+For any task that is *parametric* or *generator-shaped* — BGA ballout, deskew geometry, antipad fence pattern, N-lane fanout, per-layer table, repeating-block scene graph — ask the conditional architectural questions in the PLAN.md task before any code is written, then commit the answers once in ARCHITECTURE.md `Object-Hierarchy Decisions`. This is the decision point where the dominant AI failure mode (parallel string-keyed models — see `jitx/SKILL.md` Don'ts and `jitx/references/architectural-patterns.md`) becomes hard to reverse later.
 
 Trigger questions the orchestrator asks in PLAN.md; record the resulting commitments only in ARCHITECTURE.md `Object-Hierarchy Decisions`:
 
@@ -176,7 +176,7 @@ For every circuit task, the orchestrator writes the engineering questions that f
 - What is the input voltage range? (5-20V from PD) — does the converter handle this full range?
 - Does the datasheet show a bootstrap capacitor on BOOT? (Yes — 100nF)
 - Is a UVLO divider on EN needed for this input range? (Yes — prevents running at low VIN)
-- Feedback reference voltage? (0.596V) — use voltage_divider_from_constraints, never manual values
+- Feedback reference voltage? (0.596V)
 ```
 
 **Example for an amplifier circuit (TAS5805M):**

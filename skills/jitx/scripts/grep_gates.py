@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # grep_gates.py — JITX skill grep-gate enforcement (cross-platform: bash + PowerShell)
 #
-# Runs the pattern set defined in jitx/references/completion-blocks.md.
+# Runs the pattern set defined in jitx-project-builder/references/completion-blocks.md.
 # Reports hard-fail and review-required hits in the project's Python source.
 #
 # Pure stdlib (os/re/sys), so one file runs from bash AND PowerShell on every OS —

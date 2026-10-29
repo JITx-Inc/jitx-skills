@@ -67,13 +67,13 @@ ALLOWLIST: dict[str, dict[str, str]] = {
             "'Top-Level Only (do NOT put these in subcircuits)' heading"
         ),
     },
-    "skills/jitx/references/outside-voice-review.md": {
+    "skills/jitx-project-builder/references/outside-voice-review.md": {
         "mcu / fpga components": (
             "left-hand label of a task-class table row, not a citation of "
             "domains/component-modeling.md's 'MCU / FPGA Components (Additional)'"
         ),
     },
-    "skills/jitx/references/plan-template.md": {
+    "skills/jitx-project-builder/references/plan-template.md": {
         "data sources": (
             "label for this file's own guidance on the PLAN.md 'Data Sources' section "
             "(the template lives inside a fenced block, so its headings are invisible "

@@ -1,21 +1,22 @@
 // Routing fixtures for the `jitx` base skill.
-// Positives: asks that belong to the base skill — environment, tier classification,
-// the complete-board workflow, build/run, project structure.
+// Positives: install, CLI, runtime, build/run, viewers, code checks, introspection.
 // Negatives: near-misses that share vocabulary but are owned by a sibling skill.
 // Every negative names the skill that should win, so a collision is visible.
-{"intent": "build me a board with an STM32, a USB-C connector, an IMU on SPI and a microSD socket", "expected_skill": "jitx"}
-{"intent": "design a PCB from these requirements", "expected_skill": "jitx"}
-{"intent": "I need a complete JITX project from scratch, 4-layer JLCPCB", "expected_skill": "jitx"}
 {"intent": "set up the jitx environment and get the runtime running", "expected_skill": "jitx"}
 {"intent": "jitx build isn't finding my design", "expected_skill": "jitx"}
-{"intent": "what workflow tier is this, single task or complete board?", "expected_skill": "jitx"}
-{"intent": "write PLAN.md and ARCHITECTURE.md for this design before we start coding", "expected_skill": "jitx"}
-{"intent": "the plan doc for this board is enormous, trim it to what the sub-agents actually need", "expected_skill": "jitx"}
-{"intent": "we're at the Phase 1 to Phase 2 gate, what has to be true to advance?", "expected_skill": "jitx"}
-{"intent": "resume the board project, what's left in the task graph?", "expected_skill": "jitx"}
 {"intent": "open the board viewer for this design", "expected_skill": "jitx"}
-{"intent": "where does components/ go in a jitx project?", "expected_skill": "jitx"}
+{"intent": "my jitx find says import failed, ModuleNotFoundError", "expected_skill": "jitx"}
+{"intent": "run pyright and ruff on my jitx project and fix what they flag", "expected_skill": "jitx"}
+{"intent": "list every port in the design from python using jitx.inspect visit", "expected_skill": "jitx"}
 // Near-miss negatives — shared vocabulary, different owner.
+{"intent": "build me a board with an STM32, a USB-C connector, an IMU on SPI and a microSD socket", "expected_skill": "jitx-project-builder", "ambiguous_with": ["jitx"]}
+{"intent": "design a PCB from these requirements", "expected_skill": "jitx-project-builder", "ambiguous_with": ["jitx"]}
+{"intent": "I need a complete JITX project from scratch, 4-layer JLCPCB", "expected_skill": "jitx-project-builder", "ambiguous_with": ["jitx"]}
+{"intent": "what workflow tier is this, single task or complete board?", "expected_skill": "jitx-project-builder", "ambiguous_with": ["jitx"]}
+{"intent": "write PLAN.md and ARCHITECTURE.md for this design before we start coding", "expected_skill": "jitx-project-builder", "ambiguous_with": ["jitx"]}
+{"intent": "the plan doc for this board is enormous, trim it to what the sub-agents actually need", "expected_skill": "jitx-project-builder", "ambiguous_with": ["jitx"]}
+{"intent": "we're at the Phase 1 to Phase 2 gate, what has to be true to advance?", "expected_skill": "jitx-project-builder", "ambiguous_with": ["jitx"]}
+{"intent": "resume the board project, what's left in the task graph?", "expected_skill": "jitx-project-builder", "ambiguous_with": ["jitx"]}
 {"intent": "model the TPS54302 from this datasheet", "expected_skill": "jitx-component-modeler", "ambiguous_with": ["jitx"]}
 {"intent": "create a component for an NE555 in SOIC-8", "expected_skill": "jitx-component-modeler", "ambiguous_with": ["jitx"]}
 {"intent": "build a 6-layer stackup with 90 ohm differential routing structures", "expected_skill": "jitx-substrate-modeler", "ambiguous_with": ["jitx"]}

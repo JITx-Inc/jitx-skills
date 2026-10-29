@@ -253,7 +253,7 @@ these four rules cover the board without tagging every net. Non-default
 classes get higher-priority rules in the same list (next section).
 
 The complete-board workflow's Phase 3 gate checks that these four rules are
-present on the `Design`; see the base `jitx` skill's `completion-blocks.md`.
+present on the `Design`; see `jitx-project-builder`'s `references/completion-blocks.md`.
 
 ## Net classes: tag, derive, express
 
@@ -588,7 +588,7 @@ a `@dataclass(frozen=True)` or a plain list; key nothing by an assembled
 string. See the base `jitx` skill's `references/architectural-patterns.md`
 and run `jitx-code-review` as the self-critique pass.
 
-The task acceptance block (base `jitx` skill, `references/completion-blocks.md`)
+The task acceptance block (`jitx-project-builder`, `references/completion-blocks.md`)
 fields this skill fills: the four default rules present on the `Design`; the
 net-class table or the explicit "no non-default net classes" line; the
 after-build width, clearance, and realization checks with their commands and

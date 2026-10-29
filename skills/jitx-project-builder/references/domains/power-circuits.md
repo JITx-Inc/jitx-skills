@@ -18,9 +18,8 @@
 ### Feedback Network
 - [ ] Fixed output: verify FB/VOUT pin wiring matches datasheet (some go to output, some to a divider)
 - [ ] Adjustable output: voltage divider from output to FB pin to GND
-- [ ] Voltage divider MUST use `voltage_divider_from_constraints()` — NEVER manual resistor values
 - [ ] Reference voltage (Vref) matches datasheet exactly (0.6V, 0.8V, 1.0V, etc.)
-- [ ] `v_out` uses `Toleranced.percent()` not `Toleranced.exact()`
+- [ ] Divider values on a named E-series; VOUT recomputed from Vref; rounding error, each resistor's tolerance times (1 - Vref/Vout), and the datasheet's Vref accuracy together within the rail's tolerance requirement
 
 ### Soft-Start and Sequencing
 - [ ] Soft-start capacitor included if pin is available (prevents inrush)

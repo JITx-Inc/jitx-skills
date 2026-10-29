@@ -11,7 +11,7 @@ Write one Python file holding the substrate. API shapes, units and pitfalls are 
 
 ## Route first
 
-- Environment and Design assembly: the base `jitx` skill.
+- Environment: the base `jitx` skill. Design assembly: `jitx-project-builder`.
 - Design rules and pour clearance: `jitx-layout-constraints`. The substrate declares no design rule except a fenced pour's `fence_via` rule.
 - Substrate-shaped tables (layer-to-via maps) live on the substrate; instantiate a generic stackup rather than inline-subclass it with an empty body: the `jitx` skill's [architectural patterns 4a](../jitx/references/architectural-patterns.md#sub-example-4a-substrate-shaped-tables) and [7](../jitx/references/architectural-patterns.md#7-dont-pass-through-inline-subclass--instantiate).
 - Self-review: `jitx-code-review`.
