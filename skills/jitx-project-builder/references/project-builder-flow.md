@@ -178,9 +178,11 @@ Run independent clusters in parallel. Within a cluster, respect dependencies.
 3. As tasks complete and are accepted, check if new tasks are unblocked.
 4. Continue until all Phase 2 tasks are accepted.
 
-### Topology-friendly bundle wiring
+### Bundle wiring for constrained signals
 
-Subcircuits that expose bundles (I2C, ULPI, USB2, etc.) for any signal that will receive an SI constraint at top level **must** wire the bundle sub-ports with `>>`, not `+`. The constraint solver only walks `>>` chains; ports reached only via `+` are invisible to it. This is a common silent failure — the netlist is correct, the build passes, but the JITX UI reports "No path for signal constraint" once constraints are applied. See [Topology vs net membership (CRITICAL)](#topology-vs-net-membership-critical) for the failure modes and patterns.
+Subcircuits that expose bundles (I2C, ULPI, USB2, etc.) wire the bundle sub-ports to component pins with `+`, including for signals that will receive an SI constraint at top level. On jitx 4.6 a constraint binds across plain nets; no `>>` is needed. What it does need is a `BridgingPinModel` on every pass-through part inside the subcircuit and, before it measures, routes along the path. See [Plain nets carry SI constraints (CRITICAL)](#plain-nets-carry-si-constraints-critical).
+
+The Phase 2 task that owns a module carrying SI constraints also writes and passes that module's verification design; see [SI verification designs (CRITICAL)](#si-verification-designs-critical).
 
 ### Exit Gate: Phase 2 → Phase 3
 
@@ -189,9 +191,10 @@ Subcircuits that expose bundles (I2C, ULPI, USB2, etc.) for any signal that will
 - [ ] Constraint classes instantiate without error
 - [ ] Provide/require interfaces are consistent across wrapper and consuming circuits
 - [ ] **Interface circuits expose bundle-typed ports** (I2S, I2C, SPI, USB2, GPIO, Power) — not individual signal ports. If a circuit wraps individual-pin components, the bundle wiring happens inside the circuit.
-- [ ] **For any signal that will receive an SI constraint at top level, the subcircuit's bundle wiring uses `>>` (not `+`)** between component pins and bundle sub-ports — see [Topology vs net membership (CRITICAL)](#topology-vs-net-membership-critical)
-- [ ] **No anonymous `Resistor` / `Capacitor` / `Inductor` `.insert(...)` calls and no bare `+` / `>>` expressions** in the subcircuit; every structural object is stored on `self` (see [Silent-drop patterns (CRITICAL)](#silent-drop-patterns-critical)). The `grep gates` line from `python scripts/check.py <ns>/` enforces this rule; hard-fail hits block this gate.
+- [ ] For any signal that will receive an SI constraint at top level, every pass-through part on its path inside the subcircuit has a `BridgingPinModel`, and the bundle wiring uses plain `+` nets with no `>>` added to make the constraint bind; see [Plain nets carry SI constraints (CRITICAL)](#plain-nets-carry-si-constraints-critical). The gate block records this in its `Constrained-path wiring and pin models` row
+- [ ] **No anonymous `Resistor` / `Capacitor` / `Inductor` `.insert(...)` calls and no bare `+` expressions** in the subcircuit; every structural object is stored on `self` (see [Silent-drop patterns (CRITICAL)](#silent-drop-patterns-critical)). The `grep gates` line from `python scripts/check.py <ns>/` enforces this rule; hard-fail hits block this gate.
 - [ ] **Every power-rail capacitor `.insert(...)` call uses `short_trace=True`** for decoupling, bypass, bulk, and output filter capacitors. Non-power-rail caps (AC coupling, RC time constants, RF matching, compensation, crystal load) and non-cap inserts (resistors, inductors) are dispositioned in the task acceptance block as exceptions or N/A. See `jitx-circuit-builder/SKILL.md` "short_trace=True is the default for power-rail capacitors". The `grep gates` line from `python scripts/check.py <ns>/` flags every `.insert(...)` missing `short_trace=` as review-required.
+- [ ] Every module that carries SI constraints has a verification design at `<ns>/designs/verify_<module>.py` that passes: every constraint shows a measured line with the intended ends and no unresolved text, quoted in that task's `SI measurements` row (see [SI verification designs (CRITICAL)](#si-verification-designs-critical))
 - [ ] Port names and bundle types match between providers and consumers
 - [ ] Power circuit outputs match the voltage/current needs documented in ARCHITECTURE.md
 
@@ -207,7 +210,7 @@ Subcircuits that expose bundles (I2C, ULPI, USB2, etc.) for any signal that will
 
 A single sub-agent assembles the top-level design. The orchestrator reviews its code and acceptance block but does not author files under `<ns>/`.
 
-**CRITICAL**: Net symbols (`GroundSymbol`, `PowerSymbol`) and SI constraints (`Constrain`, `ConstrainDiffPair`, `ReferencePlanes`) MUST be applied at the top-level design — not inside subcircuits. Subcircuits create topologies with `>>` but constraints are applied here where the full signal path is visible.
+**CRITICAL**: Net symbols (`GroundSymbol`, `PowerSymbol`) and SI constraints (`Constrain`, `ConstrainDiffPair`, `ReferencePlanes`) MUST be applied at the top-level design, not inside subcircuits. Subcircuits wire their signals with `+` nets; constraints are applied here, where the full signal path is visible.
 
 1. Create the top-level Circuit class.
 2. Instantiate all subcircuits from Phase 2.
@@ -220,7 +223,7 @@ A single sub-agent assembles the top-level design. The orchestrator reviews its 
    self += i2s.ws + self.amp.i2s.ws
    self += i2s.sd + self.amp.i2s.sd
    ```
-   NEVER hardcode GPIO numbers. If a downstream circuit has individual ports instead of a bundle, wire the required bundle's sub-ports to them. Use `>>` topology for SI-constrained signals.
+   NEVER hardcode GPIO numbers. If a downstream circuit has individual ports instead of a bundle, wire the required bundle's sub-ports to them. SI-constrained signals use the same `+` wiring; see [Plain nets carry SI constraints (CRITICAL)](#plain-nets-carry-si-constraints-critical).
 6. Add shared-bus components at the **bus-aggregation level** — the level where the bus is composed across multiple participants (master + slaves). Most of the time that's the top-level design here, because typical buses span subcircuits (MCU subcircuit talks to amp + sensor subcircuits). But if a single subcircuit aggregates an entire bus internally (e.g. a sensor-hub subcircuit containing master + 4 sensors all on one private I2C), the pull-ups belong inside that subcircuit. The rule is bus scope, not file location.
    - **I2C pull-ups** — one set per bus, placed at the level that composes the bus, to the correct voltage rail (usually 3.3V)
    - **SPI pull-ups** on CS lines — same rule
@@ -229,14 +232,14 @@ A single sub-agent assembles the top-level design. The orchestrator reviews its 
 7. Apply ALL SI constraints at this level within `ReferencePlanes(GND)` context. Example:
    ```python
    with ReferencePlanes(self.GND):
-       usb_topo = Topology(self.mcu.usb.data.p, self.usb_conn.DP)
+       usb_topo = Topology(self.mcu.usb.data, self.usb_conn.usb)  # DiffPair ends
        self.cst_usb = ConstrainDiffPair(usb_topo) \
            .structure(substrate.DRS_90) \
            .timing_difference(0.1e-12)
    ```
-   Every protocol with impedance or timing requirements needs constraints here. **Read "Topology vs net membership" below before designing the chains.**
+   Every protocol with impedance or timing requirements needs constraints here. Read [Plain nets carry SI constraints (CRITICAL)](#plain-nets-carry-si-constraints-critical) below: a constraint measures only once routes close its path.
 8. The assembly agent compares every constrained span against the accepted
-   per-module harness that exercised it. It records the ordered endpoints and any
+   per-module harness (the module's verification design) that exercised it. It records the ordered endpoints and any
    bridging-pin model in both the harness and the shipping assembly. A missing
    comparison or mismatch sends the assembly task to `rework`; it does not reach
    its acceptance verdict.
@@ -299,98 +302,75 @@ at `priority >= 2` are owned by the `jitx-layout-constraints` skill
 Invoke it for Phase 3 assembly; the Phase 3 gate checks that the four rules
 are present.
 
-### Topology vs net membership (CRITICAL)
+### Plain nets carry SI constraints (CRITICAL)
 
-**`+` and `>>` are not interchangeable.** Both connect ports, but only `>>` creates a topology segment that the SI constraint solver can walk. Ports reached only via `+` are on the same *net* but invisible to `Constrain` / `ConstrainDiffPair` / `ConstrainReferenceDifference`.
-
-When you call `Topology(src_endpoint, dst_endpoint)` and then `ConstrainDiffPair(topo)`, the engine searches for a chain of `>>` segments connecting the endpoints. If any physical port on the signal path is reached only by `+`, the search fails with one of:
-
-- "Incomplete topology segments between X and Y"
-- "No path for signal constraint from X to Y"
-
-#### Common failure mode 1: virtual DiffPair endpoints aliased via `+`
-
-A natural pattern is to declare a virtual `DiffPair` port at a circuit boundary so the top level can apply `ConstrainDiffPair`. The trap is wiring the alias with `+`:
+On jitx 4.6, `Constrain`, `ConstrainDiffPair` and `ConstrainReferenceDifference` apply to `Topology(begin, end)` when the ports between the two ends are joined by ordinary `+` nets. A subcircuit wires its bundle sub-ports to component pins with `+`, the top level merges the bundles with `+`, and the constraint follows the signal across both. No `>>` is needed. On jitx 4.6.0rc10 with runtime 4.6.0-rc.16, a diff pair netted to a circuit-level `DiffPair` port with `+` in each of two subcircuits, joined with `+` at the top and code-routed, measured `Time: 104.529ps` and `Skew: 0s` whether the Topology named the component pins or the two circuit bundle ports. A circuit bundle port resolves to the first pad behind it, so with a series part inside the sub-circuit, name the chip pad instead.
 
 ```python
-# WRONG — connector pads invisible to constraint solver
-class USBFrontend(Circuit):
-    usb_at_connector = DiffPair()                        # virtual endpoint
+# Subcircuit: the bundle port and the component pin share a plain net.
+class UsbPhyCircuit(Circuit):
+    usb = DiffPair()
 
-    def __init__(self):
-        # `+` only — connector.A6 is on the net but not in any `>>` chain
-        self.dp_alias = self.usb_at_connector.p + self.connector.A6
-        self.dn_alias = self.usb_at_connector.n + self.connector.A7
-        # Topology jumps straight from virtual port to ESD, skipping the connector pad
-        self += self.usb_at_connector.p >> self.esd.usb.p >> self.phy.usb_data.p
-        self += self.usb_at_connector.n >> self.esd.usb.n >> self.phy.usb_data.n
+    def __init__(self) -> None:
+        self.phy = UsbPhy()
+        self.usb_net = self.usb + self.phy.usb_data
+
+
+# Top level: join the bundles with +, constrain between component pins.
+self.usb_link = self.phy_ckt.usb + self.conn_ckt.usb
+with ReferencePlanes(self.GND):
+    self.cst_usb = (
+        ConstrainDiffPair(Topology(self.phy_ckt.phy.usb_data, self.conn_ckt.conn.usb))
+        .timing_difference(USB.v2.skew)
+        .structure(substrate.DRS_90)
+    )
 ```
 
-Result at top level: `Topology(usb.usb_at_connector, usb.phy.usb_data)` cannot find a path through `connector.A6` even though the net is correct. The router fails with "Incomplete topology segments".
+What a constraint does need, and what the design-issue report says when it is missing:
 
-```python
-# RIGHT — chain through every physical port
-self += (
-    self.usb_at_connector.p
-    >> self.connector.A6
-    >> self.esd.usb.p
-    >> self.phy.usb_data.p
-)
-self += (
-    self.usb_at_connector.n
-    >> self.connector.A7
-    >> self.esd.usb.n
-    >> self.phy.usb_data.n
-)
-```
+| Need | Report while it is missing |
+|---|---|
+| Routes along the path. The path is inferred from routes; code `Route`s close it without the board view. | `Unconnected Topology on Path: drv.o, cap.a`, `Signal path from drv.o to l1.o is not routed yet`, or `No path for signal constraint from X to Y` |
+| A `BridgingPinModel` between the two ports of each pass-through part (AC cap, flow-through ESD channel, series resistor) | `No path for signal constraint from drv.o to rcv.o: the ends are only connected through the part between cap.a and cap.b, which has no pin model.` |
+| A routing structure on the constraint (`.structure(...)`) | `Missing routing structure on Path: drv.o, cap.a` |
+| For pin-assigned ports, routes on the provider's physical pins (`jitx-pin-assignment`, "Constraints on Pin-Assigned Ports") | `Unassigned Pin on Path: ...` or `No path for signal constraint ...` |
 
-#### Common failure mode 2: bundle wiring with `+` instead of `>>`
-
-A subcircuit that exposes a bundle (I2C, ULPI, SPI, etc.) and wires the bundle sub-ports to component pins with `+` produces a constraint-invisible signal path:
-
-```python
-# WRONG — `+` only, no topology segments through the bundle
-class USBFrontend(Circuit):
-    ulpi = ULPI()
-    def __init__(self):
-        self.clk_net = self.ulpi.clk + self.phy.CLKOUT       # net merge only
-        # ... 11 more `+` joins
-class MCUWrapper(Circuit):
-    ulpi = ULPI()
-    def __init__(self):
-        self.ulpi.clk + self.mcu.PA[5]                        # net merge only
-```
-
-Result: `Topology(usb.phy.CLKOUT, mcu.mcu.PA[5])` reports "No path for signal constraint" even though the netlist is fully connected.
-
-```python
-# RIGHT — `>>` from physical pin through bundle sub-port
-# In USBFrontend (PHY-side):
-self += self.phy.CLKOUT >> self.ulpi.clk
-self += self.ulpi.stp   >> self.phy.STP        # MCU drives STP, hence reverse direction
-
-# In MCUWrapper (MCU-side):
-self += self.ulpi.clk   >> self.mcu.PA[5]
-self += self.mcu.PC[0]  >> self.ulpi.stp
-```
-
-The two `>>` segments per signal stitch together when the top level merges the bundle sub-ports with `+` (`self.usb.ulpi.clk + self.mcu.ulpi.clk`). The engine walks `phy.CLKOUT >> ulpi.clk(usb) — joined to — ulpi.clk(mcu) >> mcu.PA[5]` end-to-end.
+A via on the path takes its delay and loss from its via class's `models = {(start, stop): PinModel(...)}`.
 
 #### Quick checklist
 
 For every signal that will have an SI constraint applied at the top level:
-- [ ] Both Topology endpoints exist as actual ports (real component pins or virtual DiffPair / bundle ports declared on circuits)
-- [ ] Every physical port between the endpoints is on a `>>` chain — not just on the same net via `+`
-- [ ] Bundle sub-ports are `>>`-chained to the component pins they alias, in **both** subcircuits that touch the bundle
-- [ ] Direction of `>>` follows signal flow at each end (driver → receiver). Bidirectional buses pick one direction by convention.
+- [ ] Both Topology ends are the chip pads at the two ends of the path. A circuit bundle port also works as an end, but it resolves to the first pad behind it, so a series part between that port and the chip is left out of the measurement
+- [ ] Every pass-through part between the ends has a `BridgingPinModel`
+- [ ] `>>` appears only for a daisy chain whose order the router must follow (a flyby clock), never to make a constraint bind
+- [ ] The module's verification design (code-routed) shows a Time, Loss or Skew line for the constraint under `jitx design issues ... --satisfied`; see [SI verification designs (CRITICAL)](#si-verification-designs-critical). Without `--satisfied`, satisfied constraints are not printed. A measured line means the constraint applied; compare the value to its target separately.
 
-If a top-level constraint reports "no path" or "incomplete segments", trace each port name in the error backwards through the source — the missing segment is almost always a `+` where there should be a `>>`.
+### SI verification designs (CRITICAL)
+
+Binding is proven on a code-routed verification design, not on the shipping assembly. Proof routes fix one path and, on a pin-assigned port, one mapping. In the shipping assembly they would take away the routing and pin-assignment freedom the board is built to keep, so the assembly carries none.
+
+In Phase 2, the task that owns a module carrying SI constraints (an interface circuit, or a pin-assignment wrapper whose ports carry them) also writes that module's verification design, at `<ns>/designs/verify_<module>.py`. It is the per-module harness the Phase 3 assembly compares its constrained spans against. The worked model is `jitx-pin-assignment`'s USB-through-ESD example, "Constraints on Pin-Assigned Ports".
+
+A verification design:
+- instantiates the module with the parts at both ends of each constrained path, and places every part with `.at(...)`;
+- applies the SI constraints the assembly will apply, with the same Topology ends and pin models;
+- code-routes every constrained path between physical pads; for a pin-assigned port, the routes land on the provider's physical pins and fix one legal mapping;
+- is checked with `jitx design issues <ns>.designs.verify_<module>.<VerifyDesign> --satisfied`.
+
+It passes when every constraint shows a measured Time, Loss or Skew line from the intended begin pad to the intended end pad, and its group has no unresolved text. Unplaced parts give `Missing Connection on Path` and `Unable to find path for requested route` instead of a measurement.
+
+On the shipping assembly, run `jitx design issues <ns>.main.Design --satisfied` and sort every SI line:
+
+- Expected while unrouted, recorded and not blocking: `Unconnected Topology`, `not routed yet`, `No path for signal constraint` with no part named, and `Unassigned Pin` on a pin-assigned end.
+- Blocking: `No path for signal constraint ... which has no pin model`, `Missing routing structure`, a placeholder via model (`... Using placeholder model`), `Virtual connection without a pin model`, and a constraint that does not appear in the report at all.
+
+Where the evidence goes: the module task's `SI measurements` row in its task acceptance block quotes the verification design's command and measured lines. The `Gate: Phase 3 → Phase 3b` block's `SI design issues dispositioned` row quotes the assembly's sorted lines. The Phase 4 Verification Block's `SI constraint binding` row quotes each verification design's measured lines and the assembly's sorted lines after routing.
 
 ### Silent-drop patterns (CRITICAL)
 
 Two source patterns build with `status: ok` and pass every JITX-side check but produce a **wrong netlist**, because the Python expression evaluates and is then immediately discarded. The design looks correct from the build but isn't.
 
-JITX warns for *some* of these cases (you'll see `WARNING:jitx._structural:Reference to structural object <Class> at <file>:<line> lost during instantiation, it likely needs to be assigned to an object` for unassigned constraint objects and similar structural classes), but **the warning does not cover bare net or topology expressions** (`+` / `>>` between ports), which is exactly where this trap is easiest to fall into. Treat all such warnings as errors, and code review for the two patterns below regardless.
+JITX warns for *some* of these cases (you'll see `WARNING:jitx._structural:Reference to structural object <Class> at <file>:<line> lost during instantiation, it likely needs to be assigned to an object` for unassigned constraint objects and similar structural classes), but **the warning does not cover bare net expressions** (`+` between ports), which is exactly where this trap is easiest to fall into. Treat all such warnings as errors, and code review for the two patterns below regardless.
 
 #### Pattern 1: anonymous `Resistor` / `Capacitor` / `Inductor` with `.insert(...)`
 
@@ -406,18 +386,17 @@ self.r_nrst.insert(self.MCU.NRST, self.V3V3)
 
 The same applies to `Capacitor`, `Inductor`, and any structural component constructor.
 
-#### Pattern 2: bare net or topology expressions
+#### Pattern 2: bare net expressions
 
 ```python
 # WRONG — the Net object is built and discarded; no connection in the netlist.
 self.usb.A6 + self.usb.B6                          # bare `+`
-self.driver.OUT.p >> self.receiver.INP.p           # bare `>>`
 
 # RIGHT — assign to a `self.<name>` attribute (any name is fine — JITX
 # tracks structural objects by their attribute on the parent), or use the
 # `+=` form which adds to the circuit's net list:
 self.dp_mirror = self.usb.A6 + self.usb.B6         # named net
-self += self.driver.OUT.p >> self.receiver.INP.p   # added to circuit
+self += self.driver.OUT.p + self.receiver.INP.p    # added to circuit
 ```
 
 The trap is that the *expression evaluates without error* — Python sees `port_a + port_b` as `Net.__add__`, which returns a `Net` object, which Python then drops because nothing held a reference to it. No exception, no warning at parse time, and JITX has no way to recover the Net once it's been garbage-collected.
@@ -432,7 +411,7 @@ Configure the editor's Python language server to surface unused-expression warni
   extend-select = ["B018"]
   ```
 - **Pyright / Pylance**: enable `reportUnusedExpression = "warning"` (or `"error"`) in `pyrightconfig.json` (also picked up by the VS Code Python extension when present).
-- **Pyflakes**: emits `Statement seems to have no effect` by default — also catches bare `+` / `>>` expressions.
+- **Pyflakes**: emits `Statement seems to have no effect` by default, which also catches bare `+` expressions.
 
 These editor-side checks won't catch Pattern 1 (the `.insert(...)` call has a side effect, so it isn't a "useless expression" from the type checker's view), but they cover Pattern 2 cheaply, and any extra signal during code review is worth turning on.
 
@@ -447,8 +426,8 @@ These editor-side checks won't catch Pattern 1 (the `.insert(...)` call has a si
 - [ ] Every constrained endpoint span and bridging-pin model matches the accepted
       per-module harness; the assembly acceptance block records both spans and
       cites the comparison evidence
-- [ ] **No "Invalid Topology Definitions" or "No path for signal constraint" errors in the JITX UI Issues list** — every constraint endpoint reachable via `>>` chains, not `+` (see [Topology vs net membership (CRITICAL)](#topology-vs-net-membership-critical))
-- [ ] **No `Reference to structural object … lost during instantiation` warnings in the build output** — every structural object stored on `self`; no bare `+` / `>>` expressions (see [Silent-drop patterns (CRITICAL)](#silent-drop-patterns-critical))
+- [ ] `jitx design issues <ns>.main.Design --satisfied` run on the assembly and every SI line sorted per [SI verification designs (CRITICAL)](#si-verification-designs-critical): expected unrouted lines recorded, no blocking line, and every constraint present in the report. The gate block records this in its `SI design issues dispositioned` row
+- [ ] **No `Reference to structural object … lost during instantiation` warnings in the build output**: every structural object stored on `self`; no bare `+` expressions (see [Silent-drop patterns (CRITICAL)](#silent-drop-patterns-critical))
 - [ ] `ReferencePlanes(...)` context wraps all constraint applications
 - [ ] Board geometry defined (shape, mounting holes, pours)
 - [ ] `capacitor_query`, `resistor_query` and `inductor_query` set on the Design class to match the design's manufacturing path and circuit role, with per-circuit refinements documented for any specialty parts (HV, RF, bulk, precision, hand-build). The gate is the resolved parts, not the source: check the resolved package of each auto-selected passive against the declared assembly capability, because a design with no query at all also builds clean.
@@ -477,7 +456,7 @@ produces no output is recorded as `skipped: <reason>`; it carries no findings, a
 CRITICAL/WARNING finding from a completed pass makes the combined verdict
 `issues-pending` even if the same-model audit said `clean`.
 
-Before the audit runs, the orchestrator must have already dispatched and accepted fixes for the build-time silent-drop patterns documented in [Silent-drop patterns (CRITICAL)](#silent-drop-patterns-critical). Those bugs build with `status: ok` but produce a wrong design, and the audit agent's datasheet-comparison passes assume the netlist matches the source. JITX emits a `Reference to structural object … lost during instantiation` warning for some of these cases (constraint and similar structural classes), but not for bare net or topology expressions. Handle both manually.
+Before the audit runs, the orchestrator must have already dispatched and accepted fixes for the build-time silent-drop patterns documented in [Silent-drop patterns (CRITICAL)](#silent-drop-patterns-critical). Those bugs build with `status: ok` but produce a wrong design, and the audit agent's datasheet-comparison passes assume the netlist matches the source. JITX emits a `Reference to structural object … lost during instantiation` warning for some of these cases (constraint and similar structural classes), but not for bare net expressions. Handle both manually.
 
 The audit runs four passes:
 
@@ -535,7 +514,7 @@ Do not accept "noted for future refactoring" — if it's broken, fix it now.
 - [ ] Outside-voice attempts record completed and skipped counts; every skipped
       pass has a reason and the user's explicit approval to proceed quoted (else the
       verdict is block), and every completed-pass finding has a disposition
-- [ ] Every high-speed interface has SI constraints applied and functional
+- [ ] Every high-speed interface has SI constraints applied and functional: applied in the assembly with no blocking SI line in its report, and functional because its module's verification design passes (see [SI verification designs (CRITICAL)](#si-verification-designs-critical))
 - [ ] PLAN.md updated with all rework tasks completed
 
 **Emit the `Gate: Phase 3b → Phase 4` block** from `references/completion-blocks.md` before advancing. The gate references the Phase 3b audit block (in the same file), which the read-only audit agent emits during Phase 3b.
@@ -553,18 +532,20 @@ Do not accept "noted for future refactoring" — if it's broken, fix it now.
 3. Check output for:
    - Every summary line reports `PASS`: proceed to verification
    - Any `FAIL` or `ERROR`: read the full tool output, dispatch a fix sub-agent, review its acceptance block, and re-run the command
-4. Open the popout viewer (`jitx ui open --board --design <ns>.main.Design` and `jitx ui open --schematic --design <ns>.main.Design`) and verify:
+4. Run `jitx design issues <VerifyDesign> --satisfied` on each verification design and `jitx design issues <ns>.main.Design --satisfied` on the assembly, and apply [SI verification designs (CRITICAL)](#si-verification-designs-critical): each verification design shows a measured line with the intended ends for every constraint, and the assembly has no blocking SI line. Rerun after any change to routing, a pin model or an SI constraint.
+5. Open the popout viewer (`jitx ui open --board --design <ns>.main.Design` and `jitx ui open --schematic --design <ns>.main.Design`) and verify:
    - Schematic: all connections present, symbols readable
    - Board: components placed (or floating), no overlaps
    - Issues List: SI constraints satisfied or flagged
    - DRC: clean or flagged
-5. Iterate:
+6. Iterate:
    - Build errors → dispatch a code fix, review, and re-run the verification command
    - DRC violations → dispatch a clearance or routing-structure fix
    - SI constraint failures → dispatch parameter and routing-structure review
+   - A verification design without a measured line, or a blocking SI line on the assembly: dispatch a fix to the owning module or the assembly, then rerun step 4
    - Missing connections → trace back to Phase 2/3 and dispatch the fix
 
-6. **Emit the Phase 4 Verification Block** from `references/completion-blocks.md`. The block requires the parts gate field and JITX UI / Issues List / DRC / SI / placement-overlap rows with explicit pass/fail status, or a `not run` reason for any row the environment can't run (e.g. headless CI). PLAN reconciliation, deferred items, and blocking items also belong in the block. **Blocking items must be empty for `Verdict: done`.**
+7. **Emit the Phase 4 Verification Block** from `references/completion-blocks.md`. The block requires the parts gate field and JITX UI / Issues List / DRC / SI / placement-overlap rows with explicit pass/fail status, or a `not run` reason for any row the environment can't run (e.g. headless CI). PLAN reconciliation, deferred items, and blocking items also belong in the block. **Blocking items must be empty for `Verdict: done`.**
 
 ### Completion Criteria
 
@@ -574,6 +555,7 @@ The Phase 4 Verification Block is the completion criterion. The block enforces:
 - [ ] `status: ok` on final build
 - [ ] JITX UI verification rows pass or are `not run` with reason
 - [ ] Issues List, DRC, SI rows have status (or `not run` with reason)
+- [ ] `SI constraint binding` row: every verification design passes and the assembly has no blocking SI line, per [SI verification designs (CRITICAL)](#si-verification-designs-critical)
 - [ ] All PLAN.md tasks accepted; all gate blocks emitted; Phase 3b audit verdict `clean`
 - [ ] No blocking items
 - [ ] User-approved deferrals documented

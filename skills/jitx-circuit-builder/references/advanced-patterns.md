@@ -174,9 +174,11 @@ for placing relative to **another** instance (`relative_to=`); see **jitx-physic
 
 Placed `Via` (and `Copper`) instances can join a net directly — `self.GND +=
 via_cls().at(x, y)` — which is the preferred form for ground/power stitching and
-thermal vias. **As of JITX 4.3.0-rc.3+ a bare `Via` may also appear directly in a
-`>>` topology chain** (e.g. `self += driver.out >> via_cls().at(x, y) >> rx.inp`),
-so a signal via can enter a constrained topology without a `PortAttachment`.
+thermal vias. A signal via on an SI-constrained path needs no `>>` on JITX 4.6:
+attach it with `PortAttachment(port, via)`, close the path with code `Route`s on
+each layer, and give the via class `models = {(start, stop): PinModel(...)}` for
+its delay and loss (constraint side: `jitx-interconnect-constraints`). A bare
+`Via` can still sit in a `>>` chain when the path is an ordered daisy chain.
 `PortAttachment` is scoped to **signal topologies** (control points, signal escape
 vias) and is expected to be deprecated. For both — and for code-based routes /
 control points — see the **jitx-physical-layout** subskill.

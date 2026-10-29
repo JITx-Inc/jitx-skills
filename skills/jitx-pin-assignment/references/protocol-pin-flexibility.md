@@ -11,7 +11,7 @@ P/N inversion is only safe when both endpoints handle the inverted signal correc
 | PCIe | Yes (spec allows) | Yes — controller must have RX polarity inversion | Per-lane; most modern PCIe PHYs support this | `DiffPairConstraint` |
 | SATA | No | — | Strict polarity per spec | `DiffPairConstraint` |
 | USB 2.0 | No | — | D+/D- polarity is protocol-critical | N/A |
-| USB 3.x | Yes (spec allows) | Yes — controller must support per-lane inversion | TX and RX independently | `DiffPairConstraint` |
+| USB 3.x | Not covered | n/a | This reference has no cited source for USB 3.x lane or polarity freedom. Offer none unless the controller datasheet documents it, and cite that datasheet in the provider. | `DiffPairConstraint` |
 | DisplayPort | Yes (spec allows) | Yes — source must support lane polarity inversion | Per lane (ML0-ML3) | `DiffPairConstraint` |
 | Ethernet 100BASE-TX | No | — | TD+/TD- polarity fixed | `DiffPairConstraint` |
 | Ethernet 1000BASE-T | Partially | PHY-dependent (MDI/MDI-X auto-negotiation) | Software-managed, not pin assignment | `DiffPairConstraint` |
@@ -51,13 +51,16 @@ The PCIe specification permits lane reversal and polarity inversion, but **the c
 | Gen 4 (16.0 GT/s) | 5 ps | 4 ns | 85 ohm | 20 dB |
 | Gen 5 (32.0 GT/s) | 3 ps | 2 ns | 85 ohm | 28 dB |
 
-### PCIe Topology Chain Pattern
+### PCIe Constraint Pattern
 ```
-require(PCIeLink) -> lane[i].TX.p >> dst.lane[i].RX.p
-                  -> lane[i].TX.n >> dst.lane[i].RX.n
+require(PCIeLink) -> lane[i].TX + dst.lane[i].RX                 (plain nets)
                   -> DiffPairConstraint(skew, loss).constrain(TX, RX)
-                  -> ConstrainReferenceDifference(guide=lane[0], topologies=[lane[1:]])
+                  -> ConstrainReferenceDifference(guide=Topology(lane[0].TX.p, ...),
+                                                  topologies=[lane[1:] legs])
+                  -> Route on the switch's physical lane pins   (resolves the mapping)
+                  -> jitx design issues --satisfied             (measured lines)
 ```
+The reference guide must be a single pin, so inter-lane skew uses one leg (`TX.p`) as the guide. See the SKILL.md section [Constraints on Pin-Assigned Ports](../SKILL.md#constraints-on-pin-assigned-ports).
 
 ## DDR4 Pin Flexibility
 
@@ -85,12 +88,14 @@ DDR4 byte and bit swapping is **entirely controller-dependent**. The DDR4 JEDEC 
 | DQS diff impedance | `DifferentialRoutingStructure` | 100 ohm |
 | DQ single-ended | `RoutingStructure` | 50 ohm |
 
-### DDR4 Byte Swap Topology Chain Pattern
+### DDR4 Byte Swap Constraint Pattern
 ```
-require(DDR4Data) -> byte_lane[bl].DQ[i] >> mem.DQ[offset+i]
-                  -> byte_lane[bl].DQS.p >> mem.DQS_P[bl]
-                  -> byte_lane[bl].DQS.n >> mem.DQS_N[bl]
-                  -> ConstrainReferenceDifference(guide=DQS_topo, topologies=DQ_topos)
+require(DDR4Data) -> byte_lane[bl].DQ[i] + mem.DQ[offset+i]      (plain nets)
+                  -> byte_lane[bl].DQS.p + mem.DQS_P[bl], DQS.n + mem.DQS_N[bl]
+                  -> ConstrainReferenceDifference(guide=Topology(DQS.p, mem.DQS_P[bl]),
+                                                  topologies=DQ_topos)
+                  -> Route on the controller's physical DQ/DQS pins (resolves the mapping)
+                  -> jitx design issues --satisfied             (measured lines)
 ```
 
 ## LPDDR5 Pin Flexibility
