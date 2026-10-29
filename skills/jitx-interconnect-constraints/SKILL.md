@@ -14,6 +14,7 @@ Environment setup is handled by the base `jitx` skill. Ensure it has been invoke
 ## Package Architecture
 
 ```python
+import jitx
 from jitx.si import Constrain, ConstrainDiffPair, ConstrainReferenceDifference
 from jitx.si import DiffPairConstraint, SignalConstraint, ReferencePlanes
 from jitx.si import PinModel, BridgingPinModel, TerminatingPinModel
@@ -107,7 +108,7 @@ A via adds the delay and loss in its `models`, keyed by the layer pair the signa
 
 ```python
 class EscapeVia(MySubstrate.THVia):
-    models = {(0, 1): PinModel(delay=8e-12, loss=0.05)}  # layer 0 to layer 1
+    models = {(0, 1): PinModel(delay=6e-12, loss=0.04)}  # layer 0 to layer 1
 ```
 
 `PortAttachment(port, via)` puts the via on the port's net. Worked pattern: `jitxexamples.patterns.si_via_model`.
@@ -119,6 +120,7 @@ Give every via on a constrained path a `models` entry for the layers it spans. A
 Path inference follows routed copper. Before routing there is nothing to measure: the report carries `Unconnected Topology on Path: <a>, <b>` per segment, or `Signal path from <a> to <b> is not routed yet`. Route in the board view, or close the path from code so the proof runs headless:
 
 ```python
+self.via = EscapeVia().at(0, 0)
 self.routes = [
     Route(self.drv.o, self.via, layer=0),
     Route(self.via, self.rcv.i, layer=1),
@@ -129,16 +131,16 @@ Route between physical pads, vias and control points, one segment per hop. A rou
 
 ## Differential Pairs
 
-A bundle net (`self.src.tx + self.dst.rx`) joins each leg. `timing_difference` is the P-to-N skew window; timing and loss apply per leg:
+A bundle net (`self.src.tx + self.dst.rx`) joins each leg. `timing_difference` is the P-to-N skew window; timing and loss apply per leg; `drs100 = current.substrate.differential_routing_structure(100.0)`:
 
 ```python
 self.dp_cst = (
     ConstrainDiffPair(Topology(self.src.tx, self.dst.rx))
-    .timing_difference(5e-12).timing(400e-12).insertion_loss(3.0).structure(drs100)
+    .timing_difference(3e-12).timing(600e-12).insertion_loss(3.0).structure(drs100)
 )
 ```
 
-Each leg gets its own `Time` and `Loss` line; the skew gives one `Skew` line per pair. `ConstrainDiffPair` also takes a list of pair topologies. `DiffPairConstraint(skew=..., loss=..., structure=...)` is a reusable helper: store it on `self`, then call `.constrain(src, dst)` per pair. It sets no delay limit, so it prints no `Time`. Worked pattern: `jitxexamples.patterns.si_diff_pair` (both forms).
+Each leg gets its own `Time` and `Loss` line; the skew gives one `Skew` line per pair. `ConstrainDiffPair` also takes a list of pair topologies. `DiffPairConstraint(skew=Toleranced(...), loss=..., structure=...)` is a reusable helper: store it on `self`, then call `.constrain(src, dst)` per pair. It sets no delay limit, so it prints no `Time`. Worked pattern: `jitxexamples.patterns.si_diff_pair` (both forms).
 
 `LanePair` (`jitx.common`) bundles a TX and an RX `DiffPair`.
 
@@ -191,7 +193,7 @@ Use `Constrain(...).structure(...)` when the path also carries timing, loss or s
 
 For reusable protocol bundles, subclass `SignalConstraint[T]` (`T` the bundle `Port`) and override `constrain(self, src: T, dst: T)`, with the standard's cited numbers in a parameter class. A subclass that defines `__init__` calls `super().__init__()` first; the base initializer creates the collection that `self.add(...)` extends. Store helper constraints on `self`.
 
-Store the instance on `self`, then apply it on plain nets with `constrain(src, dst)` on the true ends, and wire the parts between them as usual. Worked pattern: `jitxexamples.patterns.si_signal_constraint`.
+Store the instance on `self`, then apply it on plain nets with `constrain(src, dst)` on the true ends, and wire the parts between them as usual. For a link with a transmit and a receive pair, `constrain` applies each end's `tx` to the other end's `rx` (the crossover: `src.tx` to `dst.rx`, and `dst.tx` to `src.rx`), never `tx` to `tx`. Worked pattern: `jitxexamples.patterns.si_signal_constraint`.
 
 `constrain_topology(src, dst)` calls `constrain(src, dst)` immediately and returns a context manager that yields `(src, dst)`; it only moves an end along a `>>` chain already in the circuit. On plain nets it adds nothing over `constrain`.
 
@@ -213,7 +215,7 @@ For protocol-specific timing parameters (skew, loss, impedance per standard vers
 
 ## Via Structures
 
-Via structures (`jitxlib.via_structures`) are `Circuit`s with `sig_in`, `sig_out` and `COMMON` ports around a signal via (`signal_via`), with optional ground cage (`PolarViaGroundCage`) and antipads. Pass `SingleViaStructure` a via class with `models`, net it in like a part, join `COMMON` to ground, route to `signal_via` on each layer, and name the outer pads in the constraint. Measured on jitx 4.6.0rc10 with runtime 4.6.0-rc.16, single-ended and differential, the constraint binds on plain nets and counts the via's `models`.
+Via structures (`jitxlib.via_structures`) are `Circuit`s with `sig_in`, `sig_out` and `COMMON` ports around a signal via (`signal_via`), with optional ground cage (`PolarViaGroundCage`) and antipads. Pass `SingleViaStructure` a via class with `models`: `SingleViaStructure(via, ground_cages=[PolarViaGroundCage(...)], antipads=[])`, where `ground_cages` and `antipads` are keyword-only and required. Net it in like a part, join `COMMON` to ground, route to `signal_via` on each layer, and name the outer pads in the constraint. Measured on jitx 4.6.0rc10 with runtime 4.6.0-rc.16, single-ended and differential, the constraint binds on plain nets and counts the via's `models`.
 
 The cage must leave the routes a way in. On the two-layer `jitx.sample.SampleSubstrate` an eight-via cage at 0.6 mm closed the via off, and the report gave `Missing Connection on Path` with `Unable to find path for requested route`. Size the cage for your trace, turn it with `theta=`, or leave a gap with `skips=`. Worked pattern: `jitxexamples.patterns.si_via_structure`.
 

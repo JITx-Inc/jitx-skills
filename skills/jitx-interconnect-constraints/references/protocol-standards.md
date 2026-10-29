@@ -14,6 +14,10 @@ For a protocol not listed here, write the constraint from the controller's layou
 - RGMII: `jitxlib.protocols.ethernet.mii.rgmii.RGMII.Standard`, with the data-to-clock delay per version in `RGMII.Version` (`STD`, `ID`). RGMII is single-ended: it uses `RoutingStructure`, not `DifferentialRoutingStructure`.
 
 ```python
+from jitx import current
+from jitxlib.protocols.ethernet.mdi.mdi100base_tx import MDI100BaseTX
+
+drs100 = current.substrate.differential_routing_structure(100.0)
 std = MDI100BaseTX.Standard()
 cst = MDI100BaseTX.Constraint(std, structure=drs100)
 ```
@@ -31,5 +35,5 @@ cst = MDI100BaseTX.Constraint(std, structure=drs100)
 | `Constrain.insertion_loss()` | Single-ended signal loss | RGMII data; DDR when `loss` is passed |
 | `Constrain.structure()` | Routing structure assignment | All SE signals |
 | `ConstrainDiffPair.structure()` | Diff routing structure | All diff pairs |
-| `BridgingPinModel` | AC coupling caps, series R, ESD arrays with an in-to-out path | Any AC-coupled lane; parts a constrained path passes through |
+| `BridgingPinModel` | AC coupling caps, series R, ESD channels with an in-to-out path; not a flow-through package whose opposite pin is n.c., whose two lands are one net | Any AC-coupled lane; parts a constrained path passes through |
 | `TerminatingPinModel` | IC pin characterization | All active components |
