@@ -8,7 +8,7 @@
   "expected_output": "One Circuit subclass taking the output voltage (or the divider values) as a parameter, instantiated three times at the level above, with the shared input rail and the three output rails wired at that level.",
   "assertions": [
     {
-      "text": "the grep gate is clean — no anonymous inserts, no setattr/getattr on self",
+      "text": "the bundle's grep gates exit clean on the output: no setattr/getattr on self, no string-keyed spec model",
       "check": "deterministic",
       "cmd": "python3 skills/jitx/scripts/grep_gates.py <output>/"
     },

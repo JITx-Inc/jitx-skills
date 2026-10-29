@@ -21,7 +21,7 @@
 {"intent": "create a component for an NE555 in SOIC-8", "expected_skill": "jitx-component-modeler", "ambiguous_with": ["jitx"]}
 {"intent": "build a 6-layer stackup with 90 ohm differential routing structures", "expected_skill": "jitx-substrate-modeler", "ambiguous_with": ["jitx"]}
 {"intent": "model this substrate from the fab house's stackup report", "expected_skill": "jitx-substrate-modeler", "ambiguous_with": ["jitx"]}
-{"intent": "wire up the decoupling caps and add a ground pour", "expected_skill": "jitx-circuit-builder", "ambiguous_with": ["jitx"]}
+{"intent": "wire up the decoupling caps", "expected_skill": "jitx-circuit-builder", "ambiguous_with": ["jitx"]}
 {"intent": "connect the regulator output to the MCU power pins", "expected_skill": "jitx-circuit-builder", "ambiguous_with": ["jitx"]}
 {"intent": "draw the antenna copper and place the fence vias in code", "expected_skill": "jitx-physical-layout", "ambiguous_with": ["jitx", "jitx-substrate-modeler"]}
 {"intent": "escape route the BGA and place the fanout vias", "expected_skill": "jitx-physical-layout", "ambiguous_with": ["jitx"]}

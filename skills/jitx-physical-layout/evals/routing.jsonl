@@ -15,8 +15,8 @@
 {"intent":"Set a rule that stitches every tagged ground pour with the preferred via on a 2 mm pitch.","expected_skill":"jitx-layout-constraints","ambiguous_with":["jitx-physical-layout"]}
 {"intent":"Add thermal relief, direct-connect, and sliver-removal rules for the ground planes.","expected_skill":"jitx-layout-constraints","ambiguous_with":["jitx-physical-layout"]}
 {"intent":"Choose the return layer and write trace-to-pour clearance rules for the high-voltage class.","expected_skill":"jitx-layout-constraints","ambiguous_with":["jitx-physical-layout"]}
-{"intent":"Just connect GND and add a basic ground pour to the top-level circuit.","expected_skill":"jitx-circuit-builder","ambiguous_with":["jitx-physical-layout"]}
-{"intent":"Wire this regulator, add its passives, and put the GND net on a simple return pour.","expected_skill":"jitx-circuit-builder","ambiguous_with":["jitx-physical-layout"]}
+{"intent": "Just connect GND and add a basic ground pour to the top-level circuit.", "expected_skill": "jitx-physical-layout", "ambiguous_with": ["jitx-circuit-builder"]}
+{"intent": "Wire this regulator and add its passives.", "expected_skill": "jitx-circuit-builder"}
 {"intent":"Define the six-layer stackup and the through, blind, and buried via classes.","expected_skill":"jitx-substrate-modeler","ambiguous_with":["jitx-physical-layout"]}
 {"intent":"Turn the fab report into FabricationConstraints, including minimum copper-to-edge spacing.","expected_skill":"jitx-substrate-modeler","ambiguous_with":["jitx-physical-layout"]}
 {"intent":"Create a fenced pour outline and select the substrate via definition for its fence rule.","expected_skill":"jitx-substrate-modeler","ambiguous_with":["jitx-physical-layout"]}

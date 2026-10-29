@@ -1,6 +1,6 @@
 {"intent": "wire up the buck converter and connect its feedback divider", "expected_skill": "jitx-circuit-builder"}
 {"intent": "tie all 96 ground balls on this BGA to one net", "expected_skill": "jitx-circuit-builder"}
-{"intent": "drop a 100 nF decoupling cap on every VDD pin and add a ground pour under the part", "expected_skill": "jitx-circuit-builder"}
+{"intent": "drop a 100 nF decoupling cap on every VDD pin", "expected_skill": "jitx-circuit-builder"}
 {"intent": "connect the capacitor bank to the rail and ground nets", "expected_skill": "jitx-circuit-builder", "ambiguous_with": ["jitx-layout-constraints"]}
 {"intent": "my rail net only has half the pins I expected — how do I assert connectivity in a test?", "expected_skill": "jitx-circuit-builder"}
 {"intent": "build the application circuit for this LDO — input caps, output caps, enable pull-up", "expected_skill": "jitx-circuit-builder"}
@@ -8,7 +8,7 @@
 {"intent": "these three regulator stages are copy-pasted — make them one block", "expected_skill": "jitx-circuit-builder"}
 {"intent": "I got 'Incompatible ports on Net: Port and list' when I tied the ground rail", "expected_skill": "jitx-circuit-builder"}
 {"intent": "what temperature coefficient should I ask for on these decoupling caps", "expected_skill": "jitx-circuit-builder"}
-{"intent": "add a ground pour on the bottom layer of the top-level design", "expected_skill": "jitx-circuit-builder"}
+{"intent": "add a ground pour on the bottom layer of the top-level design", "expected_skill": "jitx-physical-layout", "ambiguous_with": ["jitx-layout-constraints"]}
 {"intent": "connect the sensor's I2C to the MCU and put the pull-ups at the bus level", "expected_skill": "jitx-circuit-builder"}
 {"intent": "model this QFN part and its thermal pad from the datasheet", "expected_skill": "jitx-component-modeler", "ambiguous_with": ["jitx-layout-constraints"]}
 {"intent": "this MCU can bring SPI out on two different pin groups — let the assignment pick which", "expected_skill": "jitx-pin-assignment"}
@@ -33,17 +33,22 @@
 {"intent": "Make the feedback resistors no worse than one percent tolerance without excluding tighter parts.", "expected_skill": "jitx-circuit-builder"}
 {"intent": "Remove the series resistor, leave the IC input deliberately unconnected, and prove the netlist changed only there.", "expected_skill": "jitx-circuit-builder"}
 {"intent": "Why does this a + b connection vanish even though pyright passes?", "expected_skill": "jitx-circuit-builder"}
-{"intent": "Fix my capacitor insert call: short_trace says its first argument cannot be a net.", "expected_skill": "jitx-circuit-builder"}
+{"intent": "My decoupling cap's ShortTrace was given the rail net instead of the pin it serves; fix it.", "expected_skill": "jitx-circuit-builder"}
 {"intent": "Refine this inductor query so it selects a power part rated for at least 3 A.", "expected_skill": "jitx-circuit-builder"}
-{"intent": "Check cache/netlist.json to confirm U4.EN moved from the old rail to the new enable net.", "expected_skill": "jitx-circuit-builder"}
+{"intent": "Check cache/netlist.json to confirm U4.EN moved from the old rail to the new enable net.", "expected_skill": "jitx-circuit-builder", "ambiguous_with": ["jitx"]}
 {"intent": "Generate three repeated RC filter channels inside one Circuit without losing their structural objects.", "expected_skill": "jitx-circuit-builder"}
 {"intent": "My named net collides with a public port named BOOT; repair the circuit wiring.", "expected_skill": "jitx-circuit-builder"}
-{"intent": "Draw a ground pour around the board edge and shape a copper keepout under the antenna.", "expected_skill": "jitx-physical-layout", "ambiguous_with": ["jitx-circuit-builder"]}
+{"intent": "Draw a ground pour around the board edge and shape a copper keepout under the antenna.", "expected_skill": "jitx-physical-layout"}
 {"intent": "Inspect the realized copper geometry after build and verify the route coordinates from RuntimeDesign.", "expected_skill": "jitx-physical-layout", "ambiguous_with": ["jitx-circuit-builder"]}
-{"intent": "Write a trace-to-pour clearance rule for the high-voltage net class.", "expected_skill": "jitx-layout-constraints", "ambiguous_with": ["jitx-circuit-builder"]}
+{"intent": "Write a trace-to-pour clearance rule for the high-voltage net class.", "expected_skill": "jitx-layout-constraints"}
 {"intent": "Place and route the decoupling capacitors with escape-width and loop-inductance constraints.", "expected_skill": "jitx-layout-constraints", "ambiguous_with": ["jitx-circuit-builder"]}
 {"intent": "Use provide and require to map one SPI peripheral onto either of two MCU pin groups.", "expected_skill": "jitx-pin-assignment", "ambiguous_with": ["jitx-circuit-builder"]}
 {"intent": "Support optional UART pin muxing with provide.one_of on this FPGA interface.", "expected_skill": "jitx-pin-assignment", "ambiguous_with": ["jitx-circuit-builder"]}
 {"intent": "Define the USB differential-pair topology, reference plane, impedance, and skew limits.", "expected_skill": "jitx-interconnect-constraints", "ambiguous_with": ["jitx-circuit-builder"]}
 {"intent": "Add RGMII timing constraints and length-match the data lanes to the clock.", "expected_skill": "jitx-interconnect-constraints", "ambiguous_with": ["jitx-circuit-builder"]}
 {"intent": "Model this STM32 QFN component from its datasheet and create the landpattern.", "expected_skill": "jitx-component-modeler", "ambiguous_with": ["jitx-circuit-builder"]}
+{"intent": "Wire this regulator application circuit.", "expected_skill": "jitx-circuit-builder"}
+{"intent": "Wire the PHY to the RJ45 through typed ports.", "expected_skill": "jitx-circuit-builder"}
+{"intent": "Declare this sensor circuit's boundary as a Power port and an I2C bundle.", "expected_skill": "jitx-circuit-builder"}
+{"intent": "Compose the regulator, PHY and connector circuits in a top-level circuit and connect them port to port.", "expected_skill": "jitx-circuit-builder"}
+{"intent": "Pin the regulator subcircuit at (10, 5) and leave the PHY subcircuit floating.", "expected_skill": "jitx-circuit-builder", "ambiguous_with": ["jitx-physical-layout"]}

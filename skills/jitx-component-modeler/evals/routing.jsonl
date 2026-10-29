@@ -14,7 +14,7 @@
 {"intent": "write me a committed generator that emits the component module and can regenerate-and-diff to prove the checked-in file is current", "expected_skill": "jitx-component-modeler"}
 // Negatives: component-adjacent but another skill's lane.
 {"intent": "transcribe the laminate datasheet's Dk/Df table into JITX materials for our 6-layer stack", "expected_skill": "jitx-substrate-modeler"}
-{"intent": "drop a 100 nF decoupling cap on every VDD pin and add a ground pour under the part", "expected_skill": "jitx-circuit-builder"}
+{"intent": "drop a 100 nF decoupling cap on every VDD pin", "expected_skill": "jitx-circuit-builder"}
 {"intent": "stitch vias into the QFN's thermal pad and fan the escapes out to layer 3", "expected_skill": "jitx-physical-layout"}
 {"intent": "the 1369-ball BGA component already exists — escape the inner rows out to layer 6 and fan the diff pairs", "expected_skill": "jitx-physical-layout"}
 {"intent": "this MCU can bring SPI out on two different pin groups — let the assignment pick which", "expected_skill": "jitx-pin-assignment"}

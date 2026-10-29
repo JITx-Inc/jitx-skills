@@ -1,11 +1,11 @@
 {
   "name": "constrained-passive-query",
-  "prompt": "Build the feedback divider for a 3.3 V buck (0.8 V reference, ~10 uA through the divider) and the output filter caps. This is a precision rail — it needs to hold over temperature.",
+  "prompt": "Build the feedback divider for a 3.3 V buck (0.8 V reference, ~10 uA through the divider) and the output filter caps. This is a precision rail and it needs to hold over temperature.",
   "inputs": {
-    "notes": "Every axis left unstated in a passive query is an axis the parts database decides. This case tests whether the runner constrains the axes that matter for a precision rail, and whether it knows which axis belongs to which part type.",
-    "environment": "A parts-database query is available."
+    "notes": "Every axis left unstated in a passive query is an axis the parts chain decides, and an axis stated on a key the approved CSV has no column for is silently dropped: the CSV declines it and `ideal` answers, ignoring the key. This case tests whether the runner constrains the axes that matter for a precision rail using only the CSV's vocabulary, and says so where the vocabulary runs out.",
+    "environment": "A project whose chain is `csv:parts/approved-parts.csv` then `ideal`, with the jitxexamples example CSV as the approved list. Its columns include `tolerance`, `case`, `rated_voltage_dc` and `temperature_coefficient_code`, and no resistor temperature-coefficient column."
   },
-  "expected_output": "A divider whose resistor values are legal E-series parts with a stated tolerance and a stated temperature coefficient, and output capacitors with a stated dielectric and a voltage rating chosen with DC-bias derating in mind.",
+  "expected_output": "A divider whose resistor values are on a named E-series with a stated tolerance bound, output capacitors with a stated dielectric and a derated `rated_voltage_dc` floor, values in `jitx.units`, and a stated account of the resistor temperature coefficient the CSV cannot filter on.",
   "assertions": [
     {
       "text": "every passive query states tolerance",
@@ -13,16 +13,26 @@
       "cmd": "python3 -c \"import glob,re,sys; s=''.join(open(f).read() for f in glob.glob('<output>/*.py')); q=re.findall(r'(?:Resistor|Capacitor|Inductor)\\((?:[^()]|\\([^()]*\\))*\\)', s); bad=[x for x in q if 'tolerance' not in x]; print('\\n'.join(bad)); sys.exit(1 if bad else 0)\""
     },
     {
-      "text": "temperature_coefficient_code is passed only to Capacitor queries — it is a capacitor field, and a resistor's temperature behaviour is tcr_pos / tcr_neg",
+      "text": "temperature_coefficient_code is passed only to Capacitor queries: it is a capacitor column, and on a resistor it filters nothing",
       "check": "deterministic",
       "cmd": "! grep -nE '(Resistor|Inductor)\\((?:[^()]|\\([^()]*\\))*temperature_coefficient_code' <output>/*.py"
+    },
+    {
+      "text": "every Capacitor query states temperature_coefficient_code, a column the example CSV has",
+      "check": "deterministic",
+      "cmd": "python3 -c \"import glob,re,sys; s=''.join(open(f).read() for f in glob.glob('<output>/*.py')); q=re.findall(r'Capacitor\\((?:[^()]|\\([^()]*\\))*\\)', s); bad=[x for x in q if 'temperature_coefficient_code' not in x]; print('\\n'.join(bad)); sys.exit(1 if bad or not q else 0)\""
+    },
+    {
+      "text": "no jitxlib-parts 1.x API in the output: no `.insert(`, `short_trace`, `jitx.interval`, `rated_voltage=` or `tcr_pos`/`tcr_neg`, none of which exist in 2.x",
+      "check": "deterministic",
+      "cmd": "! grep -nE '\\.insert\\s*\\(|short_trace|jitx\\.interval|rated_voltage=|tcr_pos|tcr_neg' <output>/*.py"
     },
     {
       "text": "each resistor value is a member of a named E-series (E96 unless the request states another)",
       "check": "judge"
     },
     {
-      "text": "the divider ratio actually produces 3.3 V from a 0.8 V reference with the chosen E-series values, and the error introduced by rounding to the series is stated",
+      "text": "the divider ratio actually produces 3.3 V from a 0.8 V reference with the chosen E-series values, and the worst-case error (rounding, resistor tolerance, reference accuracy) is stated",
       "check": "judge"
     },
     {
@@ -30,19 +40,19 @@
       "check": "judge"
     },
     {
-      "text": "the resistors' temperature coefficient is constrained, because the prompt asked the rail to hold over temperature and an unconstrained TCR is the axis that breaks that",
+      "text": "the resistors' temperature coefficient is addressed without a key the CSV lacks: the runner says the approved CSV has no column for it and asks for one (or for approved low-TCR rows), rather than writing a key that silently falls through to `ideal`",
       "check": "judge"
     },
     {
-      "text": "the ceramics state a dielectric — unconstrained, a query can return Y5V or Z5U, which lose most of their capacitance across temperature and DC bias",
+      "text": "the ceramics state a dielectric: unconstrained, a query can return Y5V or Z5U, which lose most of their capacitance across temperature and DC bias",
       "check": "judge"
     },
     {
-      "text": "capacitor voltage rating is above the rail with derating headroom, not merely above the rail",
+      "text": "capacitor `rated_voltage_dc` is an `AtLeast(... * V)` floor above the rail with derating headroom, not a bare value and not merely above the rail",
       "check": "judge"
     },
     {
-      "text": "no invented part: every passive is a query result, not an MPN written from memory",
+      "text": "no invented part: every passive is a query the chain resolves, and any that resolved to an `IDEAL-` part is named as unapproved",
       "check": "judge"
     }
   ]
