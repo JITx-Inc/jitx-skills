@@ -13,10 +13,11 @@ The `jitx` CLI owns project scaffolding, auth, runtime install/start, and design
 
 > **Supported version line: one owner for this fact.** This bundle targets
 > **jitx 4.6.x** (`jitx >= 4.6, < 4.7`), the public PyPI line from the 4.6.0 release.
-> A note naming 4.4.0 records where one claim was measured; it was not re-run on 4.6.
-> This is the only place the *supported range* is stated; no sibling skill restates it.
-> Earlier lines (4.0.x, 4.2.x, 4.4.x) are not described here. On one, upgrade or expect the
-> pages to disagree with your package; verify every import with `pyright` either way.
+> A note naming an earlier version records where one claim was measured; it was not re-run on 4.6.
+> No sibling skill restates this *supported range*.
+> On 4.4.x the notes measured there hold but the install pins do not. Earlier lines (4.0.x,
+> 4.2.x) are not described here. On an older install, upgrade or expect the pages to disagree
+> with your package; verify every import with `pyright` either way.
 
 > **Platform note (read once).** These commands run in **your** shell on **your** OS. macOS / Linux / WSL / Git Bash use **bash**; native Windows uses **PowerShell**. Commands identical in both (all `jitx ...`, `pip ...`, `pyright`, `ruff`, every `python scripts/...`) are shown once; where they diverge, a `bash` block and a `powershell` block are given — run the one for your shell.
 >
@@ -89,7 +90,7 @@ fi
 # Sync project deps from public PyPI. The `jitxlib` namespace is split across
 # distributions and installing `jitx` alone brings none of them (Step 1 table).
 # The scaffold pins `jitx<5`, so pip may resolve an older 4.x that still satisfies
-# it; the explicit range below re-pins to the line this bundle documents.
+# it; the explicit range below re-pins to the line this bundle targets.
 pip install -e . "jitx>=4.6,<4.7" jitxlib-standard jitxlib-parts jitxlib-voltage-divider --quiet 2>&1 | tail -1
 jitx --version
 ```
@@ -103,7 +104,7 @@ if ((-not (Test-Path pyproject.toml)) -or (-not (Select-String -Quiet -Pattern "
 # Sync project deps from public PyPI. The `jitxlib` namespace is split across
 # distributions and installing `jitx` alone brings none of them (Step 1 table).
 # The scaffold pins `jitx<5`, so pip may resolve an older 4.x that still satisfies
-# it; the explicit range below re-pins to the line this bundle documents.
+# it; the explicit range below re-pins to the line this bundle targets.
 pip install -e . "jitx>=4.6,<4.7" jitxlib-standard jitxlib-parts jitxlib-voltage-divider --quiet 2>&1 | Select-Object -Last 1
 jitx --version
 ```
