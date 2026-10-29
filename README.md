@@ -103,7 +103,7 @@ Example triggers:
 
 ### jitx-circuit-builder
 
-Build JITX circuits with wiring, passives, power connections, application circuits, placement, and basic copper geometry.
+Build JITX circuits with wiring, typed ports, hierarchy, passives, power connections, application circuits, and placement.
 
 Example triggers:
 
