@@ -43,7 +43,7 @@ Refuse to proceed with:
 - invented constructor arguments, class-scope `self`, or a JITX class declared inside a function, method or active instantiation context;
 - a silent package-variant choice when the source covers more than one.
 
-Every physical pin or ball, NC-with-pad and thermal pad included, gets its own port; contacts sharing one land share one port. The symbol carries every port. A port on several pads (ground plus the thermal pad), a port on no pad, or a declaration order that is not pad order requires an explicit `PadMapping`; an unmapped thermal pad builds unconnected with no error.
+Every physical pin or ball, NC-with-pad and thermal pad included, gets its own port; contacts sharing one land share one port. The symbol carries every port. A port on several pads (ground plus the thermal pad) or a declaration order that is not pad order requires an explicit `PadMapping`; an unmapped thermal pad builds unconnected with no error.
 
 Library and generator defaults are inputs to verify: check each one relied on against the source wherever the source speaks, and override from the source where they disagree. Density level is one (installed default `B`): set `DensityLevel` (`jitxlib.landpatterns.ipc`) explicitly or record that the default matches the source.
 
