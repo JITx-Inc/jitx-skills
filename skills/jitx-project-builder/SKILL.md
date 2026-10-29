@@ -81,8 +81,11 @@ Copy `scripts/grep_gates.py` and `scripts/check.py` from the base `jitx` skill i
 project's `scripts/` directory. Copy
 `jitx-physical-layout/scripts/check_realization.py` to
 `<project>/scripts/check_realization.py`; it is owned and tested by its skill.
-SI constraints need no copied script: `jitx design issues <module.Design> --satisfied`
-proves them, as `jitx-interconnect-constraints` "Verification" describes.
+SI constraints need no copied script. Each design whose SI constraints are
+checked gets a report script beside it, `<ns>/designs/check_si_<name>.py`: the
+Python check in `jitx-interconnect-constraints` "Verification" with that
+design imported, run from the project root as
+`python -m <ns>.designs.check_si_<name>` while the project's runtime is running.
 This skill's `scripts/plan_status.py` is copied when PLAN.md is created as
 described below. Sub-agents and the
 orchestrator at every phase exit gate run the single static-check entry point

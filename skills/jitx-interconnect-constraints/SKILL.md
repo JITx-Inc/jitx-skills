@@ -1,11 +1,11 @@
 ---
 name: jitx-interconnect-constraints
-description: "Use when the user asks about timing constraints, skew matching, insertion loss limits, pin models (bridging, terminating, via models), proving that an SI constraint applied, or debugging a constraint that does not measure in jitx design issues. Also covers differential pairs, DiffPair bundles, skew across a bundle or against a clock, protocol constraints for PCIe, USB, DisplayPort, RGMII, Ethernet, DDR, reference planes, length matching, impedance-controlled routing, SignalConstraint definitions, and daisy-chain or flyby topologies built with the double-greater-than operator. Covers Topology, Constrain, ConstrainDiffPair, ConstrainReferenceDifference, DiffPairConstraint, BridgingPinModel, TerminatingPinModel, via models, ReferencePlanes, design issues, and protocol-specific constraint patterns. Trace width and clearance design rules belong to jitx-layout-constraints. Pin muxing and lane or polarity swappability belong to jitx-pin-assignment. Stackups and routing-structure definitions belong to jitx-substrate-modeler."
+description: "Use when the user asks about timing constraints, skew matching, insertion loss limits, pin models (bridging, terminating, via models), proving that an SI constraint applied, or debugging a constraint that does not measure in the design issues report. Also covers differential pairs, DiffPair bundles, skew across a bundle or against a clock, protocol constraints for PCIe, USB, DisplayPort, RGMII, Ethernet, DDR, reference planes, length matching, impedance-controlled routing, SignalConstraint definitions, and daisy-chain or flyby topologies built with the double-greater-than operator. Covers Topology, Constrain, ConstrainDiffPair, ConstrainReferenceDifference, DiffPairConstraint, BridgingPinModel, TerminatingPinModel, via models, ReferencePlanes, design issues, and protocol-specific constraint patterns. Trace width and clearance design rules belong to jitx-layout-constraints. Pin muxing and lane or polarity swappability belong to jitx-pin-assignment. Stackups and routing-structure definitions belong to jitx-substrate-modeler."
 ---
 
 # JITX Interconnect Constraints
 
-Apply signal integrity constraints (timing, insertion loss, intra-pair skew, skew against a reference) to signal paths in JITX Python designs, on jitx 4.6. A constraint names a path's two ends with `Topology(begin, end)`; the ports along the path are joined by the ordinary nets `jitx-circuit-builder` teaches; routes and pin models let the runtime follow the path; `jitx design issues --satisfied` proves the constraint measured. Routing structures come from `jitx-substrate-modeler`.
+Apply signal integrity constraints (timing, insertion loss, intra-pair skew, skew against a reference) to signal paths in JITX Python designs, on jitx 4.6. A constraint names a path's two ends with `Topology(begin, end)`; the ports along the path are joined by the ordinary nets `jitx-circuit-builder` teaches; routes and pin models let the runtime follow the path; the design issues report proves it measured. Routing structures come from `jitx-substrate-modeler`.
 
 ## Environment
 
@@ -95,7 +95,9 @@ Cover every timed path with one routing structure: on its own constraint, or, fo
 
 ### Choosing the ends
 
-Name the true end-to-end pads. A constraint that ends on an intermediate pad measures a shorter span without any warning; check that each measured line reads `from <begin> to <end>` with the ends you intended. A circuit port as an end resolves to the first pad behind it, so when a sub-circuit holds a series part between its port and the chip, a constraint on the sub-circuit port leaves that part out of the measurement. Constrain to the chip's pad instead (`self.phy.chip.tx`, not `self.phy.tx`).
+Name the true end-to-end pads. A constraint that ends on an intermediate pad measures a shorter span silently; check that each measured line reads `from <begin> to <end>` with your intended ends. A circuit port as an end resolves to the first pad behind it, so when a sub-circuit holds a series part between its port and the chip, a constraint on the sub-circuit port leaves that part out of the measurement. Constrain to the chip's pad instead (`self.phy.chip.tx`, not `self.phy.tx`).
+
+With a series part in each sub-circuit, the segment between the series parts, whose net holds the sub-circuit ports, reports `Missing routing structure on Path: a.ser.a, b.ser.a` beside the chip-to-chip measurement, though the constraint has `.structure(...)`. A structure-only constraint across the ports, `self.mid = Constrain(Topology(self.a.p, self.b.p)).structure(rs50)`, clears the line and keeps the measurement (jitx 4.6.0rc10, runtime 4.6.0-rc.16). With no series part, nothing was missing.
 
 ## Pin Models
 
@@ -273,11 +275,11 @@ self.rx_nets = [self.phy.serial.tx + self.fpga.serial.rx]
 
 `constrain_topology(src, dst)` calls `constrain(src, dst)` immediately and returns a context manager that yields `(src, dst)`; it only moves an end along a `>>` chain already in the circuit. On plain nets it adds nothing over `constrain`.
 
-For protocols with several signal groups, compose: a `DDR4Constraint` holds a data constraint and an address/command constraint and calls each from its own `constrain`. `jitxexamples.protocols.memory` (jitx-examples) implements DDR4 and LPDDR4 this way, with every number cited to its source.
+For protocols with several signal groups, compose: a `DDR4Constraint` holds a data constraint and an address/command constraint and calls each from its own `constrain`. `jitxexamples.protocols.memory` (the `jitxexamples` distribution) implements DDR4 and LPDDR4 this way, with every number cited to its source.
 
 ## Working with Built-in Protocols
 
-JITX provides built-in protocol constraints in `jitxlib`. Check your installed version for available protocols with your **Grep** tool (pattern `class.*Constraint.*SignalConstraint`, path `.venv`, glob `*.py`); it recurses and is OS-agnostic. Shell fallback: bash `grep -rn "class.*Constraint.*SignalConstraint" .venv/lib/python*/site-packages/jitxlib/protocols/` (macOS/Linux); on Windows use the Grep tool, or `Select-String` over `.venv\Lib\site-packages\jitxlib\protocols`.
+JITX provides built-in protocol constraints in `jitxlib`. Check your installed version for available protocols with your **Grep** tool (pattern `class.*Constraint.*SignalConstraint`, path `.venv`, glob `*.py`); it recurses and is OS-agnostic.
 
 | Protocol | Import Path | Port Bundle |
 |----------|-------------|-------------|
@@ -314,7 +316,7 @@ The cage must leave the routes a way in. On the two-layer `jitx.sample.SampleSub
 
 `DifferentialViaStructure(vias, pitch, ground_cages=..., antipads=...)` has `DiffPair` ports and signal vias `via_p` and `via_n`; optional `enterOn` / `exitOn` add pair insertions. Neither class takes an `insertion_points` argument.
 
-**These DO NOT EXIST — never import:**
+**These DO NOT EXIST; never import:**
 `jitx.via_structures`, `jitx.si.ViaStructure`, `jitxlib.vias`
 
 ## Constraints on pin-assigned ports
@@ -340,7 +342,7 @@ The same chain on a plain `Net([ctrl.a0, dram0.a0, dram1.a0])` also measures onc
 ## Common Mistakes
 
 - Declaring `>>` on a point-to-point signal, or telling the user `>>` is required for a constraint to apply. Plain nets plus `Topology(begin, end)` are enough.
-- Claiming a constraint applies from `status: ok`, a clean type check, or an issue report read without `--satisfied`. Only a measured line counts.
+- Claiming a constraint applies from `status: ok`, a clean type check, or an issue report read without `satisfied=True`. Only a measurement counts.
 - A part on the path with no `BridgingPinModel`, or a via with no `models`. Add the model; do not accept the placeholder.
 - A timed path covered by no routing structure (neither its own constraint nor, for a chain, the longest-path constraint). The measurement is not the structure's; the `Missing routing structure` line is a defect.
 - Ending a constraint on a sub-circuit port or an intermediate pad, so the measurement skips part of the path.
@@ -354,29 +356,38 @@ The same chain on a plain `Net([ctrl.a0, dram0.a0, dram1.a0])` also measures onc
 
 Layout width and clearance checks belong to `jitx-layout-constraints`; physical-layout checks to `jitx-physical-layout`. This section proves that each SI constraint applied.
 
-Prove binding on a code-routed verification design, one per module that carries SI constraints. It places the parts, code-routes every constrained path between physical pads (on a pin-assigned port, the provider's physical pins), and passes when each constraint with a timing, loss or skew target has a measured line with the intended ends and no unresolved text. A structure-only constraint never appears; its code is the evidence. The shipping assembly carries no proof routes, which would fix one placement and one pin mapping. On the assembly, `Unconnected Topology`, `not routed yet`, a bare `No path for signal constraint`, and `Unassigned Pin` are expected only on a constraint whose path has no route; a routed constraint is held to the verification-design bar. [references/verification.md](references/verification.md) has the full rule, what blocks wherever it appears, and parity evidence.
+Prove binding on a code-routed verification design, one per constrained path. It places the parts, code-routes the path between physical pads (on a pin-assigned port, the provider's physical pins), and passes when each constraint with a timing, loss or skew target has a measurement with the intended ends and no unresolved text. A structure-only constraint never appears; its code is the evidence. The shipping assembly carries no proof routes. On it, the unrouted texts (`Unconnected Topology`, `not routed yet`, a bare `No path`, `Unassigned Pin`) are expected only on a constraint whose path has no route; a routed constraint is held to the verification-design bar. [references/verification.md](references/verification.md) has the full rule, the blocking texts and parity evidence.
 
 1. Type check: `pyright path/to/circuit.py`.
-2. Read the design issues with satisfied checks included. A runtime must be running for the project (`jitx runtime start --background`):
+2. Read the design issues from Python, as a script run from the project root while the project's runtime is running (`jitx runtime start --background`):
 
-   ```bash
-   jitx design issues <module.path.DesignClass> --satisfied --wait 30
+   ```python
+   import jitx
+
+   from mypkg.main import MyDesign
+
+   with jitx.runtime as rt:
+       report = rt.submit(MyDesign).issues(satisfied=True, wait=30)
+       for group in report.groups():
+           print("met" if group.satisfied else "NOT MET", group.text)
+           if len(group.issues) > 1:
+               for issue in group:
+                   print("   ", issue.text)
    ```
 
-   From Python: `with jitx.runtime as r:` then `r.submit(MyDesign).issues(satisfied=True, wait=30).text()`. The command exits 0 whatever it finds unless `--error` is given. A repeated query of an unchanged design can hang; restart the runtime first ([references/verification.md](references/verification.md)). JITX builds against the same project run in sequence; see [Build safety](../jitx/SKILL.md#build-safety-dont-parallelize-same-design-work).
+   Without `satisfied=True` a met constraint is left out; `report.complete` says whether the checks finished within `wait`. A group of several issues shows only the first in `group.text`. `jitx.run` is marked experimental. Builds against one project run in sequence ([Build safety](../jitx/SKILL.md#build-safety-dont-parallelize-same-design-work)).
 
-3. A constraint applied only when its measurement appears, naming the intended ends:
+3. A constraint bound to its path when its group carries a Time, Loss or Skew measurement naming the intended ends:
 
    ```text
-   Signal Constraint:
-     - Time: 211.953ps - Target: 200ps ± 200ps from bga.tx0.p to conn.tx0.p
-     - Loss: 0.907db ± 0db - Target: 1db ± 1db from bga.tx0.p to conn.tx0.p
-     - Skew: 0fs - Target: ± 1ps (longer from bga.tx0.p to conn.tx0.p, shorter from bga.tx0.n to conn.tx0.n)
+   met Time: 105.311ps - Target: 500ps ± 500ps from drv.d.p to rcv.d.p
+   met Time: 105.311ps - Target: 500ps ± 500ps from drv.d.n to rcv.d.n
+   met Skew: 0s - Target: ± 1ps (longer from drv.d.p to rcv.d.p, shorter from drv.d.n to rcv.d.n)
    ```
 
-   Without `--satisfied`, a met constraint does not appear at all, so `No design issues.` proves nothing. On a verification design (or a routed assembly path), any of these is unresolved, whether it sits under `Signal Constraint:`, `Topology:` or `Routing:`: `Unconnected Topology`, `not routed yet`, `No path for signal constraint`, `Missing routing structure`, a placeholder via model, `Virtual connection without a pin model`, `Missing Connection on Path`, `Unable to find path for requested route`, `Unassigned Pin`, `Code route dropped`. [references/verification.md](references/verification.md) gives each message's cause and fix.
+   On a verification design (or a routed assembly path), a group holding any text [references/verification.md](references/verification.md) lists as unresolved is not proven; that page gives each cause and fix.
 
-4. Keep binding apart from compliance. Binding: the measurement exists. Compliance: the measured value lies inside the `Target` window (`200ps ± 200ps` means 0 to 400 ps). A violated constraint prints the same line, also without `--satisfied`. Report both, and report a measurement outside its target as a violation, not a pass.
+4. Keep binding apart from compliance. Binding: the measurement exists. Compliance: `group.satisfied`, the only per-constraint verdict; the text reads the same met or unmet, and a skew window's printed `Target` drops its sign. A group that also holds an unresolved text is not met. Report both, and an unmet measurement as a violation.
 
 ## API Reference
 

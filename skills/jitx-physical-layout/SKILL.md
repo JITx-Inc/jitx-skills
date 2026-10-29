@@ -349,8 +349,8 @@ Rules learned in production (saturn-ethernet, 4.3.0-rc.3):
   measured under `ConstrainDiffPair(Topology(drv.d, rcv.d))` (`Time:
   105.311ps` per leg, `Skew: 0s`). With the driver-side legs replaced by
   `VirtualConnection`s carrying `PinModel(delay=5e-12, loss=0.05)` it measured
-  `Time: 78.215ps`; a 50 ps model raised that by exactly 45 ps, so the model
-  is consumed. With no routes the report was `No path for signal constraint`.
+  `Time: 78.215ps`; a 50 ps model gave `Time: 123.215ps`, 45 ps more, so
+  the model is consumed. With no routes the report was `No path for signal constraint`.
   Series components (AC caps) are crossed by their `BridgingPinModel`.
   `>>` remains for an ordered daisy chain; `TopologyNet` sequences accept
   `Via` and `ControlPoint` elements and are tag-able.
