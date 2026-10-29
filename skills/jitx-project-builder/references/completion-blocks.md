@@ -74,7 +74,7 @@ Run `python scripts/check.py <ns>/ --build <module.path.DesignClass>` once from 
 | Domain checklist | <name; N/N; M fixed; K N/A + reasons> |
 | General Gotcha Scrub | N/N |
 | Layout rules | <command; exit; witnessed/unwitnessed> |
-| SI measurements | <`ver-<path>` task: `python -m <ns>.designs.check_si_<path>` command; one quoted group per constraint with a timing, loss or skew target, carrying its Time / Loss / Skew measurement, intended ends, `met` or `NOT MET`, no unresolved text; each structure-only constraint named from its code / any other task: not applicable + reason> |
+| SI measurements | <`ver-` task: `python -m <ns>.designs.check_si_<iface>` command; one quoted group per constraint with a timing, loss or skew target, carrying its Time / Loss / Skew measurement, intended ends, `met` or `NOT MET`, no unresolved text; each structure-only constraint named from its code / any other task: not applicable + reason> |
 | Physical realization | <`python scripts/check_realization.py <module.Design> [witness args]`; exit code; authored pours, stitch targets, board-wide pours / not applicable + reason> |
 | `ruff check` | <`ruff check` summary line; PASS, or FAIL fixed and re-run> |
 | `ruff format` | <`ruff format` summary line; PASS, or reformatted and re-run> |
@@ -123,10 +123,11 @@ The orchestrator (or user) then appends the acceptance decision:
 - **Static checks are required where Python was touched.** `python scripts/check.py <ns>/` always runs `ruff check`, `ruff format --check`, `pyright`, and the grep gates. Every check reports `PASS`, `FAIL` or `ERROR`, and only `PASS` reaches acceptance. A `FAIL` is fixed and the command re-run, so the block carries the passing line rather than a recorded violation; a `FAIL` line in a submitted block returns the task to `rework`. An `ERROR` means the check did not run, which is not a pass: it blocks acceptance until the tool is available, or the orchestrator records why the environment cannot run it.
 - **SI-measurement and physical-realization rows are executable evidence.** SI
   binding is proven on a code-routed verification design, one per constrained
-  path, written by that path's `ver-<path>` task: it places the parts,
-  code-routes the path between physical pads (on a pin-assigned port, the
+  interface (the paths one constraint spans between the same modules), written
+  by that interface's `ver-` task: it places the parts, code-routes each path
+  between physical pads (on a pin-assigned port, the
   provider's physical pins), and runs its SI check,
-  `python -m <ns>.designs.check_si_<path>`. It passes when every constraint
+  `python -m <ns>.designs.check_si_<iface>`. It passes when every constraint
   with a timing, loss or skew target shows a quoted Time, Loss or Skew
   measurement from its intended begin pad to its intended end pad, and no group
   for it holds unresolved text.
@@ -224,7 +225,7 @@ Pattern 1 skips `constraints/` directories, `main.py`, and test modules
 (`test_*.py`, `*_test.py`, `tests/`) because the prescribed layout puts SI
 constraint definitions, the seeded top-level design, and test harnesses there.
 It also skips `<ns>/designs/`, where SI verification designs
-(`verify_<path>.py`) apply their constraints. A hit anywhere else is an SI
+(`verify_<iface>.py`) apply their constraints. A hit anywhere else is an SI
 constraint applied inside an ordinary subcircuit and blocks acceptance.
 
 Pattern 9 catches f-strings that look like they're building tag-style identifiers (`ALL_CAPS` prefix + brace). Legitimate uses (log lines like `f"ERROR_{code}"`) need disposition with rationale. The disposition workflow keeps this from becoming compliance theater.
@@ -336,7 +337,7 @@ work with a batch count on it.
 | Provide/require interfaces consistent | <result> |
 | Bundle-typed ports | <result> |
 | Constrained-path wiring and pin models | <plain `+` nets on constrained paths; a `BridgingPinModel` on every pass-through part; result> |
-| SI verification designs | <per constrained path: `ver-<path>` task id, `<ns>/designs/verify_<path>.py`, verdict; every path with an SI constraint has an accepted one / not applicable + reason> |
+| SI verification designs | <per constrained interface: `ver-` task id, `<ns>/designs/verify_<iface>.py`, verdict; every interface with an SI constraint has an accepted one / not applicable + reason> |
 | `short_trace=True` on power-rail caps | <result; dispositions> |
 | Power circuit outputs match ARCHITECTURE.md | <result> |
 | Open from this phase | <list/none> |
@@ -485,8 +486,8 @@ For each item: pass | fail with details | not run (with reason)
 | Board placement | pass | components placed (or floating with rationale), no overlaps |
 | Issues List | <count> issues | <list, each with disposition> |
 | DRC | pass | <or list of violations with disposition> |
-| SI constraints | all satisfied | <compliance from the routed assembly's own measured values against their targets, or list of failures with disposition; verification-design values are proof-route numbers and do not stand in; a constraint whose path has no route reads `not measured: unrouted; see SI constraint binding` and gets the `SI compliance pending routing` Deferred item> |
-| SI constraint binding | measured / not applicable | <each verification design: exact `python -m <ns>.designs.check_si_<path>` command and one quoted group per constraint with a timing, loss or skew target, with its measurement (structure-only: named from code); assembly: command and each SI group dispositioned / concrete reason no SI constraint is expected> |
+| SI constraints | all satisfied | <compliance from the routed assembly's own groups (`group.satisfied`; the measurement is binding evidence, not the verdict), or list of failures with disposition; verification-design values are proof-route numbers and do not stand in; a constraint whose path has no route reads `not measured: unrouted; see SI constraint binding` and gets the `SI compliance pending routing` Deferred item> |
+| SI constraint binding | measured / not applicable | <each verification design: exact `python -m <ns>.designs.check_si_<iface>` command and one quoted group per constraint with a timing, loss or skew target, with its measurement (structure-only: named from code); assembly: command and each SI group dispositioned / concrete reason no SI constraint is expected> |
 | Placement overlap | none | <or list> |
 | Physical realization | exit 0 | <exact `check_realization.py` command; authored pour names; stitch targets; board-wide pours> |
 

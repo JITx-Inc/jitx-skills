@@ -20,7 +20,7 @@ Everything above that block is guidance for filling it, and none of it belongs i
 - **A concern gets exactly one home.** A risk, a boundary or a worry is either settled, in which case ARCHITECTURE.md owns it as a design note, or unsettled, in which case PLAN.md `Open Questions` owns it with an owner and a resolution path. Never both. Two homes is how the two documents come to disagree, and the copy nobody updates is the one a resumed session believes.
 - `Specifics` carries only what no table owns and no task of the same type shares: the one gotcha, the topology choice, the exception. **One line, roughly 25 words.** If the note needs a second line, the fact belongs in ARCHITECTURE.md and the task should name the section instead. If it needs a caveat a sub-agent must not miss, that is an engineering question or an open question, not a `Specifics` sentence.
 - The `Verify` module path is where the task's file lives: `python scripts/check.py <ns>/ --build <ns>.circuits.usb.TestDesign` commits the task to `<ns>/circuits/usb.py`. That gives the path one owner, so no task restates it and no two sub-agents place the same module differently. This skill's SKILL.md "Project Structure" gives the directory shape.
-- Each SI-constrained path gets its own `ver-<path>` task, which owns `<ns>/designs/verify_<path>.py`: its `Verify` builds `<ns>.designs.verify_<path>.<VerifyDesign>` and runs its SI check script `<ns>/designs/check_si_<path>.py`, and its deps are the module task at each end of the path and the constraint (`cst-`) task. The circuit and pin-assignment tasks at the ends keep their `TestDesign` and take no dependency on each other for SI. See `project-builder-flow.md` "SI verification designs (CRITICAL)".
+- Each SI-constrained interface (the paths one constraint spans between the same modules) gets its own `ver-` task, which owns `<ns>/designs/verify_<iface>.py`: its `Verify` builds `<ns>.designs.verify_<iface>.<VerifyDesign>` and runs its SI check script `<ns>/designs/check_si_<iface>.py`, and its deps are every module task on the path (the modules at both ends and any module the path passes through) and the constraint (`cst-`) task. The circuit and pin-assignment tasks on the path keep their `TestDesign` and take no dependency on each other for SI. The assembly task owns `<ns>/designs/check_si_main.py`. See `project-builder-flow.md` "SI verification designs (CRITICAL)".
 
 **Support circuitry is visible in the graph, not only at the gate**
 
@@ -146,11 +146,11 @@ See ARCHITECTURE.md sections `Power Tree`, `Interface Map`, `Board`, and, when p
 - **Verify:** `python scripts/check.py <ns>/ --build <ns>.circuits.<name>.TestDesign`
 - **Status:** pending
 
-### [ver-usb] [Path] SI Verification
-- **Type / skill / deps:** si-verification | jitx-interconnect-constraints [+ jitx-pin-assignment for a pin-assigned end] | [module task id at each end of the path; `cst-` task id]
+### [ver-01] [Interface] SI Verification
+- **Type / skill / deps:** si-verification | jitx-interconnect-constraints [+ jitx-pin-assignment for a pin-assigned end] | [every module task id on the interface's paths; `cst-` task id]
 - **Data:** [ARCHITECTURE.md `Interface Map` row; the accepted module and constraint outputs]
-- **Specifics:** [the path's two ends, and the one legal mapping the proof routes fix]
-- **Verify:** `python scripts/check.py <ns>/ --build <ns>.designs.verify_<path>.<VerifyDesign>`, then `python -m <ns>.designs.check_si_<path>`
+- **Specifics:** [the constraint, each path's two ends, and the one legal mapping the proof routes fix]
+- **Verify:** `python scripts/check.py <ns>/ --build <ns>.designs.verify_<iface>.<VerifyDesign>`, then `python -m <ns>.designs.check_si_<iface>`
 - **Status:** pending
 
 ## Phase 3: Top-Level Assembly
@@ -158,8 +158,8 @@ See ARCHITECTURE.md sections `Power Tree`, `Interface Map`, `Board`, and, when p
 ### [asm-01] Top-Level Design
 - **Type / skill / deps:** assembly | jitx-circuit-builder + jitx-interconnect-constraints | [every Phase 2 id, listed out]
 - **Data:** [accepted Phase 2 outputs; ARCHITECTURE.md sections by name]
-- **Specifics:** [assembly decisions no other document owns]
-- **Verify:** `python scripts/check.py <ns>/ --build <ns>.main.Design`
+- **Specifics:** [assembly decisions no other document owns; writes `<ns>/designs/check_si_main.py` when the design has SI constraints]
+- **Verify:** `python scripts/check.py <ns>/ --build <ns>.main.Design`, then `python -m <ns>.designs.check_si_main` when the design has SI constraints
 - **Status:** pending
 
 ## Phase 3b: Design Review and Loopback

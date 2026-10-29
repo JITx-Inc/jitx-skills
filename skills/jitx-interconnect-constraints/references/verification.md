@@ -15,13 +15,21 @@ import jitx
 
 from mypkg.main import MyDesign
 
-with jitx.runtime as rt:
-    report = rt.submit(MyDesign).issues(satisfied=True, wait=30)
-    for group in report.groups():
-        print("met" if group.satisfied else "NOT MET", group.text)
-        if len(group.issues) > 1:
-            for issue in group:
-                print("   ", issue.text)
+
+def main() -> None:
+    with jitx.runtime as rt:
+        report = rt.submit(MyDesign).issues(satisfied=True, wait=30)
+        if not report.complete:
+            print("report incomplete: raise wait and run again")
+        for group in report.groups():
+            print("met" if group.satisfied else "NOT MET", group.text)
+            if len(group.issues) > 1:
+                for issue in group:
+                    print("   ", issue.text)
+
+
+if __name__ == "__main__":
+    main()
 ```
 
 `report.groups()` gives one group per check, for example per constraint
@@ -35,11 +43,16 @@ while debugging.
   an empty report is the same report a never-applied constraint gives.
 - `wait=30` gives the runtime's checks time to finish. A category still
   running when the wait ends comes back pending; `report.complete` is true
-  only when every category finished.
+  only when every category finished, and the script says so when it is not.
+- The body sits in `main()` behind the `__name__` guard. JITX design
+  discovery (`jitx build` with no design named, `jitx design find`, the design
+  picker) imports every `.py` under the project root whose name does not
+  start with `_`, so code at module level would submit a design each time.
 - `bool(report)` is true when any error-severity issue is present, and
   `report.errors` lists them, for a whole-design pass or fail.
 - `report.of(cls)` filters issues by class (`jitx.issue`), but a measurement
-  is typed `UnmetTime` or `UnmetTimeDiff` whether it passed or not; take the
+  is typed by kind, `UnmetTime`, `UnmetTimeDiff` or `UnmetLoss`, not by
+  verdict: `UnmetTime` and `UnmetTimeDiff` were seen on met checks. Take the
   verdict from `group.satisfied`.
 - `jitx.run` and `jitx.issue` are marked experimental and may change.
 
@@ -57,6 +70,9 @@ met Time: 105.311ps - Target: 500ps ± 500ps from drv.d.n to rcv.d.n
 met Skew: 0s - Target: ± 1ps (longer from drv.d.p to rcv.d.p, shorter from drv.d.n to rcv.d.n)
 met Satisfied
 ```
+
+The last line is the Routing category's group with no issue in it: every
+code route was made. It is not a constraint verdict.
 
 - `timing` gives a `Time` measurement per path, `insertion_loss` a `Loss`
   measurement per path, `ConstrainDiffPair(...).timing_difference` a `Skew`
@@ -97,7 +113,7 @@ not the design's number. Fix the cause and re-run; do not claim the constraint.
 | `Signal path from <a> to <b> is not routed yet` | The two pads share a net with no route joining them. | Same. |
 | `No path for signal constraint from <a> to <b>: the ends are only connected through the part between <x> and <y>, which has no pin model.` | A pass-through part has no `BridgingPinModel`. | Add one between `x` and `y`, with values from its datasheet or the user. |
 | `No path for signal constraint ...` with no part named | Seen when an unrouted net crosses a circuit's bundle port; when an assignment around fixed physical ends is unresolved or illegal; and, even on a routed path, when an end is a circuit port that reaches more than one pad, so no single pad stands in for it. | Route first, then read it again. If it stays on a routed path, check each end: rename a circuit-port end that reaches several pads to the chip pad you mean. For pin assignment see `jitx-pin-assignment`. |
-| `Missing routing structure on Path: <a>, <b>` (beside a measurement) | Either the constraint has no `.structure(...)`, so the measured delay and loss are not the structure's; or the ends are chip pads behind series parts in sub-circuits and the segment named runs between those series parts on a net that also holds the sub-circuit ports, which the constraint's structure does not reach (jitx 4.6.0rc10, runtime 4.6.0-rc.16). | Add the routing structure. For the second cause, add a structure-only constraint across the sub-circuit ports, such as `Constrain(Topology(self.a.p, self.b.p)).structure(rs50)`; it clears the line and the chip-to-chip measurement stays. |
+| `Missing routing structure on Path: <a>, <b>` (beside a measurement) | Either the constraint has no `.structure(...)`, so the measured delay and loss are not the structure's; or the ends are chip pads behind series parts in sub-circuits and the segment named runs between those series parts on a net that also holds the sub-circuit ports, which the constraint's structure does not reach (jitx 4.6.0rc10, runtime 4.6.0-rc.16). | Add the routing structure. For the second cause, on a single-ended net, add a structure-only constraint across the sub-circuit ports, such as `Constrain(Topology(self.a.p, self.b.p)).structure(rs50)`; it cleared the line, and the chip-to-chip Time dropped from 211.039 ps to 182.253 or 184.468 ps across runs. Not tried on a diff pair. |
 | `Structure model from [i] to [j] not found in "<Via>". Using placeholder model ...` | A via on the path has no `models` entry for that layer pair. The measurement uses a placeholder (20 ps and 0.15 dB on one observed run; not a documented default). | Give the via class a `models` entry from its data. |
 | `Missing Connection on Path: <a>, <b>`, with `Unable to find path for requested route` under Routing | A code route the router cannot make. Observed causes: a part rotated so the routed pad faces away, a part with no `.at(...)` placement, and a via-structure ground cage that closes the via off. | Fix the route or the placement. |
 | `Virtual connection without a pin model` | A `VirtualConnection` on the path has no `PinModel`. | Give it a `pin_model=PinModel(delay=..., loss=...)` (`jitx-physical-layout` covers `VirtualConnection`). |
@@ -108,7 +124,8 @@ not the design's number. Fix the cause and re-run; do not claim the constraint.
 ## Verification design and assembly
 
 Proof routes fix one placement and, on a pin-assigned port, one pin mapping, so
-they go in a code-routed verification design, one per constrained path, and
+they go in a code-routed verification design, one per constrained interface
+(the paths one constraint spans between the same modules), and
 not in the shipping assembly. The verification design places
 the parts and code-routes every constrained path between physical pads (on a
 pin-assigned port, the provider's physical pins). It passes when every

@@ -82,9 +82,10 @@ project's `scripts/` directory. Copy
 `jitx-physical-layout/scripts/check_realization.py` to
 `<project>/scripts/check_realization.py`; it is owned and tested by its skill.
 SI constraints need no copied script. Each design whose SI constraints are
-checked gets a report script beside it, `<ns>/designs/check_si_<name>.py`: the
-Python check in `jitx-interconnect-constraints` "Verification" with that
-design imported, run from the project root as
+checked gets a report script under `<ns>/`, at `<ns>/designs/check_si_<name>.py`:
+the Python check in `jitx-interconnect-constraints` "Verification" (its body
+in `main()` behind the `__name__` guard) with that design imported, run from
+the project root as
 `python -m <ns>.designs.check_si_<name>` while the project's runtime is running.
 This skill's `scripts/plan_status.py` is copied when PLAN.md is created as
 described below. Sub-agents and the

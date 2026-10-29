@@ -779,16 +779,24 @@ import jitx
 
 from mypkg.verify import VerifyDesign
 
-with jitx.runtime as rt:
-    report = rt.submit(VerifyDesign).issues(satisfied=True, wait=30)
-    for group in report.groups():
-        print("met" if group.satisfied else "NOT MET", group.text)
-        if len(group.issues) > 1:
-            for issue in group:
-                print("   ", issue.text)
+
+def main() -> None:
+    with jitx.runtime as rt:
+        report = rt.submit(VerifyDesign).issues(satisfied=True, wait=30)
+        if not report.complete:
+            print("report incomplete: raise wait and run again")
+        for group in report.groups():
+            print("met" if group.satisfied else "NOT MET", group.text)
+            if len(group.issues) > 1:
+                for issue in group:
+                    print("   ", issue.text)
+
+
+if __name__ == "__main__":
+    main()
 ```
 
-`satisfied=True` is required: without it, satisfied constraints are left out. `group.satisfied` is each check's verdict; the text reads the same met or unmet. A group of several issues shows only the first in `group.text`. `jitx-interconnect-constraints` `references/verification.md` covers the rest of the report API.
+`satisfied=True` is required: without it, satisfied constraints are left out. `group.satisfied` is each check's verdict; the text reads the same met or unmet. A group of several issues shows only the first in `group.text`. The body stays in `main()` because design discovery imports every `.py` in the project. `jitx-interconnect-constraints` `references/verification.md` covers the rest of the report API.
 
 | Report text | Meaning |
 |---|---|
