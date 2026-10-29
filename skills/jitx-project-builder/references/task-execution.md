@@ -78,11 +78,12 @@ python scripts/check.py <ns>/ --build <module.path.TestDesign>
 
 Don't run a concurrent build of the same design in parallel — see [Build safety: don't parallelize same-design work](../../jitx/SKILL.md#build-safety-dont-parallelize-same-design-work).
 
-In headless bash, the command is
-`yes | python scripts/check.py <ns>/ --build <module.path.TestDesign>` because a
-component removal can prompt for assent and the CLI has no documented
-non-interactive flag. It does not add `| tail`. If the build produces no output
-and consumes little CPU, Step 3 pauses before retrying and follows the
+A component removal can make the build ask `[Y/n]` before deleting stale
+instances; the CLI has no documented non-interactive flag. The answer is the
+user's: when the build asks, or ends with `EOF when reading a line`, the
+sub-agent stops and returns what it printed for the orchestrator to relay. The
+user answers in the JITX UI or their own terminal, or says to pipe `yes |`. The
+command does not add `| tail`. If the build produces no output and consumes little CPU, Step 3 pauses before retrying and follows the
 `jitx/SKILL.md` stalled-build check for accumulated `jitx interactive-client`
 processes.
 

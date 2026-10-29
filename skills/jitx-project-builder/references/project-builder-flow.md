@@ -123,7 +123,7 @@ python -c "import importlib.resources as r, shutil; shutil.copy(r.files('jitxexa
 
 If the copy raises `FileNotFoundError`, the installed `jitxexamples` predates the packaged example CSV: ask the user for a parts list instead.
 
-Tell the user the list is a stand-in and record it in PLAN.md `Data Sources`. A stand-in is not an approval: the Phase 4 parts gate lists every MPN the final build resolved, each with the user's approval quoted, or the user's list replaces the stand-in. Read that list from the final build, after `ideal` leaves the chain. Not from `parts.lock.json`: the lock never prunes, so it still holds the earlier chain's entries, `IDEAL-` parts included. Not from `parts-check` either: it prints counts, not MPNs. Start `jitx design session <design>` in the background (it prints nothing until stopped), then:
+Tell the user the list is a stand-in and record it in PLAN.md `Data Sources`. A stand-in is not an approval: the Phase 4 parts gate lists every MPN the final build resolved, each with the user's approval quoted, or the user's list replaces the stand-in. Read that list from the final build. Not from `parts.lock.json`: the lock never prunes, so it still holds the earlier chain's entries, `IDEAL-` parts included. Not from `parts-check` either: it prints counts, not MPNs. Start `jitx design session <design>` in the background (it prints nothing until stopped), then:
 
 ```bash
 jitx design exec <design> -c '
@@ -573,7 +573,7 @@ Do not accept "noted for future refactoring" — if it's broken, fix it now.
 
 ### Phase 4 Process
 
-1. Run the parts gate first (base `jitx` skill, Step 2; https://docs.jitx.com/en/latest/essentials/design/parts.html): remove `ideal` from `[tool.jitx.parts] chain`, then `jitx build <design>` and `jitx design export parts-check <design> --fail all` must pass. When PLAN.md `Data Sources` records the example stand-in, the gate also lists every MPN the final build resolved (read as in Phase 0 "Approved passives"), each with the user's approval quoted, or the user's list has replaced the stand-in; otherwise it is a blocking item. Approved parts can change footprints, so every later check runs on the approved parts. A `no part found` goes to the user, not to a fix sub-agent: ask for the approved part, and change a value only with the user's sign-off and the affected circuit recomputed.
+1. Run the parts gate first (base `jitx` skill, Step 2; https://docs.jitx.com/en/latest/essentials/design/parts.html): `jitx build <design>` and `jitx design export parts-check <design> --fail all` must pass, and no MPN the final build resolved (read as in Phase 0 "Approved passives") may start with `IDEAL-` (`ideal` stays in the chain, and the parts check passes an ideal part). When PLAN.md `Data Sources` records the example stand-in, the gate also lists each of those MPNs with the user's approval quoted, or the user's list has replaced the stand-in; otherwise it is a blocking item. Approved parts can change footprints, so every later check runs on the approved parts. A `no part found` goes to the user, not to a fix sub-agent: ask for the approved part, and change a value only with the user's sign-off and the affected circuit recomputed.
 2. Run the full verification command: `python scripts/check.py <ns>/ --build <ns>.main.Design`
 3. Check output for:
    - Every summary line reports `PASS`: proceed to verification
@@ -595,7 +595,7 @@ Do not accept "noted for future refactoring" — if it's broken, fix it now.
 
 The Phase 4 Verification Block is the completion criterion. The block enforces:
 
-- [ ] Parts gate passed: `ideal` removed, `parts-check --fail all` exit 0 (or a user-approved deferral), and, when the list is the example stand-in, every MPN the final build resolved (Phase 0 "Approved passives") listed with the user's approval quoted (or the user's list in its place)
+- [ ] Parts gate passed: `parts-check --fail all` exit 0, no `IDEAL-` MPN (or a user-approved deferral), and, when the list is the example stand-in, every MPN the final build resolved (Phase 0 "Approved passives") listed with the user's approval quoted (or the user's list in its place)
 - [ ] `status: ok` on final build
 - [ ] JITX UI verification rows pass or are `not run` with reason
 - [ ] Issues List, DRC, SI rows have status (or `not run` with reason)

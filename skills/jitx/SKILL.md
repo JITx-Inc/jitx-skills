@@ -5,9 +5,9 @@ description: "Base skill for JITX Python PCB design: install, the jitx CLI, auth
 
 # JITX
 
-JITX is a Python framework for PCB design. Run this skill's setup before any sub-skill: they assume a working runtime.
+Run this skill's setup before any sub-skill: they assume a working runtime.
 
-> **Supported version line.** This bundle is written for **jitx 4.6.x** (`jitx >= 4.6, < 4.7`). Sibling skills do not restate the range; their "verified on 4.4.0" notes are evidence for those claims on that release. On an older install, ask before upgrading, and expect these pages to disagree until then. Where the installed package differs from these pages, follow the package and verify every import with `pyright`.
+> **Supported version line.** This bundle is written for **jitx 4.6.x** (`jitx >= 4.6, < 4.7`). Sibling skills do not restate the range; their "verified on 4.4.0" notes are evidence for those claims on that release. Where the installed package differs from these pages, follow the package and verify every import with `pyright`.
 
 Commands are bash. In Windows PowerShell: use `python` for `python3`, activate with `.\.venv\Scripts\Activate.ps1`, write the `[ ... ] ||` guards as `if (-not (Test-Path ...))` and `grep -q` as `Select-String -Quiet`, and clear a `$env:VAR=` setting with `Remove-Item Env:VAR` when it should apply to one command. On Windows, in PowerShell or Git Bash, the `&`, `pkill` and `pgrep` steps have no verified form: ask the user to run long-lived commands in their own terminal and to close viewers themselves.
 
@@ -46,7 +46,7 @@ Passive queries need a provider chain in `pyproject.toml` (without one: `NoChain
 chain = ["csv:parts/approved-parts.csv", "ideal"]
 ```
 
-`ideal`, last, synthesizes unorderable `IDEAL-...` parts so the design builds before approval, silently answering most queries the CSV cannot. Before calling it done, remove `ideal`, then pass `jitx build <design>` and `jitx design export parts-check <design> --fail all`; on the stand-in, the user approves the final build's MPNs (`jitx-project-builder` Phase 0) or supplies a list. Before writing that list over the stand-in, delete `parts.lock.json`: the lock would keep the stand-in's MPNs. CSV format, lockfile, parts databases: https://docs.jitx.com/en/latest/essentials/design/parts.html
+`ideal`, last, synthesizes unorderable `IDEAL-...` parts so the design builds before approval, silently answering most queries the CSV cannot. Before calling it done, pass `jitx build <design>` and `jitx design export parts-check <design> --fail all`, and check on the design itself that no MPN starts with `IDEAL-`: the parts check passes an ideal part. On the stand-in, the user approves the final build's MPNs (`jitx-project-builder` Phase 0) or supplies a list. Before writing that list over the stand-in, delete `parts.lock.json`: the lock would keep the stand-in's MPNs. CSV format, lockfile, the `IDEAL-` test, parts databases: https://docs.jitx.com/en/latest/essentials/design/parts.html
 
 The scaffold skips `git init` (do it and say so). Its `.gitignore` keeps the built design directory tracked on purpose: do not broaden it.
 
@@ -100,7 +100,7 @@ jitx runtime status | grep -q reachable || jitx runtime start --background
 - **`--dry` is not a build.** With no runtime, `jitx build` exits 1 and offers `--dry`, which then reports `status: ok`. It skips the runtime, misses failures such as `Public name already in use`, and never satisfies a step that asks for a build.
 - **Dependency check.** Do not run the `jitx project dependencies upgrade` a build suggests: it can leave the supported line.
 - **Parameterized designs.** `jitx find` lists a `Design` whose `__init__` takes required arguments, but building it fails with `Design is parameterized but no parameters were provided`. Add a thin module-scope subclass with concrete values and build that.
-- **Headless rebuilds.** Some rebuilds ask `[Y/n]` before deleting stale instances: use `yes | jitx build <design>` or `yes | python scripts/check.py <ns>/ --build <design>`. Headless PowerShell has no verified equivalent: ask for an interactive terminal.
+- **Rebuild prompts.** Some rebuilds ask `[Y/n]` before deleting stale instances; headless, the build ends `EOF when reading a line`. The answer deletes instances: stop and tell the user what the build printed; they answer in the JITX UI or their own terminal. Pipe `yes |` into the rebuild only when the user says to. PowerShell has no verified equivalent.
 - **Stalled build.** Run long builds with `PYTHONUNBUFFERED=1`. If a build shows no output and little CPU for a minute, check `jitx runtime status` in every other open JITX project, `pgrep -fl interactive-client` for accumulated clients, and what `jitx runtime cleanup` reports. Ask before stopping anything.
 - **`status: ok` is not routed copper.** Realization is silent: verify geometry from Python (Introspection, `jitx-physical-layout`).
 - **Exports.** The `legacy-*` plugins are fab and CAD handoffs, not verification; `parts-check` is Step 2's parts gate. Other packages (such as `jitxlib-ansys`) add plugins.
@@ -141,7 +141,7 @@ Worked counter-examples for each: `references/architectural-patterns.md`.
 
 ## Introspection
 
-Finding things in a design from Python. The design tree exists only inside an instantiation context: a `jitx.test.TestCase`, or a design submitted to the runtime. Outside one, `MyDesign()` is an `Instantiable` placeholder and a traversal of it yields nothing, silently. An empty result from code outside a context is not evidence.
+The design tree exists only inside an instantiation context: a `jitx.test.TestCase`, or a design submitted to the runtime. Outside one, `MyDesign()` is an `Instantiable` placeholder and a traversal of it yields nothing. An empty result from code outside a context is not evidence.
 
 ```python
 from jitx.copper import Copper
@@ -161,7 +161,7 @@ class Find(TestCase):
         top = [c for _, c in query(design, Copper, filter=lambda c: c.layer == 0)]
 ```
 
-- **`visit(root, types, through=None, *, opaque=None, refs=False, filter=None)`** yields each structural match with its `Trace` (`path`, `transform`). `extract` is the same walk without the trace. `decompose` stops at direct children, traversing lists and dicts.
+- **`visit(root, types, through=None, *, opaque=None, refs=False, filter=None)`** yields each structural match with its `Trace` (`path`, `transform`). `decompose` traverses lists and dicts.
 - **`jitx.query.query`** takes the same filters (`through` is keyword-only) and also converts objects through registered transformers, such as `Pad -> Copper`, `Via -> Copper`, `Via -> Cutout` and `Route -> Copper`; a `Pour` is already `Copper`. Results are in the source's local frame: compose `trace.transform` yourself.
 - **What the runtime knows:** `with jitx.runtime as r: rd = r.submit(MyDesign)` gives `rd.root`, `rd.query(...)`, `rd.nets.find(element)` (the `Net` the runtime assigned, or `None`) and `rd.layers`. Realized routes and pours need `r.capture(...)`. Its semantics and the geometry-verification loop are in `jitx-physical-layout` `references/geometry-verification.md`.
 
