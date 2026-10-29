@@ -268,6 +268,7 @@ class DecouplingBank(Circuit):
         capacitor_spec = CapacitorQuery(
             capacitance=22e-6 * F,  # Bogatin basis: typical 22 uF MLCC
             rated_voltage_dc=AtLeast(10.0 * V),  # skill default: at least 2x a 5.0 V rail (Bogatin)
+            temperature_coefficient_code="X5R",
             type="ceramic",
             mounting="smd",
             case=("0402", "0603", "0805", "1206"),
