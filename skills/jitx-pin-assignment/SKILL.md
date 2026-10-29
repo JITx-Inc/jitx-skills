@@ -213,7 +213,7 @@ i2c = self.mcu_circuit.require(I2C)
 self.i2c_nets = [i2c.sda + self.sensor.SDA, i2c.scl + self.sensor.SCL]
 ```
 
-Worked example, end to end (an RP2040 offering SPI and I2C from its datasheet's pin table, a flash and an accelerometer requiring them, a shipping design with no routes, and verification designs with legal and illegal routes): `jitxexamples.jumpstart_kits.js3_pin_assignment.mcu_muxing`.
+Worked example, end to end (an RP2040 offering SPI and I2C from its datasheet's pin table, a circuit that requires both from it and nets them to a flash and an accelerometer, a shipping design with no routes, and verification designs with legal and illegal routes): `jitxexamples.jumpstart_kits.js3_pin_assignment.mcu_muxing`.
 
 ## Hierarchical Provider Composition
 
@@ -254,12 +254,12 @@ Worked pattern: `jitxexamples.patterns.pin_lane_polarity` (lane choice and P/N i
 On jitx 4.6 an SI constraint (timing, insertion loss, intra-pair skew, skew against a reference) on a path through assigned pins is written on plain `+` nets. No `>>` is needed. `Topology(begin, end)` names the two ends, the runtime infers the path between them from the routes, and the constraint measures only once the pin assignment resolves. The rules:
 
 1. Net the required bundle with `+` and keep it local. Store the nets on `self`, never the required port (see [Consuming Providers with `require()`](#consuming-providers-with-require)).
-2. Give every part on the path with a path through it a `BridgingPinModel` between the two pins that path joins: a series resistor, an AC-coupling capacitor, an ESD channel whose datasheet gives an in-to-out path. Without one the path stops at that part, and the report names it: `No path for signal constraint from drv.o to rcv.o: the ends are only connected through the part between cap.a and cap.b, which has no pin model.` A flow-through package whose pin opposite the channel is n.c. (the trace runs under the package) is different: it has no path through it, so it gets no pin model, and the channel pin and the pin opposite it are one net, joined by board copper. A `BridgingPinModel` there passes every check while the board has an open line.
+2. Give every part on the path with a path through it a `BridgingPinModel` between the two pins that path joins: a series resistor, an AC-coupling capacitor, an ESD channel whose datasheet gives an in-to-out path. Without one the path stops at that part, and the report names it: `No path for signal constraint from drv.o to rcv.o: the ends are only connected through the part between cap.a and cap.b, which has no pin model.` A flow-through package whose pin opposite the channel is n.c. (the trace runs under the package) is different: it has no path through it, so it gets no pin model, and the channel pin and the pin opposite it are one net, joined by board copper. A `BridgingPinModel` there passes every check while the board has an open line. A pin model's delay and loss come from the part's datasheet. A fixture or placeholder part says it is fictional in its docstring, and its values are labelled as given.
 3. When one choice fixes pins on both sides of a pass-through part, offer a custom bundle that covers both sides, so one mapping moves both ends of the channel together.
 4. Close the path in a verification design: a separate Design that instantiates the circuit, places its parts, and closes the path with code `Route`s that end on the provider's physical pins. Proof routes fix one mapping, so they never go in the product design, where they would remove the freedom the provider offers. A route cannot end on a required port: the build fails with `Using require ports as route ends at circuit.r[0] is not implemented`. The routes are what resolve the assignment. A route set that matches one offered mapping resolves to it, P/N inversion included. When the routes match no offered mapping, the conflicting routes are dropped (`Code route dropped: it conflicts with other connections`) and their leg has no path; a leg whose routes fit an offered mapping can still measure. With no routes, nothing resolves and nothing measures.
 5. Pick the Topology ends by where the assigned part sits.
    - The assigned part is mid-path (a pass-through part whose channels are interchangeable): put the ends on fixed physical pins on either side, such as `Topology(self.drv.d[0], self.rcv.d[0])`. While the assignment is unresolved or illegal, the report says `No path for signal constraint from drv.d[0] to rcv.d[0]`. Worked pattern: `jitxexamples.patterns.pin_series_array`.
-   - The provider is itself an end (a serializer's or PCIe switch's lanes, a DDR controller's byte lanes): the Topology begins on the required port. While the assignment is unresolved, the report says `Unassigned Pin on Path: nets[0].p`. Once routes resolve it, the measured line names the physical pin, such as `from dut.ser.serializer.tx[1].n to dut.conn.rx.p` for an inverted lane. Worked pattern: `jitxexamples.patterns.pin_lane_polarity`.
+   - The provider is itself an end (a serializer's or PCIe switch's lanes, a DDR controller's byte lanes): the Topology begins on the required port. While the assignment is unresolved, the report says `Unassigned Pin on Path: nets[0].p`. Once routes resolve it, the measured line names the physical pin, such as `from src.u.a.n to conn.tx.p` for an inverted pair. Worked pattern: `jitxexamples.patterns.pin_lane_polarity`.
 6. Skew across a bundle uses `ConstrainReferenceDifference`, whose guide must be a single pin (`Guide must be a single pin type`): guide on one leg, such as a strobe's `p` leg, never the `DiffPair`.
 7. Prove it with design issues ([Step 3](#step-3-prove-constraints-with-design-issues)). A constraint counts as applied only when its group carries a Time, Loss or Skew measurement; whether it is met is `group.satisfied`.
 
@@ -269,13 +269,13 @@ On jitx 4.6 an SI constraint (timing, insertion loss, intra-pair skew, skew agai
 
 ## PCIe Lane Flexibility
 
-Model PCIe width variants with one `Provide` per width (an x4 bundle on lanes 0 to 3; an x2 bundle `one_of` lanes 0 to 1 or 2 to 3), each option mapping every lane's `TX` and `RX` legs to the switch's physical pins at that lane offset. Offer lane reversal and polarity inversion only where the controller datasheet confirms them. Constrain each lane with `DiffPairConstraint`, its Topology beginning on the required lane (rule 5 above). The per-feature rules are in [references/protocol-pin-flexibility.md](references/protocol-pin-flexibility.md#pcie-lane-flexibility).
+Offer PCIe lane reversal, polarity inversion or a narrower link width only where the controller datasheet confirms it; the per-feature rules are in [references/protocol-pin-flexibility.md](references/protocol-pin-flexibility.md#pcie-lane-flexibility). A lane constraint begins on the required lane (rule 5 above); worked pattern: `jitxexamples.patterns.pin_lane_polarity`.
 
 ## DDR Byte/Bit Swapping
 
 DDR controllers often allow bytes to move between byte slots and DQ bits to move within a byte. Model both as two levels of `provide`, not as `one_of` over bit permutations (8! = 40,320 options per byte):
 
-- Bit swap: per byte slot, a single-pin bundle type of its own (`Slot0Bit`, `Slot1Bit`, ...), offered with `all_of` over the slot's eight DQ pins.
+- Bit swap: per byte slot, a single-pin bundle type of its own (`Slot0Bit`, `Slot1Bit`, ...), offered with `all_of` over the slot's eight DQ pins. Each slot needs its own type because `require()` matches an offer by bundle type: with one bit type shared by every slot, a byte's eight bits could resolve onto another slot's DQ pins, a cross-byte move the controller's rules forbid (PG313 for the Versal DDRMC).
 - Byte swap: the bus bundle offered with `one_of`, one option per allowed byte-to-slot order. Inside the options callback, `self.require(SlotBit, count=8)` once per slot; each option maps the fixed pins, the slot's DQS and DM, and the byte's eight DQ ports to that slot's eight required bits.
 
 ```python
@@ -283,7 +283,7 @@ bits = [[b.p for b in self.require(bit, count=8)] for bit in SLOT_BITS]
 for order in byte_orders:  # one option per allowed byte-to-slot order
     option = dict(fixed)
     for lane, slot in zip(lanes, order):
-        option.update(zip(lane.dq, bits[slot]))  # DQS, DM: the slot's fixed pins
+        option.update(zip(lane.dq, bits[slot]))  # DQS and DM map separately
     options.append(option)
 ```
 
@@ -310,6 +310,7 @@ For protocol-specific swap rules and constraint parameters, see [references/prot
 - Offering a bit swap as `one_of` over every permutation of a byte's DQ bits. Use the two-level offer in [DDR Byte/Bit Swapping](#ddr-bytebit-swapping).
 - Offering each side of a pass-through channel separately. One mapping must set both sides (a bundle over both).
 - A `BridgingPinModel` across a flow-through package whose opposite pin is n.c. Net the two pins; there is no path through the part.
+- Inventing a pin model's delay or loss. Take them from the part's datasheet; a fixture part says it is fictional in its docstring and labels its values as given.
 
 ## Verification
 
