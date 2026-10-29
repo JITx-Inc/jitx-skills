@@ -50,7 +50,7 @@ Each generator has a worked `jitxexamples` component showing the call, ports, sy
 | `BGA` | `jumpstart_kits.js1_stackup_components.versal_fpga.landpattern` (source only) | `BGA` subclass with a `get_pad` adapter |
 | custom | `components.connectors.molex_2012670005` | hand-built `Landpattern`, `THPad` with a cutout |
 
-QFP has no module; see the `QFP` docstring. Every dimension is a `Toleranced` from the drawing's min and max. The docstrings of `RectanglePackage`, `LeadProfile` and the lead classes give the typical datasheet letter for each argument; check the drawing, not the letter, since misreads pass silently (on many leaded drawings E1 and D1 are the body). A leadless drawing often gives no span: derive it from the terminal position or the example land pattern (land center-to-center plus one land length) and check the generated lands against it. A thermal pad is `rectangle(E2, D2)`, E2 along X. Thermal-pad paste follows the datasheet's example stencil: solve `WindowSubdivide`'s `gridShape` and `padding` from the aperture count and size (window formula in its docstring), assert the window size in a test, and with no stencil record the coverage chosen.
+QFP has no module; see the `QFP` docstring. Every dimension is a `Toleranced` from the drawing's min and max. The docstrings of `RectanglePackage`, `LeadProfile` and the lead classes give the typical datasheet letter for each argument; check the drawing, not the letter, since misreads pass silently (on many leaded drawings E1 and D1 are the body). A leadless drawing often gives no span: derive it from the terminal position or the example land pattern (land center-to-center plus one land length) and check the generated lands against it. A thermal pad is `rectangle(x, y)`; which of D2 and E2 runs along X varies between drawings, so take it from the drawing's orientation against pin 1 (a SON's lead rows are left and right). Thermal-pad paste follows the datasheet's example stencil: solve `WindowSubdivide`'s `gridShape` and `padding` from the aperture count and size (window formula in its docstring), assert the window size in a test, and with no stencil record the coverage chosen.
 
 ## KiCad import
 
@@ -72,7 +72,7 @@ Split a part over about 40 pins into boxes, one per functional group the datashe
 
 ## BGAs
 
-- `ball_diameter` is the copper land from the manual's PCB design-rule table, not the ball on the mechanical drawing; the ball builds a silently oversized pattern. The `BGA` docstring has the chain, pad access and row alphabet. Comment which document each number came from.
+- `ball_diameter` is the copper land from the manual's PCB design-rule table, not the ball on the mechanical drawing; the ball builds a silently oversized pattern. The `BGA` docstring has the chain, pad access and row alphabet; manufacturers skip different letters, so check the generator's row letters against the ball map. Comment which document each number came from.
 - A vendor-defined NC ball gets a port and symbol pin, marked `no_connect()` in the component's `__init__`, so unconnected-port checks can tell it from a forgotten wire. A depopulated position has no port; `GridPlanner.is_active` returns `False` for it.
 - Off-grid balls (a second pitch, offset groups, a staggered grid) take an override of `_generate_layout`, per the `BGADecorated` docstring; `HexBGA` in `jitxexamples.demos.si_bga_optimization.generic_bga` is a worked one.
 - Tests reach pads by position through a public adapter, as `VersalBGA.get_pad` does: zero-indexed `(row, column)`, stated in its docstring.
