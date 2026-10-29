@@ -33,11 +33,11 @@ Read your task definition from PLAN.md. Note:
 | Task type | Skill / source | Standing instructions |
 |-----------|----------------|-----------------------|
 | `component` | `jitx-component-modeler`; approved datasheet evidence | Checklists: Component Modeling, plus MCU/FPGA where the part is one. Invoke the skill. For complete-board work, use its `extract_pages.py` to read the real pinout, mechanical, and application pages, write `datasheets/<MPN>.spec.md`, then model from the note. For single-task work, model from the datasheet. Follow `jitx-component-modeler/SKILL.md` "Verification and halt" through the application-circuit offer: the capture is mandatory in complete-board work. |
-| `circuit` | `jitx-circuit-builder` + `jitx-component-modeler`; every IC's datasheet evidence | Checklists: Power Circuit or Interface Circuit as applicable, Datasheet Compliance, General Gotcha Scrub. Answer every engineering question with cited evidence from the spec note for complete-board work or the datasheet for single-task work. The English datasheet for every IC is saved to `datasheets/<mpn>.pdf` from the manufacturer's site, not from a sourcing channel whose copy may be another language or revision; the sub-agent counts and implements every required external component without simplification and follows the component-modeler's application-circuit handoff in `jitx-component-modeler/SKILL.md` "Verification and halt" before wiring whenever that routing condition matches. Expose bundle-typed ports, wire constrained paths with `+` and give pass-through parts a `BridgingPinModel`, and place shared-bus pull-ups or termination only at the bus-aggregation level. |
-| `assembly` | `jitx-circuit-builder` + `jitx-interconnect-constraints` + `jitx-layout-constraints`; accepted subcircuits and ARCHITECTURE.md | Checklists: General Gotcha Scrub. Instantiate every subcircuit; connect power and ground with `PowerSymbol` / `GroundSymbol`; tag those nets with `PowerTag` / `GroundTag`; wire bundles with `require()`; add shared-bus parts at the aggregation level; apply every SI constraint inside `ReferencePlanes(...)`; compare each constrained span with the accepted harness that exercised it; define board geometry; set manufacturing-appropriate `capacitor_query` / `resistor_query` / `inductor_query` and document specialty refinements; set the rule set by invoking `jitx-layout-constraints` (the four defaults, the net-class rules, any escape rules; its Layout Constraints checklist applies, and its check script's command and exit code go in the acceptance block). A missing or mismatched harness/assembly span blocks Step 6. See `project-builder-flow.md` Phase 3. |
+| `circuit` | `jitx-circuit-builder` + `jitx-component-modeler`; every IC's datasheet evidence | Checklists: Power Circuit or Interface Circuit as applicable, Datasheet Compliance, General Gotcha Scrub. Answer every engineering question with cited evidence from the spec note for complete-board work or the datasheet for single-task work. The English datasheet for every IC is saved to `datasheets/<mpn>.pdf` from the manufacturer's site, not from a sourcing channel whose copy may be another language or revision; the sub-agent counts and implements every required external component without simplification and follows the component-modeler's application-circuit handoff in `jitx-component-modeler/SKILL.md` "Verification and halt" before wiring whenever that routing condition matches. Expose bundle-typed ports, wire constrained paths with `+` and give pass-through parts a `BridgingPinModel`, and place shared-bus pull-ups or termination only at the bus-aggregation level. A circuit whose ports carry SI constraints also writes and passes its verification design, `<ns>/designs/verify_<module>.py`, and quotes its measured lines in the `SI measurements` row; see `project-builder-flow.md` "SI verification designs (CRITICAL)". |
+| `assembly` | `jitx-circuit-builder` + `jitx-interconnect-constraints` + `jitx-layout-constraints`; accepted subcircuits and ARCHITECTURE.md | Checklists: General Gotcha Scrub. Instantiate every subcircuit; connect power and ground with `PowerSymbol` / `GroundSymbol`; tag those nets with `PowerTag` / `GroundTag`; wire bundles with `require()`; add shared-bus parts at the aggregation level; apply every SI constraint inside `ReferencePlanes(...)`; compare each SI constraint with its module's accepted verification design (constraint class, parameters, routing structure, Topology ends, pin models); define board geometry; set manufacturing-appropriate `capacitor_query` / `resistor_query` / `inductor_query` and document specialty refinements; set the rule set by invoking `jitx-layout-constraints` (the four defaults, the net-class rules, any escape rules; its Layout Constraints checklist applies, and its check script's command and exit code go in the acceptance block). A missing or mismatched verification-design/assembly comparison blocks Step 6. See `project-builder-flow.md` Phase 3. |
 | `substrate` | `jitx-substrate-modeler` when custom; board specification | Checklists: Substrate. If JLCPCB is approved, check `JLC04161H_1080` (4L/1080, RS_50/DRS_90/DRS_100), `JLC04161H_7628` (4L/7628, RS_50/DRS_90/DRS_100), and `JLC06161H_7628` (6L/7628, RS_50/DRS_100); each includes its stackup, fab rules, and vias. Import the suitable class directly. Otherwise invoke the skill. Ensure the layer count, routing structures, and vias fit the interface speeds and component packages. |
 | `constraint` | `jitx-interconnect-constraints`; protocol spec and substrate | Checklists: Substrate, General Gotcha Scrub. Define the protocol constraint classes from the timing/impedance limits; use `ConstrainDiffPair` for differential pairs and the substrate's routing structure. Define here, but apply constraints only in top-level assembly. |
-| `pin-assignment` | `jitx-pin-assignment`; IC datasheet evidence and ARCHITECTURE.md `Interface Map` | Checklists: General Gotcha Scrub. Use the spec note for complete-board work or the datasheet for single-task work. Define the required provides and allowed mux flexibility; do not hardcode a pin choice that the provider should solve. |
+| `pin-assignment` | `jitx-pin-assignment`; IC datasheet evidence and ARCHITECTURE.md `Interface Map` | Checklists: General Gotcha Scrub. Use the spec note for complete-board work or the datasheet for single-task work. Define the required provides and allowed mux flexibility; do not hardcode a pin choice that the provider should solve. A wrapper whose ports carry SI constraints also writes and passes its verification design, `<ns>/designs/verify_<module>.py`, whose code routes on the provider's physical pins fix one legal mapping; see `project-builder-flow.md` "SI verification designs (CRITICAL)". |
 | `audit` | No skill; a spawned read-only audit sub-agent plus the outside voice in `outside-voice-review.md`. Both read the PDFs; the orchestrator reads their blocks and decides what to fix, and authors nothing itself | Checklists: the four Phase 3b passes in `project-builder-flow.md`. Read every IC's datasheet PDF, not its spec note, run the four passes, then the outside-voice review; a same-model `clean` verdict is not a verification. |
 | `verify` | No skill; top-level design and build artifacts | Checklists: the Phase 4 verification block in `completion-blocks.md`. Run the full build, inspect DRC and SI constraints in the Issues List, iterate on failures, and emit the Phase 4 verification block. |
 
@@ -145,7 +145,7 @@ Every summary line must report `PASS`; the `grep gates` line must show 0 hard-fa
 
 #### Step 6: Emit the Task Acceptance Block
 
-Emit the **task acceptance block** verbatim using the template in `references/completion-blocks.md`. The block is the report; prose summaries are not a substitute. Required fields include `Primary source`, `Secondary references`, `Footprint source`, `Checks run` (domain checklist + General Gotcha Scrub + the four exact `check.py` verification summary lines), `Interface notes`, `Harness / assembly constraint parity`, and `Verdict (self): ready-for-review`. An assembly task lists the constrained endpoint span in each accepted harness and in the shipping assembly, then states whether they match. Every other task gives a reason the field is not yet applicable.
+Emit the **task acceptance block** verbatim using the template in `references/completion-blocks.md`. The block is the report; prose summaries are not a substitute. Required fields include `Primary source`, `Secondary references`, `Footprint source`, `Checks run` (domain checklist + General Gotcha Scrub + the four exact `check.py` verification summary lines), `Interface notes`, `Verification design / assembly constraint parity`, and `Verdict (self): ready-for-review`. An assembly task compares each SI constraint with its module's accepted verification design (constraint class, parameters, routing structure, Topology ends, pin models), cites the evidence `completion-blocks.md` names, and states whether they match. Every other task gives a reason the field is not yet applicable.
 
 Rules (full set in `completion-blocks.md`):
 
@@ -179,10 +179,17 @@ Open each file the sub-agent created or modified. Scan for:
 
 #### 2. Verify the Build Claim
 
-If the sub-agent's block reports a passing build, confirm by checking for the test harness file and that the code structure is plausible. For critical tasks, re-run the required checks and build:
+If the sub-agent's block reports a passing build, confirm by checking for the test harness file (the module's `TestDesign`, or for a module that carries SI constraints its verification design) and that the code structure is plausible. For critical tasks, re-run the required checks and build:
 
 ```bash
 python scripts/check.py <ns>/ --build <module.path.TestDesign>
+```
+
+For a module that carries SI constraints, the build target is its verification design, and the SI evidence is rerun on it:
+
+```bash
+python scripts/check.py <ns>/ --build <ns>.designs.verify_<module>.<VerifyDesign>
+jitx design issues <ns>.designs.verify_<module>.<VerifyDesign> --satisfied
 ```
 
 #### 3. Spot-Check High-Risk Checklist Items
@@ -206,9 +213,10 @@ Verify that the task output is compatible with downstream tasks:
 - Are provide/require bundles consistent with the pin-assignment plan?
 - Do power ports match the voltage/current the power tree will supply?
 - Are constraint interfaces (routing structures, topology ports) compatible?
-- For an assembly task, does every constrained span match the endpoint chain and
-  bridging-pin model exercised by its accepted harness? Missing evidence or a
-  mismatch returns `rework`; Part B does not issue an acceptance verdict.
+- For an assembly task, does every SI constraint match its module's accepted
+  verification design in constraint class, parameters, routing structure,
+  Topology ends and pin models? Missing evidence or a mismatch returns
+  `rework`; Part B does not issue an acceptance verdict.
 
 #### 5. Issue Verdict
 

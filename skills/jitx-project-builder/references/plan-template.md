@@ -20,6 +20,7 @@ Everything above that block is guidance for filling it, and none of it belongs i
 - **A concern gets exactly one home.** A risk, a boundary or a worry is either settled, in which case ARCHITECTURE.md owns it as a design note, or unsettled, in which case PLAN.md `Open Questions` owns it with an owner and a resolution path. Never both. Two homes is how the two documents come to disagree, and the copy nobody updates is the one a resumed session believes.
 - `Specifics` carries only what no table owns and no task of the same type shares: the one gotcha, the topology choice, the exception. **One line, roughly 25 words.** If the note needs a second line, the fact belongs in ARCHITECTURE.md and the task should name the section instead. If it needs a caveat a sub-agent must not miss, that is an engineering question or an open question, not a `Specifics` sentence.
 - The `Verify` module path is where the task's file lives: `python scripts/check.py <ns>/ --build <ns>.circuits.usb.TestDesign` commits the task to `<ns>/circuits/usb.py`. That gives the path one owner, so no task restates it and no two sub-agents place the same module differently. This skill's SKILL.md "Project Structure" gives the directory shape.
+- A circuit or pin-assignment task whose module carries SI constraints verifies on its verification design instead of a `TestDesign`: `Verify` builds `<ns>.designs.verify_<name>.<VerifyDesign>` and runs `jitx design issues` on it with `--satisfied`, where `<name>` is the module's file under `<ns>/circuits/`. Its deps add the module at the far end of each constrained path and the constraint (`cst-`) task. See `project-builder-flow.md` "SI verification designs (CRITICAL)".
 
 **Support circuitry is visible in the graph, not only at the gate**
 
@@ -122,10 +123,10 @@ See ARCHITECTURE.md sections `Power Tree`, `Interface Map`, `Board`, and, when p
 ## Phase 2: Constraints + Circuits + Pin Assignment
 
 ### [pin-01] [IC name] Pin Assignment
-- **Type / skill / deps:** pin-assignment | jitx-pin-assignment | [component task id]
+- **Type / skill / deps:** pin-assignment | jitx-pin-assignment | [component task id; with SI constraints, also the far-end module and `cst-` task ids]
 - **Data:** [component model; ARCHITECTURE.md `Interface Map`]
 - **Specifics:** [the provides and the flexibility unique to this IC]
-- **Verify:** `python scripts/check.py <ns>/ --build <ns>.circuits.<wrapper>.TestDesign`
+- **Verify:** [`python scripts/check.py <ns>/ --build <ns>.circuits.<wrapper>.TestDesign`; with SI constraints: `python scripts/check.py <ns>/ --build <ns>.designs.verify_<wrapper>.<VerifyDesign>`, then `jitx design issues <ns>.designs.verify_<wrapper>.<VerifyDesign> --satisfied`]
 - **Status:** pending
 
 ### [cst-01] [Protocol] Constraints
@@ -136,13 +137,13 @@ See ARCHITECTURE.md sections `Power Tree`, `Interface Map`, `Board`, and, when p
 - **Status:** pending
 
 ### [cir-01] [Circuit name]
-- **Type / skill / deps:** circuit | jitx-circuit-builder + jitx-component-modeler | [task ids]
+- **Type / skill / deps:** circuit | jitx-circuit-builder + jitx-component-modeler | [task ids; with SI constraints, also the far-end module and `cst-` task ids]
 - **Data:** [`Data Sources` rows for every IC; upstream task outputs]
 - **Specifics:** [topology, passives, and bundle ports unique to this circuit]
 - **Engineering questions:**
   - [question, and the datasheet section or specification that settles it]
 - **Shape:** [parametric tasks only — the collection or typed object committed to]
-- **Verify:** `python scripts/check.py <ns>/ --build <ns>.circuits.<name>.TestDesign`
+- **Verify:** [`python scripts/check.py <ns>/ --build <ns>.circuits.<name>.TestDesign`; with SI constraints: `python scripts/check.py <ns>/ --build <ns>.designs.verify_<name>.<VerifyDesign>`, then `jitx design issues <ns>.designs.verify_<name>.<VerifyDesign> --satisfied`]
 - **Status:** pending
 
 ## Phase 3: Top-Level Assembly

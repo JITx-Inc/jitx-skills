@@ -74,7 +74,7 @@ Run `python scripts/check.py <ns>/ --build <module.path.DesignClass>` once from 
 | Domain checklist | <name; N/N; M fixed; K N/A + reasons> |
 | General Gotcha Scrub | N/N |
 | Layout rules | <command; exit; witnessed/unwitnessed> |
-| SI measurements | <verification design: `jitx design issues <module.VerifyDesign> --satisfied` command; one quoted measured Time / Loss / Skew line per constraint, intended ends, no unresolved text / not applicable + reason> |
+| SI measurements | <verification design: `jitx design issues <module.VerifyDesign> --satisfied` command; one quoted measured Time / Loss / Skew line per constraint with a timing, loss or skew target, intended ends, no unresolved text; each structure-only constraint named from its code / not applicable + reason> |
 | Physical realization | <`python scripts/check_realization.py <module.Design> [witness args]`; exit code; authored pours, stitch targets, board-wide pours / not applicable + reason> |
 | `ruff check` | <`ruff check` summary line; PASS, or FAIL fixed and re-run> |
 | `ruff format` | <`ruff format` summary line; PASS, or reformatted and re-run> |
@@ -88,7 +88,7 @@ Run `python scripts/check.py <ns>/ --build <module.path.DesignClass>` once from 
 | Ports exposed | <bundles; directions> |
 | Power requirements | <voltage; current> |
 | Constraints needed at top level | <list/none> |
-| Verification design / assembly constraint parity | <verification design: measured lines; assembly: same constraint class, parameters, structure, Topology ends and pin models in code, plus its `Unconnected Topology on Path:` segment list while unrouted; match evidence / not applicable + reason> |
+| Verification design / assembly constraint parity | <constraint class, parameters, routing structure, Topology ends and pin models compared; verification design: measured lines (structure-only: code); assembly: constraint code, plus its `Unconnected Topology on Path:` segment list where the report gives one; match evidence / not applicable + reason> |
 
 ### Reviews
 
@@ -126,33 +126,51 @@ The orchestrator (or user) then appends the acceptance decision:
   carries SI constraints: it places the parts, code-routes every constrained
   path between physical pads (on a pin-assigned port, the provider's physical
   pins), and runs `jitx design issues <module.VerifyDesign> --satisfied`. It
-  passes when each constraint has a quoted measured line with the intended ends
-  and no unresolved text in its group, which can sit under `Signal Constraint:`,
-  `Topology:` or `Routing:`. The shipping assembly carries no proof routes.
-  While it is unrouted, `Unconnected Topology`, `not routed yet`, `No path for
-  signal constraint` with no part named, and `Unassigned Pin` on pin-assigned
-  ends are expected and recorded; `No path ... which has no pin model`,
-  `Virtual connection without a pin model`, and a constraint absent from the
-  report block. Once the assembly is routed, it is held to the verification-design
-  bar: every constraint measures between its intended ends, and none of those
-  texts is expected. `Missing routing structure` and the placeholder via model
-  appear only beside a measurement, so they cannot fire on an unrouted assembly:
-  those checks hold on the verification design and on the routed assembly. The physical row
-  carries the command, exit 0, and the witness names. A missing row, a
-  constraint with no measured line on its verification design, a blocking text,
-  exit 1, exit 2, or a claimed pass without named witnesses blocks acceptance.
+  passes when every constraint with a timing, loss or skew target shows a
+  quoted measured Time, Loss or Skew line from its intended begin pad to its
+  intended end pad, and its group (under `Signal Constraint:`, `Topology:` or
+  `Routing:`) has no unresolved text.
+
+  A constraint that carries only `.structure(...)`, with no timing, loss or
+  skew target, never appears in the report, satisfied or not. It is exempt from
+  the measured-line rule and from the absent-from-report rule; its evidence is
+  the constraint in code (class, Topology ends, structure), recorded in the
+  parity row.
+
+  The shipping assembly carries no proof routes. Sort each of its SI lines by
+  whether its constraint's path has copper yet:
+  - No route on the path: `Unconnected Topology`, `not routed yet`, `No path
+    for signal constraint` with no part named, and `Unassigned Pin` on a
+    pin-assigned end are expected and recorded.
+  - Any route on the path: the constraint is held to the verification-design
+    bar, a measured line between its intended ends with no unresolved text,
+    `Missing routing structure` and a placeholder via model included. Those two
+    appear only beside a measurement, so they are checked on the verification
+    design and on routed paths.
+  - Blocking wherever it appears: `No path for signal constraint ... which has
+    no pin model`, `Virtual connection without a pin model`, and a constraint
+    with a timing, loss or skew target that is absent from the report.
+
+  Compliance is read from the routed assembly's own measured lines. A
+  verification design's values are proof-route numbers, not the board's.
+
+  The physical row carries the command, exit 0, and the witness names. A
+  missing row, a verification design that does not pass, a blocking text, exit
+  1, exit 2, or a claimed pass without named witnesses blocks acceptance.
   `not applicable` names the concrete reason no SI constraint or authored
   physical witness exists; it is not a substitute for an unavailable command.
 - **JITX code review (self) is required for complete-board tier.** A complete-board task acceptance block with `JITX code review (self): not run` defaults to `block`. Bulk dispositions on findings ("all accepted, framework code") without per-line rationale fail review. See `jitx-code-review/SKILL.md`.
 - **Verification design / assembly constraint parity is required at assembly
-  acceptance.** The assembly applies the same constraint class and parameters as
-  its verification design, routing structure included, between the same
-  physical ends, through the same pin models. The evidence on the verification
-  side is its measured lines; on the assembly side it is the same Topology ends
-  and pin models in code, plus, while unrouted, the `Unconnected Topology on
-  Path:` segment list, which names each segment between bridged parts. A missing
-  comparison or a mismatch returns the assembly task to `rework`. Earlier tasks
-  use `not applicable` with a reason because the assembly does not exist yet.
+  acceptance.** Parity compares constraint class, parameters, routing
+  structure, Topology ends and pin models between the verification design and
+  the assembly. The verification side's evidence is its measured lines (for a
+  structure-only constraint, its code). The assembly side's is its constraint
+  code, plus the `Unconnected Topology on Path:` segment list where the report
+  gives one; a pin-assigned end reports `Unassigned Pin`, and an unrouted plain
+  chain may report `not routed yet` or a bare `No path`, and then the code
+  comparison stands alone. A missing comparison or a mismatch returns the
+  assembly task to `rework`. Earlier tasks use `not applicable` with a reason
+  because the assembly does not exist yet.
 - **Verdict (self): ready-for-review** is the only valid sub-agent verdict. Any other value (e.g. `done`, `complete`) means the protocol was not followed.
 
 ### Verdict workflow
@@ -203,8 +221,9 @@ Pattern 8 is intentionally broad; it will match comments and legitimate `isinsta
 
 Pattern 1 skips `constraints/` directories, `main.py`, and test modules
 (`test_*.py`, `*_test.py`, `tests/`) because the prescribed layout puts SI
-constraint definitions, the seeded top-level design, and harnesses there. A hit
-anywhere else is an SI constraint applied inside an ordinary subcircuit and
+constraint definitions, the seeded top-level design, and test harnesses there.
+It also skips `<ns>/designs/`, where SI verification designs
+(`verify_<module>.py`) apply their constraints. A hit anywhere else is an SI constraint applied inside an ordinary subcircuit and
 blocks acceptance.
 
 Pattern 9 catches f-strings that look like they're building tag-style identifiers (`ALL_CAPS` prefix + brace). Legitimate uses (log lines like `f"ERROR_{code}"`) need disposition with rationale. The disposition workflow keeps this from becoming compliance theater.
@@ -336,8 +355,8 @@ work with a batch count on it.
 | `GroundSymbol` on GND | <result> |
 | `PowerSymbol` on each rail | <result> |
 | SI constraints at top level in `ReferencePlanes(...)` | <result> |
-| Verification design / assembly constraint parity | <each verification design's measured lines vs the assembly's constraint code, pin models and unrouted segment list; result> |
-| SI design issues dispositioned | <assembly `jitx design issues <module.Design> --satisfied` command; each SI line dispositioned expected-while-unrouted or blocking; blocking list empty> |
+| Verification design / assembly constraint parity | <per constraint: class, parameters, routing structure, Topology ends and pin models, verification design vs assembly code; segment list where the report gives one; result> |
+| SI design issues dispositioned | <assembly `jitx design issues <module.Design> --satisfied` command; each SI line dispositioned expected (path has no route), measured (routed path), or blocking; blocking list empty> |
 | `require()` calls have matching provides | <result> |
 | JITX UI errors | <result/reason> |
 | Build warnings | <result> |
@@ -464,8 +483,8 @@ For each item: pass | fail with details | not run (with reason)
 | Board placement | pass | components placed (or floating with rationale), no overlaps |
 | Issues List | <count> issues | <list, each with disposition> |
 | DRC | pass | <or list of violations with disposition> |
-| SI constraints | all satisfied | <compliance from each verification design's measured values against their targets, or list of failures with disposition; an unrouted assembly reads `not measured: unrouted; see SI constraint binding`> |
-| SI constraint binding | measured / not applicable | <each verification design: exact `jitx design issues <module.VerifyDesign> --satisfied` command and one quoted measured line per constraint; assembly: command and each SI line dispositioned / concrete reason no SI constraint is expected> |
+| SI constraints | all satisfied | <compliance from the routed assembly's own measured values against their targets, or list of failures with disposition; verification-design values are proof-route numbers and do not stand in; a constraint whose path has no route reads `not measured: unrouted; see SI constraint binding`> |
+| SI constraint binding | measured / not applicable | <each verification design: exact `jitx design issues <module.VerifyDesign> --satisfied` command and one quoted measured line per constraint with a timing, loss or skew target (structure-only: named from code); assembly: command and each SI line dispositioned / concrete reason no SI constraint is expected> |
 | Placement overlap | none | <or list> |
 | Physical realization | exit 0 | <exact `check_realization.py` command; authored pour names; stitch targets; board-wide pours> |
 
@@ -502,17 +521,15 @@ Rules:
 
 - A `not run` row with no reason fails the gate.
 - When SI constraints are expected, the SI constraint-binding row is blocking.
-  Phase 4 runs design issues on each verification design and on the assembly.
-  Absence, `not run`, a constraint with no measured line or with unresolved text
-  on its verification design, or a blocking text on the assembly makes the
-  verdict `not-yet`. On an unrouted assembly the blocking texts are `No path ...
-  which has no pin model`, `Virtual connection without a pin model`, and a
-  constraint absent from the report; `Unconnected Topology`, `not routed yet`,
-  a bare `No path for signal constraint`, and `Unassigned Pin` are expected only
-  while it is unrouted. A routed assembly is held to the verification-design bar:
-  every constraint measures between its intended ends, with no unresolved text,
-  `Missing routing structure` or placeholder via model. Rerun the commands after
-  final rework that changes routing, a pin model, or an SI constraint.
+  Phase 4 runs design issues on each verification design and on the assembly
+  and applies the SI rule in [Rules for the block](#rules-for-the-block):
+  structure-only constraints exempt from the measured-line and
+  absent-from-report rules, unrouted texts expected only on a constraint whose
+  path has no route, a routed constraint held to the verification-design bar.
+  Absence, `not run`, a verification design that does not pass, or an assembly
+  constraint below the bar for its routing state makes the verdict `not-yet`.
+  Rerun the commands after final rework that changes routing, a pin model, or
+  an SI constraint.
 - The Physical realization row is blocking. Absence, `not run`, exit 1, or exit
   2 makes the verdict `not-yet`; a clean build does not substitute for it.
 - A `not run` row also requires fallback artifacts: if the JITX UI isn't available, name the build-output files used to substitute for it. Conventional fallbacks:
