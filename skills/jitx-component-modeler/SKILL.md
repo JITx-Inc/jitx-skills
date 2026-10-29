@@ -11,23 +11,20 @@ A component task is not complete until the [Component completeness check — run
 
 | Condition | Open |
 |---|---|
-| The evidence source or the package generator is not settled, or a KiCad footprint is the land-pattern source. | [references/source-and-package-selection.md](references/source-and-package-selection.md) |
-| Next is the component class, symbol, generator call, multi-unit partition or explicit `PadMapping`. | [references/component-code-patterns.md](references/component-code-patterns.md) |
+| Any component task: sources, package and generator choice, KiCad import, the class and symbol, BGAs, tests, build and report. | [references/component-guide.md](references/component-guide.md) |
 | The vendor supplied a machine-readable pinout or ball-map file. | [references/pin-file-generation.md](references/pin-file-generation.md) |
-| A SOIC, SOT23, QFN or SON whose pad numbering, mapping or thermal pad is new to you, or any BGA. | [references/package-examples.md](references/package-examples.md) |
-| Code exists and has to be tested, built and reported. Every task that reaches verification matches. | [references/verification-and-application.md](references/verification-and-application.md) |
 
 Before writing code, read every matching row's file, and record the rows matched and files read in the `References opened` row. A reference file missing from disk is a blocker, never replaced by remembered API details.
 
 ## Universal source gate
 
-Never write dimensions, pin labels, pad assignments or an MPN from memory. The source is the manufacturer's current datasheet or package document; a manufacturer pin file is authority for names, balls and banks, never geometry; named sourcing-channel data is secondary evidence the datasheet outranks; failing those, ask the user. With no source, a real component is blocked unless the user explicitly authorizes a non-MPN generic placeholder, recorded under `Notes`. The full ladder is in [source-and-package-selection.md](references/source-and-package-selection.md#no-fabrication--source-authority-for-geometry-and-pinout).
+Never write dimensions, pin labels, pad assignments or an MPN from memory. The source is the manufacturer's current datasheet or package document; a manufacturer pin file is authority for names, balls and banks, never geometry; named sourcing-channel data is secondary evidence the datasheet outranks; failing those, ask the user. With no source, a real component is blocked unless the user explicitly authorizes a non-MPN generic placeholder, recorded under `Notes`. The full ladder is in [component-guide.md](references/component-guide.md#sources).
 
 A part fact typed into the request (pin list, package, pin count) is a claim, not a source: check it against the document and send any disagreement back to the user before building.
 
 Before recording a source as unreachable, try the manufacturer URL, the named sourcing channel and the local project directories.
 
-When no document states an orderable MPN, ask the user while device and package are being confirmed. A device string or package name is not an MPN, and no test or build catches a fabricated one; see [source-and-package-selection.md](references/source-and-package-selection.md#when-no-document-states-an-mpn).
+When no document states an orderable MPN, ask the user while device and package are being confirmed. A device string or package name is not an MPN, and no test or build catches a fabricated one; see [component-guide.md](references/component-guide.md#mpn-identity).
 
 Never read a full datasheet PDF. Save it, check that its bytes begin `%PDF-`, locate pages with `scripts/extract_pages.py`, and read only the extract; if extraction fails or finds nothing relevant, stop and report it. Cite by figure or table caption first, then figure number, edition and page.
 
@@ -46,7 +43,7 @@ Refuse to proceed with:
 - invented constructor arguments, class-scope `self`, or a JITX class declared inside a function, method or active instantiation context;
 - a silent package-variant choice when the source covers more than one.
 
-Every physical pin or ball, NC-with-pad and thermal pad included, gets its own port; contacts sharing one land share one port. The symbol carries every port. A thermal pad, a shared pad, or a declaration order that is not pad order requires explicit `PadMapping`.
+Every physical pin or ball, NC-with-pad and thermal pad included, gets its own port; contacts sharing one land share one port. The symbol carries every port. A port on several pads (ground plus the thermal pad), a port on no pad, or a declaration order that is not pad order requires an explicit `PadMapping`; an unmapped thermal pad builds unconnected with no error.
 
 Library and generator defaults are inputs to verify: check each one relied on against the source wherever the source speaks, and override from the source where they disagree. Density level is one (installed default `B`): set `DensityLevel` (`jitxlib.landpatterns.ipc`) explicitly or record that the default matches the source.
 
@@ -56,7 +53,7 @@ For a pin file, emit no component code until the parse reconciles and the user a
 
 After code exists, in order:
 
-1. Tests that construct components subclass `jitx.test.TestCase`; pure helper tests may use `unittest.TestCase`. Every package variant gets a pad-count check by `jitx.inspect.visit(lp, Pad)`; until it runs, verification stops. The snippet and other assertions: [verification-and-application.md](references/verification-and-application.md#verifying-a-component-with-tests).
+1. Tests that construct components subclass `jitx.test.TestCase`; pure helper tests may use `unittest.TestCase`. Every package variant gets a pad-count check by `jitx.inspect.visit(lp, Pad)`; until it runs, verification stops. The snippet and other assertions: [component-guide.md](references/component-guide.md#testing-and-build).
 2. Run the test suite, and `pyright` on every Python file left in the output. Tests assert metadata, pin and pad counts, `.value` unset, and each relied-on default or imported footprint entry against the source.
 3. Run `jitx find`, take its printed build target verbatim, then build in the available virtual environment.
 4. Write the task acceptance block from the base skill, with the complete `Component check` below embedded under `Checks run`, into `COMPLETION.md` or the project's existing equivalent.
