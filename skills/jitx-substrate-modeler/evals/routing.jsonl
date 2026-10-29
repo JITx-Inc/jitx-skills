@@ -11,7 +11,7 @@
 {"intent": "what fab rules should I set for a 0.35mm pitch BGA board at our fab?", "expected_skill": "jitx-substrate-modeler"}
 // Negatives: substrate-adjacent but another skill's lane.
 {"intent": "place vias to fan out this BGA escape and route the escapes", "expected_skill": "jitx-physical-layout"}
-{"intent": "add a ground pour on layer 2 and stitch it to the GND net", "expected_skill": "jitx-circuit-builder"}
+{"intent": "add a ground pour on layer 2 and stitch it to the GND net", "expected_skill": "jitx-physical-layout", "ambiguous_with": ["jitx-layout-constraints"]}
 {"intent": "constrain the PCIe diff pairs to 5ps skew and 85 ohm with reference planes", "expected_skill": "jitx-interconnect-constraints"}
 {"intent": "model this part from the datasheet — QFN-48, thermal pad", "expected_skill": "jitx-component-modeler"}
 {"intent": "export the board stackup to a STEP file for the ME team", "expected_skill": "jitx-mechanical"}

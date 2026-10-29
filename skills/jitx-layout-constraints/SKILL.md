@@ -30,7 +30,7 @@ after capture. Every section below ends in something you can measure.
 | Fab minimums (`FabricationConstraints`), stackup, via definitions, routing structures, fenced pour outlines | `jitx-substrate-modeler` |
 | Draw copper, custom shapes, pad features, place vias and components, `Route` and control points | `jitx-physical-layout` |
 | Topology (`>>`), timing, skew, insertion loss, diff-pair constraints | `jitx-interconnect-constraints` |
-| Wire nets, passives, basic top-level pours | `jitx-circuit-builder` |
+| Wire nets, typed ports, sub-circuits, passives | `jitx-circuit-builder` |
 | Component landpatterns (including the pad geometry escape rules read) | `jitx-component-modeler` |
 
 ## Environment
