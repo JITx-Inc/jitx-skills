@@ -65,7 +65,7 @@ class GrepGateTraversalTests(unittest.TestCase):
         self.assertNotIn("PASS (hard-fail set clean)", result.stdout)
 
 
-SHORT_TRACE_LABEL = "no ShortTrace("
+SHORT_TRACE_LABEL = "(power-rail cap rule)"
 
 
 def run_gates(files: dict[str, str]) -> subprocess.CompletedProcess[str]:
@@ -152,7 +152,8 @@ class PowerRailCapacitorGateTests(unittest.TestCase):
             "class BlockingCapacitor(jitx.Component):\n"
             "    pass\n"
             "self.cap = BlockingCapacitor(100e-9)\n"
-            "self.bulk = PolarizedCapacitor(capacitance=100e-6 * F)\n"
+            "class Capacitor(jitx.Component):\n"
+            "    pass\n"
             "caps = [c for _, c in rd.query(Capacitor)]\n"
             "self.insert(via)\n"
         )
@@ -169,6 +170,54 @@ class PowerRailCapacitorGateTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("hard-fail hits: 0", result.stdout)
         self.assertNotIn(".insert(", result.stdout)
+
+    def test_partial_decoupling_is_a_hit(self) -> None:
+        # One capacitor on a ShortTrace does not clear two that are not.
+        text = DECOUPLED + (
+            "        self.c_a = Capacitor(capacitance=1e-6 * F)\n"
+            "        self.c_b = Capacitor(capacitance=1e-6 * F)\n"
+        )
+        result = run_gates({"rail.py": text})
+        hits = shorttrace_gate_hits(result)
+        self.assertEqual(len(hits), 3, result.stdout)
+        self.assertIn("review-required hits: 3", result.stdout)
+
+    def test_shorttrace_in_strings_and_trailing_comments_does_not_count(self) -> None:
+        text = UNDECOUPLED.replace(
+            "class Rail(Circuit):\n",
+            "class Rail(Circuit):\n"
+            '    """Decouple with ShortTrace(self.c_vdd.p1, pin)."""\n'
+            '    NOTE = "ShortTrace(a, b)"\n',
+        ).replace(
+            "self.c_vdd = Capacitor(capacitance=100e-9 * F)",
+            "self.c_vdd = Capacitor(capacitance=100e-9 * F)  # ShortTrace(p1, pin)",
+        )
+        result = run_gates({"rail.py": text})
+        self.assertEqual(len(shorttrace_gate_hits(result)), 1, result.stdout)
+
+    def test_polarized_capacitor_is_checked(self) -> None:
+        text = (
+            "class Rail(Circuit):\n"
+            "    def __init__(self) -> None:\n"
+            "        self.c_bulk = PolarizedCapacitor(capacitance=100e-6 * F)\n"
+            "        self.nets = [Net([self.c_bulk.a, self.vin])]\n"
+        )
+        result = run_gates({"rail.py": text})
+        hits = shorttrace_gate_hits(result)
+        self.assertEqual(len(hits), 1, result.stdout)
+        self.assertIn("rail.py:3:", hits[0])
+
+    def test_comprehension_counts_call_sites(self) -> None:
+        text = (
+            "class Bank(Circuit):\n"
+            "    def __init__(self) -> None:\n"
+            "        self.caps = [Capacitor(capacitance=22e-6 * F) for _ in pins]\n"
+            "        self.traces = [\n"
+            "            ShortTrace(c.p1, pin) for c, pin in zip(self.caps, pins)\n"
+            "        ]\n"
+        )
+        result = run_gates({"bank.py": text})
+        self.assertEqual(shorttrace_gate_hits(result), [], result.stdout)
 
 
 if __name__ == "__main__":

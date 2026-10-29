@@ -23,12 +23,10 @@ def _add_paths() -> None:
 
 _add_paths()
 
+# `_add_paths` puts this directory first on sys.path, so `design` imports the
+# same way whether this file runs directly or as `python -m <package>.check`.
+from design import DecouplingReference, ReferenceCircuit, query_capacitor_geometry
 from layout_checks import check_route_width, run_checks  # pyright: ignore[reportMissingImports]
-
-try:  # Package import in a scratch project, direct import when run beside design.py.
-    from .design import DecouplingReference, ReferenceCircuit, query_capacitor_geometry
-except ImportError:
-    from design import DecouplingReference, ReferenceCircuit, query_capacitor_geometry  # type: ignore[no-redef]
 
 WIDTH_TOLERANCE = 1e-6  # skill test tolerance: 0.000001 mm
 

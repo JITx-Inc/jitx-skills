@@ -13,14 +13,15 @@ runtime, substrate `JLC04161H_7628`.
 The design carries its own parts chain: `parts =
 PartSource([CsvParts(...)])` over `approved-capacitors.csv` beside
 `design.py`, with the lock off because the CSV is fixed. The CSV holds three
-22 uF rows from the `jitxexamples` example passives, listed smallest case
-first. With no `rank=`, the CSV provider returns its first matching row in
-file order, so the first row that meets the query is the smallest qualified
-package.
+22 uF rows from the `jitxexamples` example passives, listed largest case first
+on purpose. The query's `rank="case"` picks the smallest qualified case code
+whatever the row order: in a `jitx.test` probe against this file, the same
+query without `rank=` returned the first row, `C3216X5R1V226M160AC` (1206), and
+with it returned `CL10A226MP8NUNE` (0603).
 
 Selected capacitor, from `CapacitorQuery(capacitance=22e-6 * F,
 rated_voltage_dc=AtLeast(10.0 * V), type="ceramic", mounting="smd",
-case=("0402", "0603", "0805", "1206"))`:
+case=("0402", "0603", "0805", "1206"), rank="case")`:
 
 - MPN `CL10A226MP8NUNE`, Samsung Electro-Mechanics, `case = 0603`,
   `rated_voltage_dc = 10.0 volt`.
@@ -89,7 +90,7 @@ $ export PYTHONPATH="<project>:<project>/scripts"
 $ jitx runtime start --background
 {
   "mode": "background",
-  "pid": 38503,
+  "pid": 79978,
   "uri": "ws://localhost:<port>/<id>",
   "log_path": "<project>/.jitx/logs/runtime.log",
   "exit_code": null
@@ -129,7 +130,7 @@ exit code 0
 $ jitx runtime stop
 {
   "stopped": true,
-  "pid": 38503,
+  "pid": 79978,
   "signal_sent": "SIGTERM",
   "message": "terminated"
 }
@@ -150,7 +151,9 @@ the JITX environment, so it was pointed at that interpreter with
 `reportMissingImports` and almost nothing is type-checked. `check.py`
 narrows `rd.root.circuit` to `ReferenceCircuit` before reading
 `.decoupling`: the installed `jitx` types it as `Circuit`, and pyright
-rejects the attribute without the narrowing.
+rejects the attribute without the narrowing. It imports `design` as a
+top-level module (its `_add_paths` puts this directory first on `sys.path`), so
+one import serves both a direct run and `python -m <package>.check`.
 
 ```text
 $ python -m pyright --pythonpath <jitx-venv>/bin/python \

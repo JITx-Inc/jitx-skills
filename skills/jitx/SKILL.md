@@ -37,18 +37,18 @@ pip install -e . "jitx>=4.6,<4.7" jitxlib-standard jitxlib-parts
 python -c "import jitxlib.landpatterns, jitxlib.parts"
 ```
 
-`jitx project layout init` writes `pyproject.toml`, a flat `<ns>/` package (not `src/<ns>/`) with a buildable `main.py`, a `.gitignore` and `.vscode/`. Change its `jitx>=4.4.0,<5` to `jitx>=4.6,<4.7`, and add `jitxlib-parts>=2,<3` (and `jitxlib-jlcpcb` when used) to `dependencies`. Without `pip install -e .`, `jitx find` reports `import failed: ModuleNotFoundError` and lists no designs, with exit 0.
+`jitx project layout init` writes a flat `<ns>/` package (not `src/<ns>/`) and `pyproject.toml`. Change its `jitx>=4.4.0,<5` to `jitx>=4.6,<4.7`; add `jitxlib-parts>=2,<3` (and `jitxlib-jlcpcb` when used) to `dependencies`. Without `pip install -e .`, `jitx find` reports `import failed: ModuleNotFoundError` and lists no designs, with exit 0.
 
-Passive queries need a provider chain in `pyproject.toml` (without one: `NoChainConfigured`). Create and commit `parts/approved-parts.csv`, rows from the user's approved parts only, and the `parts.lock.json` a build writes (never hand-made). If the user has none, copy `parts/example-passives.csv` from `jitxexamples` as a stand-in and tell the user it is not an approval:
+Passive queries need a provider chain in `pyproject.toml` (without one: `NoChainConfigured`). Create and commit `parts/approved-parts.csv`, rows from the user's approved parts only, and the `parts.lock.json` a build writes (never hand-made). If the user has none, copy the example CSV that `jitxexamples` ships to `parts/approved-parts.csv` (command: `jitx-project-builder` Phase 0) and tell the user it is not an approval:
 
 ```toml
 [tool.jitx.parts]
 chain = ["csv:parts/approved-parts.csv", "ideal"]
 ```
 
-`ideal`, last, synthesizes E-series values as unorderable `IDEAL-...` parts so the design builds before approval, and silently answers most queries the CSV cannot. Before calling a design done, remove `ideal`, then pass `jitx build <design>` and `jitx design export parts-check <design> --fail all`. CSV format, what falls through to `ideal`, the lockfile, and connecting an internal parts database: https://docs.jitx.com/en/latest/essentials/design/parts.html
+`ideal`, last, synthesizes unorderable `IDEAL-...` parts so the design builds before approval, and silently answers most queries the CSV cannot. Before calling a design done, remove `ideal`, then pass `jitx build <design>` and `jitx design export parts-check <design> --fail all`; on the stand-in, the user approves each MPN in `parts.lock.json` or replaces it. CSV format, fall-through to `ideal`, the lockfile, parts databases: https://docs.jitx.com/en/latest/essentials/design/parts.html
 
-The scaffold does not run `git init` (do it and say so). Its `.gitignore` keeps the built design directory tracked on purpose: do not broaden it.
+The scaffold skips `git init` (do it and say so). Its `.gitignore` keeps the built design directory tracked on purpose: do not broaden it.
 
 ### Step 3: Auth
 

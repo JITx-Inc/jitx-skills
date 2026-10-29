@@ -4,8 +4,7 @@ The IC is a four-pad placeholder QFN (skill default: four pads) used only to
 expose two power pins and two ground pins (skill default: two of each). The
 capacitors, via locations, and route endpoints come from the geometry solver.
 The pure solver is copied beside this module before build. The capacitor
-comes from `approved-capacitors.csv` beside this module, rows smallest case
-first.
+comes from `approved-capacitors.csv` beside this module.
 """
 
 from dataclasses import dataclass
@@ -264,16 +263,17 @@ class DecouplingBank(Circuit):
             ),
         }
         hints = tuple(hints_by_key.values())
-        # The CSV answers with its first matching row, so listing rows smallest
-        # case first makes the first match the smallest qualified package.
-        cap_query = CapacitorQuery(
+        # `rank="case"` minimizes the case code, so the smallest qualified
+        # package wins whatever the row order of the approved list.
+        capacitor_spec = CapacitorQuery(
             capacitance=22e-6 * F,  # Bogatin basis: typical 22 uF MLCC
             rated_voltage_dc=AtLeast(10.0 * V),  # skill default: at least 2x a 5.0 V rail (Bogatin)
             type="ceramic",
             mounting="smd",
             case=("0402", "0603", "0805", "1206"),
+            rank="case",
         )
-        self.capacitors = [Capacitor(cap_query) for _ in hints]
+        self.capacitors = [Capacitor(capacitor_spec) for _ in hints]
         queried_geometry = tuple(
             query_capacitor_geometry(capacitor) for capacitor in self.capacitors
         )

@@ -96,12 +96,15 @@ its landpattern. `CapacitorQuery` is the installed query type
 provider that answered the query (`jitxlib/parts/components.py:322`). Query
 the result that will be built.
 
-An approved-parts CSV answers with its first matching row in file order, and
-reorders only for a `rank=` on a column the file carries; a query key with no
-column in the file is declined and falls through to the next provider
+An approved-parts CSV answers with its first matching row in file order
+unless the query passes `rank=`, and a query key (`rank=` keys included) with
+no column in the file is declined and falls through to the next provider
 (`jitxlib/parts/providers/csv_parts.py:399`, `:412`). For the smallest
-qualified package, pass the qualifying `case=` codes and keep the CSV rows
-smallest case first.
+qualified package, pass the qualifying `case=` codes and `rank="case"`, which
+minimizes the case code. The CSV reads `case` as text
+(`jitxlib/parts/providers/csv_parts.py:100`), so the ranking is by code, and for
+the imperial codes `0402`, `0603`, `0805` and `1206` that order is also size
+order. Do not reorder the user's list to get the same result.
 
 ## Structural hints
 
@@ -227,13 +230,15 @@ class DecouplingBank(Circuit):
         )
         self.solution = solve(spec)
 
-        cap_query = CapacitorQuery(
+        capacitor_spec = CapacitorQuery(
             capacitance=capacitance * F,
             rated_voltage_dc=AtLeast(rated_voltage_factor * rail_voltage * V),  # a minimum, not an exact catalog value
             type="ceramic",
             mounting="smd",
+            case=("0402", "0603", "0805", "1206"),
+            rank="case",  # smallest qualifying case code wins
         )
-        self.capacitors = [Capacitor(cap_query) for _ in hints]
+        self.capacitors = [Capacitor(capacitor_spec) for _ in hints]
         self.supply_traces = [
             ShortTrace(capacitor.p1, hint.key)  # supply-side pad to the pin it serves
             for capacitor, hint in zip(self.capacitors, hints, strict=True)

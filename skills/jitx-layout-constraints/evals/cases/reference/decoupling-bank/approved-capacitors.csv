@@ -1,4 +1,4 @@
 category,mpn,manufacturer,resistance,capacitance,inductance,case,mounting,tolerance,rated_voltage_dc,type,temperature_coefficient_code,price,datasheet,max_current,self_resonant_frequency,quality_factor,material_core
-capacitor,CL10A226MP8NUNE,Samsung Electro-Mechanics,,0.000022,,0603,smd,0.2,10,ceramic,X5R,,https://product.samsungsem.com/mlcc/CL10A226MP8NUN.do,,,,
-capacitor,C2012X5R1E226M125AC,TDK,,2.2e-05,,0805,smd,0.2,25,ceramic,X5R,,https://product.tdk.com/en/search/capacitor/ceramic/mlcc/info?part_no=C2012X5R1E226M125AC,,,,
 capacitor,C3216X5R1V226M160AC,TDK,,2.2e-05,,1206,smd,0.2,35,ceramic,X5R,,https://product.tdk.com/en/system/files/dam/doc/product/capacitor/ceramic/mlcc/charasheet/c3216x5r1v226m160ac.pdf,,,,
+capacitor,C2012X5R1E226M125AC,TDK,,2.2e-05,,0805,smd,0.2,25,ceramic,X5R,,https://product.tdk.com/en/search/capacitor/ceramic/mlcc/info?part_no=C2012X5R1E226M125AC,,,,
+capacitor,CL10A226MP8NUNE,Samsung Electro-Mechanics,,0.000022,,0603,smd,0.2,10,ceramic,X5R,,https://product.samsungsem.com/mlcc/CL10A226MP8NUN.do,,,,
