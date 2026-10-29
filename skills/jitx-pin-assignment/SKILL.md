@@ -796,7 +796,7 @@ if __name__ == "__main__":
     main()
 ```
 
-`satisfied=True` is required: without it, satisfied constraints are left out. `group.satisfied` is each check's verdict; the text reads the same met or unmet. A group of several issues shows only the first in `group.text`. The body stays in `main()` because design discovery imports every `.py` in the project. `jitx-interconnect-constraints` `references/verification.md` covers the rest of the report API.
+`satisfied=True` is required: without it, satisfied constraints are left out. `group.satisfied` is each check's verdict; the text reads the same met or unmet. A group of several issues shows only the first in `group.text`. The body stays in `main()` because design discovery imports the project's `.py` files. `jitx-interconnect-constraints` `references/verification.md` covers the rest of the report API.
 
 | Report text | Meaning |
 |---|---|

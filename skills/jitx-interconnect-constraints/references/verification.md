@@ -125,7 +125,7 @@ not the design's number. Fix the cause and re-run; do not claim the constraint.
 
 Proof routes fix one placement and, on a pin-assigned port, one pin mapping, so
 they go in a code-routed verification design, one per constrained interface
-(the paths one constraint spans between the same modules), and
+(the constrained paths between the same modules, with every constraint on them), and
 not in the shipping assembly. The verification design places
 the parts and code-routes every constrained path between physical pads (on a
 pin-assigned port, the provider's physical pins). It passes when every

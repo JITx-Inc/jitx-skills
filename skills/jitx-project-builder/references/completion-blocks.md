@@ -123,7 +123,7 @@ The orchestrator (or user) then appends the acceptance decision:
 - **Static checks are required where Python was touched.** `python scripts/check.py <ns>/` always runs `ruff check`, `ruff format --check`, `pyright`, and the grep gates. Every check reports `PASS`, `FAIL` or `ERROR`, and only `PASS` reaches acceptance. A `FAIL` is fixed and the command re-run, so the block carries the passing line rather than a recorded violation; a `FAIL` line in a submitted block returns the task to `rework`. An `ERROR` means the check did not run, which is not a pass: it blocks acceptance until the tool is available, or the orchestrator records why the environment cannot run it.
 - **SI-measurement and physical-realization rows are executable evidence.** SI
   binding is proven on a code-routed verification design, one per constrained
-  interface (the paths one constraint spans between the same modules), written
+  interface (the constrained paths between the same modules, with every constraint on them), written
   by that interface's `ver-` task: it places the parts, code-routes each path
   between physical pads (on a pin-assigned port, the
   provider's physical pins), and runs its SI check,

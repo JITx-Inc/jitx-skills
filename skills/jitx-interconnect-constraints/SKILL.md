@@ -356,7 +356,7 @@ The same chain on a plain `Net([ctrl.a0, dram0.a0, dram1.a0])` also measures onc
 
 Layout width and clearance checks belong to `jitx-layout-constraints`; physical-layout checks to `jitx-physical-layout`. This section proves that each SI constraint applied.
 
-Prove binding on a code-routed verification design, one per constrained interface. It places the parts, code-routes the path between physical pads (on a pin-assigned port, the provider's physical pins), and passes when each constraint with a timing, loss or skew target has a measurement with the intended ends and no unresolved text. A structure-only constraint never appears; its code is the evidence. The shipping assembly carries no proof routes. On it, the unrouted texts (`Unconnected Topology`, `not routed yet`, a bare `No path`, `Unassigned Pin`) are expected only on a constraint whose path has no route; a routed constraint is held to the verification-design bar. [references/verification.md](references/verification.md) has the full rule, the blocking texts and parity evidence.
+Prove binding on a code-routed verification design, one per constrained interface. It places the parts, code-routes each path between physical pads (on a pin-assigned port, the provider's physical pins), and passes when each constraint with a timing, loss or skew target has a measurement with the intended ends and no unresolved text. A structure-only constraint never appears; its code is the evidence. The shipping assembly carries no proof routes. On it, the unrouted texts (`Unconnected Topology`, `not routed yet`, a bare `No path`, `Unassigned Pin`) are expected only on a constraint whose path has no route; a routed constraint is held to the verification-design bar. [references/verification.md](references/verification.md) has the full rule, the blocking texts and parity evidence.
 
 1. Type check: `pyright path/to/circuit.py`.
 2. Read the design issues from Python, as a script run from the project root while the project's runtime is running (`jitx runtime start --background`):
@@ -383,7 +383,7 @@ Prove binding on a code-routed verification design, one per constrained interfac
        main()
    ```
 
-   Without `satisfied=True` a met constraint is left out. A group of several issues shows only the first in `group.text`. Keep the code in `main()`: design discovery imports every `.py` in the project. `jitx.run` is marked experimental. Builds against one project run in sequence ([Build safety](../jitx/SKILL.md#build-safety-dont-parallelize-same-design-work)).
+   Without `satisfied=True` a met constraint is left out. A group of several issues shows only the first in `group.text`. Keep the code in `main()`: design discovery imports the project's `.py` files. `jitx.run` is marked experimental. Builds against one project run in sequence ([Build safety](../jitx/SKILL.md#build-safety-dont-parallelize-same-design-work)).
 
 3. A constraint bound to its path when its group carries a Time, Loss or Skew measurement naming the intended ends:
 
