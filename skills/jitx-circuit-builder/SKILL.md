@@ -1,6 +1,6 @@
 ---
 name: jitx-circuit-builder
-description: "This skill should be used when the user asks to \"wire up\", \"connect\", \"build a circuit\", create an \"application circuit\", work with passives (resistors, capacitors), set up power connections, \"add pours\", or \"place components\". Covers the Circuit class, net operators, passive queries, the voltage-divider solver, and basic pours; custom copper geometry is jitx-physical-layout. For provide/require pin assignment patterns, use jitx-pin-assignment instead."
+description: "This skill should be used when the user asks to \"wire up\", \"connect\", \"build a circuit\", create an \"application circuit\", work with passives (resistors, capacitors), set up power connections, \"add pours\", or \"place components\". Covers the Circuit class, net operators, passive queries, and basic pours; custom copper geometry is jitx-physical-layout. For provide/require pin assignment patterns, use jitx-pin-assignment instead."
 ---
 
 # JITX Circuit Builder
@@ -12,16 +12,15 @@ verify all imports with `pyright` before outputting code.
 
 JITX uses two packages — know which one to import from:
 
-- **`jitx`** — Core framework. Circuit infrastructure, nets, ports, bundles, geometry.
+- **`jitx`**: Core framework. Circuit infrastructure, nets, ports, bundles, geometry.
   - `jitx` (top-level): `Circuit`, `Net`, `Pour`, `Copper`, `current`
   - `jitx.common`: Bundles — `Power`, `GPIO`
   - `jitx.net`: Port system — `Port`, `DiffPair`, `provide`, `Provide`
   - `jitx.toleranced`: `Toleranced`
   - `jitx.constraints`: `Tag`, `design_constraint`
   - `jitx.layerindex`: `Side`
-- **`jitxlib`** — Parts library. Components, queries, protocols, symbols, solvers.
+- **`jitxlib`**: Parts library. Components, queries, protocols, symbols.
   - `jitxlib.parts`: `Resistor`, `Capacitor`, `Inductor`, `ResistorQuery`, `CapacitorQuery`, `InductorQuery`
-  - `jitxlib.voltage_divider` (its own distribution, `jitxlib-voltage-divider`; the base skill's Step 2 installs it): `VoltageDividerConstraints`, `voltage_divider_from_constraints`
   - `jitxlib.protocols.serial`: protocol bundles including `I2C`, `I2S`, `SPI`, and `UART`; inspect the module for the current full export list
   - `jitxlib.symbols.net_symbols`: `GroundSymbol`, `PowerSymbol`
 
@@ -200,7 +199,9 @@ self.c_bulk.insert(self.ic.VCC, self.ic.GND, short_trace=True)
 self.inductor = Inductor(inductance=4.7e-6, current_rating=AtLeast(3.0))
 ```
 
-Calculated passive values must land on a real series value. The `eseries` package does this and is not installed by default, so check for it before depending on it; where it is absent, snap to the series by hand and name the series you used. If nothing else is specified, E96.
+Calculated passive values must land on a real series value; name the series you used (E96 unless the request says otherwise). E96 mantissas, times a power of ten: 100, 102, 105, 107, 110, 113, 115, 118, 121, 124, 127, 130, 133, 137, 140, 143, 147, 150, 154, 158, 162, 165, 169, 174, 178, 182, 187, 191, 196, 200, 205, 210, 215, 221, 226, 232, 237, 243, 249, 255, 261, 267, 274, 280, 287, 294, 301, 309, 316, 324, 332, 340, 348, 357, 365, 374, 383, 392, 402, 412, 422, 432, 442, 453, 464, 475, 487, 499, 511, 523, 536, 549, 562, 576, 590, 604, 619, 634, 649, 665, 681, 698, 715, 732, 750, 768, 787, 806, 825, 845, 866, 887, 909, 931, 953, 976.
+
+For a divider: pick the bottom resistor from the current budget and snap it to the series, compute the top from the datasheet equation and snap it, then recompute the output. Its worst-case error is the rounding error, plus each resistor's tolerance times (1 - Vref/Vout), plus the reference's datasheet accuracy; state it against the rail's tolerance requirement.
 
 ### Constrain the query, or the database picks for you
 
@@ -335,7 +336,7 @@ The skill also documents `ShortTrace(p1, p2)` as an alternative connect-with-sho
 
 ## Advanced Patterns
 
-For query refinement, voltage divider, pours, copper geometry,
+For query refinement, pours, copper geometry,
 placement, and a complete application circuit example, see
 [references/advanced-patterns.md](references/advanced-patterns.md).
 
@@ -344,44 +345,6 @@ For the *deep* treatment of physical layout authoring — custom shapes with sha
 thermal pad), code-placed vias and routes, and layout-intent tags — invoke the
 **jitx-physical-layout** subskill (the `jitx-physical-layout` skill). The
 Pours / Copper Geometry / Placement sections below are the basics.
-
-### Voltage Divider — Critical Rules
-
-**Do not invent resistor values for a divider.** A ratio worked out by hand lands on values
-like 8 kΩ or 25 kΩ that no series stocks, and the query then fails with "No components
-meeting requirements".
-
-**The divider solver is its own distribution.** `jitxlib.voltage_divider`
-(`VoltageDividerConstraints`, `voltage_divider_from_constraints`) ships as
-`jitxlib-voltage-divider` on public PyPI, not inside `jitxlib-standard`, and nothing
-depends on it; the base skill's Step 2 installs it with the other `jitxlib`
-distributions. If the import fails, the fix is the base skill's install line (it carries the `jitx`
-range; alone, pip downgrades `jitx`), not hand-picked values: the solver is required for every divider
-(`jitx-project-builder/references/domains/power-circuits.md`).
-
-`eseries` is a third-party package that nothing in this stack depends on. Series
-snapping for a value the solver does not produce is a table you write out and cite,
-not an import to assume.
-
-The pattern:
-
-```python
-# WRONG — manual resistor values, 8k is not a standard E-series value
-self.r_hi = Resistor(resistance=25e3)
-self.r_lo = Resistor(resistance=8e3)  # FAILS: not a real resistor value
-
-# WRONG — Toleranced.exact() on v_out gives zero tolerance, solver WILL fail
-VoltageDividerConstraints(v_out=Toleranced.exact(0.6), ...)
-
-# CORRECT — always use Toleranced.percent() for v_out, always include prec_series
-VoltageDividerConstraints(
-    v_in=Toleranced.exact(3.3),
-    v_out=Toleranced.percent(0.6, 2.0),  # ±2% tolerance window (REQUIRED)
-    current=0.6 / 10e3,
-    prec_series=[1.00, 0.10],            # precision grades (REQUIRED)
-    base_query=ResistorQuery(case=["0402"]),
-)
-```
 
 ### Provider / Require Patterns
 

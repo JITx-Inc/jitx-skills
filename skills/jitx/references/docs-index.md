@@ -115,7 +115,6 @@ Base: `jitxlib/jitxlib.<module>.html`
 | JLCPCB rules | `jitxlib.jlcpcb.rules.html` | Manufacturing rules |
 | JLCPCB vias | `jitxlib.jlcpcb.vias.html` | Via definitions |
 | Parts query | `jitxlib.parts.query_api.html` | Parts database API |
-| Voltage divider | `jitxlib.voltage_divider.html` | Voltage divider solver |
 
 ## Example Components
 

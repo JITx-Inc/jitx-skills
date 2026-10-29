@@ -8,7 +8,6 @@ After the domain-specific checklist, verify these universal items:
 - [ ] Open-collector/open-drain outputs have pull-up resistors
 - [ ] Analog reference pins properly decoupled/filtered
 - [ ] Crystal load capacitors match oscillator requirements (if applicable)
-- [ ] All voltage dividers use the solver function, not manual values
 
 ### JITX Code Correctness
 - [ ] All nets stored on `self` — bare `a + b` expressions without assignment are silently dropped

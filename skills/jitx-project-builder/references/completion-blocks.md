@@ -235,7 +235,7 @@ The criteria mirror the exit-gate bullet lists in `references/project-builder-fl
 
 | Field | Result |
 |-------|--------|
-| Environment probe | <all of `jitx`, `jitxlib`, `jitxlib.parts`, `jitxlib.symbols.box`, `jitxlib.voltage_divider` import; target substrate package (e.g. `jitxlib.jlcpcb`) imports; `jitx --version` and `jitx runtime introspect` report the same major.minor; result> |
+| Environment probe | <all of `jitx`, `jitxlib`, `jitxlib.parts`, `jitxlib.symbols.box` import; target substrate package (e.g. `jitxlib.jlcpcb`) imports; `jitx --version` and `jitx runtime introspect` report the same major.minor; result> |
 | Requirements lock complete | <result; assumptions> |
 | PLAN.md exists | <path> |
 | ARCHITECTURE.md exists | <path; sections> |
@@ -257,7 +257,7 @@ Any remaining duplicated fact or missing, stale, or incorrect blocked status req
 advancing. Derive affected tasks from the unresolved questions and task inputs and
 dependencies, not solely from existing statuses (`plan-template.md` owns the status rule).
 
-The `jitxlib` namespace is split across distributions and installing `jitx` brings none of them; a failing environment probe is almost always a missing `jitxlib-standard` / `jitxlib-parts` / `jitxlib-voltage-divider`, which is an install to do, not a module to work around. See `jitx/SKILL.md` "Install".
+The `jitxlib` namespace is split across distributions and installing `jitx` brings none of them; a failing environment probe is almost always a missing `jitxlib-standard` / `jitxlib-parts`, which is an install to do, not a module to work around. See `jitx/SKILL.md` "Install".
 
 ### Phase 1 → Phase 2
 
@@ -421,6 +421,8 @@ Final verification before declaring the project done.
 
 ```markdown
 ## Phase 4 Verification: <project-name>
+
+**Parts gate (run first):** <`ideal` removed from `[tool.jitx.parts] chain`; exact `jitx build <design>` status line; exact `jitx design export parts-check <design> --fail all` summary line, exit 0. A design left on `IDEAL-` parts is a user-approved deferral, listed below>
 
 **Verification command:** `python scripts/check.py <ns>/ --build <ns>.designs.Design`
 

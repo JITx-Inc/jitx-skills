@@ -5,7 +5,7 @@ description: "Base skill for JITX Python PCB design: install, the jitx CLI, auth
 
 # JITX
 
-JITX is a Python framework for PCB design. This skill owns the workflow every other JITX skill assumes. Run its setup before any sub-skill: they assume a working runtime.
+JITX is a Python framework for PCB design. Run this skill's setup before any sub-skill: they assume a working runtime.
 
 > **Supported version line.** This bundle is written for **jitx 4.6.x** (`jitx >= 4.6, < 4.7`). Sibling skills do not restate the range; their "verified on 4.4.0" notes are evidence for those claims on that release. On an older install, ask before upgrading, and expect these pages to disagree until then. Where the installed package differs from these pages, follow the package and verify every import with `pyright`.
 
@@ -22,23 +22,31 @@ In an existing project, activate its venv, read `jitx --version`, and ask before
 source .venv/bin/activate          # Git Bash on Windows: .venv/Scripts/activate
 python -c 'import sys; assert sys.version_info >= (3, 12), sys.version'
 pip install "jitx>=4.6,<4.7" jitxlib-standard jitxlib-parts ruff pyright
-pip install jitxlib-voltage-divider "jitx>=4.6,<4.7"
 jitx --version
 ```
 
-`jitx` brings the framework and CLI but no `jitxlib`: `jitxlib-standard` gives `jitxlib.landpatterns`, `.symbols`, `.protocols`, `.bundles`, `.via_structures` and `.physics`; `jitxlib-parts` the `Resistor`/`Capacitor`/`Inductor` queries; `jitxlib-voltage-divider` the solver required for every divider; `jitxlib-jlcpcb`, only for a confirmed JLCPCB fab, its substrates.
+`jitx` brings the framework and CLI but no `jitxlib`: `jitxlib-standard` gives `jitxlib.landpatterns`, `.symbols`, `.protocols`, `.bundles`, `.via_structures` and `.physics`; `jitxlib-parts` the `Resistor`/`Capacitor`/`Inductor` queries; `jitxlib-jlcpcb`, only for a confirmed JLCPCB fab, its substrates.
 
-jitx 4.6 needs Python 3.12 or newer: on an assertion failure, recreate `.venv` with a newer interpreter. `jitxlib-voltage-divider` gets missed because nothing depends on it. Always install it with the `jitx` range: alone, pip satisfies its `jitxlib-parts` pin by downgrading `jitx`. A resolution error there is a blocker to report, not a pin to loosen.
+jitx 4.6 needs Python 3.12 or newer: on an assertion failure, recreate `.venv` with a newer interpreter.
 
 ### Step 2: Project
 
 ```bash
 [ -f pyproject.toml ] && grep -q jitx pyproject.toml || jitx project layout init   # ask first if files other than .venv exist
-pip install -e . "jitx>=4.6,<4.7" jitxlib-standard jitxlib-parts jitxlib-voltage-divider
-python -c "import jitxlib.landpatterns, jitxlib.parts, jitxlib.voltage_divider"
+pip install -e . "jitx>=4.6,<4.7" jitxlib-standard jitxlib-parts
+python -c "import jitxlib.landpatterns, jitxlib.parts"
 ```
 
-`jitx project layout init` writes `pyproject.toml`, a flat `<ns>/` package (not `src/<ns>/`) with `main.py` defining a buildable two-resistor design and `components/resistor.py`, a `.gitignore` and `.vscode/`. Its `jitx>=4.4.0,<5` admits older lines: change it to `jitx>=4.6,<4.7`, and add `jitxlib-parts` and `jitxlib-voltage-divider` (and `jitxlib-jlcpcb` when used) to `dependencies` so the project is reproducible. The `pip install -e .` is not optional: without it `jitx find` reports `import failed: ModuleNotFoundError` and lists no designs, with exit 0.
+`jitx project layout init` writes `pyproject.toml`, a flat `<ns>/` package (not `src/<ns>/`) with `main.py` defining a buildable two-resistor design and `components/resistor.py`, a `.gitignore` and `.vscode/`. Its `jitx>=4.4.0,<5` admits older lines: change it to `jitx>=4.6,<4.7`, and add `jitxlib-parts>=2,<3` (and `jitxlib-jlcpcb` when used) to `dependencies` so the project is reproducible. The `pip install -e .` is not optional: without it `jitx find` reports `import failed: ModuleNotFoundError` and lists no designs, with exit 0.
+
+Passive queries need a provider chain in `pyproject.toml` (without one: `NoChainConfigured`). Create and commit `parts/approved-parts.csv`, rows from the user's approved parts only, and the `parts.lock.json` a build writes (never hand-made):
+
+```toml
+[tool.jitx.parts]
+chain = ["csv:parts/approved-parts.csv", "ideal"]
+```
+
+`csv` serves approved parts. `ideal`, last, synthesizes E-series values as unorderable `IDEAL-...` parts so the design builds before approval, and silently answers most queries the CSV cannot; the lockfile keeps parts after approval changes. Before calling a design done, remove `ideal`, then pass `jitx build <design>` and `jitx design export parts-check <design> --fail all`. CSV format, lock modes, and a `Provider` for internal parts databases: [references/parts-chain.md](references/parts-chain.md).
 
 The scaffold does not run `git init` (do it and say so). Its `.gitignore` keeps the built design directory under version control on purpose: do not broaden it.
 
@@ -90,16 +98,16 @@ jitx runtime status | grep -q reachable || jitx runtime start --background
 `jitx build` prints `status: ok` or a traceback and `status: error`. Results land in `designs/<module.path.DesignClass>/`: `cache/netlist.json`, `cache/design-explorer.json` (the hierarchy), and `design-info/` (interactive placements). Never delete `designs/<design>` casually. A cryptic `No field with key '$_...'` after a version change means `design-info/` is unreadable by the new pairing: restore it from git and restart the runtime.
 
 - **`--dry` is not a build.** With no runtime, `jitx build` exits 1 and offers `--dry`, which then reports `status: ok`. It skips the runtime, misses failures such as `Public name already in use`, and never satisfies a step that asks for a build.
-- **Dependency check.** A build may suggest `jitx project dependencies upgrade`. Do not run it: it can move the project off the supported line.
+- **Dependency check.** Do not run the `jitx project dependencies upgrade` a build suggests: it can leave the supported line.
 - **Parameterized designs.** `jitx find` lists a `Design` whose `__init__` takes required arguments, but building it fails with `Design is parameterized but no parameters were provided`. Add a thin module-scope subclass with concrete values and build that.
 - **Headless rebuilds.** Some rebuilds ask `[Y/n]` before deleting stale instances: use `yes | jitx build <design>` or `yes | python scripts/check.py <ns>/ --build <design>`. Headless PowerShell has no verified equivalent: ask for an interactive terminal.
 - **Stalled build.** Run long builds with `PYTHONUNBUFFERED=1`. If a build shows no output and little CPU for a minute, check `jitx runtime status` in every other open JITX project, `pgrep -fl interactive-client` for accumulated clients, and what `jitx runtime cleanup` reports. Ask before stopping anything.
 - **`status: ok` is not routed copper.** Realization is silent: verify geometry from Python (Introspection, `jitx-physical-layout`).
-- **Exports.** `legacy-kicad`, `-altium`, `-edx`, `-odb++` and `-step` are fab and CAD handoffs, not a verification surface. `parts-check` checks the design's parts against a clean resolution. Other packages (such as `jitxlib-ansys`) add plugins.
+- **Exports.** The `legacy-*` plugins are fab and CAD handoffs, not verification; `parts-check` is Step 2's parts gate. Other packages (such as `jitxlib-ansys`) add plugins.
 
 ### Build safety: don't parallelize same-design work
 
-Concurrent builds of one design share cache and output: sequence them. Builds of different designs in one project share the runtime session and are generally safe; the runtime serializes them, possibly with a wait.
+Concurrent builds of one design share cache and output: sequence them. Different designs in one project are generally safe: the runtime serializes them.
 
 ## Visualizers
 
@@ -113,7 +121,7 @@ These hold for every JITX skill.
 - **Run pyright inside the project's environment.** Against an interpreter without `jitx`, pyright reports `Import "jitx" could not be resolved`: that is the interpreter, not the code, so never "fix" the imports. A tool launched from outside the venv points at it with `[tool.pyright] venvPath`/`venv` or `pyright --pythonpath`.
 - **Commit a ruff config and run ruff from the project root.** Config discovery walks up from the working directory. Set `line-length` explicitly if anything in the project emits Python. `RUF012` flags class-body port arrays (`GND = [Port() for _ in range(n)]`), which are the declaration model: silence it per file in `[tool.ruff.lint.per-file-ignores]` with a comment. Moving the ports into `__init__` breaks the component.
 - **Copy `scripts/check.py` and `scripts/grep_gates.py` from this skill into the project's `scripts/`** and run `python scripts/check.py <ns>/` before calling work done. It runs ruff, ruff format, pyright, the grep gates and, with `--build`, a build. How to disposition a gate hit: `jitx-project-builder` [`references/completion-blocks.md`](../jitx-project-builder/references/completion-blocks.md).
-- **Test with `jitx.test.TestCase`** and `python -m unittest discover -s tests`. It opens the instantiation context the design tree needs (see Introspection). Declare JITX classes at module scope, never inside a test method.
+- **Test with `jitx.test.TestCase`** and `python -m unittest discover -s tests`. It opens the instantiation context (see Introspection). Declare JITX classes at module scope, never inside a test method.
 - **Run `jitx-code-review`** as a self-critique before declaring a task complete. It is mandatory at complete-board task acceptance.
 
 ### Don'ts
@@ -165,7 +173,7 @@ Invoke it before writing that code.
 |---|---|
 | A whole board from requirements: PLAN.md, phases, gates, sub-agents | `jitx-project-builder` |
 | A component from a datasheet, part number, pin file or footprint | `jitx-component-modeler` |
-| Wiring, nets, passives, voltage dividers, basic pours | `jitx-circuit-builder` |
+| Wiring, nets, passives, basic pours | `jitx-circuit-builder` |
 | Stackup, materials, vias, routing structures, fab rules | `jitx-substrate-modeler` |
 | Copper, shapes, pad features, code-placed vias and routes, realized-geometry checks | `jitx-physical-layout` |
 | Design rules, clearances, net classes, power widths, decoupling placement, fanout step-down | `jitx-layout-constraints` |
@@ -178,4 +186,4 @@ One artifact goes straight to its sub-skill; assembling a buildable board goes t
 
 ## Documentation lookup
 
-JITX docs live at `https://docs.jitx.com/en/latest/` (LLM index: `https://docs.jitx.com/llms.txt`). For an unfamiliar class, protocol, generator parameter or pattern, find the page in `references/docs-index.md`, fetch it and apply it. If the topic does not resolve, stop and name it rather than proceeding from memory.
+JITX docs live at `https://docs.jitx.com/en/latest/` (LLM index: `https://docs.jitx.com/llms.txt`). For anything unfamiliar, find its page in `references/docs-index.md`, fetch and apply it. If it does not resolve, say so rather than proceed from memory.

@@ -176,7 +176,7 @@ For every circuit task, the orchestrator writes the engineering questions that f
 - What is the input voltage range? (5-20V from PD) — does the converter handle this full range?
 - Does the datasheet show a bootstrap capacitor on BOOT? (Yes — 100nF)
 - Is a UVLO divider on EN needed for this input range? (Yes — prevents running at low VIN)
-- Feedback reference voltage? (0.596V) — use voltage_divider_from_constraints, never manual values
+- Feedback reference voltage? (0.596V)
 ```
 
 **Example for an amplifier circuit (TAS5805M):**
