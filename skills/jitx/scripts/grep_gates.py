@@ -164,22 +164,33 @@ def is_si_definition_site(path):
     )
 
 
-def report_insert(hits, quiet):
-    # Special case keeps the .sh's two slightly different labels (ok vs HIT line).
-    global review
-    if not hits:
-        if not quiet:
-            print(
-                "  ok    no hits: .insert(...) missing short_trace= (power-rail cap default)"
-            )
-        return
-    count = len(hits)
-    print(
-        f"  HIT {count} .insert(...) calls missing short_trace= (power-rail cap default)"
-    )
-    for path, lineno, line in hits:
-        print(f"      {path}:{lineno}:{line}")
-    review += count
+CAPACITOR_CALL = re.compile(r"\bCapacitor\s*\(")
+SHORT_TRACE_CALL = re.compile(r"\bShortTrace\s*\(")
+
+
+def power_rail_capacitor_hits(
+    source_files: dict[str, list[str]],
+) -> list[tuple[str, int, str]]:
+    """`Capacitor(` lines in files whose code never constructs a `ShortTrace(`.
+
+    A power-rail capacitor joins the pin it serves through
+    `ShortTrace(self.c_x.p1, <IC power pin>)`. The check is per file: a file that
+    constructs capacitors and no `ShortTrace` is a hit on each capacitor line,
+    and the task acceptance block dispositions the ones that are not power-rail
+    capacitors (AC coupling, RC timing, RF matching, crystal load). Full-line
+    comments do not count as a `ShortTrace`.
+    """
+    hits: list[tuple[str, int, str]] = []
+    for path, lines in source_files.items():
+        code = [line for line in lines if not line.lstrip().startswith("#")]
+        if any(SHORT_TRACE_CALL.search(line) for line in code):
+            continue
+        hits.extend(
+            (path, lineno, line)
+            for lineno, line in enumerate(lines, start=1)
+            if not line.lstrip().startswith("#") and CAPACITOR_CALL.search(line)
+        )
+    return hits
 
 
 def main():
@@ -252,19 +263,6 @@ def main():
         quiet,
     )
 
-    # Anonymous structural insert anywhere — silent-drop pattern 1
-    # Misses nested constructor args (e.g., Resistor(resistance=Toleranced.percent(...)).insert(...))
-    # but catches the most common form.
-    run_check(
-        "Anonymous structural .insert(...) — silent-drop pattern 1",
-        r"\b(Capacitor|Resistor|Inductor)\s*\([^)]*\)\s*\.insert\s*\(",
-        False,
-        "hard-fail",
-        src_dir,
-        source_files,
-        quiet,
-    )
-
     if not quiet:
         print()
         print("=== review-required patterns ===")
@@ -292,10 +290,10 @@ def main():
         quiet,
     )
 
-    # Bare net/topology expression — silent-drop pattern 2
+    # Bare net/topology expression — silent-drop pattern
     # Allows trailing comments and bracket indexes (self.mcu.PA[5]).
     run_check(
-        "Bare net/topology expression — silent-drop pattern 2",
+        "Bare net/topology expression — silent-drop pattern",
         r"^\s*self\.\w+(\.\w+|\[[^\]]+\])*\s*(\+|>>)\s*self\.\w+(\.\w+|\[[^\]]+\])*(\s*#.*)?$",
         False,
         "review",
@@ -352,18 +350,15 @@ def main():
         quiet,
     )
 
-    # .insert(...) calls missing short_trace= — Phase 2 power-rail cap gate.
-    # Search .insert( then drop lines whose code text already passes short_trace=
-    # (substring test is on the matched line, not the file path). False
-    # positives on resistor/inductor inserts and non-power-rail caps (AC coupling,
-    # RC, RF, crystal load) — agent dispositions each per
-    # jitx-circuit-builder/SKILL.md "short_trace=True is the default for power-rail capacitors".
-    insert_hits = [
-        (p, n, t)
-        for (p, n, t) in run_search(r"\.insert\s*\(", False, src_dir, source_files)
-        if "short_trace" not in t
-    ]
-    report_insert(insert_hits, quiet)
+    # Power-rail capacitor rule: a file that constructs Capacitor(...) and no
+    # ShortTrace(...) is a review hit on each capacitor line. Non-power-rail caps
+    # are dispositioned in the task acceptance block.
+    report(
+        "Capacitor(...) in a file with no ShortTrace(...) (power-rail cap rule)",
+        power_rail_capacitor_hits(source_files),
+        "review",
+        quiet,
+    )
 
     if not quiet:
         print()

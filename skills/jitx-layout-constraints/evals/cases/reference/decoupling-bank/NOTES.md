@@ -6,105 +6,138 @@ not a production component model.
 
 ## Result
 
-Built and checked against py-jitx 4.4.0rc5.dev2 (jitxlib-standard
-4.4.0rc2.dev14, jitxlib-jlcpcb 1.0.1.dev7, jitxlib-parts 1.3.0a0) with a
-project-local runtime, substrate `JLC04161H_7628`.
+Built and checked against jitx 4.6.0rc8 (jitxlib-parts 2.0.0rc2.dev3,
+jitxlib-standard 4.6.0rc3.dev12, jitxlib-jlcpcb 4.0.0a4) with a project-local
+runtime, substrate `JLC04161H_7628`.
 
-Selected capacitor, from `CapacitorQuery(capacitance=22e-6,
-rated_voltage=10.0, type="ceramic", mounting="smd", case=["0402", "0603",
-"0805", "1206"], sort=SortKey("area", SortDir.INCREASING))`:
+The design carries its own parts chain: `parts =
+PartSource([CsvParts(...)])` over `approved-capacitors.csv` beside
+`design.py`, with the lock off because the CSV is fixed. The CSV holds three
+22 uF rows from the `jitxexamples` example passives, listed smallest case
+first. With no `rank=`, the CSV provider returns its first matching row in
+file order, so the first row that meets the query is the smallest qualified
+package.
 
-- MPN `C0603X5R100-226MNE`, VENKEL CORP, `data.case = 0603`,
-  `data.capacitance = 2.2e-05`, `data.rated_voltage = 10.0`.
+Selected capacitor, from `CapacitorQuery(capacitance=22e-6 * F,
+rated_voltage_dc=AtLeast(10.0 * V), type="ceramic", mounting="smd",
+case=("0402", "0603", "0805", "1206"))`:
+
+- MPN `CL10A226MP8NUNE`, Samsung Electro-Mechanics, `case = 0603`,
+  `rated_voltage_dc = 10.0 volt`.
 - Both bank capacitors resolved to the same part and the same landpattern.
 
 Landpattern values read back from the selected part, not from a case-code
 table:
 
-- pad centers `(0.0, 0.668933982822018)` and `(0.0, -0.668933982822018)`, so
-  `pad_pitch = 1.337867965644036` mm on the Y axis;
-- pad size `0.95` mm across the pitch axis by `0.412129999...` mm along it;
-- courtyard bounds `(-0.625, -1.025)` to `(0.625, 1.025)`, so `1.25` mm by
-  `2.05` mm.
+- pad centers `(0.0, 0.843933982822018)` and `(0.0, -0.843933982822018)`, so
+  `pad_pitch = 1.687867965644036` mm on the Y axis;
+- pad size `0.95` mm across the pitch axis by `0.7621320343559642` mm along it;
+- courtyard `1.65` mm by `3.15` mm.
 
-Solver input: `CapacitorGeometry(body_length=2.05, body_width=1.25,
-pad_length=0.41212999999999994, pad_width=0.95,
-pad_pitch=1.337867965644036)`, `via_pad_diameter=0.45`
-(`JLC04161H_7628.StdViaPreferred.diameter`), `clearance_floor=0.09`
-(`min_copper_copper_space`), `capacitor_spacing=0.25`, `grid_step=0.25`,
-`search_radius=3.0`, one IC-body keepout. Derived `package_rotation = 90`, the
-rotation that puts the part's `p1` on the solver's local negative X.
+Solver input: `CapacitorGeometry(body_length=3.1500000000000004,
+body_width=1.6500000000000001, pad_length=0.7621320343559642,
+pad_width=0.9500000000000001, pad_pitch=1.687867965644036)`,
+`via_pad_diameter` from `JLC04161H_7628.StdViaPreferred.diameter`,
+`clearance_floor` from `min_copper_copper_space`, `capacitor_spacing=0.25`,
+`grid_step=0.25`, `search_radius=3.0`, `escape_width=0.3` (the narrowest
+served pad: `min(capacitor pad width 0.95, placeholder IC pad width 0.30)`),
+one IC-body keepout. Derived `package_rotation = 90`, the rotation that puts
+the part's `p1` on the solver's local negative X.
 
 Solver output, in hint order:
 
 | hint | center (mm) | rotation | power via (mm) | return via (mm) | loop area (mm^2) |
 |---|---|---|---|---|---|
-| core | (-0.75, -1.25) | 0 | (-1.849998982822018, -1.25) | (0.349998982822018, -1.25) | 1.3008498621165137 |
-| io | (-0.75, 1.25) | 0 | (-1.849998982822018, 1.25) | (0.349998982822018, 1.25) | 1.3008498621165137 |
+| core | (-0.25, -2.25) | 90 | (-0.25, -3.7) | (-0.25, -0.8) | 0.9431801948466053 |
+| io | (-0.25, 2.25) | 270 | (-0.25, 3.7) | (-0.25, 0.8) | 0.9431801948466053 |
 
-`solution.total_loop_area = 2.6016997242330273` mm^2. These are geometric
+`solution.total_loop_area = 1.8863603896932106` mm^2. These are geometric
 proxies in square millimeters, not measured inductances. A different query
 result changes the landpattern and therefore these numbers, so re-run the
 check after any capacitor substitution.
 
-Check outcome: all five assertions passed. Eight of eight escape routes
-realized, both queried capacitor geometries matched the solver input, both
-placements read back within the 0.000001 mm tolerance, and all four vias
-landed on their solver coordinates and resolved to the intended nets.
+Each capacitor's `p1` joins the IC power pin it serves through
+`ShortTrace(cap.p1, hint.power_ports[0])` and its `p2` joins the shared
+`GND` net. After capture, `rd.nets.find(cap.p1)` and `rd.nets.find(pin)` are
+the same net for both hints.
+
+Check outcome: every assertion passed. Eight of eight escape routes realized
+at the `0.3` mm escape width (the priority 4 escape rule wins over the
+priority 1 power and ground width of `0.4` mm), both queried capacitor
+geometries matched the solver input, both placements read back within the
+0.000001 mm tolerance, all four vias landed on their solver coordinates and
+resolved to the intended nets, and both power puddles resolved to their rail
+nets.
 
 ## Commands and observed output
 
-Run from the scratch project root, with `PYTHONPATH` covering the project root
-and the package directory (`design.py` imports `decoupling_solver` as a
-top-level module and the solver is copied beside it). `jitx` and `python` are
-the ones from the environment where `jitx`, `jitxlib-jlcpcb`, and
-`jitxlib-parts` are installed; a `jitx` CLI from a different environment fails
-`jitx find` with `ModuleNotFoundError: No module named 'jitxlib'`. The only
-edit to the transcript below is the absolute scratch-project path in the
-runtime's `log_path`, shown as `<project>`.
+The scratch project holds `design.py`, `check.py`, `__init__.py`, and
+`approved-capacitors.csv` in one package, `decoupling_ref`, with copies of
+`scripts/decoupling_solver.py` and `scripts/layout_checks.py` in a `scripts/`
+directory beside it. `PYTHONPATH` covers the project root (for the package)
+and the `scripts/` directory (`design.py` imports `decoupling_solver` as a
+top-level module). `jitx` and `python` are the entry points of the
+environment holding the packages above; a `jitx` CLI from a different
+environment fails `jitx find` with `ModuleNotFoundError: No module named
+'jitxlib'`. Output is verbatim except for the dependency-check line the CLI
+prints before a build, the absolute path in the runtime's `log_path`, and the
+object ids in the `route-width` lines, shown as `<id>`.
 
 ```text
-$ export PYTHONPATH="$PWD:$PWD/<project>"
+$ export PYTHONPATH="<project>:<project>/scripts"
+
 $ jitx runtime start --background
 {
   "mode": "background",
-  "pid": 46946,
+  "pid": 38503,
   "uri": "ws://localhost:<port>/<id>",
   "log_path": "<project>/.jitx/logs/runtime.log",
   "exit_code": null
 }
+exit code 0
 
 $ jitx find
 designs:
-  <project>.design.DecouplingReference
-  <project>.design.DecouplingReference
+  decoupling_ref.design.DecouplingReference
+  decoupling_ref.design.DecouplingReference
+exit code 0
 
-$ yes | jitx build <project>.design.DecouplingReference
-Dependencies recently checked, skipping. Will check again in 51 minutes.
-Running design <project>.design.DecouplingReference...
-A newer version of JITX is available.
-Saving stable design and reference designator table
-<project>.design.DecouplingReference:
-  design: <project>.design.DecouplingReference
+$ yes | jitx build decoupling_ref.design.DecouplingReference
+decoupling_ref.design.DecouplingReference:
+  design: decoupling_ref.design.DecouplingReference
   status: ok
+exit code 0
 
-$ python -m <project>.check
+$ python -m decoupling_ref.check
 [PASS] escape routes realized: 8/8
 [PASS] queried capacitor geometry: 2
 [PASS] solver placements read back with jitx.query: 2/2
 [PASS] solver vias and net membership: 4
-[PASS] solver loop areas: 1.300850 mm^2, 1.300850 mm^2
+PASS route-width: measured=0.3000 expected=0.3000 route=Proxied(Route)[<id>] tol=0.0000 mm
+PASS route-width: measured=0.3000 expected=0.3000 route=Proxied(Route)[<id>] tol=0.0000 mm
+PASS route-width: measured=0.3000 expected=0.3000 route=Proxied(Route)[<id>] tol=0.0000 mm
+PASS route-width: measured=0.3000 expected=0.3000 route=Proxied(Route)[<id>] tol=0.0000 mm
+PASS route-width: measured=0.3000 expected=0.3000 route=Proxied(Route)[<id>] tol=0.0000 mm
+PASS route-width: measured=0.3000 expected=0.3000 route=Proxied(Route)[<id>] tol=0.0000 mm
+PASS route-width: measured=0.3000 expected=0.3000 route=Proxied(Route)[<id>] tol=0.0000 mm
+PASS route-width: measured=0.3000 expected=0.3000 route=Proxied(Route)[<id>] tol=0.0000 mm
+summary: checks=8 failures=0
+[PASS] power puddles on their rail nets: 2
+[PASS] solver loop areas: 0.943180 mm^2, 0.943180 mm^2
+exit code 0
 
 $ jitx runtime stop
 {
   "stopped": true,
-  "pid": 46946,
+  "pid": 38503,
   "signal_sent": "SIGTERM",
   "message": "terminated"
 }
+exit code 0
 
 $ jitx runtime status
 Runtime: not running
+exit code 0
 ```
 
 `jitx find` lists the design twice because `check.py` imports `design.py`, so
@@ -114,47 +147,53 @@ class.
 Static and unit checks, run from the skill repository root. Pyright ran outside
 the JITX environment, so it was pointed at that interpreter with
 `--pythonpath`; without it every `jitx` and `jitxlib` import reports
-`reportMissingImports` and almost nothing is type-checked.
+`reportMissingImports` and almost nothing is type-checked. `check.py`
+narrows `rd.root.circuit` to `ReferenceCircuit` before reading
+`.decoupling`: the installed `jitx` types it as `Circuit`, and pyright
+rejects the attribute without the narrowing.
 
 ```text
 $ python -m pyright --pythonpath <jitx-venv>/bin/python \
     skills/jitx-layout-constraints/scripts/decoupling_solver.py \
-    skills/jitx-layout-constraints/evals/cases/reference/decoupling-bank/design.py \
-    skills/jitx-layout-constraints/evals/cases/reference/decoupling-bank/check.py
+    skills/jitx-layout-constraints/evals/cases/reference/decoupling-bank/*.py
 0 errors, 0 warnings, 0 informations
 
 $ python skills/jitx-layout-constraints/scripts/test_decoupling_solver.py
-Ran 8 tests in 0.424s
+Ran 11 tests in 1.844s
 OK
 ```
 
 ### Realized escape-route copper
 
-Recorded once from a capture probe, as a geometric cross-check that `p1` (the
-power pad) sits on the solver's power side after the rotation fix. Bounds are
-design-global, from `route.traces[*].shapes[*].to_shapely().g.bounds`, and net
-names come from `rd.nets.find(trace)`:
+Recorded from a capture probe, as a geometric cross-check that `p1` (the power
+pad) sits on the solver's power side after rotation. Bounds are design-global,
+from `route.traces[*].shapes[*].to_shapely().g.bounds`, and net names come
+from `rd.nets.find(trace)` (the rail nets carry no `name=`, so they report
+their attribute path):
 
 ```text
-route[0] net=VCORE bounds=(-2.0000, -1.4000, -1.2689, -1.1000)
-route[1] net=VCORE bounds=(-1.9999, -1.3999, -0.7001, -0.3501)
-route[2] net=GND   bounds=(-0.2311, -1.4000, 0.5000, -1.1000)
-route[3] net=GND   bounds=(0.2000, -1.4000, 1.0000, -0.3500)
-route[4] net=VIO   bounds=(-2.0000, 1.1000, -1.2689, 1.4000)
-route[5] net=VIO   bounds=(-1.9999, 0.3501, -0.7001, 1.3999)
-route[6] net=GND   bounds=(-0.2311, 1.1000, 0.5000, 1.4000)
-route[7] net=GND   bounds=(0.2000, 0.3500, 1.0000, 1.4000)
+route[0] net=rail_nets[0] bounds=(-0.4000, -3.8500, -0.1000, -2.9439)
+route[1] net=rail_nets[0] bounds=(-1.2040, -3.8500, -0.1000, -0.3501)
+route[2] net=GND bounds=(-0.4000, -1.5561, -0.1000, -0.6500)
+route[3] net=GND bounds=(-0.3999, -0.9499, 0.9999, -0.3501)
+route[4] net=rail_nets[1] bounds=(-0.4000, 2.9439, -0.1000, 3.8500)
+route[5] net=rail_nets[1] bounds=(-1.2040, 0.3501, -0.1000, 3.8500)
+route[6] net=GND bounds=(-0.4000, 0.6500, -0.1000, 1.5561)
+route[7] net=GND bounds=(-0.3999, 0.3501, 0.9999, 0.9499)
 ```
 
-Route 0 covers the power via at x = -1.85 and the capacitor power pad centered
-at x = -1.4189; route 2 covers the capacitor return pad centered at
-x = -0.0811 and the return via at x = 0.35. Power and return sit on the sides
-the solver assigned them.
+The core capacitor sits at `(-0.25, -2.25)` with a total rotation of 180
+degrees, so its `p1` pad center lands at y = -3.0939 and its `p2` pad center at
+y = -1.4061. Route 0 covers the power via at y = -3.7 and the `p1` pad; route
+2 covers the `p2` pad and the return via at y = -0.8. Power and return sit on
+the sides the solver assigned them.
 
-## Changes recorded during the run
+## Fixes this reference carries
 
-Four changes. Item 1 blocked the build, items 2 and 4 blocked the check, and
-item 3 was a pyright error only. The solver and `check.py` are unchanged.
+Four changes made while the reference was first built, on an earlier
+installation whose capacitor query returned a different 0603 part (`p1` at
+local `(0, +0.6689)`). Item 1 blocked the build, items 2 and 4 blocked the
+check, and item 3 was a pyright error only.
 
 1. `query_capacitor_geometry` used `jitx.query.query(capacitor, ...)`. That
    entry point opens `SubstrateContext(root.substrate)` (`jitx/query.py:247`),
@@ -195,92 +234,3 @@ item 3 was a pyright error only. The solver and `check.py` are unchanged.
 The bank keeps its structure through all four changes: the placements still
 come from the pure solver, the hints are still keyed by `Port` objects, and the
 routes, puddles, nets, and priority 4 rules still live on the bank.
-
-## Later run: after review fixes
-
-Re-run after the review edits to this case: four board default rules with
-`PowerTag` and `GroundTag` carried on the `Design`, the escape width computed
-before the solve and passed into `BankSpec` as `escape_width`, one shared
-return net, `AtLeast(10.0)` for the capacitor rated voltage, escape clearance
-held at the board default, and `check.py` asserting per-route widths through
-`check_route_width` plus power-puddle net membership.
-
-Nothing needed fixing in this run. `design.py`, `check.py`, and the solver were
-copied unchanged into a fresh scratch project, the design built, and every
-assertion passed.
-
-Same package versions as the first run (py-jitx 4.4.0rc5.dev2, jitxlib-standard
-4.4.0rc2.dev14, jitxlib-jlcpcb 1.0.1.dev7, jitxlib-parts 1.3.0a0), substrate
-`JLC04161H_7628`. The scratch project holds `design.py`, `check.py`, and
-`__init__.py` in one package, with copies of `scripts/decoupling_solver.py` and
-`scripts/layout_checks.py` in a `scripts/` directory beside it.
-
-Commands, run from the scratch project root. `PYTHONPATH` covers the project
-root (for the package) and the `scripts/` directory (`design.py` imports
-`decoupling_solver` as a top-level module). `jitx` and `python` are the entry
-points of the environment holding py-jitx 4.4.0rc5.dev2. Output is verbatim
-except for the dependency-probe and update-notice lines the CLI prints before
-each build, and the runtime start and stop JSON, which carry a pid, a port, and
-an absolute path.
-
-```text
-$ export PYTHONPATH="<project>:<project>/scripts"
-
-$ jitx runtime start --background
-(JSON with mode, pid, uri, log_path, exit_code)
-exit code 0
-
-$ jitx find
-designs:
-  decoupling_ref.design.DecouplingReference
-  decoupling_ref.design.DecouplingReference
-exit code 0
-
-$ yes | jitx build decoupling_ref.design.DecouplingReference
-Running design decoupling_ref.design.DecouplingReference...
-Saving stable design and reference designator table
-decoupling_ref.design.DecouplingReference:
-  design: decoupling_ref.design.DecouplingReference
-  status: ok
-exit code 0
-
-$ python -m decoupling_ref.check
-[PASS] escape routes realized: 8/8
-[PASS] queried capacitor geometry: 2
-[PASS] solver placements read back with jitx.query: 2/2
-[PASS] solver vias and net membership: 4
-PASS route-width: measured=0.3000 expected=0.3000 route=Route tol=0.0000 mm
-PASS route-width: measured=0.3000 expected=0.3000 route=Route tol=0.0000 mm
-PASS route-width: measured=0.3000 expected=0.3000 route=Route tol=0.0000 mm
-PASS route-width: measured=0.3000 expected=0.3000 route=Route tol=0.0000 mm
-PASS route-width: measured=0.3000 expected=0.3000 route=Route tol=0.0000 mm
-PASS route-width: measured=0.3000 expected=0.3000 route=Route tol=0.0000 mm
-PASS route-width: measured=0.3000 expected=0.3000 route=Route tol=0.0000 mm
-PASS route-width: measured=0.3000 expected=0.3000 route=Route tol=0.0000 mm
-summary: checks=8 failures=0
-[PASS] power puddles on their rail nets: 2
-[PASS] solver loop areas: 0.658181 mm^2, 0.658181 mm^2
-exit code 0
-
-$ jitx runtime stop
-(JSON with stopped, pid, signal_sent, message)
-exit code 0
-
-$ jitx runtime status
-Runtime: not running
-exit code 0
-```
-
-Two numbers moved since the first run, both from the `escape_width` change:
-
-- Escape width is `0.3` mm, the narrowest served pad. It is
-  `min(capacitor pad width 0.95, placeholder IC pad width 0.30)`, and all eight
-  routes realized at `0.3000` mm, so the priority 4 escape rule wins over the
-  priority 1 power and ground width of `0.4` mm.
-- Loop area is `0.658181` mm^2 per hint, down from `1.3008498621165137` mm^2 in
-  the first run. The solver rejects a candidate whose power and return
-  centerlines are closer than `trace_width + clearance_floor`, and
-  `trace_width` is now the passed escape width instead of the capacitor pad
-  width (`scripts/decoupling_solver.py:503`). At `0.3` mm instead of `0.95` mm
-  that test admits tighter placements. The first run's table above therefore
-  reports the pre-change geometry.

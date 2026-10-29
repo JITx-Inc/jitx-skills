@@ -48,6 +48,7 @@ Everything above that block is guidance for filling it, and none of it belongs i
   stale after the gate blocks.
 - Every row's `Source status` reads `source approved` before the Phase 0 gate opens. A `needs input` row is a blocker and gets an Open Questions row. The column says only whether *the data source* is settled — never whether a task can start, which is the per-task `Status` field's job alone.
 - `Chosen over` is the surviving record of the component-choice rationale: one rejected part and why, in a few words. The full rationale table in `parts-sourcing.md` is presented to the user in chat at the data source audit, not filed here.
+- Passives take one row for the approved-parts list: `parts/approved-parts.csv` (or the parts database the chain names), with its source the user's list or `jitxexamples example CSV, stand-in, not approved`. A stand-in row can read `source approved` once the user accepts building against it; the user's approval of each row used still comes at the Phase 4 parts gate.
 
 **Open Questions**
 
@@ -96,6 +97,7 @@ See ARCHITECTURE.md sections `Power Tree`, `Interface Map`, `Board`, and, when p
 | Component | MPN | Package | Datasheet source | Footprint method | Chosen over | Source status |
 |-----------|-----|---------|------------------|------------------|-------------|---------------|
 | [component] | [MPN] | [package] | [approved source] | [generator or approved file/source] | [one rejected part, and why] | [source approved \| needs input: what is missing] |
+| Passives | `parts/approved-parts.csv` | per row | [user's list \| jitxexamples example CSV, stand-in, not approved] | per row `case` | n/a | [source approved \| needs input: what is missing] |
 
 ## Open Questions
 

@@ -35,7 +35,7 @@
 
 ### Decoupling — CRITICAL (commonly missed)
 - [ ] Decoupling per the datasheet and any PDN requirement where they specify values and placement; otherwise the fewest, largest MLCCs in the smallest package rated at least 2x the rail, one per group of power pins, connected with the lowest loop inductance (Bogatin; see `jitx-layout-constraints` Decoupling). No per-pin 10uF / 1uF / 100nF stack unless the datasheet asks for it
-- [ ] **Every power-rail cap `.insert(...)` uses `short_trace=True`** — decoupling, bypass, bulk, output filter. Exceptions (AC coupling, RC time constants, RF, crystal load) are dispositioned in the task acceptance block. Gated at Phase 2 → 3.
+- [ ] **Every power-rail cap is on a `ShortTrace`**: decoupling, bypass, bulk, output filter. Each is its own attribute on `self`, its supply-side pad joins the pin it serves through `ShortTrace(self.c_x.p1, <the IC power pin port>)` and its other pad joins the return net. Exceptions (AC coupling, RC time constants, RF, crystal load) are dispositioned in the task acceptance block. Gated at Phase 2 → 3.
 - [ ] Ferrite bead or filter on analog supply pins if mixed-signal
 
 ### Protocol-Specific Checks

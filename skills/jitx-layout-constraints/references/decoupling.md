@@ -16,8 +16,10 @@ layout figure, the datasheet wins.
 ## What the solver controls
 
 Source citations (`jitx/constraints.py:910` and the like) point into the
-installed py-jitx package on a `4.4.0` install; line numbers move between
-builds, so confirm on your own install before relying on one.
+installed py-jitx package on a `4.4.0` install, except the `jitxlib/parts` and
+`jitx/net.py:1002` citations, which point into a `4.6.0` install with
+jitxlib-parts 2.0; line numbers move between builds, so confirm on your own
+install before relying on one.
 
 `scripts/decoupling_solver.py` is pure Python. Copy it into the design project
 and import these frozen dataclasses. An infeasible bank raises `ValueError`
@@ -88,11 +90,18 @@ compose the same frames. Compose `trace.transform * element.transform` to read
 a center (`jitx/inspect.py:174`, `jitx/landpattern.py:191`).
 
 Do not use a nominal case-code table when the selected part already has a
-landpattern. Parts queries can change the returned manufacturer part and its
-landpattern. `CapacitorQuery` is the installed query type
-(`jitxlib/parts/query_api.py:451`), and `Capacitor` builds its selected
-landpattern from the returned database record
-(`jitxlib/parts/query_api.py:1347`). Query the result that will be built.
+landpattern. A change to the approved parts can change the returned part and
+its landpattern. `CapacitorQuery` is the installed query type
+(`jitxlib/parts/query.py:978`), and `Capacitor` takes its landpattern from the
+provider that answered the query (`jitxlib/parts/components.py:322`). Query
+the result that will be built.
+
+An approved-parts CSV answers with its first matching row in file order, and
+reorders only for a `rank=` on a column the file carries; a query key with no
+column in the file is declined and falls through to the next provider
+(`jitxlib/parts/providers/csv_parts.py:399`, `:412`). For the smallest
+qualified package, pass the qualifying `case=` codes and keep the CSV rows
+smallest case first.
 
 ## Structural hints
 
@@ -150,9 +159,10 @@ from jitx import Circuit, Net, Pour, current
 from jitx.circuit import Route
 from jitx.component import Component
 from jitx.constraints import AnyObject, Tag, Tags, design_constraint
+from jitx.net import ShortTrace
+from jitx.units import F, V
 from jitx.via import Via
-from jitx.interval import AtLeast
-from jitxlib.parts import Capacitor, CapacitorQuery, SortDir, SortKey
+from jitxlib.parts import AtLeast, Capacitor, CapacitorQuery
 
 from decoupling_solver import BankSpec, CapacitorGeometry, HintSpec, Solution, solve
 
@@ -170,9 +180,9 @@ class DecouplingBank(Circuit):
         self,
         ic_type: type[Component],
         hint_factory: Callable[[Component], HintMap],
-        rail_voltage: float,
+        rail_voltage: float,  # volts
         cap_geometry: CapacitorGeometry,
-        capacitance: float = 22e-6,  # Bogatin 2019: largest MLCC, 22 uF typical; pass the datasheet value when it gives one
+        capacitance: float = 22e-6,  # farads; Bogatin 2019: largest MLCC, 22 uF typical; pass the datasheet value when it gives one
         rated_voltage_factor: float = 2.0,  # Bogatin 2019: rated at least 2x the rail; the datasheet wins when it specifies
         keepouts: tuple[tuple[tuple[float, float], ...], ...],
         capacitor_spacing: float,
@@ -218,17 +228,16 @@ class DecouplingBank(Circuit):
         self.solution = solve(spec)
 
         cap_query = CapacitorQuery(
-            capacitance=capacitance,
-            rated_voltage=AtLeast(rated_voltage_factor * rail_voltage),  # a minimum, not an exact catalog value
+            capacitance=capacitance * F,
+            rated_voltage_dc=AtLeast(rated_voltage_factor * rail_voltage * V),  # a minimum, not an exact catalog value
             type="ceramic",
             mounting="smd",
-            sort=SortKey("area", SortDir.INCREASING),
         )
         self.capacitors = [Capacitor(cap_query) for _ in hints]
-        for capacitor, hint in zip(self.capacitors, hints, strict=True):
-            capacitor.insert(
-                hint.power_ports[0], hint.return_ports[0], short_trace=True
-            )
+        self.supply_traces = [
+            ShortTrace(capacitor.p1, hint.key)  # supply-side pad to the pin it serves
+            for capacitor, hint in zip(self.capacitors, hints, strict=True)
+        ]
 
         self._apply_solution(via_cls, package_rotation)
         self.escape_routes = []
@@ -288,9 +297,10 @@ class DecouplingBank(Circuit):
         )
 ```
 
-`Capacitor.insert(..., short_trace=True)` connects each capacitor port, and the
-capacitor remains a structural component owned by the
-bank (`jitxlib/parts/query_api.py:1461`). `Route` accepts ports, pads, vias, and
+Each capacitor is held on the bank, in `self.capacitors`. Its supply-side pad joins
+the pin it serves through `ShortTrace(capacitor.p1, hint.key)` and its other
+pad joins the return net. `ShortTrace(p1, p2)` takes two ports, never a net
+(`jitx/net.py:1002`). `Route` accepts ports, pads, vias, and
 route endpoints, and captured copper is exposed through `route.traces`
 (`jitx/circuit.py:466`, `jitx/circuit.py:569`).
 
