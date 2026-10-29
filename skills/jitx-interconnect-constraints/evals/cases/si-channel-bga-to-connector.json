@@ -1,0 +1,61 @@
+{
+  "name": "si-channel-bga-to-connector",
+  "prompt": "On jitx 4.6, constrain the TX channel from our FPGA to the connector. Two TX diff pairs (tx0 and tx1, a two-pair bundle) leave BGA balls on the top layer, drop through an escape via to the other routing layer, pass through an AC coupling capacitor on each leg, and end at the connector. Use these values, they are what we have: BGA package 30 ps and 0.1 dB per TX pin; escape via 8 ps and 0.05 dB from the top layer to the routing layer; AC cap 5 ps and 0.1 dB through; connector 20 ps and 0.15 dB per pin. Limits: each leg at most 400 ps and 2 dB, P-to-N skew within 1 ps in each pair, and skew across the bundle within 5 ps. Show me the constraints actually apply.",
+  "inputs": {
+    "substrate": "jitx.sample.SampleSubstrate (two copper layers, DRS_100 on both, THVia from layer 0 to layer 1); its bottom layer stands in for the routing layer",
+    "fixture_values": {
+      "bga_tx_pin": {"delay_s": 30e-12, "loss_db": 0.1},
+      "escape_via_layer0_to_layer1": {"delay_s": 8e-12, "loss_db": 0.05},
+      "ac_cap_through": {"delay_s": 5e-12, "loss_db": 0.1},
+      "connector_tx_pin": {"delay_s": 20e-12, "loss_db": 0.15},
+      "timing_limit_s": 400e-12,
+      "insertion_loss_limit_db": 2.0,
+      "intra_pair_skew_s": 1e-12,
+      "bundle_skew_s": 5e-12
+    },
+    "reference": "evals/cases/reference/si-channel-bga-to-connector/si_channel_design.py",
+    "environment": "Commands run from the repository root with python3 resolving to an interpreter that has jitx 4.6 installed and the jitx CLI beside it, and the 4.6 runtime installed. The check script stages its own project in the system temp directory and starts and stops that project's runtime itself."
+  },
+  "notes": "For whoever reads the judges' output, not for the runner. Every electrical number in the prompt is a fixture value the user supplies; none is a real part's data, and the reference's parts are fictional. The deterministic assertions run against the reference, not the runner's output: they prove the case is answerable on the 4.6 runtime and that the check rejects each mutation. A runner's design is judged against the same shape: plain nets, Topology(begin, end), code routes on every segment, a BridgingPinModel on each cap, a via subclass with models, terminating models on the BGA and connector pins, ConstrainDiffPair for intra-pair skew, timing and loss, and ConstrainReferenceDifference with one leg as the single-pin guide for bundle skew. With a tx0.p guide against both tx1 legs the report carries two bundle Skew lines, so four Skew lines in all. NOTES.md beside the reference records the commands, versions and measured numbers.",
+  "runner_models": [
+    "sonnet"
+  ],
+  "runner_rationale": "Customers drive this skill with mixed-strength agents (Claude Code, Codex, and Devin among them). The skill must carry the doctrine itself, so the eval runs the skill under a Sonnet-class runner rather than the strongest available model. Judges stay frontier-tier regardless of runner.",
+  "runner_artifacts": "The runner MUST write its design to <output>/channel.py and its completion summary to <output>/COMPLETION.md, not only into its final chat message. COMPLETION.md quotes the design issues output it ran, verbatim, with the command line. Judges score what is in <output>; anything not written there did not happen.",
+  "expected_output": "A design module with the channel on plain nets and no >>, code Route objects for every segment (top layer from ball to via, the other layer from via to cap and cap to connector), a PortAttachment for each escape via, a BridgingPinModel on every cap, a via subclass whose models carry the 8 ps and 0.05 dB from layer 0 to the routing layer, terminating pin models on the BGA and connector TX pins, ConstrainDiffPair over both pairs with the 1 ps skew, 400 ps timing, 2 dB loss and the substrate's differential routing structure, and ConstrainReferenceDifference with one tx0 leg as guide against both tx1 legs at 5 ps; plus a completion summary quoting jitx design issues <Design> --satisfied output with four Time, four Loss and four Skew lines, each inside its target, and no Unconnected Topology, not routed yet, No path, Missing routing structure or placeholder-model text.",
+  "assertions": [
+    {
+      "text": "the reference module and its check script type-check against the installed jitx package",
+      "check": "deterministic",
+      "cmd": "python3 -m pyright --pythonpath \"$(command -v python3)\" skills/jitx-interconnect-constraints/evals/cases/reference/si-channel-bga-to-connector/*.py"
+    },
+    {
+      "text": "on the live runtime the reference measures four Time, four Loss and four Skew lines, all satisfied, every path through its cap, and the terminating and via models lower delay and loss by exactly their values when removed or zeroed",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-interconnect-constraints/evals/cases/reference/si-channel-bga-to-connector/check_si_channel.py main"
+    },
+    {
+      "text": "mutation, cap without its bridging pin model: the reference checks reject it, the report names caps[0] as the part without a pin model, and bga.tx0.p has no measurement",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-interconnect-constraints/evals/cases/reference/si-channel-bga-to-connector/check_si_channel.py cap-no-model"
+    },
+    {
+      "text": "mutation, no routes: the reference checks reject it, the report carries Unconnected Topology or not routed yet, and nothing measures",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-interconnect-constraints/evals/cases/reference/si-channel-bga-to-connector/check_si_channel.py no-routes"
+    },
+    {
+      "text": "mutation, via without a model: the reference checks reject it and the report names the placeholder model used for the via",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-interconnect-constraints/evals/cases/reference/si-channel-bga-to-connector/check_si_channel.py no-via-model"
+    },
+    {
+      "text": "the answer explains that >> is not needed for this point-to-point channel, that routes close the path the runtime infers between the Topology ends, and that every pass-through part and the via carry a pin model; its design has no >>, a BridgingPinModel on every cap, via models, and a single-pin guide for the bundle skew",
+      "check": "judge"
+    },
+    {
+      "text": "the answer proves the constraints applied with jitx design issues run with --satisfied (or RuntimeDesign.issues(satisfied=True)), quotes the measured Time, Loss and Skew lines, separates binding from passing, and uses only the prompt's numbers for limits and models",
+      "check": "judge"
+    }
+  ]
+}
