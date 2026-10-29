@@ -15,7 +15,7 @@ The `jitx` CLI owns project scaffolding, auth, runtime install/start, and design
 > **jitx 4.6.x** (`jitx >= 4.6, < 4.7`), the public PyPI line from the 4.6.0 release.
 > A note naming an earlier version records where one claim was measured; it was not re-run on 4.6.
 > No sibling skill restates this *supported range*.
-> On 4.4.x the notes measured there hold but the install pins do not. Earlier lines (4.0.x,
+> The 4.4 notes were measured on 4.4 builds; the install pins move a 4.4.x project to 4.6. Earlier lines (4.0.x,
 > 4.2.x) are not described here. On an older install, upgrade or expect the pages to disagree
 > with your package; verify every import with `pyright` either way.
 
