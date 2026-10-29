@@ -359,11 +359,13 @@ Rules learned in production (saturn-ethernet, 4.3.0-rc.3):
   ~0.07 ps of real skew where drawn lengths implied ~2 ps). Encode the
   electrical truth: equal mean delays with the measured residual as a
   `Toleranced` spread; use drawn length for loss and for the mean only.
-- **Constraint endpoints must be COMPONENT ports.** Control-point `.port`
-  bundles do not id-map as `Topology` begin/end at translation
-  ("parent ... is not an ancestor of child <<Port>>") — constrain from
-  component port to component port (e.g. BGA pair -> connector pair) and
-  let control points sit mid-topology.
+- A control point's `.port` bundle cannot be a constraint endpoint. It does
+  not id-map as a `Topology` begin or end at translation ("parent ... is not
+  an ancestor of child <<Port>>"). Constrain from component port to component
+  port (e.g. BGA pair -> connector pair) and let control points sit mid-path.
+  A circuit-level bundle port does work as an end, but it resolves to the
+  first pad behind it, so a series part inside that sub-circuit is left out of
+  the measurement.
 - The API is marked experimental in `jitx.virtual` — expect change.
 
 ## Pad features (soldermask / paste / thermal pad)

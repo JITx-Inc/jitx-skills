@@ -5,7 +5,7 @@ description: "Use when the user asks about provide/require patterns, provide.one
 
 # JITX Pin Assignment
 
-Model flexible pin mappings between circuit-level interfaces and component-level pins. JITX's provide/require system lets the layout engine choose optimal pin assignments during routing.
+Model flexible pin mappings between circuit-level interfaces and component-level pins. JITX's provide/require system lets a provider offer every mapping the part allows and leaves the choice open; routes on the provider's physical pins resolve it to one mapping.
 
 ## Environment
 
@@ -34,6 +34,7 @@ from jitx.si import (
 )
 from jitx.net import Topology
 from jitx.circuit import Route
+from jitx.toleranced import Toleranced
 
 # Core framework
 from jitx import Circuit, Net
@@ -52,12 +53,12 @@ from jitx import Circuit, Net
 
 ## When to Use Pin Assignment
 
-Use pin assignment when a component's physical pins can validly serve more than one logical role, and the layout engine should choose the optimal mapping.
+Use pin assignment when a component's physical pins can validly serve more than one logical role, and the choice should stay open until routing instead of being fixed in code.
 
 **Use pin assignment for:**
 - MCU GPIO — any of N pins can drive an LED, sensor, etc.
 - Peripheral muxing — I2C/SPI/UART available on alternate pin groups
-- DiffPair polarity — some protocols allow P/N swap (PCIe, where the controller supports polarity inversion)
+- DiffPair polarity: some protocols allow P/N swap (PCIe, where the controller supports polarity inversion)
 - Lane ordering — PCIe lane reversal, width variants (x1/x2/x4)
 - Byte/bit swapping — DDR controllers that support data bus reordering
 
@@ -252,7 +253,7 @@ self.gpios = Provide(GPIO).subset_of(4, lambda g: [{g.gpio: p} for p in pins])
 
 ## Consuming Providers with `require()`
 
-The consumer circuit calls `.require(BundleType)` on the provider circuit instance. This returns a bundle instance whose sub-ports are wired with `+`, like any other port. Keep the returned bundle in a local variable and store the nets: a `require()`d port stored on `self` fails the build with `Port circuit.req is a required port from SwapCkt and should not be a member field of a circuit`. SI constraints on these nets need no `>>`; see [Constraints on Pin-Assigned Ports](#constraints-on-pin-assigned-ports).
+The consumer circuit calls `.require(BundleType)` on the provider circuit instance. This returns a bundle instance whose sub-ports are wired with `+`, like any other port. Keep the returned bundle in a local variable and store the nets: a `require()`d port stored on `self` fails the build with `Port <circuit>.<name> is a required port from <Provider> and should not be a member field of a circuit`. SI constraints on these nets need no `>>`; see [Constraints on Pin-Assigned Ports](#constraints-on-pin-assigned-ports).
 
 ```python
 class AppCircuit(Circuit):
@@ -335,7 +336,7 @@ class LEDDriverApp(Circuit):
         self.VCC += self.mcu.power.Vp
         self.GND += self.mcu.power.Vn
 
-        # Consume GPIOs — layout engine decides which physical pins
+        # Consume GPIOs; which physical pin each gets is resolved from routing
         self.r_leds = []
         for i in range(2):
             gpio = self.mcu.require(GPIO)
@@ -382,12 +383,12 @@ class MCUCircuit(Circuit):
         # ... power wiring ...
 ```
 
-This creates 4 possible I2C configurations (2 SDA options x 2 SCL options) that the layout engine evaluates simultaneously.
+This creates 4 possible I2C configurations (2 SDA options x 2 SCL options); routing resolves the assignment to one of them.
 
 **Key rules:**
 - Inner Port classes are defined as nested classes on the Circuit
 - `self.require()` inside `@provide` consumes the circuit's own providers
-- The layout engine resolves the full constraint tree simultaneously
+- The composed options stay open until the assignment is resolved
 
 ## DiffPair P/N Polarity Swapping
 
@@ -414,7 +415,7 @@ On jitx 4.6 an SI constraint (timing, insertion loss, intra-pair skew, skew agai
 
 1. Net the required bundle with `+` and keep it local. Store the nets on `self`, never the required port (see [Consuming Providers with `require()`](#consuming-providers-with-require)).
 2. Give every pass-through part on the path a `BridgingPinModel` between its two ports (an ESD channel's in and out pins, an AC-coupling cap's two pins). Without one the path stops at that part, and the report names it: `No path for signal constraint from drv.o to rcv.o: the ends are only connected through the part between cap.a and cap.b, which has no pin model.`
-3. Close the path with routes that end on the provider's physical pins. Code `Route`s do this without the board view. A route cannot end on a required port: the build fails with `Using require ports as route ends at circuit.r[0] is not implemented`. The routes are what resolve the assignment. A route set that matches one offered mapping resolves to it, P/N inversion included. A set that matches no offered mapping is dropped (`Code route dropped: it conflicts with other connections`) and that leg has no path. With no routes, nothing resolves and nothing measures.
+3. Close the path in a verification design: a separate Design that instantiates the circuit, places its parts, and closes the path with code `Route`s that end on the provider's physical pins. Proof routes fix one mapping, so they never go in the product design, where they would remove the freedom the provider offers. A route cannot end on a required port: the build fails with `Using require ports as route ends at circuit.r[0] is not implemented`. The routes are what resolve the assignment. A route set that matches one offered mapping resolves to it, P/N inversion included. When the routes match no offered mapping, the conflicting routes are dropped (`Code route dropped: it conflicts with other connections`) and their leg has no path; a leg whose routes fit an offered mapping can still measure. With no routes, nothing resolves and nothing measures.
 4. Pick the Topology ends by where the assigned part sits.
    - The assigned part is mid-path (an ESD array): put the ends on fixed physical pins on either side, such as `Topology(self.host.usb, self.conn.usb)`. While the assignment is unresolved or illegal, the report says `No path for signal constraint from host.usb.p to conn.usb.p`.
    - The provider is itself an end (a PCIe switch's lanes, a DDR controller's byte lanes): the Topology begins on the required port. While the assignment is unresolved, the report says `Unassigned Pin on Path: nets[0].p`. Once routes resolve it, the measured line names the physical pin, such as `from src.u.a.p to conn.tx.p`.
@@ -446,7 +447,9 @@ class FlowThroughEsd4(Component):
     def __init__(self) -> None:
         # ... landpattern and symbol ...
         # Each channel is a pass-through: without a pin model the path stops here.
-        # Delay and loss come from the part's datasheet.
+        # Delay and loss come from the part's datasheet. A fixture or
+        # placeholder part says it is fictional in its docstring, and its
+        # values are labelled as given.
         self.channel_models = [
             BridgingPinModel(self.ch_in[i], self.ch_out[i], delay=ESD_DELAY, loss=ESD_LOSS)
             for i in range(4)
@@ -464,7 +467,7 @@ class EsdProtection(Circuit):
     gnd = Port()
 
     def __init__(self) -> None:
-        self.esd = FlowThroughEsd4()
+        self.esd = FlowThroughEsd4().at(0, 0)
         self.gnd_net = self.gnd + self.esd.gnd
 
     @provide.one_of(ProtectedPair)
@@ -482,9 +485,12 @@ class EsdProtection(Circuit):
 
 
 class UsbThroughEsd(Circuit):
-    def __init__(self) -> None:
-        self.host = UsbHost()
-        self.conn = UsbConnector()
+    """proof_channels: (D+ channel, D- channel) to code-route, verification designs only."""
+
+    def __init__(self, proof_channels: tuple[int, int] | None = None) -> None:
+        # Placed: unplaced parts give Missing Connection instead of a measurement.
+        self.host = UsbHost().at(-12, 0)
+        self.conn = UsbConnector().at(12, 0)
         self.prot = EsdProtection()
 
         pair = self.prot.require(ProtectedPair)  # local, never self.pair
@@ -496,15 +502,18 @@ class UsbThroughEsd(Circuit):
         ]
         self.gnd = Net([self.host.gnd, self.prot.gnd, self.conn.gnd], name="GND")
 
-        # Routes land on the ESD part's physical pins. These choose D+ on
-        # channel 1 and D- on channel 2, which resolves the assignment.
+        # Proof routes land on the ESD part's physical pins and fix one mapping.
+        # The product design passes None and keeps the assignment open.
         esd = self.prot.esd
-        self.routes = [
-            Route(self.host.usb.p, esd.ch_in[0], layer=0),
-            Route(self.host.usb.n, esd.ch_in[1], layer=0),
-            Route(esd.ch_out[0], self.conn.usb.p, layer=0),
-            Route(esd.ch_out[1], self.conn.usb.n, layer=0),
-        ]
+        self.routes: list[Route] = []
+        if proof_channels is not None:
+            p, n = proof_channels
+            self.routes = [
+                Route(self.host.usb.p, esd.ch_in[p], layer=0),
+                Route(self.host.usb.n, esd.ch_in[n], layer=0),
+                Route(esd.ch_out[p], self.conn.usb.p, layer=0),
+                Route(esd.ch_out[n], self.conn.usb.n, layer=0),
+            ]
 
         # Fixed physical ends either side of the assigned pins.
         self.usb_constraint = (
@@ -513,9 +522,16 @@ class UsbThroughEsd(Circuit):
             .timing(TIMING_BUDGET)
             .structure(substrate.DRS_90)
         )
+
+
+class VerifyUsbThroughEsd(ProjectDesign):  # your project's Design subclass
+    """Verification design: D+ on channel 1, D- on channel 2."""
+
+    def __init__(self) -> None:
+        self.circuit = UsbThroughEsd(proof_channels=(0, 1))
 ```
 
-`USB.v2.skew` is jitxlib-standard's USB 2.0 intra-pair skew limit, `Toleranced(0, 3.75e-12)`. `ESD_DELAY`, `ESD_LOSS` and `TIMING_BUDGET` come from the part's datasheet and the design's budget, and `substrate.DRS_90` from your substrate (USB 2.0 asks for 90 ohm differential).
+`USB.v2.skew` is jitxlib-standard's USB 2.0 intra-pair skew limit, `Toleranced(0, 3.75e-12)`. `ESD_DELAY`, `ESD_LOSS` and `TIMING_BUDGET` come from the part's datasheet and the design's budget; for a fixture or placeholder part, label the part fictional and its values as given. `substrate.DRS_90` comes from your substrate (USB 2.0 asks for 90 ohm differential).
 
 The same design with five routings, run on jitx 4.6.0rc10 against runtime 4.6.0-rc.16 with a fictional ESD part (3 ps and 0.05 dB per channel) on `jitx.sample.SampleSubstrate`. The runnable version is this repository's `evals/cases/reference/usb-through-esd-swap/` case.
 
@@ -531,7 +547,7 @@ Binding is not compliance. The inverted routing measures 21.9 ps of skew against
 
 ### PCIe pattern: lane providers + per-lane constraints
 
-The switch is the provider and one end of each lane, so each Topology begins on the required lane.
+The switch is the provider and one end of each lane, so each Topology begins on the required lane. This pattern has not been run on the 4.6 runtime; the USB example's reference case has.
 
 ```python
 link = self.switch.require(PCIeLink)  # local, never self.link
@@ -550,7 +566,7 @@ with ReferencePlanes(self.GND):
 
 ### DDR4 pattern: byte swap + DQ-to-DQS matching
 
-`ConstrainReferenceDifference` needs a single-pin guide (`Guide must be a single pin type`), so the guide is the strobe's `p` leg, not the `DQS` pair.
+`ConstrainReferenceDifference` needs a single-pin guide (`Guide must be a single pin type`), so the guide is the strobe's `p` leg, not the `DQS` pair. This pattern has not been run on the 4.6 runtime, in particular a guide that begins on a required sub-port; prove it in a verification design before relying on it.
 
 ```python
 data = self.controller.require(DDR4Data)  # local, never self.data
@@ -737,14 +753,14 @@ jitx build <module.path.DesignClass>
 
 Don't run parallel JITX builds against the same project — sequence them. See [Build safety: don't parallelize same-design work](../jitx/SKILL.md#build-safety-dont-parallelize-same-design-work).
 
-Pin assignment errors appear as "Unsatisfiable pin assignment" in the Issues List. Constraint violations appear under "Unsatisfied Signal Constraints".
+The design-issue report (Step 3) groups its lines under headings such as `Signal Constraint:`, `Topology:` and `Routing:`.
 
 ### Step 3: Prove constraints with design issues
 
-A clean build says nothing about whether an SI constraint on a pin-assigned path applied. Close the path with code routes on the provider's physical pins (see [Constraints on Pin-Assigned Ports](#constraints-on-pin-assigned-ports)), then run:
+A clean build says nothing about whether an SI constraint on a pin-assigned path applied. Run the check on a verification design: a separate Design whose parts are placed and whose code routes land on the provider's physical pins, fixing one mapping (see [Constraints on Pin-Assigned Ports](#constraints-on-pin-assigned-ports)). The product design keeps no proof routes, so its assignment stays open and its report shows `No path for signal constraint` or `Unassigned Pin` for these constraints until the board is routed.
 
 ```bash
-jitx design issues <module.path.DesignClass> --satisfied
+jitx design issues <module.path.VerifyDesignClass> --satisfied
 ```
 
 `--satisfied` is required: without it, satisfied constraints are not printed. From Python, `RuntimeDesign.issues(satisfied=True)` returns the same report. The command exits 0 whatever it reports unless `--error` is given, so a script must read the text.
@@ -754,7 +770,8 @@ jitx design issues <module.path.DesignClass> --satisfied
 | `Time: 112.879ps - Target: ...`, `Skew: 0s - Target: ...`, `Loss: ...` | The assignment resolved and the constraint applied. Compare the value to the target separately. |
 | `No path for signal constraint from host.usb.p to conn.usb.p` | Ends on fixed pins around the assigned part, and the assignment did not resolve: no routes, or routes that match no offered mapping. |
 | `Unassigned Pin on Path: nets[0].p` | The Topology ends on the required port, and the assignment did not resolve. |
-| `Code route dropped: it conflicts with other connections` | A route set matched no offered mapping and was discarded. |
+| `Code route dropped: it conflicts with other connections` | The routes matched no offered mapping; the conflicting routes were dropped. A leg whose routes fit an offered mapping can still measure. |
+| `Missing Connection on Path: ...`, `Unable to find path for requested route` | A code route could not be made, for example because the parts are not placed. Place every part with `.at(...)`. |
 | `No path for signal constraint ... which has no pin model` | A pass-through part on the path needs a `BridgingPinModel`. |
 
 To show the offered mappings are enforced, also run one routing that matches none of them: it must report a dropped route and no measurement for that leg.
