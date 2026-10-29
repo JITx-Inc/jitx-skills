@@ -15,11 +15,9 @@ layout figure, the datasheet wins.
 
 ## What the solver controls
 
-Source citations (`jitx/constraints.py:910` and the like) point into the
-installed py-jitx package on a `4.4.0` install, except the `jitxlib/parts` and
-`jitx/net.py:1002` citations, which point into a `4.6.0` install with
-jitxlib-parts 2.0; line numbers move between builds, so confirm on your own
-install before relying on one.
+Source citations (`jitx/constraints.py:911` and the like) point into an
+installed `4.6.0` jitx package with jitxlib-parts 2.0; line numbers move between
+builds, so confirm on your own install before relying on one.
 
 `scripts/decoupling_solver.py` is pure Python. Copy it into the design project
 and import these frozen dataclasses. An infeasible bank raises `ValueError`
@@ -82,12 +80,12 @@ Read every dimension before constructing `BankSpec`:
 - keepouts from the IC body, exposed pad, testpoints, and mechanical geometry.
 
 `jitx.query.query(root, target, ...)` applies registered transformers, including
-pad-to-copper and via-to-copper (`jitx/query.py:283`, `jitx/landpattern.py:173`,
-`jitx/via.py:197`), and opens the design and substrate contexts, so its root
+pad-to-copper and via-to-copper (`jitx/query.py:283`, `jitx/landpattern.py:180`,
+`jitx/via.py:232`), and opens the design and substrate contexts, so its root
 must be the design. To read a component's own landpattern before the design
 exists (the capacitor geometry above), walk it with `jitx.inspect.visit` and
 compose the same frames. Compose `trace.transform * element.transform` to read
-a center (`jitx/inspect.py:174`, `jitx/landpattern.py:191`).
+a center (`jitx/inspect.py:174`, `jitx/landpattern.py:199`).
 
 Do not use a nominal case-code table when the selected part already has a
 landpattern. A change to the approved parts can change the returned part and
@@ -141,7 +139,7 @@ type HintMap = Mapping[Port, DecouplingHint]
 Keep the mapping local while constructing the bank. Store the JITX objects it
 creates, not a parallel string-keyed model. A `Circuit` requires every element
 to remain reachable through an attribute, list, or mapping
-(`jitx/circuit.py:50`).
+(`jitx/circuit.py:63`).
 
 The route endpoints and the hint ports must share a common owning circuit. The
 simplest reusable shape is a bank that wraps the target IC, so the IC,
@@ -315,30 +313,30 @@ the pin it serves through `ShortTrace(capacitor.p1, hint.key)` and its other
 pad joins the return net. `ShortTrace(p1, p2)` takes two ports, never a net
 (`jitx/net.py:1002`). `Route` accepts ports, pads, vias, and
 route endpoints, and captured copper is exposed through `route.traces`
-(`jitx/circuit.py:466`, `jitx/circuit.py:569`).
+(`jitx/circuit.py:466`, `jitx/circuit.py:752`).
 
 The two vias per capacitor (skill default: two vias per capacitor) are
 instances of the substrate's via class. A via
 is positionable and carries its own pad diameter and layer span
-(`jitxlib/jlcpcb/vias.py:24`, `jitx/via.py:37`, `jitx/placement.py:133`). Store every instance on the bank,
+(`jitx/via.py:37`, `jitx/via.py:56-60`, `jitx/placement.py:133`). Store every instance on the bank,
 then include each power via in its rail net and every return via in the one
 shared return net (the board ground is one net; separate return domains exist
 only when the schematic has them, and then each gets its own net). `Net` accepts `Via` and `Copper` members directly
-(`jitx/net.py:645`, `jitx/net.py:733`). `PortAttachment` is not needed for this
+(`jitx/net.py:646`, `jitx/net.py:685`). `PortAttachment` is not needed for this
 plain power-net membership. Two route segments on each side (skill default: two segments) use the via as an endpoint, so realized copper reaches its pad.
 
 The local `Pour` is also a rail-net member. `Pour` takes a shape and one layer
-index (`jitx/copper.py:46`); do not pass the deprecated `isolate=` parameter.
+index (`jitx/copper.py:78`); do not pass the deprecated `isolate=` parameter.
 The puddle is local to this circuit so it moves with the IC and capacitors. It
 does not authorize a board-wide power fill.
 
 Tags are module-scope subclasses. `Tags(...).assign(...)` supports `Route`,
 `Circuit`, `Component`, `Pad`, `Via`, `Copper`, and `Pour` targets
-(`jitx/constraints.py:495`, `jitx/constraints.py:557`). The escape width is a
+(`jitx/constraints.py:496`, `jitx/constraints.py:558`). The escape width is a
 one-condition rule, while clearance is a two-condition rule. The conditions
-are positional-only (`jitx/constraints.py:71`). Trace width exists on the
-unary rule (`jitx/constraints.py:910`), and clearance exists only on the binary
-rule (`jitx/constraints.py:1160`). Priority 4 is the escape rung of the ladder in `SKILL.md`, above the board
+are positional-only (`jitx/constraints.py:72`). Trace width exists on the
+unary rule (`jitx/constraints.py:911`), and clearance exists only on the binary
+rule (`jitx/constraints.py:1169`). Priority 4 is the escape rung of the ladder in `SKILL.md`, above the board
 defaults at 0 and every class rule. Bound escape width by the queried capacitor and IC pad widths.
 
 ## Solution adapter
@@ -366,7 +364,7 @@ def _apply_solution(self, via_cls: type[Via], package_rotation: int) -> None:
 `Positionable.at()` writes the direct descendant's local placement
 (`jitx/placement.py:133`). Give the bank an explicit position. `Circuit.at(floating=True)`
 clears the fixed transform so a person can place the bank as one block in
-the UI (`jitx/circuit.py:289`), but with no interactive placement stored the
+the UI (`jitx/circuit.py:320`), but with no interactive placement stored the
 runtime parks a floating circuit off the board and every route in it fails
 with `Route targets not in router: ... is off the board` while `jitx build`
 still reports `status: ok` (observed in the shipped reference). Instantiate it
@@ -395,9 +393,9 @@ coordinates.
 
 Build status is not evidence that an authored route realized. Submit the
 design, capture it, and inspect the bank. `RuntimeDesign.query` delegates to
-the transformation query layer (`jitx/run/runtime.py:421`), and
+the transformation query layer (`jitx/run/runtime.py:794`), and
 `SyncRuntimeDesign.capture()` reads runtime geometry back into the design
-objects (`jitx/run/runtime.py:602`).
+objects (`jitx/run/runtime.py:1151`).
 
 ```python
 import math

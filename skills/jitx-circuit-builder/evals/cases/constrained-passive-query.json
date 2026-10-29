@@ -2,7 +2,7 @@
   "name": "constrained-passive-query",
   "prompt": "Build the feedback divider for a 3.3 V buck (0.8 V reference, ~10 uA through the divider) and the output filter caps. This is a precision rail and it needs to hold over temperature.",
   "inputs": {
-    "notes": "Every axis left unstated in a passive query is an axis the parts chain decides, and a constraint the approved CSV cannot meet (a key it has no column for, or a bound no row matches) is silently dropped: the CSV declines it and `ideal` answers. This case tests whether the runner constrains the axes that matter for a precision rail using only the CSV's vocabulary and rows, and says so where they run out.",
+    "notes": "Every axis left unstated in a passive query is an axis the parts chain decides, and a constraint the approved CSV cannot meet (a key it has no column for, or a bound no row matches) falls through: the CSV declines it, and `ideal` answers with an unorderable part that keeps only value, case, tolerance and polarization. This case tests whether the runner constrains the axes that matter for a precision rail using only the CSV's vocabulary and rows, and says so where they run out.",
     "environment": "A project whose chain is `csv:parts/approved-parts.csv` then `ideal`, with the jitxexamples example CSV as the approved list. Its columns include `tolerance`, `case`, `rated_voltage_dc` and `temperature_coefficient_code`, and no resistor temperature-coefficient column."
   },
   "expected_output": "Divider resistors with a stated tolerance bound, output capacitors with a stated dielectric and derated `rated_voltage_dc` floor, values in `jitx.units`, and a stated account of the resistor temperature coefficient the CSV cannot filter on.",
@@ -23,9 +23,9 @@
       "cmd": "python3 -c \"import glob,re,sys; s=''.join(open(f).read() for f in glob.glob('<output>/*.py')); q=re.findall(r'\\bCapacitor\\((?:[^()]|\\([^()]*\\))*\\)', s); bad=[x for x in q if 'temperature_coefficient_code' not in x]; print('\\n'.join(bad)); sys.exit(1 if bad or not q else 0)\""
     },
     {
-      "text": "no jitxlib-parts 1.x API in the output: no `.insert(` on a passive or a `self.` attribute, no `short_trace=`, `jitx.interval`, `rated_voltage=` or `tcr_pos`/`tcr_neg`, none of which exist in 2.x",
+      "text": "no jitxlib-parts 1.x API in the output: no `.insert(` call on any receiver but `sys.path` (a loop variable such as `cap.insert(` included), no `short_trace=`, `jitx.interval`, `rated_voltage=` or `tcr_pos`/`tcr_neg`, none of which exist in 2.x",
       "check": "deterministic",
-      "cmd": "! grep -nE '(^|[^A-Za-z0-9_.])(self\\.[A-Za-z0-9_.]+(\\[[^]]*\\])?|(Resistor|Capacitor|Inductor)\\(.*\\))\\.insert[[:space:]]*\\(|short_trace=|jitx\\.interval|rated_voltage=|tcr_pos|tcr_neg' <output>/*.py"
+      "cmd": "! grep -nHE '[]A-Za-z0-9_)]\\.insert[[:space:]]*\\(|short_trace=|jitx\\.interval|rated_voltage=|tcr_pos|tcr_neg' <output>/*.py | grep -vE 'sys\\.path\\.insert[[:space:]]*\\('"
     },
     {
       "text": "the resistors' temperature coefficient is addressed without a key the CSV lacks: the runner says the approved CSV has no column for it and asks for one (or for approved low-TCR rows), rather than writing a key that silently falls through to `ideal`",

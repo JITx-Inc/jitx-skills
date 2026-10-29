@@ -61,12 +61,6 @@ from pathlib import Path
 # Phrases that look like truncated heading citations but are not, keyed by the
 # repo-relative path of the file containing them. Each entry states why.
 ALLOWLIST: dict[str, dict[str, str]] = {
-    "skills/jitx-circuit-builder/references/advanced-patterns.md": {
-        "top-level only": (
-            "prose emphasis on a rule, not a citation of the "
-            "'Top-Level Only (do NOT put these in subcircuits)' heading"
-        ),
-    },
     "skills/jitx-project-builder/references/outside-voice-review.md": {
         "mcu / fpga components": (
             "left-hand label of a task-class table row, not a citation of "

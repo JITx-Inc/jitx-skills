@@ -97,7 +97,7 @@ self.GND += [*self.u1.AGND]  # WRONG
 self.GND += Net([*self.u1.AGND])  # RIGHT
 ```
 
-Here pyright reports `Operator "+=" not supported for types "Net[Port]" and "list[Port]"` and instantiation raises `InstantiationException` wrapping `ValueError: Incompatible ports on Net: Port and list`. Onto an empty `Net(name="GND")` pyright is silent, a `TestCase` passes, and the build fails with `TypeError: unhashable type: 'list'`.
+Pyright reports `Operator "+=" not supported` and instantiation raises `InstantiationException` wrapping `ValueError: Incompatible ports on Net: Port and list`. Onto an empty `Net(name="GND")` pyright is silent, a `TestCase` passes, and the build fails with `TypeError: unhashable type: 'list'`.
 
 ### Asserting connectivity in tests
 
@@ -114,15 +114,16 @@ A bundle net lists its bundles (both `Power` ports, say). Assert that, then asse
 
 `Resistor`, `Capacitor` and `Inductor` from `jitxlib.parts` take `jitx.units` quantities (`10 * kohm`, `100 * nF`, `4.7 * uH`; a bare number is ohms, farads or henries). Bounds are `AtLeast` and `AtMost` from `jitxlib.parts`; a bare value is an exact match. The project's provider chain resolves them: base skill Install Step 2 and [Parts and Providers](https://docs.jitx.com/en/latest/essentials/design/parts.html).
 
-Filter only on columns the approved CSV has, with bounds its rows meet: read it first. A query the CSV cannot meet, through a key with no column or a bound no row matches (`tolerance=AtMost(0.01)` on an X7R whose rows are 10 to 20 percent), falls through to `ideal`, which returns an `IDEAL-` part honoring only value, case, tolerance and polarization: the constraint is silently dropped. Where the CSV lacks a column or row the design needs (a resistor's temperature coefficient, say), ask for it rather than writing the key.
+Filter only on columns the approved CSV has, with bounds its rows meet: read it first. A query the CSV cannot meet, through a key with no column or a bound no row matches (`tolerance=AtMost(0.01)` on an X7R whose rows are 10 to 20 percent), falls through to `ideal`, which returns an `IDEAL-` part honoring only value, case, tolerance and polarization: dielectric, voltage and power ratings, and orderability are silently dropped. Where the CSV lacks a column or row the design needs (a resistor's temperature coefficient, say), ask for it rather than writing the key.
 
 State what the circuit depends on:
 
 - `tolerance=AtMost(0.01)` on every resistor whose value matters; a capacitor tolerance only where the circuit needs one and the CSV can meet it.
-- `temperature_coefficient_code="X7R"` (or `"X5R"`, `"C0G"`) on every ceramic. Unconstrained, Y5V or Z5U can come back, losing most capacitance over temperature and DC bias.
+- `temperature_coefficient_code="X7R"` (or `"X5R"`, `"C0G"`) on every ceramic. Unconstrained, Y5V or Z5U can come back.
 - `rated_voltage_dc=AtLeast(...)` derated for DC bias: 10 V or 16 V on a 3.3 V rail.
+- `max_power=AtLeast(...)` on a resistor that dissipates.
 
-Leave `case=` off each passive. Where the assembler sets a minimum package, state it once as a default query on the `Design` (`ResistorQuery` and `CapacitorQuery` from `jitxlib.parts`):
+Leave `case=` off each passive, never a proxy for a power or voltage rating. Where the assembler sets a minimum package, state it once as a default query on the `Design` (`ResistorQuery` and `CapacitorQuery` from `jitxlib.parts`):
 
 ```python
 class Board(Design):
@@ -130,7 +131,7 @@ class Board(Design):
     capacitor_defaults = CapacitorQuery(case=["0402", "0603", "0805"])
 ```
 
-A part's own `case=` overrides it; its own query or a `with` block replaces the whole default.
+A part's own query or a `with` block replaces the whole default.
 
 ## Decouple against the pins
 
@@ -155,4 +156,4 @@ Start at one HF cap per one or two core balls plus bulk per rail; fewer is a dec
 
 ## Extract the repeated block at the second instance
 
-Three regulator stages that differ only in output voltage are one `Circuit` subclass instantiated three times, not three copies; so are per-rail decoupling banks. Blocks that differ only in their arguments are one subcircuit with a parameter, and a difference the copies have drifted apart on is the bug this rule prevents.
+Three regulator stages that differ only in output voltage are one `Circuit` subclass instantiated three times, not three copies; so are per-rail decoupling banks. Blocks that differ only in their arguments are one subcircuit with a parameter, and copies that drift apart are the bug this rule prevents.

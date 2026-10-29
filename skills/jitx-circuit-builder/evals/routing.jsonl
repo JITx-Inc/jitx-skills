@@ -34,6 +34,7 @@
 {"intent": "Remove the series resistor, leave the IC input deliberately unconnected, and prove the netlist changed only there.", "expected_skill": "jitx-circuit-builder", "ambiguous_with": ["jitx"]}
 {"intent": "Why does this a + b connection vanish even though pyright passes?", "expected_skill": "jitx-circuit-builder"}
 {"intent": "My decoupling cap's ShortTrace was given the rail net instead of the pin it serves; fix it.", "expected_skill": "jitx-circuit-builder"}
+// The inductor current intent stays here: the example CSV has a `max_current` column, so a rated inductor is a passive query.
 {"intent": "Refine this inductor query so it selects a power part rated for at least 3 A.", "expected_skill": "jitx-circuit-builder"}
 {"intent": "Check cache/netlist.json to confirm U4.EN moved from the old rail to the new enable net.", "expected_skill": "jitx"}
 {"intent": "Generate three repeated RC filter channels inside one Circuit without losing their structural objects.", "expected_skill": "jitx-circuit-builder"}
