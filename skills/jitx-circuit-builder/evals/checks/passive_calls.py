@@ -22,6 +22,10 @@ Subcommands:
         no such block, a <Query>(...) assigned as a class attribute of a Design
         subclass. Fails when a call gets it from none, or when there is no call.
 
+    no-key <output> <Part>[,<Part>...] <key>
+        No <Part>(...) call, and no call to that part's query class (a query
+        passed to it, a `with` block or a Design default), carries <key>.
+
     no-case <output>
         No `case=` in a ResistorQuery/CapacitorQuery/InductorQuery call or a
         Resistor/Capacitor/PolarizedCapacitor/Inductor call, except a query
@@ -227,6 +231,15 @@ def no_case(sources: list[Source]) -> list[str]:
     return bad
 
 
+def no_key(sources: list[Source], parts: list[str], key: str) -> list[str]:
+    names = {n for p in parts for n in (p, PART_QUERY[p])}
+    bad: list[str] = []
+    for s, node in calls(sources):
+        if callee(node) in names and key in keywords(node):
+            bad.append(f"{s.path}:{node.lineno}: {ast.unparse(node)}")
+    return bad
+
+
 def index_like(expr: ast.expr) -> bool:
     if isinstance(expr, ast.Constant):
         return isinstance(expr.value, int) and not isinstance(expr.value, bool)
@@ -266,11 +279,18 @@ def no_insert(sources: list[Source]) -> list[str]:
 def main(argv: list[str]) -> int:
     usage = (
         "usage: passive_calls.py require-key <output> <Part> <key>\n"
+        "       passive_calls.py no-key <output> <Part>[,<Part>...] <key>\n"
         "       passive_calls.py no-case <output>\n"
         "       passive_calls.py no-insert <output>"
     )
     if len(argv) == 4 and argv[0] == "require-key" and argv[2] in PART_QUERY:
         bad = require_key(load(argv[1]), argv[2], argv[3])
+    elif (
+        len(argv) == 4
+        and argv[0] == "no-key"
+        and all(p in PART_QUERY for p in argv[2].split(","))
+    ):
+        bad = no_key(load(argv[1]), argv[2].split(","), argv[3])
     elif len(argv) == 2 and argv[0] == "no-case":
         bad = no_case(load(argv[1]))
     elif len(argv) == 2 and argv[0] == "no-insert":
