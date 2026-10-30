@@ -383,7 +383,7 @@ For every signal that will have an SI constraint applied at the top level:
 - [ ] Both Topology ends are the chip pads at the two ends of the path, except where a pin-assignment provider is itself an end: there the Topology begins on the `require()`d port (`jitx-pin-assignment`, "Constraints on Pin-Assigned Ports"). A circuit bundle port also works as an end, but it resolves to the first pad behind it, so a series part between that port and the chip is left out of the measurement
 - [ ] Where the ends are chip pads behind series parts in sub-circuits joined through their ports, on a single-ended net, a structure-only constraint across those ports covers the segment between them (`jitx-interconnect-constraints` "Choosing the ends")
 - [ ] Every part with a path through it between the ends has a `BridgingPinModel`; a flow-through package whose opposite pin is n.c. gets none, and its two lands are one net
-- [ ] `>>` appears only for a daisy chain whose order the router must follow (a flyby clock), never to make a constraint bind
+- [ ] `>>` appears only for a daisy chain whose order is part of the design (a flyby clock), never to make a constraint bind
 - [ ] The interface's verification design (code-routed) shows a Time, Loss or Skew measurement for the constraint (one with a timing, loss or skew target) in its SI check; see [SI verification designs (CRITICAL)](#si-verification-designs-critical). Without `satisfied=True`, satisfied constraints are left out. A measurement means the constraint applied; whether it is met is `group.satisfied`.
 
 ### SI verification designs (CRITICAL)
