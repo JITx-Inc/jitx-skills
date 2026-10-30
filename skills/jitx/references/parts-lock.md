@@ -15,18 +15,18 @@ A stale entry changes what a build places in one case: an edited query adopts it
 
 ## Cleanup
 
-Run it after a component is removed or a test design is run in the project, and before the lock is committed or handed off. From the project root, with the project's Python, name every design that writes the lock:
+Run it after a component is removed or a test design is run in the project, and before the lock is committed or handed off. From the project root, with the project's Python, name every board design:
 
 ```bash
 python <path to this skill>/scripts/prune_lock.py <module.path.DesignClass> [<another design> ...]
 ```
 
-It finds the project's designs as `jitx design find` does and prints them, with any not named. It elaborates each named design under the `replay` lock mode, which writes nothing and asks no provider, and lists each entry no named design claimed, with its chain, part and query. It changes nothing. If any query does not replay (a component added or edited since the last build), it prints those queries and exits 1: run `jitx build` on every design, then run it again. Exit 2 means a usage error, an unreadable lock, a refused write, or a design that did not import or build: fix that first.
+It finds the project's designs as `jitx design find` does and prints them, with any not named; it skips a design that needs constructor arguments, as `jitx build-all` does. It elaborates each named design under the `replay` lock mode, which writes nothing and asks no provider, and lists each entry no named design claimed, with its chain, part and query. It changes nothing. If any query does not replay (a component added or edited since the last build), it prints those queries and exits 1: run `jitx build` on every design, then run it again. Exit 2 means a usage error, an unreadable lock, a refused write, or a design that did not build: fix that first. A module that does not import stops `--apply`, `--unpin` and `--check` with exit 2, because a design in it cannot be counted: fix the import.
 
 Then:
 
 1. Make sure the lock is committed, or commit it with the user's agreement, so the cleanup can be undone.
-2. Show the user the listed entries. Run the same command with `--apply`. It refuses until every design it found is named, or excluded with `--exclude <design>`; an excluded design's entries count as unused, so exclude one only when the user wants its entries gone. It copies the lock to `parts.lock.json.bak`, refusing if that file exists, then removes the stale entries and nothing else; the rest of the file is byte for byte what the build wrote.
+2. Show the user the listed entries. Run the same command with `--apply`. It refuses until every design it found is named, or excluded with `--exclude <design>`; an excluded design's entries count as unused. Exclude every test design (one defined under `tests/` or beside a `jitx.test.TestCase`) without asking: its entries are the stale ones the cleanup exists to remove. Name a test design only when the user wants its parts kept. Exclude any other design only when the user wants its entries gone. It copies the lock to `parts.lock.json.bak`, refusing if that file exists, then removes the stale entries and nothing else; the rest of the file is byte for byte what the build wrote.
 3. Entries under a chain no named design uses are listed as kept. Remove them with `--remove-chain <label>` only when the user says that chain will not come back.
 4. Run `jitx build` and `jitx design export parts-check <design> --fail all` on every named design. Show the user `git diff parts.lock.json`: it should hold only removed lines. A rebuild that adds lines means a removed entry was in use, so restore the backup and report it. Once the builds and parts checks pass, delete `parts.lock.json.bak`, before anything is committed.
 5. Run the same command with `--check`. It exits 1 while any stale entry remains; the cleanup is done when it lists nothing stale.
