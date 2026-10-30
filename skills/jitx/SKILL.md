@@ -7,7 +7,7 @@ description: "Base skill for JITX Python PCB design: install, the jitx CLI, auth
 
 Run this skill's setup before any sub-skill: they assume a working runtime.
 
-> **Supported version line.** This bundle is written for **jitx 4.6.x** (`jitx >= 4.6, < 4.7`). Sibling skills do not restate the range; their "verified on 4.4.0" notes are evidence for those claims on that release. Where the installed package differs from these pages, follow the package and verify every import with `pyright`.
+> **Supported version line.** This bundle targets **jitx 4.6.x** (`jitx >= 4.6, < 4.7`). Sibling skills don't restate the range; their "verified on 4.4.0" notes are evidence for those claims on that release. Where the installed package differs from these pages, follow the package and verify every import with `pyright`.
 
 Commands are bash. In Windows PowerShell: use `python` for `python3`, activate with `.\.venv\Scripts\Activate.ps1`, write the `[ ... ] ||` guards as `if (-not (Test-Path ...))` and `grep -q` as `Select-String -Quiet`, and clear a `$env:VAR=` setting with `Remove-Item Env:VAR` when it should apply to one command. On Windows, in PowerShell or Git Bash, the `&`, `pkill` and `pgrep` steps have no verified form: ask the user to run long-lived commands in their own terminal and to close viewers themselves.
 
@@ -63,7 +63,7 @@ jitx runtime introspect | grep '"version"'; jitx --version     # major.minor mus
 grep jitx_version .jitx/runtime.json 2>/dev/null               # the running daemon, if any
 ```
 
-A mismatch fails like a code bug. If `introspect` fails or any major.minor differs, ask first: the switch applies to every project on the machine. Honor a pin in `$JITX_RUNTIME_VERSION`, a `jitx.version` file or `mise.toml` with `--version`, then run `jitx runtime install`. A pre-release `X.Y.ZrcN` needs `--version X.Y.Z-rc.N --testing`, or it can get a production runtime. Install does not touch a running daemon: `jitx runtime stop` here (other projects need it too: tell the user), then repeat the check. Start only once it passes; if it cannot, report a blocker:
+A mismatch fails like a code bug. If `introspect` fails or any major.minor differs, ask first: the switch applies to every project on the machine. Honor a pin in `$JITX_RUNTIME_VERSION`, a `jitx.version` file or `mise.toml` with `--version`, then run `jitx runtime install`. A pre-release `X.Y.ZrcN` needs `--version X.Y.Z-rc.N --testing`, or it can get a production runtime. Install doesn't touch a running daemon: `jitx runtime stop` here (other projects need it too: tell the user), then repeat the check. Start only once it passes; if it cannot, report a blocker:
 
 ```bash
 jitx runtime status | grep -q reachable || jitx runtime start --background
@@ -75,7 +75,7 @@ jitx runtime status | grep -q reachable || jitx runtime start --background
 
 `jitx runtime status` reads `reachable`, and `jitx find` lists the designs with no `import failed` line. On later runs, repeat Step 4's check and gated start, then this check.
 
-**Missing-dependency rule.** If the runtime will not start, `jitx find` errors, or a required import is missing, stop and report it as a blocker. Never drop or substitute a design requirement to get past it.
+**Missing-dependency rule.** If the runtime won't start, `jitx find` errors, or a required import is missing, stop and report a blocker. Never drop or substitute a design requirement to get past it.
 
 ## CLI
 
@@ -86,7 +86,7 @@ jitx runtime status | grep -q reachable || jitx runtime start --background
 | Runtime | `jitx runtime start --background`, `status`, `stop`, `introspect`, `cleanup` (leaked runtimes; reports unless `--kill`) |
 | Viewers | `jitx ui open --board` / `--schematic` `[--design <module.path.DesignClass>]` |
 | Export | `jitx design export <plugin> <module.path.DesignClass>` |
-| Script the open layout | `jitx design session <design> > .jitx/session.log 2>&1 &`, then `jitx design exec <design> script.py` (runs `main(design)`; paths start `root.`). Until the session is up, exec fails with `message could not be delivered`: retry every 5 s for up to a minute. Then, or on a traceback, report what `.jitx/session.log` says. End with `jitx design session --stop <design>` |
+| Script the open layout | `jitx design session <design> > .jitx/session.log 2>&1 &`, then `jitx design exec <design> script.py` (runs `main(design)`; paths start `root.`). Until the session is up, exec fails with `message could not be delivered`: retry every 5 s up to a minute. Then, or on a traceback, report what `.jitx/session.log` says. End with `jitx design session --stop <design>` |
 | Dependencies | `jitx project dependencies check` |
 | Support | `jitx support bundle` / `jitx support request` (sends data to JITX: ask first) |
 
@@ -117,10 +117,10 @@ Concurrent builds of one design share cache and output: sequence them. Different
 These hold for every JITX skill.
 
 - **Annotate every function's parameters and return type**, including test methods (`-> None`). No `# type: ignore` and no `# pyright:` comments: narrow, assert or annotate instead.
-- **Run pyright inside the project's environment.** Against an interpreter without `jitx`, pyright reports `Import "jitx" could not be resolved`: that is the interpreter, not the code, so never "fix" the imports. A tool launched from outside the venv points at it with `[tool.pyright] venvPath`/`venv` or `pyright --pythonpath`.
+- **Run pyright inside the project's environment.** Against an interpreter without `jitx`, pyright reports `Import "jitx" could not be resolved`: that's the interpreter, not the code, so never "fix" the imports. A tool launched from outside the venv points at it with `[tool.pyright] venvPath`/`venv` or `pyright --pythonpath`.
 - **Commit a ruff config and run ruff from the project root.** Config discovery walks up from the working directory. Set `line-length` explicitly if anything in the project emits Python. `RUF012` flags class-body port arrays (`GND = [Port() for _ in range(n)]`), which are the declaration model: silence it per file in `[tool.ruff.lint.per-file-ignores]` with a comment. Moving the ports into `__init__` breaks the component.
 - **Copy `scripts/check.py` and `scripts/grep_gates.py` from this skill into the project's `scripts/`** and run `python scripts/check.py <ns>/` before calling work done. It runs ruff, ruff format, pyright, the grep gates and, with `--build`, a build. How to disposition a gate hit: `jitx-project-builder` [`references/completion-blocks.md`](../jitx-project-builder/references/completion-blocks.md).
-- **Test with `jitx.test.TestCase`** and `python -m unittest discover -s tests`. Declare JITX classes at module scope, never inside a test method. Test designs set `parts_lock = Lock(mode=LockMode.OFF)` (`references/parts-lock.md`).
+- **Test with `jitx.test.TestCase`** and `python -m unittest discover -s tests`. Take expected values from their source (datasheet, fab report, standard, requirement, independent formula), never copied from the tested code: a copy can't tell regressions from fixes. Test designs set `parts_lock = Lock(mode=LockMode.OFF)` (`references/parts-lock.md`).
 - **Run `jitx-code-review`** as a self-critique before declaring a task complete.
 
 ### Don'ts
@@ -129,18 +129,18 @@ Worked counter-examples for each: `references/architectural-patterns.md`.
 
 - **Don't key design state by hand-built strings.** `dict[str, X]` indexed by `f"TX_b{i}"` means the structural object is missing. Use lists, `@dataclass(frozen=True)`, or dicts keyed by Ports and structural objects. `@provide` mappings keyed by Port are the framework's contract, not a parallel model.
 - **Don't reflect on `self` by name to find your own children.** Declare a `list` or `dict` attribute up front: `self.lanes: list[DiffPair] = [...]`.
-- **Don't build an intermediate `list[dict[str, Any]]` "spec" model and then iterate it to emit JITX calls.** Construct JITX objects directly.
+- **Don't build an intermediate `list[dict[str, Any]]` "spec" model and iterate it to emit JITX calls.** Construct JITX objects directly.
 - **Don't mutate a circuit from a free function.** Compose a `Container` or `Circuit` subclass and assign it as a member.
 - **Don't restate data or logic owned by a structural object.** Query the owner: `self.substrate.signal_via[layer]`, `lp.get_pad(row, col)`.
-- **Don't reinvent framework code in design code.** A banned pattern inside the framework class that owns the invariant does not license it on your side. Use the public API, or a public adapter on a subclass over a protected method.
+- **Don't reinvent framework code in design code.** A banned pattern inside the framework class that owns the invariant doesn't license it on your side. Use the public API, or a public adapter on a subclass over a protected method.
 - **Don't generate lookup tables or populate mutable globals at module-import time.** Class-body structural collections are fine.
-- **Don't manually assign values that JITX assigns automatically**: reference designators, net names from topology, layer-derived names.
+- **Don't hand-assign what JITX assigns automatically**: reference designators, net names from topology, layer-derived names.
 - **No `setattr` / `getattr`, no `type(...)` to build classes, no JITX subclass defined inside a function.** These break instantiation tracking.
 - **No `type()` for type checks** (use `isinstance`), no double-underscore members, and no leading-underscore names from elsewhere; a method may call another method on its own class.
 
 ## Introspection
 
-The design tree exists only inside an instantiation context: a `jitx.test.TestCase`, or a design submitted to the runtime. Outside one, `MyDesign()` is an `Instantiable` placeholder whose traversal yields nothing: an empty result there is not evidence.
+The design tree exists only inside an instantiation context: a `jitx.test.TestCase`, or a design submitted to the runtime. Outside one, `MyDesign()` is an `Instantiable` placeholder whose traversal yields nothing: an empty result there isn't evidence.
 
 ```python
 from jitx.copper import Copper
@@ -161,7 +161,7 @@ class Find(TestCase):
 ```
 
 - **`visit(root, types, through=None, *, opaque=None, refs=False, filter=None)`** yields each structural match with its `Trace` (`path`, `transform`). `extract` is `visit` without the trace. `decompose` stops at direct children, traversing lists and dicts.
-- **`jitx.query.query`** takes the same filters (`through` is keyword-only) and also converts objects through registered transformers, such as `Pad -> Copper`, `Via -> Copper`, `Via -> Cutout` and `Route -> Copper`; a `Pour` is already `Copper`. Results are in the source's local frame: compose `trace.transform` yourself.
+- **`jitx.query.query`** takes the same filters (`through` is keyword-only) and converts objects through registered transformers, such as `Pad -> Copper`, `Via -> Copper`, `Via -> Cutout` and `Route -> Copper`; a `Pour` is already `Copper`. Results are in the source's local frame: compose `trace.transform` yourself.
 - **What the runtime knows:** `with jitx.runtime as r: rd = r.submit(MyDesign)` gives `rd.root`, `rd.query(...)`, `rd.nets.find(element)` (the `Net` the runtime assigned, or `None`) and `rd.layers`. Realized routes and pours need `r.capture(...)`. Its semantics and the geometry-verification loop are in `jitx-physical-layout` `references/geometry-verification.md`.
 
 ## Sub-skills
@@ -185,4 +185,4 @@ One artifact goes to its sub-skill; a buildable board, to `jitx-project-builder`
 
 ## Documentation lookup
 
-JITX docs live at `https://docs.jitx.com/en/latest/` (LLM index: `https://docs.jitx.com/llms.txt`). For anything unfamiliar, find its page in `references/docs-index.md`, fetch and apply it. If it does not resolve, say so rather than proceed from memory.
+JITX docs live at `https://docs.jitx.com/en/latest/` (LLM index: `https://docs.jitx.com/llms.txt`). For anything unfamiliar, find its page in `references/docs-index.md`, fetch and apply it. If it doesn't resolve, say so rather than proceed from memory.
