@@ -195,6 +195,15 @@ class Main(unittest.TestCase):
         self.assertEqual(self.locks[0].read_text(), self.before[0])
         self.assertIn(str(self.locks[1].resolve()), err)
 
+    def test_check_with_no_claims_fails_while_a_lock_holds_entries(self) -> None:
+        with mock.patch.object(prune_lock, "collect_usage", lambda designs: Usage()):
+            status, _ = self.run_main("--check")
+            self.assertEqual(status, 1)
+            for path in self.locks:
+                path.write_text(render(lock()))
+            status, err = self.run_main("--check")
+            self.assertEqual(status, 0, err)
+
     def test_a_failed_write_names_what_was_written(self) -> None:
         write = prune_lock.write_atomic
 

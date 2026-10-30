@@ -28,8 +28,9 @@ removes the entries pinning that part under the chains and scopes the designs
 use, so the next build resolves them again; it refuses while stale entries
 remain unless `--apply` removes them in the same write. Both plan every lockfile first, refuse if `<lock>.bak` exists, copy the
 lock there, and rewrite it in the build's own format, so `git diff` shows only
-removals. `--check` exits 1 when any stale entry exists, and 0 when the
-designs resolve no parts through a lockfile.
+removals. `--check` exits 1 when any stale entry exists. When the designs
+resolve no parts through a lockfile, it exits 0 unless a lockfile under the
+project still holds entries, which it lists.
 
 It refuses to judge a lock the designs do not match: when any query fails to
 replay (a component added or edited since the last build, a renamed chain), it
@@ -202,6 +203,37 @@ def read_lock(path: Path) -> tuple[dict[str, Any], str]:
     if not isinstance(data, dict) or not isinstance(data.get("entries", []), list):
         raise Refusal(f"{path} is not a parts lockfile", 2)
     return data, text
+
+
+def locks_with_entries(project: Path) -> list[tuple[Path, int, list[str]]]:
+    """Every lockfile under the project that holds entries: path, count, chains.
+
+    Skips the directories `jitx design find` skips (dot and underscore names)
+    and the build output under `designs/`.
+    """
+    found: list[tuple[Path, int, list[str]]] = []
+    for dirpath, dirnames, filenames in os.walk(project):
+        dirnames[:] = sorted(
+            d
+            for d in dirnames
+            if not d.startswith((".", "_"))
+            and not (Path(dirpath) == project and d == "designs")
+        )
+        for filename in sorted(filenames):
+            if not filename.endswith(".json"):
+                continue
+            path = Path(dirpath) / filename
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            if not isinstance(data, dict) or "schema_version" not in data:
+                continue
+            entries = data.get("entries")
+            if isinstance(entries, list) and entries:
+                chains = sorted({str(e.get("chain")) for e in entries})
+                found.append((path, len(entries), chains))
+    return found
 
 
 def backup_path(path: Path) -> Path:
@@ -485,9 +517,9 @@ def check_coverage(
     if failures and acting:
         raise Refusal(
             f"module(s) did not import, so their designs cannot be counted: "
-            f"{', '.join(sorted(failures))}. Fix the import, or, if it holds no "
-            f"design, list its file or directory under [tool.jitx] exclude in "
-            f"pyproject.toml",
+            f"{', '.join(sorted(failures))}. Fix the import; for a test module, or "
+            f"one with no board design, list its file or directory under "
+            f'[tool.jitx] exclude in pyproject.toml (exclude = ["tests"])',
             2,
         )
     if unnamed and acting:
@@ -566,8 +598,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         usage = collect_usage(args.designs)
         if not usage.claimed:
             if args.check:
-                print("check: the named designs resolved no parts through a lockfile")
-                return 0
+                held = locks_with_entries(project)
+                for path, count, chains in held:
+                    print(
+                        f"{path}: {count} {'entry' if count == 1 else 'entries'} "
+                        f"under {', '.join(chains)}, which "
+                        f"no named design uses; ask the user before removing them"
+                    )
+                print(
+                    "check: the named designs resolved no parts through a lockfile"
+                    + (f"; {len(held)} lockfile(s) still hold entries" if held else "")
+                )
+                return 1 if held else 0
             raise Refusal(
                 "the design(s) resolved no parts through a lockfile; name the "
                 "designs the lock belongs to",
