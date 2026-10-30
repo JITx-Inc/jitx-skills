@@ -38,7 +38,7 @@ class SensorCircuit(Circuit):
         self.bus = [self.i2c.sda + self.u1.SDA, self.i2c.scl + self.u1.SCL]
 ```
 
-A shared open-drain bus's pull-ups (I2C `sda` and `scl`, MDIO's `MIIM.mdio`) belong to the circuit that composes the bus (usually the top-level design), never inside one participant; the base skill's grep gates flag `r_sda` and `r_scl` outside `TOP_LEVEL_PATH`.
+A shared open-drain bus's pull-ups (I2C, MDIO's `MIIM.mdio`) belong to the circuit that composes the bus (usually the top-level design), never inside one participant; the base skill's grep gates flag `r_sda` and `r_scl` outside `TOP_LEVEL_PATH`.
 
 ## Key rules
 
@@ -90,7 +90,7 @@ A sub-circuit without `.at` sits at its parent's origin on top. Until a placemen
 
 `Net(...)` takes one iterable of ports, so a whole rail goes on in one call; a bare port raises `TypeError`. Name power and ground nets. Net symbols (`PowerSymbol()`, `GroundSymbol()` from `jitxlib.symbols.net_symbols`, as `symbol=` or `net.symbol = ...`) join a rail across schematic pages and belong in the top-level design only: the base skill's grep gates fail them outside `TOP_LEVEL_PATH` (default `designs/`).
 
-`+=` takes a port or a `Net`, never a bare list, so wrap a rail list in `Net(...)`:
+`+=` takes a port or a `Net`, never a bare list:
 
 ```python
 self.GND = Net([*self.u1.GND, *self.u1.RSVDGND], name="GND")
@@ -98,7 +98,7 @@ self.GND += [*self.u1.AGND]  # WRONG
 self.GND += Net([*self.u1.AGND])  # RIGHT
 ```
 
-Pyright reports `Operator "+=" not supported`. Onto an empty `Net(name="GND")` pyright is silent, a `TestCase` passes, and the build fails with `TypeError: unhashable type: 'list'`.
+Pyright reports `Operator "+=" not supported` and instantiation raises `InstantiationException` wrapping `ValueError: Incompatible ports on Net: Port and list`. Onto an empty `Net(name="GND")` pyright is silent, a `TestCase` passes, and the build fails with `TypeError: unhashable type: 'list'`.
 
 ### Asserting connectivity in tests
 
@@ -109,7 +109,7 @@ self.assertIn(self.u1.VCCINT[0], list(circuit.V1V0))
 self.assertEqual(len(list(circuit.GND)), 30)
 ```
 
-A bundle net lists its bundles (both `Power` ports, say). Assert that, then assert inside each child that its boundary member reaches the component pin.
+A bundle net lists its bundles. Assert that, then assert inside each child that its boundary member reaches the component pin.
 
 ## Passives
 
