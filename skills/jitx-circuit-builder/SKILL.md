@@ -35,7 +35,8 @@ class SensorCircuit(Circuit):
         )
         self.c_vdd_st = ShortTrace(self.c_vdd.p1, self.u1.VDD)
         self.GND += self.c_vdd.p2
-        self.bus = [self.i2c.sda + self.u1.SDA, self.i2c.scl + self.u1.SCL]
+        self.SDA = self.i2c.sda + self.u1.SDA
+        self.SCL = self.i2c.scl + self.u1.SCL
 ```
 
 A shared open-drain bus's pull-ups (I2C, MDIO's `MIIM.mdio`) belong to the circuit that composes the bus (usually the top-level design), never inside one participant; the base skill's grep gates flag `r_sda` and `r_scl` outside `TOP_LEVEL_PATH`.
@@ -69,9 +70,11 @@ class EthernetPort(Circuit):
         self.reg = RegulatorCircuit()
         self.phy = PhyCircuit()
         self.jack = RJ45Circuit()
-        self.rails = [self.vin + self.reg.vin, self.reg.vout + self.phy.vin]
-        self.mac_side = [self.rgmii + self.phy.rgmii, self.miim + self.phy.miim]
-        self.mdi = self.phy.mdi + self.jack.mdi
+        self.VIN = self.vin + self.reg.vin
+        self.VPHY = self.reg.vout + self.phy.vin
+        self.RGMII = self.rgmii + self.phy.rgmii
+        self.MIIM = self.miim + self.phy.miim
+        self.MDI = self.phy.mdi + self.jack.mdi
 ```
 
 A parent wires its children's boundary ports to each other and to its own. It never nets into a child's components, and a child never reaches up: a pin the parent needs is a boundary port of the child. SI constraint ends, a verification design's placement and its proof routes may still name a child's pads (`jitx-interconnect-constraints`, "Choosing the ends").
@@ -88,7 +91,9 @@ A sub-circuit without `.at` sits at its parent's origin on top. Until a placemen
 
 ## Nets
 
-`Net(...)` takes one iterable of ports, so a whole rail goes on in one call; a bare port raises `TypeError`. Name power and ground nets. Net symbols (`PowerSymbol()`, `GroundSymbol()` from `jitxlib.symbols.net_symbols`, as `symbol=` or `net.symbol = ...`) join a rail across schematic pages and belong in the top-level design only: the base skill's grep gates fail them outside `TOP_LEVEL_PATH` (default `designs/`).
+`Net(...)` takes one iterable of ports, so a whole rail goes on in one call; a bare port raises `TypeError`. Name power and ground nets.
+
+Every net reaches the schematic and board under a name. A net built without `name=` takes the name of the field that stores it: `self.RESET_n = a + b` is `RESET_n`, a list in `self.CA` gives `CA[0]`, `CA[1]`, and so on, a list of lists in `self.DQ` gives `DQ[0][3]`, and a bundle net takes the field's name (`self.CK = c.ck + m.ck` is `CK`). A catch-all field names every net after itself (`self.nets = [...]` gives `nets[0]`, `nets[1]`), which tells a reviewer nothing. Store each signal, or each group of like signals, in its own field named for it, or pass `name=` (`Net([a, b], name="CKE_A")`). Measured on jitx 4.6.0rc10. Net symbols (`PowerSymbol()`, `GroundSymbol()` from `jitxlib.symbols.net_symbols`, as `symbol=` or `net.symbol = ...`) join a rail across schematic pages and belong in the top-level design only: the base skill's grep gates fail them outside `TOP_LEVEL_PATH` (default `designs/`).
 
 `+=` takes a port or a `Net`, never a bare list:
 
