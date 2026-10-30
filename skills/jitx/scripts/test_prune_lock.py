@@ -21,7 +21,7 @@ import sys
 import tempfile
 import textwrap
 import unittest
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
 from unittest import mock
 
@@ -130,6 +130,13 @@ class Write(unittest.TestCase):
         plans = make_plans(self.usage, [], ["IDEAL-R"], write=True, apply=True)
         removed = [e["digest"] for e in plans[0].plan.removals]
         self.assertEqual(removed, ["stale", "b"])
+
+    def test_format_remedy_is_valid_python_for_a_windows_path(self) -> None:
+        path = PureWindowsPath(r"C:\Users\dev\board\parts.lock.json")
+        command = prune_lock.reformat_command(path)
+        code = command.split('"')[1]
+        compile(code, "<format remedy>", "exec")
+        self.assertIn("Lockfile.read('C:/Users/dev/board/parts.lock.json')", code)
 
 
 class Main(unittest.TestCase):
@@ -267,6 +274,28 @@ DESIGN = textwrap.dedent(
 
     class Main(SampleDesign):
         circuit = Board()
+    """
+)
+
+LOCK_OFF = textwrap.dedent(
+    """
+    import jitx
+    from jitx.circuit import Circuit
+    from jitx.sample import SampleDesign
+    from jitx.units import kohm
+    from jitxlib.parts import Lock, LockMode, Resistor
+
+
+    class Probe(Circuit):
+        def __init__(self) -> None:
+            self.a = jitx.Port()
+            self.r = Resistor(resistance=4.7 * kohm)
+            self.nets = [self.a + self.r.p1 + self.r.p2]
+
+
+    class Unlocked(SampleDesign):
+        circuit = Probe()
+        parts_lock = Lock(mode=LockMode.OFF)
     """
 )
 
@@ -419,6 +448,37 @@ class Project(unittest.TestCase):
         check = self.run_in_project(str(SCRIPT), *both, "--check")
         self.assertEqual(check.returncode, 0, check.stdout + check.stderr)
         self.assertIn("check: 0 stale", check.stdout)
+
+    def test_a_design_with_the_lock_off_claims_nothing(self) -> None:
+        self.build()
+        (self.root / "prunedemo" / "unlocked.py").write_text(LOCK_OFF)
+        unlocked = "prunedemo.unlocked.Unlocked"
+        before = self.lock.read_text()
+        # Its new query would write an entry under the project's lock; off, it
+        # neither writes nor adopts.
+        self.build(unlocked)
+        self.assertEqual(self.lock.read_text(), before)
+
+        both = ("prunedemo.main.Main", unlocked)
+        check = self.run_in_project(str(SCRIPT), *both, "--check")
+        self.assertEqual(check.returncode, 0, check.stdout + check.stderr)
+        self.assertIn(f"lock mode off, no lockfile: {unlocked}", check.stdout)
+        self.assertIn("check: 0 stale", check.stdout)
+
+    def test_project_lock_mode_off_checks_clean(self) -> None:
+        with (self.root / "pyproject.toml").open("a") as handle:
+            handle.write('lock-mode = "off"\n')
+        self.build()
+        self.assertFalse(self.lock.exists())
+        check = self.run_in_project(str(SCRIPT), "prunedemo.main.Main", "--check")
+        self.assertEqual(check.returncode, 0, check.stdout + check.stderr)
+        self.assertIn("lock mode off, no lockfile: prunedemo.main.Main", check.stdout)
+        unpin = self.run_in_project(
+            str(SCRIPT), "prunedemo.main.Main", "--unpin", "IDEAL-R-1000-0402"
+        )
+        self.assertEqual(unpin.returncode, 0, unpin.stdout + unpin.stderr)
+        self.assertIn("nothing is pinned to remove", unpin.stdout)
+        self.assertFalse(self.lock.exists())
 
 
 if __name__ == "__main__":
