@@ -11,7 +11,9 @@ writes the lock (as `jitx build` names them):
 
 It finds the project's designs as `jitx design find` does and says which were not
 named. `--apply`, `--check` and `--unpin` refuse until every one is named or
-excluded with `--exclude DESIGN`; an excluded design's entries count as unused.
+excluded with `--exclude DESIGN`, and while any module fails to import; an
+excluded design's entries count as unused. A design that needs constructor
+arguments is skipped, as `jitx build-all` skips it.
 
 The named designs are elaborated in-process under the `replay` lock mode, which
 reads the lock, asks no provider, and writes nothing. Each lockfile records the
@@ -24,9 +26,10 @@ LABEL` names that chain.
 By default nothing changes. `--apply` removes the stale entries. `--unpin MPN`
 removes the entries pinning that part under the chains and scopes the designs
 use, so the next build resolves them again; it refuses while stale entries
-remain. Both plan every lockfile first, refuse if `<lock>.bak` exists, copy the
+remain unless `--apply` removes them in the same write. Both plan every lockfile first, refuse if `<lock>.bak` exists, copy the
 lock there, and rewrite it in the build's own format, so `git diff` shows only
-removals. `--check` exits 1 when any stale entry exists.
+removals. `--check` exits 1 when any stale entry exists, and 0 when the
+designs resolve no parts through a lockfile.
 
 It refuses to judge a lock the designs do not match: when any query fails to
 replay (a component added or edited since the last build, a renamed chain), it
@@ -255,14 +258,52 @@ def warn_on_version() -> None:
         )
 
 
-def discover_designs(project: Path) -> tuple[list[str], dict[str, str]]:
-    """The project's designs as `jitx design find` lists them, and import failures."""
+@dataclass
+class Discovery:
+    """The project's designs as `jitx design find` lists them."""
+
+    found: list[str]
+    parameterized: list[str]
+    """Designs that need constructor arguments, which `jitx build-all` skips too."""
+    failures: dict[str, str]
+    """Modules that did not import, with the error."""
+
+
+def needs_arguments(design: type) -> bool:
+    """The test `jitx build-all` uses to skip a design it cannot build alone."""
+    signature = getattr(design, "__signature__", None)
+    if signature is None or not signature.parameters:
+        return False
+    try:
+        signature.bind()
+    except TypeError:
+        return True
+    return False
+
+
+def discover_designs(project: Path) -> Discovery:
     from jitx.run import DesignFinder
 
     finder = DesignFinder(str(project))
-    found = sorted({f"{d.__module__}.{d.__name__}" for d in finder.find_all()})
+    found: set[str] = set()
+    parameterized: set[str] = set()
+    for design in finder.find_all():
+        name = f"{design.__module__}.{design.__name__}"
+        (parameterized if needs_arguments(design) else found).add(name)
     failures = {name: repr(exc) for name, exc in finder.exceptions.items()}
-    return found, failures
+    return Discovery(sorted(found), sorted(parameterized), failures)
+
+
+def require_jitx() -> None:
+    try:
+        importlib.import_module("jitx.run")
+        importlib.import_module("jitxlib.parts.resolver")
+    except ImportError as exc:
+        raise Refusal(
+            f"cannot import jitx or jitxlib.parts ({exc}); run this with the "
+            f"project's Python",
+            2,
+        ) from exc
 
 
 def claimed_now(usage: Usage) -> None:
@@ -335,12 +376,6 @@ def collect_usage(designs: Sequence[str]) -> Usage:
         )
     if errors:
         raise Refusal("design(s) failed to build:\n" + "\n".join(errors), 2)
-    if not usage.claimed:
-        raise Refusal(
-            "the design(s) resolved no parts through a lockfile; name the designs "
-            "the lock belongs to",
-            1,
-        )
     return usage
 
 
@@ -370,7 +405,11 @@ def report(fp: FilePlan) -> None:
 
 
 def make_plans(
-    usage: Usage, remove_chains: Sequence[str], unpin: Sequence[str], write: bool
+    usage: Usage,
+    remove_chains: Sequence[str],
+    unpin: Sequence[str],
+    write: bool,
+    apply: bool = False,
 ) -> list[FilePlan]:
     """Plan every lockfile, and refuse before any write if one cannot be written."""
     plans: list[FilePlan] = []
@@ -401,10 +440,10 @@ def make_plans(
         fp.out_text = render(pruned(data, plan))
 
     stale = sum(len(fp.plan.stale) for fp in plans)
-    if unpin and stale:
+    if unpin and stale and not apply:
         raise Refusal(
             f"--unpin: {stale} stale entries remain, and the unpinned query could "
-            f"adopt one; remove them with --apply first",
+            f"adopt one; add --apply to remove them in the same write",
             2,
         )
     if unpin:
@@ -420,14 +459,11 @@ def make_plans(
 
 
 def check_coverage(
-    found: Sequence[str],
-    failures: Mapping[str, str],
-    named: Sequence[str],
-    excluded: Sequence[str],
-    acting: bool,
+    discovery: Discovery, named: Sequence[str], excluded: Sequence[str], acting: bool
 ) -> None:
     """Say which discovered designs were not named; refuse to act until all are."""
-    unknown = sorted(set(excluded) - set(found))
+    found, failures = discovery.found, discovery.failures
+    unknown = sorted(set(excluded) - set(found) - set(discovery.parameterized))
     if unknown:
         raise Refusal(f"--exclude names no discovered design: {', '.join(unknown)}", 2)
     both = sorted(set(excluded) & set(named))
@@ -437,10 +473,23 @@ def check_coverage(
     print(f"designs found: {', '.join(found) or 'none'}")
     if excluded:
         print(f"excluded (their entries count as unused): {', '.join(excluded)}")
+    if discovery.parameterized:
+        print(
+            "skipped, needs constructor arguments (`jitx build-all` skips it too): "
+            f"{', '.join(discovery.parameterized)}"
+        )
     if unnamed:
         print(f"not named: {', '.join(unnamed)}")
     for module, why in sorted(failures.items()):
         print(f"warning: module {module} did not import: {why}", file=sys.stderr)
+    if failures and acting:
+        raise Refusal(
+            f"module(s) did not import, so their designs cannot be counted: "
+            f"{', '.join(sorted(failures))}. Fix the import, or, if it holds no "
+            f"design, list its file or directory under [tool.jitx] exclude in "
+            f"pyproject.toml",
+            2,
+        )
     if unnamed and acting:
         raise Refusal(
             "name every design that writes this lock, or exclude it with "
@@ -485,7 +534,7 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         action="append",
         default=[],
         metavar="DESIGN",
-        help="a discovered design that does not write this lock",
+        help="a discovered design whose entries count as unused, such as a test",
     )
     parser.add_argument(
         "--remove-chain",
@@ -510,20 +559,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     sys.path.insert(0, str(project))
     write = bool(args.apply or args.unpin)
     try:
-        try:
-            importlib.import_module("jitx.run")
-            importlib.import_module("jitxlib.parts.resolver")
-        except ImportError as exc:
-            raise Refusal(
-                f"cannot import jitx or jitxlib.parts ({exc}); run this with the "
-                f"project's Python",
-                2,
-            ) from exc
+        require_jitx()
         warn_on_version()
-        found, failures = discover_designs(project)
-        check_coverage(found, failures, args.designs, args.exclude, write or args.check)
+        discovery = discover_designs(project)
+        check_coverage(discovery, args.designs, args.exclude, write or args.check)
         usage = collect_usage(args.designs)
-        plans = make_plans(usage, args.remove_chain, args.unpin, write)
+        if not usage.claimed:
+            if args.check:
+                print("check: the named designs resolved no parts through a lockfile")
+                return 0
+            raise Refusal(
+                "the design(s) resolved no parts through a lockfile; name the "
+                "designs the lock belongs to",
+                1,
+            )
+        plans = make_plans(usage, args.remove_chain, args.unpin, write, args.apply)
         for fp in plans:
             report(fp)
         removals = sum(len(fp.plan.removals) for fp in plans)
@@ -537,13 +587,31 @@ def main(argv: Sequence[str] | None = None) -> int:
         if not write:
             print(f"dry run: nothing changed; --apply removes {removals}")
             return 0
-        for fp in plans:
-            if fp.out_text is None:
-                continue
-            if fp.path.read_text(encoding="utf-8") != fp.text:
-                raise Refusal(f"{fp.path} changed while this ran; rerun", 2)
-            shutil.copy2(fp.path, backup_path(fp.path))
-            write_atomic(fp.path, fp.out_text, fp.text)
+        writes = [fp for fp in plans if fp.out_text is not None]
+        changed = [fp.path for fp in writes if fp.path.read_text("utf-8") != fp.text]
+        if changed:
+            raise Refusal(
+                f"changed while this ran, so nothing was written: "
+                f"{', '.join(map(str, changed))}. Rerun.",
+                2,
+            )
+        written: list[Path] = []
+        for fp in writes:
+            assert fp.out_text is not None
+            try:
+                shutil.copy2(fp.path, backup_path(fp.path))
+                write_atomic(fp.path, fp.out_text, fp.text)
+            except (Refusal, OSError) as exc:
+                done = "".join(
+                    f"\n  {path} (backup: {backup_path(path)})" for path in written
+                )
+                raise Refusal(
+                    f"{exc}\nAlready written, each with its backup:{done or ' none'}"
+                    f"\nThe backup of {fp.path}, if made, is "
+                    f"{backup_path(fp.path)}.",
+                    2,
+                ) from exc
+            written.append(fp.path)
             count = len(fp.plan.removals)
             print(f"backup: {backup_path(fp.path)}")
             print(

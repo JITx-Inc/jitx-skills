@@ -11,6 +11,8 @@ interpreter, and are skipped when it has no jitx.
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import os
 import shutil
@@ -21,9 +23,11 @@ import textwrap
 import unittest
 from pathlib import Path
 from typing import Any
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import prune_lock
 from prune_lock import Refusal, Usage, entry_key, make_plans, plan_prune, pruned, render
 
 SCRIPT = Path(__file__).resolve().with_name("prune_lock.py")
@@ -117,16 +121,93 @@ class Write(unittest.TestCase):
         self.assertEqual(len(plans), 1)
         self.assertEqual(plans[0].plan.stale, [])
 
+    def test_unpin_with_stale_entries_needs_apply(self) -> None:
+        data = lock(entry("a"), entry("b", mpn="IDEAL-R"), entry("stale"))
+        self.lock.write_text(render(data))
+        self.usage.add(self.lock, {("b", "main", "")})
+        with self.assertRaisesRegex(Refusal, "add --apply"):
+            make_plans(self.usage, [], ["IDEAL-R"], write=True)
+        plans = make_plans(self.usage, [], ["IDEAL-R"], write=True, apply=True)
+        removed = [e["digest"] for e in plans[0].plan.removals]
+        self.assertEqual(removed, ["stale", "b"])
+
+
+class Main(unittest.TestCase):
+    """main() over two lockfiles, with discovery and the builds stubbed out."""
+
+    def setUp(self) -> None:
+        self.root = Path(tempfile.mkdtemp(prefix="prune-lock-"))
+        self.addCleanup(shutil.rmtree, self.root)
+        self.addCleanup(os.chdir, os.getcwd())
+        (self.root / "pyproject.toml").write_text('[project]\nname = "x"\n')
+        usage = Usage()
+        self.locks: list[Path] = []
+        for name in ("a", "b"):
+            path = self.root / name / "parts.lock.json"
+            path.parent.mkdir()
+            path.write_text(render(lock(entry("a"), entry("stale"))))
+            usage.add(path, {("a", "main", "")})
+            self.locks.append(path)
+        self.before = [path.read_text() for path in self.locks]
+        for name, value in {
+            "require_jitx": lambda: None,
+            "warn_on_version": lambda: None,
+            "discover_designs": lambda project: prune_lock.Discovery(["m.D"], [], {}),
+            "collect_usage": lambda designs: usage,
+        }.items():
+            patcher = mock.patch.object(prune_lock, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def run_main(self, *args: str) -> tuple[int, str]:
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+            status = prune_lock.main(["m.D", "--project", str(self.root), *args])
+        return status, err.getvalue()
+
+    def unchanged(self) -> bool:
+        return [path.read_text() for path in self.locks] == self.before
+
+    def test_both_locks_are_pruned(self) -> None:
+        status, err = self.run_main("--apply")
+        self.assertEqual(status, 0, err)
+        for path in self.locks:
+            self.assertNotIn('"stale"', path.read_text())
+
     def test_a_refusal_on_one_lock_writes_none(self) -> None:
-        other = self.root / "sub"
-        other.mkdir()
-        (other / "parts.lock.json").write_text(self.lock.read_text())
-        (other / "parts.lock.json.bak").write_text("{}")
-        self.usage.add(other / "parts.lock.json", {("a", "main", "")})
-        before = self.lock.read_text()
-        with self.assertRaises(Refusal):
-            make_plans(self.usage, [], [], write=True)
-        self.assertEqual(self.lock.read_text(), before)
+        prune_lock.backup_path(self.locks[1]).write_text("{}")
+        status, err = self.run_main("--apply")
+        self.assertEqual(status, 2, err)
+        self.assertTrue(self.unchanged())
+        self.assertFalse(prune_lock.backup_path(self.locks[0]).exists())
+
+    def test_a_lock_changed_after_planning_stops_every_write(self) -> None:
+        plan = prune_lock.make_plans
+
+        def plan_then_build(*args: Any, **kwargs: Any) -> list[prune_lock.FilePlan]:
+            plans = plan(*args, **kwargs)
+            self.locks[1].write_text(self.before[1] + " ")
+            return plans
+
+        with mock.patch.object(prune_lock, "make_plans", plan_then_build):
+            status, err = self.run_main("--apply")
+        self.assertEqual(status, 2, err)
+        self.assertEqual(self.locks[0].read_text(), self.before[0])
+        self.assertIn(str(self.locks[1].resolve()), err)
+
+    def test_a_failed_write_names_what_was_written(self) -> None:
+        write = prune_lock.write_atomic
+
+        def fail_second(path: Path, text: str, expected: str) -> None:
+            if path == self.locks[1].resolve():
+                raise prune_lock.Refusal("disk full", 2)
+            write(path, text, expected)
+
+        with mock.patch.object(prune_lock, "write_atomic", fail_second):
+            status, err = self.run_main("--apply")
+        self.assertEqual(status, 2, err)
+        first = self.locks[0].resolve()
+        self.assertIn(f"{first} (backup: {prune_lock.backup_path(first)})", err)
 
 
 def imports_jitx(python: str) -> bool:
