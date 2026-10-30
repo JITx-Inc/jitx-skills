@@ -36,7 +36,7 @@ for i in range(7):
     })
 # Now everything downstream walks `records` and re-indexes by string
 for r in records:
-    self += r["tx_pair"].P + r["test_point"].A
+    self += r["tx_pair"].p + r["test_point"].A
 ```
 
 **Good:**
@@ -57,9 +57,9 @@ self.lanes: list[EscapeLane] = [
     for i in range(7)
 ]
 
-# Downstream uses object attributes — typechecker catches typos
-for lane in self.lanes:
-    self += lane.tx_pair.P + lane.test_point.A
+# Downstream uses object attributes — typechecker catches typos; the field
+# names the nets (TX_TP[0] ... TX_TP[6])
+self.TX_TP = [lane.tx_pair.p + lane.test_point.A for lane in self.lanes]
 ```
 
 **Why.** String keys are reflection by another name. A typo in `r["tx_pair"]` is a silent runtime error; `lane.tx_pair` is a typecheck error. Dataclasses + typed lists give you the same data structure with no string-indirection cost.
@@ -88,7 +88,7 @@ class HexBGA(Component):
 # Elsewhere — illegal reflection
 for i in range(7):
     pair = getattr(self.bga, f"TX_b{i}")  # NO
-    self += pair.P + ...
+    self += pair.p + ...
 ```
 
 **Good:**
@@ -98,9 +98,8 @@ class HexBGA(Component):
         super().__init__()
         self.TX: list[DiffPair] = [DiffPair() for _ in range(7)]
 
-# Elsewhere — typed iteration, no reflection
-for pair in self.bga.TX:
-    self += pair.P + ...
+# Elsewhere — typed iteration, no reflection, nets named by the field
+self.TX_P = [pair.p + ... for pair in self.bga.TX]
 ```
 
 **Why.** "Why isn't this an array of arrays?". Sibling attributes are the failure mode when the underlying collection is homogeneous (same type, same role). Reach for `list` / `dict` / `PinGroup` directly. If you need a programmatic collection, `getattr(self, ...)` is the wrong answer; the right answer is to declare the collection.
