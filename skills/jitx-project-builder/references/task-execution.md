@@ -81,8 +81,8 @@ Don't run a concurrent build of the same design in parallel — see [Build safet
 A component removal can make the build ask `[Y/n]` before deleting stale
 instances; the CLI has no documented non-interactive flag. The answer is the
 user's: when the build asks, or ends with `EOF when reading a line`, the
-sub-agent stops and returns what it printed for the orchestrator to relay. The
-user answers in the JITX UI or their own terminal, or says to pipe `yes |`. The
+sub-agent ends its build and returns `blocked: build prompt` (Step 7). The user
+answers in the JITX UI or their own terminal, or says to pipe `yes |`. The
 command does not add `| tail`. If the build produces no output and consumes little CPU, Step 3 pauses before retrying and follows the
 `jitx/SKILL.md` stalled-build check for accumulated `jitx interactive-client`
 processes.
@@ -157,7 +157,7 @@ Rules (full set in `completion-blocks.md`):
 
 #### Step 7: Return
 
-For complete-board work, the sub-agent returns the task acceptance block and nothing else. It names written files by path in the block and does not return a transcript, narration, or restated file contents. Every tier still completes Steps 4-6 before returning.
+For complete-board work, the sub-agent returns the task acceptance block and nothing else. It names written files by path in the block and does not return a transcript, narration, or restated file contents. Every tier still completes Steps 4-6 before returning, with one exception: a sub-agent stopped at a build prompt (Step 3) ends its build and returns `blocked: build prompt` with the lines the build printed.
 
 ---
 
@@ -166,6 +166,8 @@ For complete-board work, the sub-agent returns the task acceptance block and not
 After a sub-agent returns, the orchestrator performs an independent review of the **task acceptance block** the sub-agent emitted. The orchestrator does NOT trust the block claims at face value — it verifies them against the code, the build, and the checklist.
 
 A returned task without an acceptance block is automatically `rework`; run `python scripts/plan_status.py <task-id> rework --note "missing acceptance block"`. The block is the contract.
+
+A `blocked: build prompt` return is not rework: relay the printed lines to the user, run `python scripts/plan_status.py <task-id> in-progress --note "build prompt: waiting on the user"`, and once the user has answered, re-spawn the task at Step 3 with that answer ("pipe `yes`" included, if the user says so).
 
 When a valid block arrives, run `python scripts/plan_status.py <task-id> review` before starting the acceptance review.
 
@@ -196,7 +198,7 @@ Do not re-run the entire checklist. Focus on the items most commonly missed for 
 | Component (footprint) | Pad positions plausible for package size, row spacing correct, pad dimensions match the datasheet mechanical drawing on the page the note cites, not the note's transcription of it and not memory |
 | MCU/FPGA | All power domains present, programming interface complete, reset pin present |
 | Power circuit | Enable pin handling, PGOOD output type + pull-up, **feedback divider on a named E-series, VOUT recomputed**, bootstrap cap present |
-| Interface circuit | **Exposes bundle-typed ports**, decoupling on every IC power pin, **I2C pull-ups only if this circuit is the bus-aggregation level** (encloses both ends of a private bus); otherwise pull-ups go at the level that composes the bus |
+| Interface circuit | **Exposes bundle-typed ports**, decoupling on every IC power pin, **Shared-bus (I2C, MDIO) pull-ups only if this circuit is the bus-aggregation level** (encloses both ends of a private bus); otherwise pull-ups go at the level that composes the bus |
 | **Any circuit** | **Did the sub-agent implement the datasheet's application circuit?** Compare the code against the application circuit on the datasheet page the note cites, not against the note's summary of it. Count external components; are any missing (transistors, caps, resistors)? Check pull-up voltage domains; nothing should pull to a high-voltage rail like VBUS. |
 | Substrate | All via types defined, ground plane continuity, impedance achievable |
 

@@ -123,7 +123,7 @@ python -c "import importlib.resources as r, shutil; shutil.copy(r.files('jitxexa
 
 If the copy raises `FileNotFoundError`, the installed `jitxexamples` predates the packaged example CSV: ask the user for a parts list instead.
 
-Tell the user the list is a stand-in and record it in PLAN.md `Data Sources`. A stand-in is not an approval: the Phase 4 parts gate lists every MPN the final build resolved, each with the user's approval quoted, or the user's list replaces the stand-in. Read that list from the final build. Not from `parts.lock.json`: the lock never prunes, so it still holds the earlier chain's entries, `IDEAL-` parts included. Not from `parts-check` either: it prints counts, not MPNs. Start `jitx design session <design>` in the background (it prints nothing until stopped), then:
+Tell the user the list is a stand-in and record it in PLAN.md `Data Sources`. A stand-in is not an approval: the Phase 4 parts gate lists every MPN the final build resolved, each with the user's approval quoted, or the user's list replaces the stand-in. Read that list from the final build. Not from `parts.lock.json`: the lock never prunes, so it still holds stale entries, `IDEAL-` parts included. Not from `parts-check` either: it prints counts, not MPNs. Start `jitx design session <design>` in the background (it prints nothing until stopped), then:
 
 ```bash
 jitx design exec <design> -c '
@@ -136,7 +136,7 @@ jitx design session --stop <design>
 
 It prints the MPNs as a JSON list, the parts the chain resolved and no modeled components. If `exec` reports `message could not be delivered`, the session is not up yet: run it again. If the background session has exited, read its output, fix the error it reports, and start the session again.
 
-When the user's list replaces the stand-in, delete `parts.lock.json` (the lock keys a CSV on its path, so a file overwritten in place re-resolves nothing), rebuild, and update the `Data Sources` row.
+When the user's list replaces the stand-in, delete `parts.lock.json` (the lock keys a CSV on its path, so a file overwritten in place re-resolves nothing), rebuild, and update the `Data Sources` row. After a row is added for a part that resolved `IDEAL-`, delete that entry (or `parts.lock.json`) and rebuild: the lock keeps the ideal part it pinned.
 
 ### Exit Gate: Phase 0 → Phase 1
 
@@ -277,11 +277,11 @@ A single sub-agent assembles the top-level design. The orchestrator reviews its 
 
 ### Passive query defaults — match manufacturing and circuit role
 
-A query assigned in the Design class body is the default for every passive of its category built below it, and keywords on one part are added on top of it. Without one, a passive takes the first row of the approved-parts list that matches its value: on the example CSV, a 100 nF capacitor and a 10 kΩ resistor both resolve to 0201 parts. Filter only on keys the approved-parts list has a column for. A key with no column, or a bound no row meets, makes the CSV decline the query, and `ideal` then answers it without a warning while the chain still holds `ideal` (base `jitx` skill, Step 2). The example CSV's columns include `case`, `mounting`, `tolerance`, `rated_voltage_dc`, `type` and `temperature_coefficient_code`. The right values depend on the design:
+A query assigned in the Design class body is the default for every passive of its category built below it, and keywords on one part are added on top of it. Without one, a passive takes the first row of the approved-parts list that matches its value: on the example CSV, a 100 nF capacitor and a 10 kΩ resistor both resolve to 0201 parts. Filter only on keys the approved-parts list has a column for. A key with no column, or a bound no row meets, makes the CSV decline the query, and `ideal` then answers it without a warning (base `jitx` skill, Step 2). The example CSV's columns include `case`, `mounting`, `tolerance`, `rated_voltage_dc`, `type` and `temperature_coefficient_code`. The right values depend on the design:
 
 | Design class | Typical defaults | Why |
 |--------------|------------------|-----|
-| **SMT production / economy** (JLCPCB, full-machine assembly) | SMD-only, ceramic for caps, small case (0402–0805) | Through-hole picks are wrong; small case fits typical decoupling |
+| **SMT production / economy** (JLCPCB, full-machine assembly) | SMD-only, ceramic for caps, every case the assembler accepts from its smallest up (0402 to 1210); a case left off is excluded | Through-hole picks are wrong; a short list sends a large-value or high-voltage part to `IDEAL-` |
 | **Hand-build / prototype** (hand-soldered, mixed assembly) | SMD or mixed, larger case (0603–1206) for ease, allow common through-hole on large parts | Hand-rework needs accessible sizes |
 | **Specialty** (high-voltage, RF-heavy, precision analog, high-current, automotive temp) | Per-circuit refinement of ratings and dielectric is the rule; design-level defaults stay broad | Circuit role dominates: bulk caps, film, RF passives and shunts each state their voltage, power or dielectric need |
 
@@ -294,14 +294,15 @@ class Design(...):
 
     # Example for an SMT-production design. Adjust per the design's class above.
     # The attribute name is free; the query's class picks the category it applies to.
+    # `case` lists every package the assembler accepts; one left off is excluded.
     capacitor_defaults = CapacitorQuery(
         mounting="smd",
         type="ceramic",
-        case=("0402", "0603", "0805"),
+        case=("0402", "0603", "0805", "1206", "1210"),
     )
     resistor_defaults = ResistorQuery(
         mounting="smd",
-        case=("0402", "0603"),
+        case=("0402", "0603", "0805", "1206", "1210"),
     )
 
     circuit = TopCircuit()
@@ -573,7 +574,7 @@ Do not accept "noted for future refactoring" — if it's broken, fix it now.
 
 ### Phase 4 Process
 
-1. Run the parts gate first (base `jitx` skill, Step 2; https://docs.jitx.com/en/latest/essentials/design/parts.html): `jitx build <design>` and `jitx design export parts-check <design> --fail all` must pass, and no MPN the final build resolved (read as in Phase 0 "Approved passives") may start with `IDEAL-` (`ideal` stays in the chain, and the parts check passes an ideal part). When PLAN.md `Data Sources` records the example stand-in, the gate also lists each of those MPNs with the user's approval quoted, or the user's list has replaced the stand-in; otherwise it is a blocking item. Approved parts can change footprints, so every later check runs on the approved parts. A `no part found` goes to the user, not to a fix sub-agent: ask for the approved part, and change a value only with the user's sign-off and the affected circuit recomputed.
+1. Run the parts gate first (base `jitx` skill, Step 2; https://docs.jitx.com/en/latest/essentials/design/parts.html): `jitx build <design>` and `jitx design export parts-check <design> --fail all` must pass, and no MPN the final build resolved (read as in Phase 0 "Approved passives") may start with `IDEAL-` (`ideal` stays in the chain, and the parts check passes an ideal part). When PLAN.md `Data Sources` records the example stand-in, the gate also lists each of those MPNs with the user's approval quoted, or the user's list has replaced the stand-in; otherwise it is a blocking item. Approved parts can change footprints, so every later check runs on the approved parts. An `IDEAL-` MPN or a `no part found` goes to the user, not to a fix sub-agent: ask for the approved part, and change a value or rating only with the user's sign-off and the affected circuit recomputed.
 2. Run the full verification command: `python scripts/check.py <ns>/ --build <ns>.main.Design`
 3. Check output for:
    - Every summary line reports `PASS`: proceed to verification
