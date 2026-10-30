@@ -13,7 +13,7 @@
 - [ ] Impedance targets documented for constrained signals
 - [ ] Routing structure assigned matches impedance target
 - [ ] Constrained signal paths wired with plain `+` nets (no `>>` needed for a constraint to bind), and every part with a path through it (AC cap, series resistor, an ESD channel whose datasheet gives an in-to-out path) has a `BridgingPinModel`; a flow-through package whose opposite pin is n.c. has none, and its channel pin and the pin opposite are one net
-- [ ] **SI constraints (Constrain, ConstrainDiffPair, ReferencePlanes) are NOT applied here**: they go at the top-level design where the full path is visible. The circuit only wires the path and models its pass-through parts.
+- [ ] **SI constraints (Constrain, ConstrainDiffPair, ReferencePlanes) are NOT applied here**: they go at the top-level design where the full path is visible. The circuit only wires the path and models the parts on its path that need a pin model.
 
 ### Level Translation
 - [ ] Voltage domains of connected ICs compared — level shifter needed if they differ
