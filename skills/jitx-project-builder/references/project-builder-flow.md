@@ -250,9 +250,9 @@ A single sub-agent assembles the top-level design. The orchestrator reviews its 
 5. Wire signal interfaces using `require()` from provides. Example:
    ```python
    i2s = self.mcu_wrapper.require(I2S)   # solver picks pins
-   self += i2s.sck + self.amp.i2s.sck    # wire bundle sub-ports
-   self += i2s.ws + self.amp.i2s.ws
-   self += i2s.sd + self.amp.i2s.sd
+   self.I2S_SCK = i2s.sck + self.amp.i2s.sck    # wire bundle sub-ports;
+   self.I2S_WS = i2s.ws + self.amp.i2s.ws        # each field names its net
+   self.I2S_SD = i2s.sd + self.amp.i2s.sd
    ```
    NEVER hardcode GPIO numbers. If a downstream circuit has individual ports instead of a bundle, wire the required bundle's sub-ports to them. SI-constrained signals use the same `+` wiring; see [Plain nets carry SI constraints (CRITICAL)](#plain-nets-carry-si-constraints-critical).
 6. Add shared-bus components at the **bus-aggregation level** — the level where the bus is composed across multiple participants (master + slaves). Most of the time that's the top-level design here, because typical buses span subcircuits (MCU subcircuit talks to amp + sensor subcircuits). But if a single subcircuit aggregates an entire bus internally (e.g. a sensor-hub subcircuit containing master + 4 sensors all on one private I2C), the pull-ups belong inside that subcircuit. The rule is bus scope, not file location.
@@ -428,11 +428,10 @@ A passive held only in a local variable, or constructed inline inside a net, is 
 # WRONG — the Net object is built and discarded; no connection in the netlist.
 self.usb.A6 + self.usb.B6                          # bare `+`
 
-# RIGHT: assign to a `self.<name>` attribute named for the signal (the field
-# name becomes the net name; jitx-circuit-builder, Nets), or use the `+=` form
-# which adds to the circuit's net list:
+# RIGHT: assign to a `self.<name>` attribute named for the signal; the field
+# name becomes the net name (jitx-circuit-builder, Nets). `self += a + b` also
+# connects, but exports under an internal name.
 self.USB_DP = self.usb.A6 + self.usb.B6            # named net
-self += self.driver.OUT.p + self.receiver.INP.p    # added to circuit
 ```
 
 The trap is that the *expression evaluates without error* — Python sees `port_a + port_b` as `Net.__add__`, which returns a `Net` object, which Python then drops because nothing held a reference to it. No exception, no warning at parse time, and JITX has no way to recover the Net once it's been garbage-collected.

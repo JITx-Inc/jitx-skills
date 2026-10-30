@@ -205,7 +205,7 @@ Top-level: hardcodes self.net1 += esp32.GPIO4 + amp.SCLK  # BAD
 Task description: "Expose I2S bundle port for upstream require()"
 Result: circuit has self.i2s = I2S()  # bundle from jitxlib
 Top-level: i2s = self.esp32.require(I2S)
-           self += i2s.sck + self.amp.i2s.sck  # solver picks pins
+           self.I2S_SCK = i2s.sck + self.amp.i2s.sck  # solver picks pins
 ```
 
 When writing PLAN.md task `Specifics` for circuit tasks:

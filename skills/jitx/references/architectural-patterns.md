@@ -349,7 +349,7 @@ def ball_spec(self, name: str) -> Ball:
 # JITX assigns the refdes; downstream tools see the right name
 ```
 
-**Why.** "Would not assign reference designator here, because JITX assigns those. Lots in this design to handle hardships going through odb++ to hfss". If you're computing a name that JITX should be giving you, you're bypassing the framework. The general principle: don't manually assign values that JITX assigns automatically — reference designators, net names from topology, layer indices from stackup, etc. Pressure from export-pipeline tools (e.g., `odb++` → HFSS) is a known temptation to do the wrong thing; resist it.
+**Why.** "Would not assign reference designator here, because JITX assigns those. Lots in this design to handle hardships going through odb++ to hfss". If you're computing a name that JITX should be giving you, you're bypassing the framework. The general principle: don't manually assign values that JITX assigns automatically — reference designators, layer indices from stackup, etc. Net names come from the field that stores the net, or `name=` (`jitx-circuit-builder`, Nets). Pressure from export-pipeline tools (e.g., `odb++` → HFSS) is a known temptation to do the wrong thing; resist it.
 
 ---
 

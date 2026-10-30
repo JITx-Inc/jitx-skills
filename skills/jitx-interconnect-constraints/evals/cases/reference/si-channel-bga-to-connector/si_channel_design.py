@@ -233,8 +233,11 @@ class SiChannel(Circuit):
         ]
         self.caps: list[FixtureAcCap] = []
         self.vias: list[Via] = []
-        self.TX_FPGA: list[Net] = []
-        self.TX_CONN: list[Net] = []
+        # One list per leg, indexed by pair: TX_FPGA_P[1] is pair 1's p leg.
+        self.TX_FPGA_P: list[Net] = []
+        self.TX_FPGA_N: list[Net] = []
+        self.TX_CONN_P: list[Net] = []
+        self.TX_CONN_N: list[Net] = []
         self.escapes: list[PortAttachment] = []
         self.routes: list[Route] = []
         for i, (src, dst, y) in enumerate(zip(bga_pins, conn_pins, ROWS, strict=True)):
@@ -246,8 +249,9 @@ class SiChannel(Circuit):
             via = self.via_class().at(VIA_X, y)
             self.caps.append(cap)
             self.vias.append(via)
-            self.TX_FPGA.append(Net([src, cap.a]))
-            self.TX_CONN.append(Net([cap.b, dst]))
+            n_leg = i % 2 == 1  # the pin lists alternate p, n
+            (self.TX_FPGA_N if n_leg else self.TX_FPGA_P).append(Net([src, cap.a]))
+            (self.TX_CONN_N if n_leg else self.TX_CONN_P).append(Net([cap.b, dst]))
             self.escapes.append(PortAttachment(src, via))
             if self.routed:
                 self.routes += [
