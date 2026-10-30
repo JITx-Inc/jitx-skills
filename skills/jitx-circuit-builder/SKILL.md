@@ -102,7 +102,7 @@ Pyright reports `Operator "+=" not supported` and instantiation raises `Instanti
 
 ### Asserting connectivity in tests
 
-Assert membership over `list(net)`, never with `in`: `Net.__contains__` stops at the first nested net, so a port after it reports `False`. Count too: `len(list(net))` catches a rail that lost balls:
+Assert membership over `list(net)`, never with `in`: `Net.__contains__` stops at the first nested net, so a port after it reports `False`. Count against the pinout: `len(list(net))` catches a lost ball:
 
 ```python
 self.assertIn(self.u1.VCCINT[0], list(circuit.V1V0))

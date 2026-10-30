@@ -46,7 +46,7 @@ Passive queries need a provider chain in `pyproject.toml` (without one: `NoChain
 chain = ["csv:parts/approved-parts.csv", "ideal"]
 ```
 
-`ideal`, last, synthesizes unorderable `IDEAL-...` parts so the design builds before approval, silently answering most queries the CSV cannot. Before calling it done, pass `jitx build <design>` and `jitx design export parts-check <design> --fail all`, and check that no MPN starts with `IDEAL-`: the parts check passes an ideal part. Take an `IDEAL-` part to the user; change a value or rating only with their sign-off. On the stand-in, the user approves the final build's MPNs or supplies a list. Read parts and `IDEAL-` MPNs from the design, never from the lock: it never prunes, and other chains' entries survive a cleanup. Run [`prune_lock.py`](scripts/prune_lock.py), excluding test designs, after removing a component or running tests, and before committing or handing off the lock. Never delete the whole lock once parts are placed, routed or approved without the user's say-so. Cleanup, care, deliberate re-resolves: [`references/parts-lock.md`](references/parts-lock.md). CSV format, lockfile, the `IDEAL-` test, parts databases: https://docs.jitx.com/en/latest/essentials/design/parts.html
+`ideal`, last, synthesizes unorderable `IDEAL-...` parts so the design builds before approval, silently answering most queries the CSV cannot. Before calling it done, pass `jitx build <design>` and `jitx design export parts-check <design> --fail all`, and check that no MPN starts with `IDEAL-`: the parts check passes an ideal part. Take an `IDEAL-` part to the user; change a value or rating only with their sign-off. On the stand-in, the user approves the final build's MPNs or supplies a list. Read parts and `IDEAL-` MPNs from the design, never from the lock. Run [`prune_lock.py`](scripts/prune_lock.py), excluding test designs, after removing a component or running tests, and before committing or handing off the lock. Never delete the whole lock once parts are placed, routed or approved without the user's say-so. Cleanup, care, deliberate re-resolves: [`references/parts-lock.md`](references/parts-lock.md). CSV format, lockfile, the `IDEAL-` test, parts databases: https://docs.jitx.com/en/latest/essentials/design/parts.html
 
 The scaffold skips `git init` (do it and say so). Its `.gitignore` keeps the built design directory tracked on purpose: do not broaden it.
 
@@ -120,7 +120,7 @@ These hold for every JITX skill.
 - **Run pyright inside the project's environment.** Against an interpreter without `jitx`, pyright reports `Import "jitx" could not be resolved`: that is the interpreter, not the code, so never "fix" the imports. A tool launched from outside the venv points at it with `[tool.pyright] venvPath`/`venv` or `pyright --pythonpath`.
 - **Commit a ruff config and run ruff from the project root.** Config discovery walks up from the working directory. Set `line-length` explicitly if anything in the project emits Python. `RUF012` flags class-body port arrays (`GND = [Port() for _ in range(n)]`), which are the declaration model: silence it per file in `[tool.ruff.lint.per-file-ignores]` with a comment. Moving the ports into `__init__` breaks the component.
 - **Copy `scripts/check.py` and `scripts/grep_gates.py` from this skill into the project's `scripts/`** and run `python scripts/check.py <ns>/` before calling work done. It runs ruff, ruff format, pyright, the grep gates and, with `--build`, a build. How to disposition a gate hit: `jitx-project-builder` [`references/completion-blocks.md`](../jitx-project-builder/references/completion-blocks.md).
-- **Test with `jitx.test.TestCase`** and `python -m unittest discover -s tests`. Declare JITX classes at module scope, never inside a test method. Test designs set `parts_lock = Lock(mode=LockMode.OFF)` (`references/parts-lock.md`).
+- **Test with `jitx.test.TestCase`** and `python -m unittest discover -s tests`. Assert each value against its source (datasheet, fab report, standard, independent formula), never the tested code's constants or output: that catches no regression. Test designs set `parts_lock = Lock(mode=LockMode.OFF)` (`references/parts-lock.md`).
 - **Run `jitx-code-review`** as a self-critique before declaring a task complete.
 
 ### Don'ts
@@ -135,7 +135,7 @@ Worked counter-examples for each: `references/architectural-patterns.md`.
 - **Don't reinvent framework code in design code.** A banned pattern inside the framework class that owns the invariant does not license it on your side. Use the public API, or a public adapter on a subclass over a protected method.
 - **Don't generate lookup tables or populate mutable globals at module-import time.** Class-body structural collections are fine.
 - **Don't manually assign values that JITX assigns automatically**: reference designators, net names from topology, layer-derived names.
-- **No `setattr` / `getattr`, no `type(...)` to build classes, no JITX subclass defined inside a function.** These break instantiation tracking.
+- **No `setattr` / `getattr`, no `type(...)` to build classes, no JITX subclass defined inside a function or method.** These break instantiation tracking.
 - **No `type()` for type checks** (use `isinstance`), no double-underscore members, and no leading-underscore names from elsewhere; a method may call another method on its own class.
 
 ## Introspection
@@ -181,7 +181,7 @@ Invoke it before writing that code.
 | Self-review of JITX code against the rules above | `jitx-code-review` |
 | DXF/IDF/STEP import and export, board outlines, 3D models | `jitx-mechanical` |
 
-One artifact goes to its sub-skill; a buildable board, to `jitx-project-builder`.
+A buildable board goes to `jitx-project-builder`.
 
 ## Documentation lookup
 
