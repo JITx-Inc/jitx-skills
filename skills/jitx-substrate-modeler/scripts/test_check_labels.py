@@ -364,6 +364,7 @@ class Script(unittest.TestCase):
         result = run(b"x = 1  # \xff\xfe\n")
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
         self.assertEqual(len(result.stderr.splitlines()), 1, result.stderr)
+        self.assertIn("could not read", result.stderr)
 
     def test_ruff_on_path_runs_when_the_interpreter_has_none(self) -> None:
         # The ruff binary beside this interpreter, not a PATH shim that needs a
@@ -388,6 +389,7 @@ class Script(unittest.TestCase):
             empty.mkdir()
             result = run("class S:\n    x = 1\n", path=str(empty), python=python)
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("nor is on PATH", result.stderr)
 
 
 if __name__ == "__main__":

@@ -92,16 +92,19 @@ class LinkCheckTests(unittest.TestCase):
         findings = check_links(root, docs)
         self.assertEqual(len(findings), 1)
         self.assertIn("skills/a/SKILL.md:3", findings[0])
+        self.assertIn("link target does not exist", findings[0])
 
     def test_missing_anchor_is_reported(self):
         root, docs = self.build({"skills/a/SKILL.md": "# A\n\n[x](#no-such-heading)\n"})
         findings = check_links(root, docs)
         self.assertEqual(len(findings), 1)
+        self.assertIn("anchor matches no heading", findings[0])
 
     def test_ambiguous_anchor_is_reported(self):
         root, docs = self.build({"skills/a/SKILL.md": "# A\n\n[x](#process)\n\n## Process\n\n## Process\n"})
         findings = check_links(root, docs)
         self.assertEqual(len(findings), 1)
+        self.assertIn("anchor is ambiguous", findings[0])
         self.assertIn("L5", findings[0])
 
     def test_external_links_are_ignored(self):

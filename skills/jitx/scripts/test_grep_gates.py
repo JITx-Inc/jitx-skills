@@ -36,6 +36,7 @@ class GrepGateTraversalTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
         self.assertIn(str(source), result.stderr)
+        self.assertIn("source scan incomplete", result.stderr)
         self.assertNotIn("PASS (hard-fail set clean)", result.stdout)
 
     @unittest.skipIf(
@@ -60,6 +61,7 @@ class GrepGateTraversalTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
         self.assertIn(str(blocked), result.stderr)
+        self.assertIn("source scan incomplete", result.stderr)
         self.assertNotIn("PASS (hard-fail set clean)", result.stdout)
 
 

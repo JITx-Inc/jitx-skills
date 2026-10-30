@@ -85,7 +85,7 @@ class GridTests(unittest.TestCase):
         )
 
     def test_too_small_exposed_pad_raises(self) -> None:
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(ValueError, "too small"):
             grid_thermal_via_positions(
                 ep_size=(0.9, 2.0),
                 via_grid=(2, 2),

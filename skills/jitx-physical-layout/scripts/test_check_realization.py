@@ -70,6 +70,7 @@ class StitchRealizationTests(unittest.TestCase):
         target = StitchTargetWitness("circuit.pad", "Pad", None, ())
         result = check_stitch_targets((target,), stitch_rule_count=1)[0]
         self.assertFalse(result.passed)
+        self.assertIn("requires a Pour", result.detail)
 
     def test_stitched_pour_requires_via_inside(self) -> None:
         witness = pour()
@@ -359,7 +360,7 @@ class CommandContractTests(unittest.TestCase):
     def test_unchanged_authored_shape_is_not_a_capture_witness(self) -> None:
         shape = object()
         captured = SimpleNamespace(shape=shape)
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(ValueError, "no computed-shape witness"):
             _require_computed_pour("circuit.ground", (object(), captured), id(shape))
 
     def test_distinct_computed_shape_is_a_capture_witness(self) -> None:
@@ -375,6 +376,7 @@ class CommandContractTests(unittest.TestCase):
         with contextlib.redirect_stderr(stderr):
             result = main(["not_a_real_module.RealDesign"])
         self.assertEqual(result, 2)
+        self.assertIn("did not run", stderr.getvalue())
 
     def test_runtime_environment_failure_is_exit_two(self) -> None:
         stderr = io.StringIO()

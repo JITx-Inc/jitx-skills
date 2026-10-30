@@ -109,11 +109,13 @@ class CheckRouteWidthTests(unittest.TestCase):
         result = check_route_width(RouteStandIn(None), 0.25, 1e-6)
         self.assertFalse(result.passed)
         self.assertIsNone(result.measured)
+        self.assertIn("no realized trace width witness", result.detail)
 
     def test_polygon_like_realization_is_a_width_failure(self) -> None:
         route = RouteStandIn([TraceStandIn([object()])])
         result = check_route_width(route, 0.25, 1e-6)
         self.assertFalse(result.passed)
+        self.assertIn("polygon realization is a width-rule failure", result.detail)
 
 
 @dataclass
