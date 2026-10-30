@@ -57,7 +57,7 @@ self.lanes: list[EscapeLane] = [
     for i in range(7)
 ]
 
-# Downstream uses object attributes — typechecker catches typos; the field
+# Downstream uses object attributes, so the typechecker catches typos; the field
 # names the nets (TX_TP[0] ... TX_TP[6])
 self.TX_TP = [lane.tx_pair.p + lane.test_point.A for lane in self.lanes]
 ```
@@ -98,7 +98,7 @@ class HexBGA(Component):
         super().__init__()
         self.TX: list[DiffPair] = [DiffPair() for _ in range(7)]
 
-# Elsewhere — typed iteration, no reflection, nets named by the field
+# Elsewhere: typed iteration, no reflection, nets named by the field
 self.TX_P = [pair.p + ... for pair in self.bga.TX]
 ```
 
