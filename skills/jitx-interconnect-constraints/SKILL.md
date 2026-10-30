@@ -5,7 +5,7 @@ description: "Use when the user asks about timing constraints, skew matching, in
 
 # JITX Interconnect Constraints
 
-SI constraints (timing, insertion loss, intra-pair skew, skew against a reference) on jitx 4.6: `Topology(begin, end)` names a path's ends, routes and pin models let the runtime follow it, and the design issues report proves it measured. Routing structures: `jitx-substrate-modeler`.
+SI constraints (timing, insertion loss, intra-pair skew, skew to a reference) on jitx 4.6: `Topology(begin, end)` names a path's ends, routes and pin models let the runtime follow it, and the design issues report proves it measured.
 
 ## Environment
 
@@ -38,7 +38,7 @@ Apply per-lane or per-pair constraints by iterating a typed collection (`self.la
 
 ## Plain nets by default
 
-Join the path with ordinary nets (`+` or `Net([...])`) and name its two ends with `Topology(begin, end)`. `>>` (`TopologyNet`) is not needed for timing, loss or skew and is dispreferred, being rigid: it fixes the connection order before routing. Use it only for a daisy chain whose order is part of the design ([Daisy chains](#daisy-chains-)).
+Join the path with ordinary nets (`+` or `Net([...])`) and name its two ends with `Topology(begin, end)`. The runtime infers the path between them from the routes, crossing parts that carry pin models, so `>>` (`TopologyNet`) is not needed for timing, loss or skew. It is dispreferred, fixing the connection order before routing. Use it only for a daisy chain whose order is part of the design ([Daisy chains](#daisy-chains-)).
 
 Store every net, constraint, helper, pin model and route on `self`; one left unstored logs `... lost during instantiation` and never reaches the report.
 
@@ -68,7 +68,7 @@ Pin model delay and loss are SI inputs the measurement adds: take them from the 
 
 A path stops at a part with no `BridgingPinModel`, reporting `No path for signal constraint ... the part between <x> and <y>, which has no pin model.` Give one to every part with a path through it between two pins (AC coupling cap, series resistor, common-mode choke, an ESD channel whose datasheet gives an in-to-out path), on the component class or in the circuit: `self.bridge = BridgingPinModel(self.cap.a, self.cap.b, delay=6e-12, loss=0.5)` (s, dB). A flow-through package whose opposite pin is not connected inside gets none: its two lands are one net joined by board copper, and a model would hide an open line. Worked pattern: `jitxexamples.patterns.si_series_part`.
 
-A bare `No path`, naming no part, can come from an unrouted net crossing a circuit's bundle port (route, then reread), a circuit-port end reaching several pads (name the pad), or an unresolved assignment ([pin-assigned ports](#constraints-on-pin-assigned-ports)).
+A bare `No path`, naming no part, can come from an unrouted net crossing a circuit's bundle port (route it), a circuit-port end reaching several pads (name the pad), or an unresolved assignment ([pin-assigned ports](#constraints-on-pin-assigned-ports)).
 
 ### TerminatingPinModel: package delay at an end
 
@@ -87,7 +87,7 @@ Give every via on a constrained path a `models` entry for the layers it spans; w
 
 ## Closing the path
 
-The runtime infers the path between the `Topology` ends from routed copper, so no `>>` is needed: a path crosses a via, or a part with a pin model, where routes land on both sides. Unrouted, nothing measures; the report carries `Unconnected Topology on Path: <a>, <b>` per segment or `Signal path from <a> to <b> is not routed yet`. Route in the board view, or headless with code routes between physical pads, vias and control points, one segment per hop (`Route(self.drv.o, self.via, layer=0)`; mechanics in `jitx-physical-layout`). A route the router cannot make reports `Unable to find path for requested route`, and the constraint `Missing Connection on Path`.
+The runtime infers the path between the `Topology` ends from routed copper, so no `>>` is needed: a path crosses a via, or a part with a pin model, where routes land on both sides. Unrouted, nothing measures; the report carries `Unconnected Topology on Path: <a>, <b>` per segment or `Signal path from <a> to <b> is not routed yet`. Route in the board view or with code routes between physical pads, vias and control points, one segment per hop (`Route(self.drv.o, self.via, layer=0)`; mechanics in `jitx-physical-layout`). A route the router cannot make reports `Unable to find path for requested route`, and the constraint `Missing Connection on Path`.
 
 ## Differential Pairs
 
@@ -165,7 +165,7 @@ A daisy chain feeds loads in a fixed order, such as a DDR flyby clock. `self.a0 
 
 ## Verification
 
-This proves each SI constraint applied (width and clearance: `jitx-layout-constraints`; geometry: `jitx-physical-layout`).
+Proving each SI constraint applied (width and clearance: `jitx-layout-constraints`; geometry: `jitx-physical-layout`).
 
 Prove binding on a verification design per constrained interface: parts placed, every path code-routed between physical pads (on a pin-assigned port, the provider's pins), passing when each constraint with a timing, loss or skew target measures between its intended ends with no unresolved text; a structure-only constraint never appears, and its code is the evidence. The shipping assembly carries no proof routes: there the unrouted texts (`Unconnected Topology`, `not routed yet`, a bare `No path`, `Unassigned Pin`) are expected only where a path has no route, and a routed path meets the same bar. Details: [references/verification.md](references/verification.md).
 
