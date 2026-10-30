@@ -120,8 +120,8 @@ These hold for every JITX skill.
 - **Run pyright inside the project's environment.** Against an interpreter without `jitx`, pyright reports `Import "jitx" could not be resolved`: that is the interpreter, not the code, so never "fix" the imports. A tool launched from outside the venv points at it with `[tool.pyright] venvPath`/`venv` or `pyright --pythonpath`.
 - **Commit a ruff config and run ruff from the project root.** Config discovery walks up from the working directory. Set `line-length` explicitly if anything in the project emits Python. `RUF012` flags class-body port arrays (`GND = [Port() for _ in range(n)]`), which are the declaration model: silence it per file in `[tool.ruff.lint.per-file-ignores]` with a comment. Moving the ports into `__init__` breaks the component.
 - **Copy `scripts/check.py` and `scripts/grep_gates.py` from this skill into the project's `scripts/`** and run `python scripts/check.py <ns>/` before calling work done. It runs ruff, ruff format, pyright, the grep gates and, with `--build`, a build. How to disposition a gate hit: `jitx-project-builder` [`references/completion-blocks.md`](../jitx-project-builder/references/completion-blocks.md).
-- **Test with `jitx.test.TestCase`** and `python -m unittest discover -s tests`. Declare JITX classes at module scope, never inside a test method.
-- **Run `jitx-code-review`** as a self-critique before declaring a task complete. It is mandatory at complete-board task acceptance.
+- **Test with `jitx.test.TestCase`** and `python -m unittest discover -s tests`. Declare JITX classes at module scope, never inside a test method. Test designs set `parts_lock = Lock(mode=LockMode.OFF)` (`references/parts-lock.md`).
+- **Run `jitx-code-review`** as a self-critique before declaring a task complete.
 
 ### Don'ts
 
