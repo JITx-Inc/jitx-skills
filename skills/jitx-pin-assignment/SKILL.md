@@ -156,7 +156,7 @@ Where the controller allows bytes to move between byte slots and bits within a b
 - Bit swap: per byte slot, a single-pin bundle type of its own (`Slot0Bit`, `Slot1Bit`, ...), offered `all_of` over the slot's eight DQ pins. Per slot because `require()` matches an offer by bundle type: one shared type would let a byte's bits resolve onto another slot's pins.
 - Byte swap: the bus bundle offered `one_of`, one option per allowed byte-to-slot order. In the options callback, `self.require(SlotBit, count=8)` once per slot; each option maps the fixed pins, the slot's DQS and DM, and the byte's eight DQ ports to that slot's eight bits.
 
-DQS and DM move with their byte; address, command and CK (polarity included) are fixed wiring. Match each DQ to its strobe with `ConstrainReferenceDifference` (rule 5). Worked example: `jitxexamples.jumpstart_kits.js4_fpga_lpddr4x` (LPDDR4X on a Versal VP1002: pin rules in `pinout`, the two-level offer in `fpga`, constraints in `constraint`, legal and illegal proof routes in `proof`).
+DQS and DM move with their byte; address, command and CK (polarity included) are fixed wiring. Match each DQ to its strobe with `ConstrainReferenceDifference` (rule 5). Worked example: `jitxexamples.jumpstart_kits.js4_fpga_lpddr4x` (LPDDR4X on a Versal VP1002: pin rules in `pinout`, the two-level offer in `fpga`, UG863 limits in `constraint` applied in `main` by `LPDDR4Constraint` with the protocol's shared-CKE controller bundle, legal and illegal proof routes in `proof`).
 
 ## Common Mistakes
 
