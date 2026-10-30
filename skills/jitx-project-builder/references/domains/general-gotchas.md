@@ -17,7 +17,7 @@ After the domain-specific checklist, verify these universal items:
 
 ### Top-Level Only (do NOT put these in subcircuits)
 - [ ] `GroundSymbol` on GND net — applied at top-level design only
-- [ ] `PowerSymbol` on every power rail — applied at top-level design only
+- [ ] `PowerSymbol` on every power rail that crosses circuits — applied at top-level design only
 - [ ] SI constraints (`Constrain`, `ConstrainDiffPair`, `ConstrainReferenceDifference`) — applied at top-level within `ReferencePlanes(GND)` context, not inside subcircuits
 - [ ] Ground pours on ground plane layers — applied at top-level design only
 - [ ] **Shared-bus (I2C, MDIO) pull-ups** — placed at the bus-aggregation level (the circuit that composes master + slaves on the bus). Usually the top-level design because most buses span subcircuits; but if one subcircuit fully encloses both ends of a private bus, the pull-ups belong inside that subcircuit. Never local to a single bus participant.
