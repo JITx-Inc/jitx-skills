@@ -5,7 +5,7 @@ description: "Use when the user asks about provide/require patterns, provide.one
 
 # JITX Pin Assignment
 
-Model flexible pin mappings between circuit-level interfaces and component pins. A provider offers every mapping the part allows and leaves the choice open; routes on the provider's physical pins resolve it to one mapping. Concepts: [Pin Assignment](https://docs.jitx.com/en/latest/essentials/design/pin_assignment.html) in the JITX Essentials.
+Model flexible pin mappings between circuit-level interfaces and component pins. A provider offers every mapping the part allows and leaves the choice open; routes on the provider's physical pins resolve it to one mapping.
 
 ## Environment
 
@@ -90,7 +90,7 @@ def provide_i2c(self, i2c: I2C) -> list[dict[Port, Port]]:
 | one_of | `@provide.one_of(B)` | `Provide(B).one_of(fn)` | One provider, filled by exactly one option (a bus on one pin group or another). |
 | subset_of | `@provide.subset_of(B, n)` | `Provide(B).subset_of(n, fn)` | At most `n` options assigned (a current budget across GPIO). |
 
-`fn` takes the bundle and returns the mapping list. Use the constructor when the options depend on `__init__` arguments, and store its result on `self`:
+`fn` takes the bundle and returns the mapping list. Use the constructor when the options depend on `__init__` arguments (here `n`), and store its result on `self`:
 
 ```python
 self.gpios = Provide(GPIO).all_of(lambda g: [{g.gpio: p} for p in self.mcu.GPIO[:n]])
@@ -134,7 +134,7 @@ A code route from `TXN` to the far end's `p` pin resolves the inverted option. W
 
 ## Constraints on Pin-Assigned Ports
 
-Write the constraint as `jitx-interconnect-constraints` teaches: plain `+` nets and `Topology(begin, end)`, no `>>`. The path between the ends is inferred from the routes; it crosses a via, or a part with a pin model, where routes land on both sides. `>>` (`TopologyNet`) is only for a daisy chain whose order the autorouter must follow, such as a flyby clock. What pin assignment adds:
+On jitx 4.6, write the constraint as `jitx-interconnect-constraints` teaches: plain `+` nets and `Topology(begin, end)`, no `>>`. The path between the ends is inferred from the routes; it crosses a via, or a part with a pin model, where routes land on both sides. `>>` (`TopologyNet`) is only for a daisy chain whose order the autorouter must follow, such as a flyby clock. What pin assignment adds:
 
 1. Give every part with a path through it a `BridgingPinModel` between the two pins that path joins (a series resistor, an AC-coupling capacitor, an ESD channel whose datasheet gives an in-to-out path); without one the path stops there (`No path for signal constraint ... which has no pin model`). A flow-through package whose pin opposite the channel is n.c. has no path through it: no pin model, and the channel pin and the n.c. pin are one net joined by board copper. A pin model's delay and loss come from the part's datasheet; a fixture or placeholder part says it is fictional in its docstring and labels its values as given.
 2. Prove it on a verification design: a separate Design that places every part with `.at(...)` and closes the path with code `Route`s ending on the provider's physical pins. A route cannot end on a required port (`Using require ports as route ends ... is not implemented`). Proof routes fix one mapping, so they never go in the product design.
@@ -197,7 +197,7 @@ if __name__ == "__main__":
     main()
 ```
 
-The report API and every report text with its cause: `jitx-interconnect-constraints` [references/verification.md](../jitx-interconnect-constraints/references/verification.md). The texts specific to pin assignment:
+The report API, and the report texts and their causes: `jitx-interconnect-constraints` [references/verification.md](../jitx-interconnect-constraints/references/verification.md). The texts specific to pin assignment:
 
 | Report text | Cause |
 |---|---|
