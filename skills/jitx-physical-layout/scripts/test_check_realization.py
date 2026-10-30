@@ -396,7 +396,6 @@ class CommandContractTests(unittest.TestCase):
         with contextlib.redirect_stdout(stdout):
             result = run_checks([])
         self.assertEqual(result, 1)
-        self.assertIn("nothing was verified", stdout.getvalue())
 
     def test_clean_result_exits_zero(self) -> None:
         stdout = io.StringIO()

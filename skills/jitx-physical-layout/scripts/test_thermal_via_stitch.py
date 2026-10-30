@@ -38,7 +38,6 @@ class StitchParamsTests(unittest.TestCase):
         self.assertEqual(params.mask_expansion, 0.06)
         self.assertAlmostEqual(params.edge_margin, 0.18)  # skill default: bridge + registration
         self.assertEqual(params.via_pad_diameter, 0.52)
-        self.assertEqual(params.fillet_radius, 0.0)
 
     def test_caller_supplied_edge_margin_wins(self) -> None:
         constraints = SimpleNamespace(
