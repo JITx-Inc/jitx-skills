@@ -1,465 +1,160 @@
 ---
 name: jitx-circuit-builder
-description: "This skill should be used when the user asks to \"wire up\", \"connect\", \"build a circuit\", create an \"application circuit\", work with passives (resistors, capacitors), set up power connections, \"add pours\", or \"place components\". Covers the Circuit class, net operators, passive queries, and basic pours; custom copper geometry is jitx-physical-layout. For provide/require pin assignment patterns, use jitx-pin-assignment instead."
+description: "Use when the user asks to \"wire up\", \"connect\", \"build a circuit\", create an \"application circuit\", declare a circuit's typed ports or bundles (Power, I2C, RGMII), compose sub-circuits into a hierarchy and connect them port to port, \"place components\" or sub-circuits (fixed or floating), add passives (resistors, capacitors, inductors) or decoupling, or set up power connections. Covers the Circuit class, nets and the + operator, typed ports, hierarchy, placement, and jitxlib-parts passives. Drawing a pour or copper is jitx-physical-layout; pour rules are jitx-layout-constraints; provide/require pin assignment is jitx-pin-assignment."
 ---
 
 # JITX Circuit Builder
 
-JITX was rewritten from Stanza to Python. Do not rely on prior JITX knowledge —
-verify all imports with `pyright` before outputting code.
+A `Circuit` composes components and sub-circuits behind typed boundary ports. Verify, test and build each circuit as the base `jitx` skill describes (Writing good code, Running designs).
 
-## Package Architecture
-
-JITX uses two packages — know which one to import from:
-
-- **`jitx`**: Core framework. Circuit infrastructure, nets, ports, bundles, geometry.
-  - `jitx` (top-level): `Circuit`, `Net`, `Pour`, `Copper`, `current`
-  - `jitx.common`: Bundles — `Power`, `GPIO`
-  - `jitx.net`: Port system — `Port`, `DiffPair`, `provide`, `Provide`
-  - `jitx.toleranced`: `Toleranced`
-  - `jitx.constraints`: `Tag`, `design_constraint`
-  - `jitx.layerindex`: `Side`
-- **`jitxlib`**: Parts library. Components, queries, protocols, symbols.
-  - `jitxlib.parts`: `Resistor`, `Capacitor`, `Inductor`, `ResistorQuery`, `CapacitorQuery`, `InductorQuery`
-  - `jitxlib.protocols.serial`: protocol bundles including `I2C`, `I2S`, `SPI`, and `UART`; inspect the module for the current full export list
-  - `jitxlib.symbols.net_symbols`: `GroundSymbol`, `PowerSymbol`
-
-**These modules DO NOT EXIST — NEVER import from them:**
-`jitx.passives`, `jitx.passive`, `jitx.bundles`, `jitx.bundle`, `jitx.provide`,
-`jitx.providers`, `jitx.symbols`, `jitx.si_units`. There is no `Device` base class in jitx —
-subclass `Circuit`; `Device = MyCircuit` is a module-level alias for your circuit (see Key Rules). Passives live in `jitxlib.parts`, bundles in `jitx.common`, protocols in
-`jitxlib.protocols.serial`, `provide` in `jitx.net`.
-
-When unsure, search the installed packages with your **Grep** tool (pattern `class ClassName` or `def function_name`, path `.venv`, glob `*.py`); it recurses and is OS-agnostic. Shell fallback: bash `grep -rn "class ClassName" .venv/lib/python*/site-packages/jitx*/` (macOS/Linux); on Windows use the Grep tool, or `Select-String` over `.venv\Lib\site-packages\jitx*`.
-
-### Finding bundle pins
-
-Read the class definition to discover what pins a bundle has — use your **Grep** tool with context (pattern `class Power` / `class SPI`, path `.venv`, glob `*.py`, output mode `content`, ~10–20 lines); it recurses and is OS-agnostic. Shell fallback: bash `grep -A 20 "class SPI" .venv/lib/python*/site-packages/jitxlib/protocols/serial.py` (macOS/Linux); on Windows use the Grep tool, or `Select-String .venv\Lib\site-packages\jitxlib\protocols\serial.py -Pattern "class SPI" -Context 0,20`.
-
-Do not hardcode pin names from memory — verify from source. Bundle constructors
-may have optional pins (e.g., `SPI(cs=True)` to enable chip select).
-
-## Circuit Structure
+## Circuit skeleton
 
 ```python
 from jitx import Circuit, Net
 from jitx.common import Power
-from jitx.net import Port
-from jitxlib.parts import Resistor, Capacitor
+from jitx.net import ShortTrace
+from jitx.units import V, nF
+from jitxlib.parts import AtLeast, Capacitor
+from jitxlib.protocols.serial import I2C
 
-class MyCircuit(Circuit):
-    """Circuit subclass — follow this skeleton exactly."""
+from .sensor import Sensor  # a jitx.Component
 
-    # 1. Ports are class-level attributes, NEVER assigned in __init__
-    power = Power()
-    signal = Port()
 
-    # 2. __init__ takes no super() call — Circuit handles setup internally
-    def __init__(self):
-        # 3. Named nets — name= is keyword-only (first positional arg is ports)
-        self.GND = Net(name="GND")
-        self.VCC = Net(name="VCC")
+class SensorCircuit(Circuit):
+    vin = Power()
+    i2c = I2C()
 
-        # 4. += stores the connection (net on LEFT, ports on right)
-        #    bare `a + b` without storing on self silently drops the connection
-        self.VCC += self.power.Vp
-        self.GND += self.power.Vn
-
-        # 5. Components use the design-level *_query defaults from Step 2.
-        #    ALWAYS assign to self, then insert.
-        self.r1 = Resistor(resistance=10e3)
-        self.r1.insert(self.power.Vp, self.signal)
-
-        # 6. Bypass cap — must also be assigned to self
-        self.c_bypass = Capacitor(capacitance=100e-9)
-        self.c_bypass.insert(self.power.Vp, self.power.Vn, short_trace=True)
-
-# Module-level alias for your Circuit — design/build-test code imports this name.
-Device = MyCircuit
+    def __init__(self) -> None:
+        self.u1 = Sensor()
+        self.GND = Net([self.vin.Vn, self.u1.GND], name="GND")
+        self.VDD = Net([self.vin.Vp, self.u1.VDD], name="VDD")
+        self.c_vdd = Capacitor(
+            capacitance=100 * nF,
+            rated_voltage_dc=AtLeast(10 * V),
+            temperature_coefficient_code="X7R",
+        )
+        self.c_vdd_st = ShortTrace(self.c_vdd.p1, self.u1.VDD)
+        self.GND += self.c_vdd.p2
+        self.bus = [self.i2c.sda + self.u1.SDA, self.i2c.scl + self.u1.SCL]
 ```
 
-## Key Rules
+A shared open-drain bus's pull-ups (I2C, MDIO's `MIIM.mdio`) belong to the circuit that composes the bus (usually the top-level design), never inside one participant; the base skill's grep gates flag `r_sda` and `r_scl` outside `TOP_LEVEL_PATH`.
 
-1. **EVERY component must be stored as `self.<name>`** — `self.c1 = Capacitor(...)` then `self.c1.insert(...)`. Anonymous `Capacitor().insert()` passes pyright but **fails at build time** with `"Reference to structural object lost during instantiation"`. Component instantiation should not be done at the class level.
-2. **`insert()` belongs to the component** — `self.r1.insert(portA, portB)`. No `self.insert()` or `self.add()` on Circuit.
-3. **Define circuits as `class X(Circuit):`** — there is no framework `Device` or `JITXDevice` base class to subclass when *defining* a circuit. Expose the circuit under a module-level alias `Device = MyCircuit` at the end of the file (see the skeleton above). Downstream design/build-test code then imports and subclasses that alias (`from .circuit import Device` → `class circuit(Device)`) — that is expected, since `Device` is just your `Circuit`.
-4. **All wiring in `__init__`** — no `circuit()`, `execute()`, or `build()` methods.
-5. **`jitx.Component`** — `import jitx` then `class MyIC(jitx.Component):`.
-6. **Never alias component ports** — `self.x = self.r1.p2` creates multiple parents and fails. To expose a connection point, wire to a class-level Port: `self.r1.insert(gpio, self.output_port)`.
+## Key rules
 
-## Anti-string-hacking — read before writing parametric / generator circuits
+1. Store every component and net expression on `self` once, singly or in a list. A component stored twice (two attributes, an attribute and a list, or a helper's `jitx.current.circuit +=` plus an attribute) fails translation: `Child object ... encountered multiple times`. An unstored `a + b` is a lost connection. An unstored component fails the build once its ports join a net (`Unable to map local reference`), which a `TestCase` that only instantiates the design misses; unjoined, it only logs `lost during instantiation`.
+2. Boundary ports are class attributes. Components, nets and wiring go in `__init__`, with no `build()` or `circuit()` methods.
+3. Subclass `Circuit` for a circuit and `jitx.Component` for a part.
+4. Never alias a component's port (`self.x = self.r1.p2`): the build fails with `Child object ... has multiple parents`. To expose a pin, net it to a boundary port.
+5. A named net and a public port share one namespace, so name them differently (port `pwr_vccint`, net `VCCINT`).
+6. Mark an unused component pin `no_connect()` in the component or the circuit holding it. Leave an unused circuit port off every net: `no_connect()` on one passes translation and a `TestCase`, then fails the build: `Cannot set a module pin as no-connect`.
 
-For circuits that emit N parallel instances (per-lane fanout, per-row ballout, per-channel filter), construct the JITX objects directly inside the Circuit — do not build an intermediate `list[dict[str, Any]]` "spec" model and then walk it to emit JITX calls. If you need to batch parameters, use a frozen dataclass with named fields, not bare `dict[str, Any]`. See `jitx/references/architectural-patterns.md` §§ "Build the scene graph directly" and "Typed records over `dict[str, Any]`" before writing record-then-iterate code.
+## Anti-string-hacking
 
-Likewise, don't add to a circuit from a free function (`def add_x(circuit): circuit.xyz = ...`) — compose a `Container` subclass holding the group and instantiate it as a member (`self.my_x = MyX()`). See `jitx/references/architectural-patterns.md` § "Compose members".
+Construct JITX objects directly. Never walk a `list[dict[str, Any]]` spec to emit JITX calls (batch parameters in a frozen dataclass), and do not add to a circuit from a free function (compose a `Container` member). Worked examples: the base skill's Don'ts and `jitx/references/architectural-patterns.md`.
 
-For a same-model self-critique pass on the circuit after writing (catches what these rules don't), invoke `jitx-code-review`. Optional for single-task use.
+## Typed ports and composition
 
-## Net Definitions
+A circuit's boundary is typed ports: `Power` from `jitx.common` (members `Vp`, `Vn`) and protocol bundles from `jitxlib.protocols` (`I2C`, `SPI`, `RGMII`, `MIIM`, `MDI1000BaseT`). Find one with `grep -rn "class RGMII"` under the venv's `jitxlib/protocols` and read its module path, members and constructor options (`SPI(cs=True)` adds `cs`); never write them from memory.
 
-Nets can be named in the design when the net is defined. It is good practice to name the net so that the schematic and layout construction are easy to follow. Every power and ground net **should** carry a symbol definition (`PowerSymbol()` / `GroundSymbol()`), **at the top-level design only**. This is not cosmetic: power/ground symbols are what connect a rail across the schematic *without drawn wires*, so the schematic stays legible instead of a rats-nest, and rails join correctly when a design spans multiple schematic pages (see `jitx-component-modeler/references/component-guide.md` "Writing the class and symbol" for page splitting). `PowerSymbol()` / `GroundSymbol()` outside `TOP_LEVEL_PATH` (default `designs/`) is a hard-fail under `<project>/scripts/grep_gates.py`, the copy the base `jitx` skill's "Writing good code" has you place; the example below shows the *top-level* pattern.
+A port nets only to a port of the same concrete type and parameters: `+` between two `Power` ports joins them member for member, and `Power + I2C` raises `ValueError: Incompatible ports on Net`. `+` pairs members by name, so cross members named per device: `UART` `tx` to `rx`, `LanePair` `TX` to `RX`. `RGMII` connects by name: `RGMII.Standard.Constraint` pairs `src.TX` with `dst.TX`. SI constraints and topology are `jitx-interconnect-constraints`.
 
 ```python
-# Top-level design (in <ns>/designs/...): symbols are legal here.
-# Net() takes an ITERABLE of ports -- a bare port raises
-# `AttributeError: type object 'Port' has no attribute '__len__'`, so wrap
-# even a single one. The same call is how a whole rail goes on in one line.
-self.my_net = Net([self.a], name="my_net")
-self.VCC = Net([self.power.Vp], name="VCC", symbol=PowerSymbol())
-self.GND = Net([*self.u1.GND, *self.u1.RSVDGND], name="GND")   # 689 balls, one call
+class EthernetPort(Circuit):
+    vin = Power()
+    rgmii = RGMII()
+    miim = MIIM()
+
+    def __init__(self) -> None:
+        self.reg = RegulatorCircuit()
+        self.phy = PhyCircuit()
+        self.jack = RJ45Circuit()
+        self.rails = [self.vin + self.reg.vin, self.reg.vout + self.phy.vin]
+        self.mac_side = [self.rgmii + self.phy.rgmii, self.miim + self.phy.miim]
+        self.mdi = self.phy.mdi + self.jack.mdi
 ```
 
-The first `Net(...)` argument is one iterable of ports, not positional port
-arguments. A named net and a public circuit port also share one namespace, so their
-names must differ. The Step 2 build refuses both an invalid port argument shape and a
-duplicate public name.
+A parent wires its children's boundary ports to each other and to its own. It never reaches into a child's components, and a child never reaches up: a pin the parent needs is a boundary port of the child.
 
-## Net Wiring
-
-Every `a + b` expression creates a Net — it **must** be stored or the connection is lost.
+## Placement
 
 ```python
-# Named nets for power rails — use +=
-self.VCC += self.power.Vp + self.ic.VIN
-self.GND += self.ic.GND + self.power.Vn
-
-# Group anonymous nets by function
-self.feedback_nets = [self.fb_div.out + self.buck.FB]
-self.i2c_nets = [
-    i2c.sda + self.sensor.SDA,
-    i2c.scl + self.sensor.SCL,
-]
-
-# >> topology operator for ordered routing (intermediate nodes are RoutingStructure instances)
-self.topology = self.driver.out >> self.trace >> self.receiver.inp
+self.reg = RegulatorCircuit().at(10, 5, rotate=90)  # fixed, in this circuit's frame
+self.jack = RJ45().at(0, 0, on=Side.Bottom)  # Side from jitx.layerindex
+self.phy = PhyCircuit().at(floating=True)  # Circuit only: placed interactively
 ```
 
-**`+=` takes a port or a `Net`, never a bare list — wrap a rail list in a `Net`.** A component's repeated-name rail (`GND`, `VCCO_*`) is a Python `list` of ports. `Net(...)` accepts an iterable, so there is a one-liner; `+=` does not, so the obvious splice is the thing that breaks:
+A sub-circuit without `.at` sits at its parent's origin on top. Until a placement is stored, a floating circuit sits off the board: routes stay unrealized and pours `Empty()` while the build reports `status: ok`. That trap, relative placement (`Circuit.place`) and code-placed vias are `jitx-physical-layout`.
+
+## Nets
+
+`Net(...)` takes one iterable of ports, so a whole rail goes on in one call; a bare port raises `TypeError`. Name power and ground nets. Net symbols (`PowerSymbol()`, `GroundSymbol()` from `jitxlib.symbols.net_symbols`, as `symbol=` or `net.symbol = ...`) join a rail across schematic pages and belong in the top-level design only: the base skill's grep gates fail them outside `TOP_LEVEL_PATH` (default `designs/`).
+
+`+=` takes a port or a `Net`, never a bare list:
 
 ```python
-self.GND += [*self.u1.GND, *self.u1.RSVDGND]              # WRONG
-
-self.GND = Net([*self.u1.GND, *self.u1.RSVDGND], name="GND")   # RIGHT
-self.GND += Net([*self.u1.GND, *self.u1.RSVDGND])              # RIGHT, onto an existing net
-
-for ball in [*self.u1.GND, *self.u1.RSVDGND]:                  # also fine, just longer
-    self.GND += ball
+self.GND = Net([*self.u1.GND, *self.u1.RSVDGND], name="GND")
+self.GND += [*self.u1.AGND]  # WRONG
+self.GND += Net([*self.u1.AGND])  # RIGHT
 ```
 
-The list is taken as a single item whose type is `list`, and what you get back depends on the net's state: an empty net raises `TypeError: cannot use 'list' as a dict key (unhashable type: 'list')`, one that already carries ports raises `ValueError: Incompatible ports on Net: Port and list`. Both arrive wrapped in `InstantiationException: Failed to instantiate ...`, and neither message names the remedy. It surfaces only at instantiation. On a part with hundreds of ground balls this is the first thing you write.
+Pyright reports `Operator "+=" not supported` and instantiation raises `InstantiationException` wrapping `ValueError: Incompatible ports on Net: Port and list`. Onto an empty `Net(name="GND")` pyright is silent, a `TestCase` passes, and the build fails with `TypeError: unhashable type: 'list'`.
 
-### Asserting connectivity in tests — iterate the net, don't use `in`
+### Asserting connectivity in tests
 
-Connectivity is the one property neither pyright nor a build reliably catches, so it belongs in a test — and `jitx.test.TestCase` activates the instantiation context with no runtime and no parts database, so those tests run offline.
-
-Write the membership assertion over `list(net)`, not with `in`:
+Assert membership over `list(net)`, never with `in`: `Net.__contains__` stops at the first nested net, so a port after it reports `False`. Count too: `len(list(net))` catches a rail that lost balls:
 
 ```python
-self.assertIn(self.u1.VCCINT[0], list(circuit.V1V0))   # RIGHT
-self.assertIn(self.u1.VCCINT[0], circuit.V1V0)         # can false-negative
+self.assertIn(self.u1.VCCINT[0], list(circuit.V1V0))
+self.assertEqual(len(list(circuit.GND)), 30)
 ```
 
-`Net.__contains__` disagrees with `Net.__iter__` on any net that has absorbed **another net**: a port reachable by iteration reports `False` for `in`. Verified on 4.4.0 — `__contains__` walks the net's members and, on reaching the first nested net, *returns* that sub-net's answer instead of continuing, so every member after the first nested net is invisible to `in`. What decides it is position, not hierarchy: the same net built in the other order answers correctly, and a merge inside a single circuit breaks exactly like a cross-circuit one. Iterating is correct in every case, so there is no reason to reach for `in` here.
-
-Count as well as contain — `len(list(net))` against the number of ports you expect is what catches a rail that lost half its balls, and a membership check on its own cannot.
-
-## Removing Components and Leaving Pins Unconnected
-
-An application-level pin that is deliberately not connected is left unreferenced: no
-`Net`, `insert()`, or topology expression includes that component `Port`. Removing a
-component also removes its stored `self.<name>` member and every connection that
-references it. The next build can report the removed instance and request confirmation
-before deleting attached objects. The edit does not pass Step 3 until the generated
-netlist shows the intended pin on no net, the removed instance absent, and an unchanged
-connected pin as a positive control.
+A bundle net lists its bundles. Assert that, then assert inside each child that its boundary member reaches the component pin.
 
 ## Passives
 
+`Resistor`, `Capacitor` and `Inductor` from `jitxlib.parts` take `jitx.units` quantities (a bare number is ohms, farads or henries). Bounds are `AtLeast` and `AtMost` from `jitxlib.parts`; a bare value is an exact match. The project's provider chain resolves them: base skill Install Step 2 and [Parts and Providers](https://docs.jitx.com/en/latest/essentials/design/parts.html).
+
+Filter only on columns the approved CSV has, with bounds its rows meet: read it first. A query the CSV cannot meet (`tolerance=AtMost(0.01)` on an X7R whose rows are 10 to 20 percent) falls through to `ideal`, which returns an `IDEAL-` part honoring only value, case, tolerance and polarization: dielectric and ratings are silently dropped. Where the CSV lacks a column or row the design needs, ask for it rather than writing the key.
+
+State what the circuit depends on:
+
+- `tolerance=AtMost(0.01)` on every resistor whose value matters; a capacitor tolerance only where the circuit needs one.
+- `temperature_coefficient_code="X7R"` (or `"X5R"`, `"C0G"`) on every ceramic. Unconstrained, Y5V or Z5U can come back.
+- `rated_voltage_dc=AtLeast(...)` derated for DC bias: 10 V or 16 V on a 3.3 V rail.
+- `max_power=AtLeast(...)` on a resistor that dissipates.
+
+Leave `case=` off each passive, never a proxy for a power or voltage rating. Where the assembler sets a minimum package, state it once as a default query on the `Design` (`ResistorQuery` and `CapacitorQuery` from `jitxlib.parts`) listing every package it accepts, smallest up; one left off is excluded:
+
 ```python
-from jitx.interval import AtLeast
-from jitxlib.parts import Resistor, Capacitor, Inductor
-
-# ALWAYS assign to self — anonymous Component().insert() fails at build time
-self.r_sense = Resistor(resistance=0.1)
-self.r_sense.insert(self.power.Vp, self.sense_out)
-
-# Power-rail caps use short_trace=True (see "short_trace=True is the default
-# for power-rail capacitors" below).
-self.c_bypass = Capacitor(capacitance=100e-9)
-self.c_bypass.insert(self.ic.VCC, self.ic.GND, short_trace=True)
-
-# With datasheet parameters. Rating floors use AtLeast, not a scalar exact match.
-self.c_bulk = Capacitor(
-    capacitance=10e-6,
-    rated_voltage=AtLeast(10.0),
-    temperature_coefficient_code="X7R",
-)
-self.c_bulk.insert(self.ic.VCC, self.ic.GND, short_trace=True)
-
-self.inductor = Inductor(inductance=4.7e-6, current_rating=AtLeast(3.0))
+class Board(Design):
+    resistor_defaults = ResistorQuery(case=["0402", "0603", "0805", "1206", "1210"])
+    capacitor_defaults = CapacitorQuery(case=["0402", "0603", "0805", "1206", "1210"])
 ```
 
-Calculated passive values must land on a real series value; name the series you used (E96 unless the request says otherwise). E96 mantissas, times a power of ten: 100, 102, 105, 107, 110, 113, 115, 118, 121, 124, 127, 130, 133, 137, 140, 143, 147, 150, 154, 158, 162, 165, 169, 174, 178, 182, 187, 191, 196, 200, 205, 210, 215, 221, 226, 232, 237, 243, 249, 255, 261, 267, 274, 280, 287, 294, 301, 309, 316, 324, 332, 340, 348, 357, 365, 374, 383, 392, 402, 412, 422, 432, 442, 453, 464, 475, 487, 499, 511, 523, 536, 549, 562, 576, 590, 604, 619, 634, 649, 665, 681, 698, 715, 732, 750, 768, 787, 806, 825, 845, 866, 887, 909, 931, 953, 976.
+A part's `query=` object or a `with` block replaces the whole default; its keywords add to it.
 
-For a divider: pick the bottom resistor from the current budget and snap it to the series, compute the top from the datasheet equation and snap it, then recompute the output. Its worst-case error is the rounding error, plus each resistor's tolerance times (1 - Vref/Vout), plus the reference's datasheet accuracy; state it against the rail's tolerance requirement.
+## Decouple against the pins
 
-### Constrain the query, or the database picks for you
+A power-rail capacitor is its own attribute on `self`, its supply-side pad joins the pin it serves through `ShortTrace(self.c_x.p1, <the IC power pin port>)` and its other pad joins the return net. `jitx.net.ShortTrace(p1, p2)` takes two ports, each a component pin or a boundary port: never a net (pyright rejects one) or a net's `.port` (pyright passes; translation fails).
 
-A `Capacitor(...)` / `Resistor(...)` query returns *some* part matching what you stated, so every axis you leave open is an axis the database decides. Two are routinely forgotten and both change the circuit:
+This covers decoupling, bulk (to the supply pin it serves nearest) and output-filter capacitors (to the regulator output pin); a `PolarizedCapacitor` uses `.a`. A bootstrap capacitor takes a `ShortTrace` to its BOOT pin, other pad to SW per the datasheet; a crystal load capacitor takes one to its crystal pin, other pad to the return net. AC-coupling, RC timing, compensation and RF matching capacitors are not power-rail; say so for each.
 
-- **`tolerance=`** — every passive takes it as a scalar that selects one tolerance grade exactly (`tolerance=0.01` is the ±1 % grade); unstated, a ±20 % part satisfies a query written for a ±1 % job. For "this tolerance or better" use the two bounds `tolerance_min=AtLeast(-x)`, `tolerance_max=AtMost(x)` (below).
-- **`temperature_coefficient_code=`** (`"X7R"`, `"X5R"`, `"C0G"`) — **capacitors only**; unstated, a decoupling query can return **Y5V or Z5U**, which lose most of their capacitance across temperature and DC bias. A 100 nF Y5V at half its rated voltage is not a 100 nF cap.
-
-The temperature axis is not one field across the passives — it is named per part type, so the second bullet does not transfer. On 4.4.0, `tolerance` sits on the shared passive query; `temperature_coefficient_code` sits on the capacitor query alone, and a resistor's temperature behaviour is `tcr_pos` / `tcr_neg` in ppm/°C. Inductors have neither. Passing a capacitor's field to a resistor query states nothing and constrains nothing.
-
-So: state a tolerance on every passive whose value matters (a grade with `tolerance=`, or bounds with `tolerance_min`/`tolerance_max`), add `temperature_coefficient_code=` to every ceramic, and add `tcr_pos=` / `tcr_neg=` to a resistor whose drift is part of the design (a divider setting a regulator's feedback, a current-sense shunt). Rate ceramics with derating in mind — a 6.3 V X7R on a 3.3 V rail has already lost a third of its capacitance to DC bias, so 10 V or 16 V is the honest choice.
-
-### Decouple against the pins, and scale with the pin count
-
-A rail's decoupling is not one bank at the regulator. Two caps hung off a 96-ball core net are two caps for ninety-six balls, and `short_trace=True` cannot help — there are ninety-six places to be short to, so the router picks one.
-
-Loop over the ball list and insert against the balls — storing each cap, because an anonymous `Capacitor(...).insert(...)` fails at build time (see "ALWAYS assign to self" above). A list attribute is the one place to put a generated bank:
+Scale with the pin count, never two caps for a 96-ball core net:
 
 ```python
 self.c_vccint = [
-    Capacitor(capacitance=100e-9, rated_voltage=AtLeast(10.0),
-              temperature_coefficient_code="X7R")
+    Capacitor(capacitance=100 * nF, rated_voltage_dc=AtLeast(10 * V), temperature_coefficient_code="X7R")
     for _ in fpga.VCCINT
 ]
-for cap, ball in zip(self.c_vccint, fpga.VCCINT):
-    cap.insert(ball, self.GND, short_trace=True)
-```
-
-One HF cap per one-or-two core balls, plus bulk per rail, is the ordinary starting point; fewer is a decision to state, not a default to fall into. If a placeholder is genuinely intended, say so *and* say what the real count should be.
-
-### Extract the repeated block at the second instance
-
-Three regulator stages that differ only in output voltage are one `Circuit` subclass instantiated three times, not three copies. Same for per-rail decoupling banks. The test is mechanical: if two blocks differ only in their arguments, they are one subcircuit with a parameter — and a difference the copies have drifted apart on is the bug this rule exists to prevent.
-
-### Passive query constraints
-
-An unconstrained passive query selects the smallest matching physical part. A clean
-build can therefore contain 009005, 01005, or signal-grade 0201 parts that the target
-assembly process cannot place. Put the query on the design as a class attribute named `resistor_query`,
-`capacitor_query` or `inductor_query`: the framework activates any class attribute
-holding a query object regardless of its name, so the names are a convention that
-gives the selection policy one obvious home. Resistor and capacitor defaults constrain `mounting` and
-`case` to the declared assembly capability. An inductor query does not use the same
-chip-size ceiling because power inductors can be larger; each inductor instead carries
-the applicable current and saturation requirements from its datasheet. Step 2 refuses
-to proceed until the resolved package and electrical ratings satisfy those constraints.
-
-A scalar on a numeric query field is an exact match, not a floor: the serializer sends
-a bare value as an equality test and an interval as `min-<field>`/`max-<field>`.
-Minimum ratings use `AtLeast(value)`.
-
-What a bound cannot do is filter on a rating the catalogue does not record. Resistor rows
-have been observed carrying `rated_power: None`, and an inductor `saturation_current`
-bound has been observed returning nothing at values real parts meet. A field the database
-leaves null cannot be compared against, so the bound narrows nothing there rather than
-being ignored. Express the requirement in the query anyway, and additionally verify
-dissipation and saturation against the resolved MPN's datasheet: the query is a filter
-over catalogue scalars with no min/typ/max provenance, not a substitute for reading the
-part's rating. `case` and `mounting` filter reliably. A maximum magnitude tolerance does not use `tolerance=AtMost(...)`
-or `precision=...`; on 4.4.0 those fields take only a scalar and select one grade exactly. It uses both bounds:
-
-```python
-from jitx.interval import AtLeast, AtMost
-from jitxlib.parts import ResistorQuery
-
-feedback_query = ResistorQuery(
-    case=("0402", "0603"),
-    tolerance_min=AtLeast(-0.01),
-    tolerance_max=AtMost(0.01),
-)
-```
-
-The installed field list lives in `jitxlib/parts/query_api.py`.
-Every passive characteristic specified by the datasheet appears in the query or in a
-page-cited comment beside the query when the catalogue cannot express it. For each new
-query term, Step 2 first tightens that term to an impossible bound and requires the
-build to fail, then restores the intended bound and rebuilds. A term that cannot be
-made to reject all candidates has not been shown to bind.
-
-### `short_trace=True` is the default for power-rail capacitors
-
-Every capacitor `.insert(...)` call on a power rail, including decoupling, bypass,
-bulk, and output filter capacitors, **must** pass `short_trace=True`. The router uses this to minimize the trace
-length between the cap and its connected ports, which is what makes the cap actually
-decouple. Without it, the router may place a 0402 100 nF cap 20 mm from the IC and
-route through vias, defeating the purpose.
-
-**So `pin_a` must be a `Port`, not a `Net`** — and this is the trap, because `insert`'s own signature says `pin_a: Port | Net` and accepts a net happily until you turn `short_trace` on:
-
-```python
-cap.insert(self.VCC_net, self.GND_net, short_trace=True)   # WRONG -- pin_a is a net
-# ValueError: Cannot make a shortrace with a net. Give a port to Capacitor.insert's pin_a.
-
-cap.insert(self.ic.VCC, self.GND, short_trace=True)        # RIGHT -- pin_a is the pin it serves
-cap.insert(self.ic.VCC, self.ic.GND, short_trace=True)     # RIGHT -- both ends pinned
-```
-
-That is not a technicality. A short trace is an instruction about *where to put this cap*, and a net has no position — only the pin it decouples does. So the rule "always `short_trace=True`" and the rule "insert against the served component's pins" are the same rule: a rail-centric circuit that ties everything to nets first and inserts caps against those nets cannot decouple anything, and fails at instantiation rather than silently.
-
-**Which end gets checked is the `short_trace` value, and `True` is not "both".** `short_trace=True` resolves to `TwoPinShortTrace.SHORT_TRACE_ANODE`, so only `pin_a` is required to be a port and `pin_b` may stay a net — which is why the ground side reads `self.GND` throughout this section. Pass the enum when you want the other end held too:
-
-| value | `pin_a` must be a Port | `pin_b` must be a Port |
-|---|---|---|
-| `short_trace=True` (= `SHORT_TRACE_ANODE`) | yes | no |
-| `SHORT_TRACE_CATHODE` | no | yes |
-| `SHORT_TRACE_BOTH` | yes | yes |
-| `short_trace=False` (= `SHORT_TRACE_NEITHER`) | no | no |
-
-The enum is `from jitxlib.parts.query_api import TwoPinShortTrace` — it is not re-exported from `jitxlib.parts`, so the short import fails. Reach for `SHORT_TRACE_BOTH` when the cap sits between two pins that both need the short hop — a bypass across a regulator's own IN/GND, say — and leave the default when one end is a plane.
-
-```python
-# DEFAULT — every power-rail cap
-self.c_bulk = Capacitor(capacitance=10e-6, rated_voltage=AtLeast(10.0))
-self.c_bulk.insert(self.ic.VCC, self.GND, short_trace=True)
-
-self.c_hf = Capacitor(capacitance=100e-9, rated_voltage=AtLeast(10.0))
-self.c_hf.insert(self.ic.VCC, self.GND, short_trace=True)
-```
-
-**Exceptions** (caps where `short_trace=True` is NOT used — placement is part of the design):
-
-- AC coupling caps in signal paths (e.g., audio out, USB SS data) — placement is symmetric to the trace topology
-- RC time-constant caps (reset RC, soft-start, debounce) — value determines behavior, placement isn't the constraint
-- Compensation network caps in switching regulator feedback loops — datasheet defines layout near the FB pin
-- RF matching, coupling, or shunt caps (LNA input network, antenna feed) — placement is bookend-specific per the impedance budget
-- Crystal load caps — placed per the crystal datasheet, not as decoupling
-
-The `short_trace=True` rule is gated at the Phase 2 → Phase 3 exit. `python <project>/scripts/grep_gates.py <ns>/` — the copy the base `jitx` skill's "Writing good code" has you place — flags every `.insert(...)` call missing `short_trace=` as review-required; the agent dispositions each: fix (add `short_trace=True`) for power-rail caps, accept-with-rationale (`exception: AC coupling`, `exception: RC time constant`, etc.) for non-power-rail caps, or N/A (`not a capacitor — resistor insert`).
-
-The skill also documents `ShortTrace(p1, p2)` as an alternative connect-with-short-trace primitive — see https://docs.jitx.com/en/latest/api/jitx.net.html#jitx.net.ShortTrace.
-
-
-## Advanced Patterns
-
-For query refinement, pours, copper geometry,
-placement, and a complete application circuit example, see
-[references/advanced-patterns.md](references/advanced-patterns.md).
-
-For the *deep* treatment of physical layout authoring — custom shapes with shapely,
-`OverlappableCopper` (antennas / filters / net-ties), pad features (soldermask / paste /
-thermal pad), code-placed vias and routes, and layout-intent tags — invoke the
-**jitx-physical-layout** subskill (the `jitx-physical-layout` skill). The
-Pours / Copper Geometry / Placement sections below are the basics.
-
-### Provider / Require Patterns
-
-For all `@provide` / `@provide.one_of` / `@provide.subset_of` / `Provide()` / `require()` patterns, see the **jitx-pin-assignment** skill. Invoke the `jitx-pin-assignment` skill.
-
-### `net.symbol` — Net Symbols
-
-Another option to provide a symbol on a net (if not done at Net() creation definition) is to assign to the `.symbol` attribute, never use `insert()` or `+=`. Same top-level restriction as above — only in `TOP_LEVEL_PATH` (default `designs/`):
-
-```python
-# Top-level design only.
-self.GND = Net(name="GND")
-self.GND.symbol = GroundSymbol()  # attribute assignment, NOT insert()
-```
-
-## Verification Process
-
-### Step 1: Type Check
-```bash
-pyright path/to/circuit.py
-```
-Fix all import and type errors before proceeding. Ignore errors about `.prebuilt_components` relative imports — but always use the relative form (`from .prebuilt_components import ...`) since absolute imports fail at build time.
-
-### Step 2: Build and Part-Selection Test
-
-Create a test harness to verify the circuit builds with the JITX backend (utilizing the required virtual environment):
-
-```python
-# design.py
-from jitx.container import inline
-from jitx.sample import SampleDesign
-from jitxlib.parts import ResistorQuery, CapacitorQuery, InductorQuery
-
-from .circuit import Device
-
-class TestDesign(SampleDesign):
-    resistor_query = ResistorQuery(
-        mounting="smd",
-        case=("0402", "0603", "0805"),
-    )
-    capacitor_query = CapacitorQuery(
-        mounting="smd",
-        case=("0402", "0603", "0805", "1206"),
-    )
-    # A generic chip-case ceiling is unsafe for power inductors. Each inductor
-    # carries any required AtLeast current and saturation bounds in the circuit.
-    inductor_query = InductorQuery(mounting="smd")
-
-    @inline
-    class circuit(Device):
-        pass
-```
-
-```bash
-jitx build <module>.design.TestDesign
-```
-
-Don't run parallel JITX builds against the same project — sequence them. See [Build safety: don't parallelize same-design work](../jitx/SKILL.md#build-safety-dont-parallelize-same-design-work).
-
-`status: ok` proves that the selected part exists, not that it is assemblable or
-electrically suitable. After every passive-query change, Step 2 inspects the resolved
-part records and refuses to proceed until each affected position has a recorded MPN,
-package or case within the declared assembly capability, datasheet electrical ratings,
-and unit price. A changed query can select a different or much more expensive first
-result because catalogue ranking is not stated or cost-aware.
-
-Catalogue search helpers run only while a JITX design is being instantiated. A
-read-only query probe therefore lives in a throwaway `SampleDesign` or `Circuit` file
-and runs as a build:
-
-```bash
-PYTHONPATH=/tmp jitx build /tmp/probe.py --project <project-root>
-```
-
-The probe directory must be on `PYTHONPATH`. The first resolved row remains useful for
-an MPN spot-check, but cached `parts-db/` results cannot support candidate-count claims
-because the cache key omits the query limit. Step 2 rejects a candidate count unless it
-comes from `jitxlib.parts.dbquery` with `jitxlib.parts.query_api.extract` and
-`skip_cache=True`.
-
-**If a `build_test` helper is available** (e.g., in the skill_eval package), it can
-replace the build command only when it exercises the same design context. It does not
-replace the resolved-part audit.
-```bash
-python -m skill_eval.build_test path/to/circuit.py
-```
-
-### Step 3: Verify Connectivity
-
-After every wiring, insertion, removal, or deliberate-NC edit, Step 3 reads
-`<design-output>/cache/netlist.json`. The file is a top-level JSON list with this shape:
-
-```json
-[
-  {"name": "VCC", "pins": ["dut.u1.VCC", "dut.c1.p1"], "requires": []}
+self.c_vccint_st = [
+    ShortTrace(c.p1, ball) for c, ball in zip(self.c_vccint, fpga.VCCINT, strict=True)
 ]
+self.GND += Net([c.p2 for c in self.c_vccint])
 ```
 
-Pins use dotted instance paths. The check asserts every intended membership and
-non-membership, plus at least one known connected pin as a positive control. For a
-removal, it also compares the pre-edit and post-edit netlists so unrelated nets remain
-unchanged. The task refuses completion if the netlist is missing, an assertion fails,
-or the only evidence is `status: ok`.
+Start at one HF cap per one or two core balls plus bulk per rail; fewer is a decision to state, with the count the design wants.
 
-### Step 4: Fix Build Errors
+## Extract the repeated block at the second instance
 
-If the build fails:
-1. Read the traceback — the error message and the line number in the code indicate what went wrong
-2. Look up the class or method that failed in source with your **Grep** tool (pattern `def method_name|class ClassName`, path `.venv`, glob `*.py`); it recurses and is OS-agnostic. Shell fallback: bash `grep -rn "def method_name\|class ClassName" .venv/lib/python*/site-packages/jitx*/` (macOS/Linux); on Windows use the Grep tool, or `Select-String` over `.venv\Lib\site-packages\jitx*`.
-3. Fix the code, re-run pyright, then re-run the build. Repeat until it passes.
-
-## Formatting
-
-Format all generated circuit code with ruff:
-
-```bash
-ruff format path/to/file.py
-```
+Blocks that differ only in their arguments are one subcircuit with a parameter: three regulator stages differing in output voltage are one `Circuit` subclass instantiated three times.

@@ -65,5 +65,160 @@ class GrepGateTraversalTests(unittest.TestCase):
         self.assertNotIn("PASS (hard-fail set clean)", result.stdout)
 
 
+SHORT_TRACE_LABEL = "(power-rail cap rule)"
+
+
+def run_gates(files: dict[str, str]) -> subprocess.CompletedProcess[str]:
+    """Write `files` into a fresh source tree and run the gates over it."""
+    with tempfile.TemporaryDirectory(prefix="grep-gates-test-") as temporary:
+        for name, text in files.items():
+            path = Path(temporary) / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8")
+        return subprocess.run(
+            [sys.executable, str(SCRIPT), temporary],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+
+def shorttrace_gate_hits(result: subprocess.CompletedProcess[str]) -> list[str]:
+    """The hit lines listed under the power-rail capacitor gate, if it fired."""
+    lines = result.stdout.splitlines()
+    for index, line in enumerate(lines):
+        if line.lstrip().startswith("HIT") and SHORT_TRACE_LABEL in line:
+            return [
+                hit.strip() for hit in lines[index + 1 :] if hit.startswith("      ")
+            ]
+    return []
+
+
+DECOUPLED = """\
+from jitx.net import Net, ShortTrace
+from jitxlib.parts import Capacitor
+
+
+class Rail(Circuit):
+    def __init__(self) -> None:
+        self.c_vdd = Capacitor(capacitance=100e-9 * F)
+        self.nets = [
+            ShortTrace(self.c_vdd.p1, self.ic.VDD),
+            Net([self.c_vdd.p2, self.gnd]),
+        ]
+"""
+
+UNDECOUPLED = """\
+from jitx.net import Net
+from jitxlib.parts import Capacitor
+
+
+class Rail(Circuit):
+    def __init__(self) -> None:
+        self.c_vdd = Capacitor(capacitance=100e-9 * F)
+        self.nets = [Net([self.c_vdd.p1, self.ic.VDD]), Net([self.c_vdd.p2, self.gnd])]
+"""
+
+
+class PowerRailCapacitorGateTests(unittest.TestCase):
+    def test_capacitor_without_shorttrace_is_review_hit(self) -> None:
+        result = run_gates({"rail.py": UNDECOUPLED})
+        hits = shorttrace_gate_hits(result)
+        self.assertEqual(len(hits), 1, result.stdout)
+        self.assertIn("rail.py:7:", hits[0])
+        self.assertIn("review-required hits: 1", result.stdout)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_capacitor_with_shorttrace_in_file_passes(self) -> None:
+        result = run_gates({"rail.py": DECOUPLED})
+        self.assertEqual(shorttrace_gate_hits(result), [], result.stdout)
+        self.assertIn("review-required hits: 0", result.stdout)
+
+    def test_shorttrace_only_in_a_comment_does_not_count(self) -> None:
+        text = UNDECOUPLED.replace(
+            "class Rail", "# decouple with ShortTrace(self.c_vdd.p1, pin)\nclass Rail"
+        )
+        result = run_gates({"rail.py": text})
+        self.assertEqual(len(shorttrace_gate_hits(result)), 1, result.stdout)
+
+    def test_shorttrace_is_judged_per_file(self) -> None:
+        result = run_gates({"a_rail.py": DECOUPLED, "b_rail.py": UNDECOUPLED})
+        hits = shorttrace_gate_hits(result)
+        self.assertEqual(len(hits), 1, result.stdout)
+        self.assertIn("b_rail.py:7:", hits[0])
+
+    def test_other_capacitor_names_and_inserts_are_not_hits(self) -> None:
+        text = (
+            "class BlockingCapacitor(jitx.Component):\n"
+            "    pass\n"
+            "self.cap = BlockingCapacitor(100e-9)\n"
+            "class Capacitor(jitx.Component):\n"
+            "    pass\n"
+            "caps = [c for _, c in rd.query(Capacitor)]\n"
+            "self.insert(via)\n"
+        )
+        result = run_gates({"other.py": text})
+        self.assertEqual(shorttrace_gate_hits(result), [], result.stdout)
+        self.assertNotIn(".insert(", result.stdout)
+        self.assertIn("review-required hits: 0", result.stdout)
+
+    def test_no_insert_gate_remains(self) -> None:
+        # jitxlib-parts 2.x has no `.insert`; an unassigned passive whose ports
+        # join a net fails the build, so a source pattern for it is not a gate.
+        text = "Resistor(resistance=10e3).insert(mcu.NRST, v3v3)\n"
+        result = run_gates({"legacy.py": text})
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("hard-fail hits: 0", result.stdout)
+        self.assertNotIn(".insert(", result.stdout)
+
+    def test_partial_decoupling_is_a_hit(self) -> None:
+        # One capacitor on a ShortTrace does not clear two that are not.
+        text = DECOUPLED + (
+            "        self.c_a = Capacitor(capacitance=1e-6 * F)\n"
+            "        self.c_b = Capacitor(capacitance=1e-6 * F)\n"
+        )
+        result = run_gates({"rail.py": text})
+        hits = shorttrace_gate_hits(result)
+        self.assertEqual(len(hits), 3, result.stdout)
+        self.assertIn("review-required hits: 3", result.stdout)
+
+    def test_shorttrace_in_strings_and_trailing_comments_does_not_count(self) -> None:
+        text = UNDECOUPLED.replace(
+            "class Rail(Circuit):\n",
+            "class Rail(Circuit):\n"
+            '    """Decouple with ShortTrace(self.c_vdd.p1, pin)."""\n'
+            '    NOTE = "ShortTrace(a, b)"\n',
+        ).replace(
+            "self.c_vdd = Capacitor(capacitance=100e-9 * F)",
+            "self.c_vdd = Capacitor(capacitance=100e-9 * F)  # ShortTrace(p1, pin)",
+        )
+        result = run_gates({"rail.py": text})
+        self.assertEqual(len(shorttrace_gate_hits(result)), 1, result.stdout)
+
+    def test_polarized_capacitor_is_checked(self) -> None:
+        text = (
+            "class Rail(Circuit):\n"
+            "    def __init__(self) -> None:\n"
+            "        self.c_bulk = PolarizedCapacitor(capacitance=100e-6 * F)\n"
+            "        self.nets = [Net([self.c_bulk.a, self.vin])]\n"
+        )
+        result = run_gates({"rail.py": text})
+        hits = shorttrace_gate_hits(result)
+        self.assertEqual(len(hits), 1, result.stdout)
+        self.assertIn("rail.py:3:", hits[0])
+
+    def test_comprehension_counts_call_sites(self) -> None:
+        text = (
+            "class Bank(Circuit):\n"
+            "    def __init__(self) -> None:\n"
+            "        self.caps = [Capacitor(capacitance=22e-6 * F) for _ in pins]\n"
+            "        self.traces = [\n"
+            "            ShortTrace(c.p1, pin) for c, pin in zip(self.caps, pins)\n"
+            "        ]\n"
+        )
+        result = run_gates({"bank.py": text})
+        self.assertEqual(shorttrace_gate_hits(result), [], result.stdout)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

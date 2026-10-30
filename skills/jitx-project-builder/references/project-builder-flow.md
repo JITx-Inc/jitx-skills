@@ -66,7 +66,7 @@ Every transition above runs through `python scripts/plan_status.py <task-id> <st
 
 5. **Assess substrate needs**: based on interface speeds, routing density, and component package complexity (e.g., high-pin-count BGAs require more layers), determine layer count, material class, and via technology. **Ask the user which fab house they are targeting.** If they confirm JLCPCB and need standard 4-layer or 6-layer FR-4 with 50/90/100 ohm impedance, predefined substrates from `jitxlib.jlcpcb` (JLC04161H_1080, JLC04161H_7628, JLC06161H_7628) are available — no substrate *modeling* is needed, and sub-01 narrows to selection and verification rather than disappearing. Otherwise, create a custom substrate (the default path).
 
-6. **Data source audit**: for every component, identify where its data will come from. Present a table to the user for approval **before proceeding**. See the Data Source Audit section below.
+6. **Data source audit**: for every component, identify where its data will come from, and ask for the user's approved-parts list for passives. Present a table to the user for approval **before proceeding**. See the Data Source Audit section below.
 
 7. **Decompose into tasks**: follow `references/decomposition-guide.md` to create the task graph.
 
@@ -109,12 +109,42 @@ Please confirm data sources or provide alternatives (datasheets, footprints, spe
 - For non-standard packages, ask the user if they have a `.kicad_mod` before looking for the manufacturer's KiCad library
 - Do NOT proceed past the data audit until the user approves the data source plan
 
+### Approved passives
+
+Passives resolve from the project's parts chain, and its first member reads `parts/approved-parts.csv` (base `jitx` skill, Step 2). Ask the user for their approved-parts list at the audit: a CSV whose header names `category`, `mpn`, `manufacturer`, then one column per attribute a query filters on (`capacitance`, `case`, `rated_voltage_dc`, ...), or an internal parts database a `jitxlib.parts.Provider` can serve. Save a CSV to `parts/approved-parts.csv`; a database goes into the chain in place of the `csv:` entry. Format and the provider route: https://docs.jitx.com/en/latest/essentials/design/parts.html
+
+With no list from the user, copy the example CSV that ships in `jitxexamples` as a stand-in. Install it into the project venv once with `--no-deps`, so its own pins cannot replace the project's `jitx` or `jitxlib-parts`; it is not added to the project's dependencies:
+
+```bash
+pip install --no-deps --upgrade jitxexamples
+mkdir -p parts
+python -c "import importlib.resources as r, shutil; shutil.copy(r.files('jitxexamples') / 'parts' / 'example-passives.csv', 'parts/approved-parts.csv')"
+```
+
+If the copy raises `FileNotFoundError`, the installed `jitxexamples` predates the packaged example CSV: ask the user for a parts list instead.
+
+Tell the user the list is a stand-in and record it in PLAN.md `Data Sources`. A stand-in is not an approval: the Phase 4 parts gate lists every MPN the final build resolved, each with the user's approval quoted, or the user's list replaces the stand-in. Read that list from the final build. Not from `parts.lock.json`: the lock never prunes, so it still holds stale entries, `IDEAL-` parts included. Not from `parts-check` either: it prints counts, not MPNs. Start `jitx design session <design>` in the background (it prints nothing until stopped), then:
+
+```bash
+jitx design exec <design> -c '
+from jitx.inspect import extract
+from jitxlib.parts import DeferredPart
+def main(design):
+    return sorted({part.mpn for part in extract(design.root, DeferredPart)})'
+jitx design session --stop <design>
+```
+
+It prints the MPNs as a JSON list, the parts the chain resolved and no modeled components. If `exec` reports `message could not be delivered`, the session is not up yet: run it again. If the background session has exited, read its output, fix the error it reports, and start the session again.
+
+When the user's list replaces the stand-in, tell the user every passive will be chosen again, delete `parts.lock.json` (the lock keys a CSV on its path, so a file overwritten in place re-resolves nothing), rebuild, and update the `Data Sources` row. That whole-lock delete is the re-resolve the user asked for; nothing else deletes the whole lock. After a row is added for a part that resolved `IDEAL-`, remove the lock's stale entries, then run `prune_lock.py` with `--unpin <IDEAL- MPN>` and rebuild: the lock keeps the ideal part it pinned until it is unpinned, and every other part stays pinned. Both procedures, and the stale-entry cleanup: base `jitx` skill [`references/parts-lock.md`](../../jitx/references/parts-lock.md).
+
 ### Exit Gate: Phase 0 → Phase 1
 
 - [ ] PLAN.md exists with all tasks defined
 - [ ] ARCHITECTURE.md exists with power tree and interface map
 - [ ] No duplicated facts remain; task statuses reconcile with unresolved questions and task inputs and dependencies, including transitive blockers — either discrepancy blocks advancement per `completion-blocks.md`
 - [ ] Data source audit completed and user approved
+- [ ] `parts/approved-parts.csv` holds the user's approved-parts list, or the example stand-in recorded as such in PLAN.md (or the chain names the user's parts database)
 - [ ] All datasheets and reference materials identified and accessible (or user committed to providing them)
 - [ ] Dependencies are acyclic
 - [ ] No ambiguous requirements remain (ask user if unclear)
@@ -190,8 +220,8 @@ Subcircuits that expose bundles (I2C, ULPI, USB2, etc.) for any signal that will
 - [ ] Provide/require interfaces are consistent across wrapper and consuming circuits
 - [ ] **Interface circuits expose bundle-typed ports** (I2S, I2C, SPI, USB2, GPIO, Power) — not individual signal ports. If a circuit wraps individual-pin components, the bundle wiring happens inside the circuit.
 - [ ] **For any signal that will receive an SI constraint at top level, the subcircuit's bundle wiring uses `>>` (not `+`)** between component pins and bundle sub-ports — see [Topology vs net membership (CRITICAL)](#topology-vs-net-membership-critical)
-- [ ] **No anonymous `Resistor` / `Capacitor` / `Inductor` `.insert(...)` calls and no bare `+` / `>>` expressions** in the subcircuit; every structural object is stored on `self` (see [Silent-drop patterns (CRITICAL)](#silent-drop-patterns-critical)). The `grep gates` line from `python scripts/check.py <ns>/` enforces this rule; hard-fail hits block this gate.
-- [ ] **Every power-rail capacitor `.insert(...)` call uses `short_trace=True`** for decoupling, bypass, bulk, and output filter capacitors. Non-power-rail caps (AC coupling, RC time constants, RF matching, compensation, crystal load) and non-cap inserts (resistors, inductors) are dispositioned in the task acceptance block as exceptions or N/A. See `jitx-circuit-builder/SKILL.md` "short_trace=True is the default for power-rail capacitors". The `grep gates` line from `python scripts/check.py <ns>/` flags every `.insert(...)` missing `short_trace=` as review-required.
+- [ ] **Every passive is an attribute on `self`, and no bare `+` / `>>` expressions** in the subcircuit (see [Silent-drop patterns (CRITICAL)](#silent-drop-patterns-critical)). The `grep gates` line from `python scripts/check.py <ns>/` flags bare expressions as review-required.
+- [ ] **Every power-rail capacitor is on a `ShortTrace`**: a decoupling, bypass, bulk or output filter capacitor is its own attribute on `self`, its supply-side pad joins the pin it serves through `ShortTrace(self.c_x.p1, <the IC power pin port>)` (`self.c_x.a` on a `PolarizedCapacitor`) and its other pad joins the return net (`jitx-circuit-builder`). AC coupling, RC timing, compensation and RF matching caps are dispositioned in the task acceptance block as not power-rail. A crystal's load caps take a `ShortTrace` to the crystal pin they serve, and a bootstrap cap takes a `ShortTrace` to its BOOT pin with its other pad on SW; neither is an exception. The `grep gates` line counts, per file, `Capacitor(` and `PolarizedCapacitor(` call sites against `ShortTrace(` call sites (comments and strings never count) and flags every capacitor call line in a file where capacitors outnumber short traces as review-required.
 - [ ] Port names and bundle types match between providers and consumers
 - [ ] Power circuit outputs match the voltage/current needs documented in ARCHITECTURE.md
 
@@ -222,7 +252,7 @@ A single sub-agent assembles the top-level design. The orchestrator reviews its 
    ```
    NEVER hardcode GPIO numbers. If a downstream circuit has individual ports instead of a bundle, wire the required bundle's sub-ports to them. Use `>>` topology for SI-constrained signals.
 6. Add shared-bus components at the **bus-aggregation level** — the level where the bus is composed across multiple participants (master + slaves). Most of the time that's the top-level design here, because typical buses span subcircuits (MCU subcircuit talks to amp + sensor subcircuits). But if a single subcircuit aggregates an entire bus internally (e.g. a sensor-hub subcircuit containing master + 4 sensors all on one private I2C), the pull-ups belong inside that subcircuit. The rule is bus scope, not file location.
-   - **I2C pull-ups** — one set per bus, placed at the level that composes the bus, to the correct voltage rail (usually 3.3V)
+   - **Shared-bus (I2C, MDIO) pull-ups** — one set per bus, placed at the level that composes the bus, to the correct voltage rail (usually 3.3V)
    - **SPI pull-ups** on CS lines — same rule
    - **CAN termination** resistors — same rule
    - Any termination that spans multiple subcircuits goes at the top-level design that aggregates them
@@ -241,19 +271,19 @@ A single sub-agent assembles the top-level design. The orchestrator reviews its 
    comparison or mismatch sends the assembly task to `rework`; it does not reach
    its acceptance verdict.
 9. Define board shape, mounting holes, and any keepout zones.
-10. **Set passive query defaults on the Design class** to match the design's manufacturing path and circuit role (see [Passive query defaults — match manufacturing and circuit role](#passive-query-defaults--match-manufacturing-and-circuit-role)). Without explicit defaults, the unfiltered `jitxlib.parts` search may return parts unsuitable for the design (e.g. through-hole leaded electrolytics ahead of SMD ceramics on an SMT design).
+10. **Set passive query defaults on the Design class** to match the design's manufacturing path and circuit role (see [Passive query defaults — match manufacturing and circuit role](#passive-query-defaults--match-manufacturing-and-circuit-role)). Without them, each passive takes the first approved row that matches its value, whatever its case.
 11. **Set default design rules on the Design class:** trace width, copper clearance, thermal relief, and wider traces for tagged power/ground rails. See [Default design rules (set on the Design class)](#default-design-rules-set-on-the-design-class). These are the production-friendly defaults every board should have; without them, the router uses the substrate's `FabricationConstraints` minimums, which are usually too narrow for power.
 12. Build and verify `status: ok`.
 
 ### Passive query defaults — match manufacturing and circuit role
 
-The top-level Design class sets `capacitor_query`, `resistor_query` and `inductor_query` so auto-selected passives match the design's manufacturing path and circuit role. Without them the query returns the physically smallest matching part, which is how 01005 and 009005 parts reach a design that builds clean. See `jitx-circuit-builder/SKILL.md` "Passive query constraints" for which fields filter reliably and which need a datasheet check against the resolved MPN. The right values depend on the design:
+A query assigned in the Design class body is the default for every passive of its category built below it, and keywords on one part are added on top of it. Without one, a passive takes the first row of the approved-parts list that matches its value: on the example CSV, a 100 nF capacitor and a 10 kΩ resistor both resolve to 0201 parts. Filter only on keys the approved-parts list has a column for. A key with no column, or a bound no row meets, makes the CSV decline the query, and `ideal` then answers it without a warning (base `jitx` skill, Step 2). The example CSV's columns include `case`, `mounting`, `tolerance`, `rated_voltage_dc`, `type` and `temperature_coefficient_code`. The right values depend on the design:
 
 | Design class | Typical defaults | Why |
 |--------------|------------------|-----|
-| **SMT production / economy** (JLCPCB, full-machine assembly) | SMD-only, ceramic for caps, small case (0402–0805) | Through-hole picks are wrong; small case fits typical decoupling |
+| **SMT production / economy** (JLCPCB, full-machine assembly) | SMD-only, ceramic for caps, every case the assembler accepts from its smallest up (0402 to 1210 in the example); a case left off is excluded | Through-hole picks are wrong; a short list sends a large-value or high-voltage part to `IDEAL-` |
 | **Hand-build / prototype** (hand-soldered, mixed assembly) | SMD or mixed, larger case (0603–1206) for ease, allow common through-hole on large parts | Hand-rework needs accessible sizes |
-| **Specialty** (high-voltage, RF-heavy, precision analog, high-current, automotive temp) | Per-circuit refinement is the rule; design-level defaults stay broad | Circuit role dominates — bulk caps, film, RF passives, shunts, etc. need local choice |
+| **Specialty** (high-voltage, RF-heavy, precision analog, high-current, automotive temp) | Per-circuit refinement of ratings and dielectric is the rule; design-level defaults stay broad | Circuit role dominates: bulk caps, film, RF passives and shunts each state their voltage, power or dielectric need |
 
 ```python
 from jitxlib.parts import CapacitorQuery, ResistorQuery
@@ -263,27 +293,35 @@ class Design(...):
     board = ...
 
     # Example for an SMT-production design. Adjust per the design's class above.
-    # Per-circuit refinement via `with CapacitorQuery.refine(...)` for bulk caps,
-    # RF parts, thermal-limited regulators, etc.
-    capacitor_query = CapacitorQuery(
+    # The attribute name is free; the query's class picks the category it applies to.
+    # `case` lists every package the assembler accepts; one left off is excluded.
+    capacitor_defaults = CapacitorQuery(
         mounting="smd",
         type="ceramic",
-        case=["0402", "0603", "0805"],
+        case=("0402", "0603", "0805", "1206", "1210"),
     )
-    resistor_query = ResistorQuery(
+    resistor_defaults = ResistorQuery(
         mounting="smd",
-        case=["0402", "0603", "0805"],
+        case=("0402", "0603", "0805", "1206", "1210"),
     )
 
     circuit = TopCircuit()
 ```
 
-**How to override.** These are *defaults* — circuit-level `Capacitor(...)` or `Resistor(...)` calls take query refinements via `CapacitorQuery.refine(...)` context managers, and explicit `query=...` arguments override the design-level defaults entirely. If a circuit needs a 22 µF tantalum bulk cap on a power rail, scope a refinement around just that capacitor:
+**How to override.** A part that needs more than the default states its electrical need as keywords on itself, never a `case=`: the keywords are added to the design default, which keeps the case, mounting and type. A 22 µF bulk capacitor on a 3.3 V rail loses capacitance under DC bias, so it asks for voltage headroom and a dielectric:
 
 ```python
-with CapacitorQuery.refine(type="tantalum", case="1210"):
-    self.c_bulk = Capacitor(capacitance=22e-6, rated_voltage=AtLeast(10.0))
+from jitx.units import V, uF
+from jitxlib.parts import AtLeast, Capacitor
+
+self.c_bulk = Capacitor(
+    capacitance=22 * uF,
+    rated_voltage_dc=AtLeast(10 * V),
+    temperature_coefficient_code="X5R",
+)
 ```
+
+A `with CapacitorQuery(...)` block replaces the design default for every capacitor built inside it rather than adding to it, so restate the keys the default sets.
 
 **The point:** every design has a default that matches its manufacturing path, plus per-circuit overrides where the role demands them. The Phase 3 exit gate confirms defaults exist and overrides are documented — not that any specific filter is set.
 
@@ -388,25 +426,13 @@ If a top-level constraint reports "no path" or "incomplete segments", trace each
 
 ### Silent-drop patterns (CRITICAL)
 
-Two source patterns build with `status: ok` and pass every JITX-side check but produce a **wrong netlist**, because the Python expression evaluates and is then immediately discarded. The design looks correct from the build but isn't.
+A bare net or topology expression builds with `status: ok` and passes every JITX-side check but produces a **wrong netlist**, because the Python expression evaluates and is then immediately discarded. The design looks correct from the build but isn't.
 
-JITX warns for *some* of these cases (you'll see `WARNING:jitx._structural:Reference to structural object <Class> at <file>:<line> lost during instantiation, it likely needs to be assigned to an object` for unassigned constraint objects and similar structural classes), but **the warning does not cover bare net or topology expressions** (`+` / `>>` between ports), which is exactly where this trap is easiest to fall into. Treat all such warnings as errors, and code review for the two patterns below regardless.
+JITX warns for *some* lost objects (you'll see `WARNING:jitx._structural:Reference to structural object <Class> at <file>:<line> lost during instantiation, it likely needs to be assigned to an object` for unassigned constraint objects and similar structural classes), but **the warning does not cover bare net or topology expressions** (`+` / `>>` between ports), which is exactly where this trap is easiest to fall into. Treat all such warnings as errors, and code review for the pattern below regardless.
 
-#### Pattern 1: anonymous `Resistor` / `Capacitor` / `Inductor` with `.insert(...)`
+A passive held only in a local variable, or constructed inline inside a net, is not silent: once its ports join a net, `jitx build` fails with `Unable to map local reference ..., parent <Circuit> is not an ancestor of child <Port>`, which a `TestCase` that only instantiates the design misses. Assign it to an attribute on `self` (`self.r_nrst = Resistor(resistance=10e3 * ohm)`). A passive whose ports join nothing builds with the `lost during instantiation` warning above.
 
-```python
-# WRONG — Resistor object is garbage-collected after .insert returns;
-# the design ends up without the resistor.
-Resistor(resistance=10e3).insert(self.MCU.NRST, self.V3V3)
-
-# RIGHT — store on self, then insert
-self.r_nrst = Resistor(resistance=10e3)
-self.r_nrst.insert(self.MCU.NRST, self.V3V3)
-```
-
-The same applies to `Capacitor`, `Inductor`, and any structural component constructor.
-
-#### Pattern 2: bare net or topology expressions
+#### Bare net or topology expressions
 
 ```python
 # WRONG — the Net object is built and discarded; no connection in the netlist.
@@ -424,7 +450,7 @@ The trap is that the *expression evaluates without error* — Python sees `port_
 
 ### Editor-side coverage
 
-Configure the editor's Python language server to surface unused-expression warnings — this catches Pattern 2 before any build runs. Recommended:
+Configure the editor's Python language server to surface unused-expression warnings — this catches bare `+` / `>>` expressions before any build runs. Recommended:
 
 - **Ruff** (works in any editor): enable rule `B018` ("Found useless expression") which flags top-level expressions whose return value is discarded. Add to `pyproject.toml`:
   ```toml
@@ -434,7 +460,7 @@ Configure the editor's Python language server to surface unused-expression warni
 - **Pyright / Pylance**: enable `reportUnusedExpression = "warning"` (or `"error"`) in `pyrightconfig.json` (also picked up by the VS Code Python extension when present).
 - **Pyflakes**: emits `Statement seems to have no effect` by default — also catches bare `+` / `>>` expressions.
 
-These editor-side checks won't catch Pattern 1 (the `.insert(...)` call has a side effect, so it isn't a "useless expression" from the type checker's view), but they cover Pattern 2 cheaply, and any extra signal during code review is worth turning on.
+These checks are cheap, and any extra signal during code review is worth turning on.
 
 ### Exit Gate: Phase 3 → Phase 3b
 
@@ -451,7 +477,7 @@ These editor-side checks won't catch Pattern 1 (the `.insert(...)` call has a si
 - [ ] **No `Reference to structural object … lost during instantiation` warnings in the build output** — every structural object stored on `self`; no bare `+` / `>>` expressions (see [Silent-drop patterns (CRITICAL)](#silent-drop-patterns-critical))
 - [ ] `ReferencePlanes(...)` context wraps all constraint applications
 - [ ] Board geometry defined (shape, mounting holes, pours)
-- [ ] `capacitor_query`, `resistor_query` and `inductor_query` set on the Design class to match the design's manufacturing path and circuit role, with per-circuit refinements documented for any specialty parts (HV, RF, bulk, precision, hand-build). The gate is the resolved parts, not the source: check the resolved package of each auto-selected passive against the declared assembly capability, because a design with no query at all also builds clean.
+- [ ] Passive query defaults (`CapacitorQuery`, `ResistorQuery`, `InductorQuery`) set in the Design class body to match the design's manufacturing path and circuit role, filtering only on columns the approved-parts list has, with per-circuit overrides documented for any specialty parts (HV, RF, bulk, precision, hand-build). The gate is the resolved parts, not the source: check the resolved package of each passive against the declared assembly capability, because a design with no query at all also builds clean.
 - [ ] **Default design rules set on Design class**: the four canonical rules are present on `self.rules`, values calibrated to the substrate's fab floors (see [Default design rules (set on the Design class)](#default-design-rules-set-on-the-design-class) and the `jitx-layout-constraints` skill)
 - [ ] The `grep gates` summary line reports 0 hard-fail hits; review-required hits are dispositioned
 
@@ -548,7 +574,7 @@ Do not accept "noted for future refactoring" — if it's broken, fix it now.
 
 ### Phase 4 Process
 
-1. Run the parts gate first (base `jitx` skill, [`references/parts-chain.md`](../../jitx/references/parts-chain.md)): remove `ideal` from `[tool.jitx.parts] chain`, then `jitx build <design>` and `jitx design export parts-check <design> --fail all` must pass. Approved parts can change footprints, so every later check runs on the approved parts. A `no part found` goes to the user, not to a fix sub-agent: ask for the approved part, and change a value only with the user's sign-off and the affected circuit recomputed.
+1. Run the parts gate first (base `jitx` skill, Step 2; https://docs.jitx.com/en/latest/essentials/design/parts.html): `jitx build <design>` and `jitx design export parts-check <design> --fail all` must pass, and no MPN the final build resolved (read as in Phase 0 "Approved passives") may start with `IDEAL-` (`ideal` stays in the chain, and the parts check passes an ideal part). When PLAN.md `Data Sources` records the example stand-in, the gate also lists each of those MPNs with the user's approval quoted, or the user's list has replaced the stand-in; otherwise it is a blocking item. Approved parts can change footprints, so every later check runs on the approved parts. An `IDEAL-` MPN or a `no part found` goes to the user, not to a fix sub-agent: ask for the approved part, and change a value or rating only with the user's sign-off and the affected circuit recomputed.
 2. Run the full verification command: `python scripts/check.py <ns>/ --build <ns>.main.Design`
 3. Check output for:
    - Every summary line reports `PASS`: proceed to verification
@@ -570,7 +596,7 @@ Do not accept "noted for future refactoring" — if it's broken, fix it now.
 
 The Phase 4 Verification Block is the completion criterion. The block enforces:
 
-- [ ] Parts gate passed: `ideal` removed, `parts-check --fail all` exit 0 (or a user-approved deferral)
+- [ ] Parts gate passed: `parts-check --fail all` exit 0, no `IDEAL-` MPN (or a user-approved deferral), and, when the list is the example stand-in, every MPN the final build resolved (Phase 0 "Approved passives") listed with the user's approval quoted (or the user's list in its place)
 - [ ] `status: ok` on final build
 - [ ] JITX UI verification rows pass or are `not run` with reason
 - [ ] Issues List, DRC, SI rows have status (or `not run` with reason)

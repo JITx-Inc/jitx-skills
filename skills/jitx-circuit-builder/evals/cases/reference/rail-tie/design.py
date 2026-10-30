@@ -42,7 +42,7 @@ class RailTie(Circuit):
         self.u1 = WideRailPart()
         self.GND = Net([*self.u1.GND, *self.u1.RSVDGND], name="GND")
         self.V1V0 = Net([*self.u1.VCCINT], name="V1V0")
-        self.V1V0 += self.u1.VCCAUX          # a port, not a list
+        self.V1V0 += self.u1.VCCAUX  # a port, not a list
 
 
 class _Inner(Circuit):

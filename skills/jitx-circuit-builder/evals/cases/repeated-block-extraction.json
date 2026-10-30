@@ -3,12 +3,12 @@
   "prompt": "Three LDO stages off the same 5 V input — 3.3 V, 1.8 V and 1.2 V. Same part, same topology, only the feedback divider changes. Wire all three plus their input and output caps.",
   "inputs": {
     "notes": "The request describes a repeated block in so many words. This case tests whether that becomes one parameterized subcircuit instantiated three times, or three copies that will drift.",
-    "environment": "A parts-database query is available."
+    "environment": "A project whose `[tool.jitx.parts] chain` resolves passive queries."
   },
   "expected_output": "One Circuit subclass taking the output voltage (or the divider values) as a parameter, instantiated three times at the level above, with the shared input rail and the three output rails wired at that level.",
   "assertions": [
     {
-      "text": "the grep gate is clean — no anonymous inserts, no setattr/getattr on self",
+      "text": "the bundle's grep gates exit clean on the output. The exit code covers the hard-fail set only: no setattr/getattr on self, no SI application or net symbol outside designs/. A string-keyed spec model (a tag-like f-string) is review-required and exits 0, so the last judge assertion grades it",
       "check": "deterministic",
       "cmd": "python3 skills/jitx/scripts/grep_gates.py <output>/"
     },

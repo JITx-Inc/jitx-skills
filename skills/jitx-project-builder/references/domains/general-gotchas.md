@@ -11,7 +11,7 @@ After the domain-specific checklist, verify these universal items:
 
 ### JITX Code Correctness
 - [ ] All nets stored on `self` — bare `a + b` expressions without assignment are silently dropped
-- [ ] All components stored on `self` — anonymous `Component().insert()` fails at build time
+- [ ] All components stored on `self` — a passive held in a local variable fails the build once its ports join a net (`Unable to map local reference`), which a `TestCase` that only instantiates the design misses
 - [ ] All topologies stored on `self` — bare `a >> b` without assignment is silently dropped
 - [ ] No aliasing of component ports: `self.x = self.r1.p2` causes multiple-parent errors
 - [ ] Port definitions at class level (not inside `__init__`) except for PadMapping and dynamically-configured ports set at instantiation time
@@ -21,8 +21,8 @@ After the domain-specific checklist, verify these universal items:
 - [ ] `PowerSymbol` on every power rail — applied at top-level design only
 - [ ] SI constraints (`Constrain`, `ConstrainDiffPair`, `ConstrainReferenceDifference`) — applied at top-level within `ReferencePlanes(GND)` context, not inside subcircuits
 - [ ] Ground pours on ground plane layers — applied at top-level design only
-- [ ] **I2C pull-ups** — placed at the bus-aggregation level (the circuit that composes master + slaves on the bus). Usually the top-level design because most buses span subcircuits; but if one subcircuit fully encloses both ends of a private bus, the pull-ups belong inside that subcircuit. Never local to a single bus participant.
-- [ ] **Shared bus termination** (I2C, SPI, CAN) — pull-ups/termination at top-level only, never duplicated in subcircuits
+- [ ] **Shared-bus (I2C, MDIO) pull-ups** — placed at the bus-aggregation level (the circuit that composes master + slaves on the bus). Usually the top-level design because most buses span subcircuits; but if one subcircuit fully encloses both ends of a private bus, the pull-ups belong inside that subcircuit. Never local to a single bus participant.
+- [ ] **Shared bus termination** (I2C, SPI, CAN) — pull-ups/termination at the bus-aggregation level (item above), never duplicated in subcircuits
 
 ### Datasheet Compliance (CRITICAL for circuit tasks)
 - [ ] **Downloaded and read the datasheet** for every IC in this circuit

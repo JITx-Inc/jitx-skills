@@ -160,9 +160,7 @@ A hard-fail hit blocks task acceptance. Fix the underlying code; do not whitelis
 | 1 | SI application outside the conventional top-level directory. The search skips the paths where such a call is a definition or a harness rather than a misplaced application: any `constraints/` directory, `main.py`, and test modules. What remains is an SI constraint applied inside an ordinary subcircuit, which is the failure the rule names. A comment or docstring that spells out the call form in a non-skipped path still trips the regex; reword the prose, since a hard-fail takes no disposition. | `\b(ReferencePlanes\|Constrain\|ConstrainDiffPair\|ConstrainReferenceDifference)\s*\(` | `<ns>/` excluding `<ns>/designs/`, `constraints/`, `main.py`, tests |
 | 2 | Net symbols outside top-level designs (`GroundSymbol` / `PowerSymbol` are top-level only) | `\b(GroundSymbol\|PowerSymbol)\s*\(` | `<ns>/` excluding `<ns>/designs/` |
 | 3 | `setattr(self, ...)` / `getattr(self, ...)` — JITX convention violation (see `jitx/SKILL.md` Don'ts) | `\b(setattr\|getattr)\s*\(\s*self\b` | anywhere in `<ns>/` |
-| 4 | Anonymous structural `.insert(...)` (silent-drop pattern 1 — `Resistor(...).insert(...)` instead of `self.r = Resistor(...); self.r.insert(...)`) | `\b(Capacitor\|Resistor\|Inductor)\s*\([^)]*\)\s*\.insert\s*\(` | anywhere in `<ns>/` |
-
-Pattern 4 misses nested constructor args (e.g., `Resistor(resistance=Toleranced.percent(...)).insert(...)`). Not common; treat as a known gap, not a reason to broaden the regex (cost of false positives is too high).
+| 4 | Retired. The anonymous `.insert(...)` pattern has no 2.x form: `.insert` does not exist in jitxlib-parts 2.x, and a passive held only in a local variable or an inline expression fails `jitx build` once its ports join a net (`Unable to map local reference`), which a `TestCase` that only instantiates the design misses. The number stays reserved so earlier acceptance blocks keep their meaning. | none | n/a |
 
 ### Review-required patterns (need disposition)
 
@@ -172,12 +170,12 @@ A review-required hit does not block, but each hit must appear in the task accep
 |---|------|---------|----|
 | 5 | Module-scope `for` loop — anti-string-hacking theme 9. Module-import-time logic that *might* populate a global table; legitimate uses (dispatch registration, static data generation) exist. Disposition: `fix (move into function)` or `accept (legitimate import-time logic: <reason>)`. See `jitx/SKILL.md` Don'ts and `jitx/references/architectural-patterns.md` § "No code at module-import time". | `^for\s+\w+\s+in\s+` | anywhere in `<ns>/` |
 | 6 | `Pour(..., isolate=...)` — legacy parameter (Pass 3 deprecates in favor of `design_constraint(...)` with Tags) | `\bPour\s*\([^)]*\bisolate\s*=` | anywhere in `<ns>/` |
-| 7 | Bare net/topology expression (silent-drop pattern 2 — `self.a + self.b` or `self.a >> self.b` with no LHS assignment) | `^\s*self\.\w+(\.\w+\|\[[^]]+\])*\s*(\+\|>>)\s*self\.\w+(\.\w+\|\[[^]]+\])*(\s*#.*)?$` | anywhere in `<ns>/` |
+| 7 | Bare net/topology expression (silent-drop pattern — `self.a + self.b` or `self.a >> self.b` with no LHS assignment) | `^\s*self\.\w+(\.\w+\|\[[^]]+\])*\s*(\+\|>>)\s*self\.\w+(\.\w+\|\[[^]]+\])*(\s*#.*)?$` | anywhere in `<ns>/` |
 | 8 | `type(...)` call — verify not used for runtime type construction (use `isinstance` for type checks) | `\btype\s*\(` | anywhere in `<ns>/` |
 | 9 | Tag-like f-string — anti-string-hacking theme 1. f-strings (single- or double-quoted, lowercase or uppercase `f`/`F`) starting with an uppercase letter and building names via brace-substitution (`f"TX_b{i}"`, `f'L{n}_via'`, `F"GND_via_{n}"`) are the canonical string-keyed-name failure mode. See `jitx/SKILL.md` Don'ts and `jitx/references/architectural-patterns.md` § "String-keyed dicts → structural objects". Disposition: `fix (use structural object)` or `accept (legitimate use: <reason>)`. | `[fF]["'][A-Z][A-Za-z0-9_]*\{` | anywhere in `<ns>/` |
 | 10 | Broader `getattr(` — narrower hard-fail Pattern 3 catches `getattr(self, ...)`. This wider net catches `getattr(other, "...")` where strings are still the indirection mechanism. Most are still smells; legitimate framework uses (e.g., `getattr` on a known-typed external object) are dispositioned per-hit. | `\bgetattr\s*\(` | anywhere in `<ns>/` |
 | 11 | I2C pull-up (`r_sda` / `r_scl`) outside top-level designs — flag for review of bus-aggregation level. Pull-ups belong at the level that composes master + slaves on the bus (usually the top-level design; sometimes a subcircuit that encloses an entire private bus). Pull-up local to a single bus participant is the failure mode. Disposition: `accept (bus-aggregation level: <circuit>)` or `fix (move to <level>)`. | `\br_(sda\|scl)\b` | `<ns>/` excluding `<ns>/designs/` |
-| 12 | `.insert(...)` calls missing `short_trace=` — every power-rail capacitor insert (decoupling, bypass, bulk, output filter) needs `short_trace=True`. Non-power-rail caps and non-cap inserts dispositioned as exception or N/A. See `jitx-circuit-builder/SKILL.md` "short_trace=True is the default for power-rail capacitors" | `\.insert\s*\(` minus lines containing `short_trace` | anywhere in `<ns>/` |
+| 12 | Capacitor call sites outnumber `ShortTrace(` call sites in a file. A power-rail capacitor (decoupling, bypass, bulk, output filter) is its own attribute on `self`, its supply-side pad joins the pin it serves through `ShortTrace(self.c_x.p1, <the IC power pin port>)` (`self.c_x.a` on a `PolarizedCapacitor`) and its other pad joins the return net. `ShortTrace(p1, p2)` takes two ports, never a net. Call sites are counted, not iterations: one `[Capacitor(...) for ...]` against one `[ShortTrace(...) for ...]` passes. Every capacitor call line in a flagged file is a hit. The count cannot see what a `ShortTrace` joins, so a pass is not proof: a `ShortTrace` on something other than a capacitor still counts toward the file, and capacitors decoupled through fewer `ShortTrace(` call sites than capacitor call sites are flagged and dispositioned. AC coupling, RC timing, compensation and RF matching caps are dispositioned in the task acceptance block as not power-rail. A crystal's load caps take a `ShortTrace` to the crystal pin they serve, and a bootstrap cap takes a `ShortTrace` to its BOOT pin with its other pad on SW; neither is an exception. Rule owner: `jitx-circuit-builder` | Per file, from Python tokens (comments and strings never count): calls to `Capacitor(` or `PolarizedCapacitor(` (not `class` or `def` definitions) against calls to `ShortTrace(`; hit when capacitors outnumber short traces | anywhere in `<ns>/` |
 
 Pattern 8 is intentionally broad; it will match comments and legitimate `isinstance`-adjacent uses. The disposition workflow handles this — review-required is the right severity.
 
@@ -244,6 +242,7 @@ The criteria mirror the exit-gate bullet lists in `references/project-builder-fl
 | Task status reconciles with open questions | <N questions checked against task Data, Verify, and dependencies, including transitive blockers; all statuses reconcile, or each missing, stale, or incorrect blocked status> |
 | Planning docs within budget | <line counts; result> |
 | Data source audit completed | <approval; date> |
+| Approved-parts list | <user's CSV or parts database, or the `jitxexamples` example stand-in told to the user and recorded in PLAN.md `Data Sources`> |
 | Component-choice rationale documented | <result; PLAN.md location> |
 | All datasheets and reference materials identified | <result> |
 | Dependencies acyclic | <result> |
@@ -296,7 +295,7 @@ work with a batch count on it.
 | Provide/require interfaces consistent | <result> |
 | Bundle-typed ports | <result> |
 | Topology vs net wiring | <result> |
-| `short_trace=True` on power-rail caps | <result; dispositions> |
+| Power-rail caps on `ShortTrace` | <result; dispositions> |
 | Power circuit outputs match ARCHITECTURE.md | <result> |
 | Open from this phase | <list/none> |
 | Verdict | <advance/block + reason> |
@@ -422,7 +421,7 @@ Final verification before declaring the project done.
 ```markdown
 ## Phase 4 Verification: <project-name>
 
-**Parts gate (run first):** <`ideal` removed from `[tool.jitx.parts] chain`; exact `jitx build <design>` status line; exact `jitx design export parts-check <design> --fail all` summary line, exit 0. A design left on `IDEAL-` parts is a user-approved deferral, listed below>
+**Parts gate (run first):** <exact `jitx build <design>` status line; exact `jitx design export parts-check <design> --fail all` summary line, exit 0; exact last line of `python <path to the jitx skill>/scripts/prune_lock.py <design> [--exclude <test design> ...] --check`, `check: 0 stale` or `check: the named designs resolved no parts through a lockfile`, exit 0; every MPN the final build resolved (read as in `project-builder-flow.md` "Approved passives", not from `parts.lock.json`), none starting `IDEAL-` (the parts check passes an ideal part) and, when PLAN.md `Data Sources` records the example stand-in, each with the user's approval quoted, or the user's list in its place, else a blocking item. A design left on `IDEAL-` parts is a user-approved deferral, listed below>
 
 **Verification command:** `python scripts/check.py <ns>/ --build <ns>.designs.Design`
 

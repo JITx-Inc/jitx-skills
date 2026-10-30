@@ -1,19 +1,22 @@
 #!/usr/bin/env python3
-"""Connectivity checks for the rail-tie reference. Offline: no runtime, no parts DB.
+"""Self-test of the rail-tie reference: its connectivity checks, and pyright over
+this file and design.py. Offline: no runtime, no parts DB.
 
 Exit 0 = every check passed. Exit 1 = a check failed. Exit 2 = usage error.
 
 Run:  python3 skills/jitx-circuit-builder/evals/cases/reference/rail-tie/check.py
 """
 
+import subprocess
 import sys
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
 
-import jitx.test  # noqa: E402
-from design import (  # noqa: E402
+import jitx.test
+from design import (
     CORE_BALLS,
     GND_BALLS,
     RSVD_GND_BALLS,
@@ -66,6 +69,17 @@ class RailTieChecks(jitx.test.TestCase):
             "`in` agreed with iteration — the upstream defect may be fixed; "
             "re-check the skill's iterate-don't-use-`in` rule against this release",
         )
+
+    def test_reference_type_checks(self) -> None:
+        """The reference and this file type-check against the installed JITX package."""
+        files = [str(HERE / "design.py"), str(HERE / "check.py")]
+        proc = subprocess.run(
+            [sys.executable, "-m", "pyright", "--pythonpath", sys.executable, *files],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
 
 
 if __name__ == "__main__":

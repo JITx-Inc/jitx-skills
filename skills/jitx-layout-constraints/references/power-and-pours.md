@@ -205,12 +205,11 @@ assignment supports nets, copper, pads, vias, routes, components, and circuits
 ## 5. Pours
 
 Put one board-wide ground pour on the return layer below the routed signal
-layer. The top-level circuit owns it. See the circuit builder's
-`references/advanced-patterns.md`, "Pours", for net attachment and placement.
+layer. The top-level circuit owns it.
 Bogatin recommends top-layer components, signals, and power traces over a
 continuous ground return. Do not rely on a top-layer ground fill as the return.
-Pour materialization, placement prerequisites, edge pullback, empty output, and
-capture semantics are owned by
+Net attachment, placement prerequisites, pour materialization, edge pullback,
+empty output, and capture semantics are owned by
 [Pour realization semantics](../../jitx-physical-layout/SKILL.md#pour-realization-semantics).
 
 ```python

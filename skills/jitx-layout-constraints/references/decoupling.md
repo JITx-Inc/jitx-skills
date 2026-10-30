@@ -15,8 +15,8 @@ layout figure, the datasheet wins.
 
 ## What the solver controls
 
-Source citations (`jitx/constraints.py:910` and the like) point into the
-installed py-jitx package on a `4.4.0` install; line numbers move between
+Source citations (`jitx/constraints.py:911` and the like) point into an
+installed `4.6.0` jitx package with jitxlib-parts 2.0; line numbers move between
 builds, so confirm on your own install before relying on one.
 
 `scripts/decoupling_solver.py` is pure Python. Copy it into the design project
@@ -80,19 +80,34 @@ Read every dimension before constructing `BankSpec`:
 - keepouts from the IC body, exposed pad, testpoints, and mechanical geometry.
 
 `jitx.query.query(root, target, ...)` applies registered transformers, including
-pad-to-copper and via-to-copper (`jitx/query.py:283`, `jitx/landpattern.py:173`,
-`jitx/via.py:197`), and opens the design and substrate contexts, so its root
+pad-to-copper and via-to-copper (`jitx/query.py:283`, `jitx/landpattern.py:180`,
+`jitx/via.py:232`), and opens the design and substrate contexts, so its root
 must be the design. To read a component's own landpattern before the design
 exists (the capacitor geometry above), walk it with `jitx.inspect.visit` and
 compose the same frames. Compose `trace.transform * element.transform` to read
-a center (`jitx/inspect.py:174`, `jitx/landpattern.py:191`).
+a center (`jitx/inspect.py:174`, `jitx/landpattern.py:199`).
 
 Do not use a nominal case-code table when the selected part already has a
-landpattern. Parts queries can change the returned manufacturer part and its
-landpattern. `CapacitorQuery` is the installed query type
-(`jitxlib/parts/query_api.py:451`), and `Capacitor` builds its selected
-landpattern from the returned database record
-(`jitxlib/parts/query_api.py:1347`). Query the result that will be built.
+landpattern. A change to the approved parts can change the returned part and
+its landpattern. `CapacitorQuery` is the installed query type
+(`jitxlib/parts/query.py:978`), and `Capacitor` takes its landpattern from the
+provider that answered the query (`jitxlib/parts/components.py:322`). Query
+the result that will be built.
+
+An approved-parts CSV answers with its first matching row in file order
+unless the query passes `rank=`, and a query key (`rank=` keys included) with
+no column in the file is declined and falls through to the next provider
+(`jitxlib/parts/providers/csv_parts.py:399`, `:412`). The allowed case codes
+come from the Design-level `CapacitorQuery` default (`jitx-circuit-builder`),
+never from the bank. The bank passes its electrical keywords and `rank="case"`
+on top of that default, which minimizes the case code, so the smallest case the
+default allows wins. Pass keywords, not a whole `CapacitorQuery`: an explicit
+query replaces the Design default instead of adding to it
+(`jitxlib/parts/query.py:855-856` reads the default only when no query is
+given), so its own case list would decide. The CSV reads `case` as text
+(`jitxlib/parts/providers/csv_parts.py:100`), so the ranking is by code, and for
+the imperial codes `0402`, `0603`, `0805` and `1206` that order is also size
+order. Do not reorder the user's list to get the same result.
 
 ## Structural hints
 
@@ -124,7 +139,7 @@ type HintMap = Mapping[Port, DecouplingHint]
 Keep the mapping local while constructing the bank. Store the JITX objects it
 creates, not a parallel string-keyed model. A `Circuit` requires every element
 to remain reachable through an attribute, list, or mapping
-(`jitx/circuit.py:50`).
+(`jitx/circuit.py:63`).
 
 The route endpoints and the hint ports must share a common owning circuit. The
 simplest reusable shape is a bank that wraps the target IC, so the IC,
@@ -150,9 +165,10 @@ from jitx import Circuit, Net, Pour, current
 from jitx.circuit import Route
 from jitx.component import Component
 from jitx.constraints import AnyObject, Tag, Tags, design_constraint
+from jitx.net import ShortTrace
+from jitx.units import F, V
 from jitx.via import Via
-from jitx.interval import AtLeast
-from jitxlib.parts import Capacitor, CapacitorQuery, SortDir, SortKey
+from jitxlib.parts import AtLeast, Capacitor
 
 from decoupling_solver import BankSpec, CapacitorGeometry, HintSpec, Solution, solve
 
@@ -170,13 +186,14 @@ class DecouplingBank(Circuit):
         self,
         ic_type: type[Component],
         hint_factory: Callable[[Component], HintMap],
-        rail_voltage: float,
+        rail_voltage: float,  # volts
         cap_geometry: CapacitorGeometry,
-        capacitance: float = 22e-6,  # Bogatin 2019: largest MLCC, 22 uF typical; pass the datasheet value when it gives one
-        rated_voltage_factor: float = 2.0,  # Bogatin 2019: rated at least 2x the rail; the datasheet wins when it specifies
         keepouts: tuple[tuple[tuple[float, float], ...], ...],
         capacitor_spacing: float,
         package_rotation: int,
+        capacitance: float = 22e-6,  # farads; Bogatin 2019: largest MLCC, 22 uF typical; pass the datasheet value when it gives one
+        rated_voltage_factor: float = 2.0,  # Bogatin 2019: rated at least 2x the rail; the datasheet wins when it specifies
+        dielectric: str = "X5R",  # temperature_coefficient_code; pass the datasheet's when it gives one
     ) -> None:
         self.ic = ic_type().at(0.0, 0.0)
         hints_by_key = hint_factory(self.ic)
@@ -217,18 +234,23 @@ class DecouplingBank(Circuit):
         )
         self.solution = solve(spec)
 
-        cap_query = CapacitorQuery(
-            capacitance=capacitance,
-            rated_voltage=AtLeast(rated_voltage_factor * rail_voltage),  # a minimum, not an exact catalog value
-            type="ceramic",
-            mounting="smd",
-            sort=SortKey("area", SortDir.INCREASING),
-        )
-        self.capacitors = [Capacitor(cap_query) for _ in hints]
-        for capacitor, hint in zip(self.capacitors, hints, strict=True):
-            capacitor.insert(
-                hint.power_ports[0], hint.return_ports[0], short_trace=True
+        # Keywords on top of the Design-level CapacitorQuery default, which sets the
+        # allowed case codes; rank="case" picks the smallest one it allows.
+        self.capacitors = [
+            Capacitor(
+                capacitance=capacitance * F,
+                rated_voltage_dc=AtLeast(rated_voltage_factor * rail_voltage * V),  # a minimum, not an exact catalog value
+                temperature_coefficient_code=dielectric,
+                type="ceramic",
+                mounting="smd",
+                rank="case",
             )
+            for _ in hints
+        ]
+        self.supply_traces = [
+            ShortTrace(capacitor.p1, hint.key)  # supply-side pad to the pin it serves
+            for capacitor, hint in zip(self.capacitors, hints, strict=True)
+        ]
 
         self._apply_solution(via_cls, package_rotation)
         self.escape_routes = []
@@ -288,34 +310,35 @@ class DecouplingBank(Circuit):
         )
 ```
 
-`Capacitor.insert(..., short_trace=True)` connects each capacitor port, and the
-capacitor remains a structural component owned by the
-bank (`jitxlib/parts/query_api.py:1461`). `Route` accepts ports, pads, vias, and
+Each capacitor is held on the bank, in `self.capacitors`. Its supply-side pad joins
+the pin it serves through `ShortTrace(capacitor.p1, hint.key)` and its other
+pad joins the return net. `ShortTrace(p1, p2)` takes two ports, never a net
+(`jitx/net.py:1002`). `Route` accepts ports, pads, vias, and
 route endpoints, and captured copper is exposed through `route.traces`
-(`jitx/circuit.py:466`, `jitx/circuit.py:569`).
+(`jitx/circuit.py:466`, `jitx/circuit.py:752`).
 
 The two vias per capacitor (skill default: two vias per capacitor) are
 instances of the substrate's via class. A via
 is positionable and carries its own pad diameter and layer span
-(`jitxlib/jlcpcb/vias.py:24`, `jitx/via.py:37`, `jitx/placement.py:133`). Store every instance on the bank,
+(`jitx/via.py:37`, `jitx/via.py:56-60`, `jitx/placement.py:133`). Store every instance on the bank,
 then include each power via in its rail net and every return via in the one
 shared return net (the board ground is one net; separate return domains exist
 only when the schematic has them, and then each gets its own net). `Net` accepts `Via` and `Copper` members directly
-(`jitx/net.py:645`, `jitx/net.py:733`). `PortAttachment` is not needed for this
+(`jitx/net.py:646`, `jitx/net.py:685`). `PortAttachment` is not needed for this
 plain power-net membership. Two route segments on each side (skill default: two segments) use the via as an endpoint, so realized copper reaches its pad.
 
 The local `Pour` is also a rail-net member. `Pour` takes a shape and one layer
-index (`jitx/copper.py:46`); do not pass the deprecated `isolate=` parameter.
+index (`jitx/copper.py:78`); do not pass the deprecated `isolate=` parameter.
 The puddle is local to this circuit so it moves with the IC and capacitors. It
 does not authorize a board-wide power fill.
 
 Tags are module-scope subclasses. `Tags(...).assign(...)` supports `Route`,
 `Circuit`, `Component`, `Pad`, `Via`, `Copper`, and `Pour` targets
-(`jitx/constraints.py:495`, `jitx/constraints.py:557`). The escape width is a
+(`jitx/constraints.py:496`, `jitx/constraints.py:558`). The escape width is a
 one-condition rule, while clearance is a two-condition rule. The conditions
-are positional-only (`jitx/constraints.py:71`). Trace width exists on the
-unary rule (`jitx/constraints.py:910`), and clearance exists only on the binary
-rule (`jitx/constraints.py:1160`). Priority 4 is the escape rung of the ladder in `SKILL.md`, above the board
+are positional-only (`jitx/constraints.py:72`). Trace width exists on the
+unary rule (`jitx/constraints.py:911`), and clearance exists only on the binary
+rule (`jitx/constraints.py:1169`). Priority 4 is the escape rung of the ladder in `SKILL.md`, above the board
 defaults at 0 and every class rule. Bound escape width by the queried capacitor and IC pad widths.
 
 ## Solution adapter
@@ -343,7 +366,7 @@ def _apply_solution(self, via_cls: type[Via], package_rotation: int) -> None:
 `Positionable.at()` writes the direct descendant's local placement
 (`jitx/placement.py:133`). Give the bank an explicit position. `Circuit.at(floating=True)`
 clears the fixed transform so a person can place the bank as one block in
-the UI (`jitx/circuit.py:289`), but with no interactive placement stored the
+the UI (`jitx/circuit.py:320`), but with no interactive placement stored the
 runtime parks a floating circuit off the board and every route in it fails
 with `Route targets not in router: ... is off the board` while `jitx build`
 still reports `status: ok` (observed in the shipped reference). Instantiate it
@@ -372,9 +395,9 @@ coordinates.
 
 Build status is not evidence that an authored route realized. Submit the
 design, capture it, and inspect the bank. `RuntimeDesign.query` delegates to
-the transformation query layer (`jitx/run/runtime.py:421`), and
+the transformation query layer (`jitx/run/runtime.py:794`), and
 `SyncRuntimeDesign.capture()` reads runtime geometry back into the design
-objects (`jitx/run/runtime.py:602`).
+objects (`jitx/run/runtime.py:1151`).
 
 ```python
 import math
