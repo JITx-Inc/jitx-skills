@@ -38,7 +38,7 @@ Apply per-lane or per-pair constraints by iterating a typed collection (`self.la
 
 ## Plain nets by default
 
-Join the path with ordinary nets (`+` or `Net([...])`) and name its two ends with `Topology(begin, end)`. `>>` (`TopologyNet`) is not needed for timing, loss or skew and is dispreferred, being rigid: it fixes the connection order before routing. Use it only for a daisy chain whose order the router must follow ([Daisy chains](#daisy-chains-)).
+Join the path with ordinary nets (`+` or `Net([...])`) and name its two ends with `Topology(begin, end)`. `>>` (`TopologyNet`) is not needed for timing, loss or skew and is dispreferred, being rigid: it fixes the connection order before routing. Use it only for a daisy chain whose order is part of the design ([Daisy chains](#daisy-chains-)).
 
 Store every net, constraint, helper, pin model and route on `self`; one left unstored logs `... lost during instantiation` and never reaches the report.
 
@@ -68,7 +68,7 @@ Pin model delay and loss are SI inputs the measurement adds: take them from the 
 
 A path stops at a part with no `BridgingPinModel`, reporting `No path for signal constraint ... the part between <x> and <y>, which has no pin model.` Give one to every part with a path through it between two pins (AC coupling cap, series resistor, common-mode choke, an ESD channel whose datasheet gives an in-to-out path), on the component class or in the circuit: `self.bridge = BridgingPinModel(self.cap.a, self.cap.b, delay=6e-12, loss=0.5)` (s, dB). A flow-through package whose opposite pin is not connected inside gets none: its two lands are one net joined by board copper, and a model would hide an open line. Worked pattern: `jitxexamples.patterns.si_series_part`.
 
-A bare `No path`, naming no part, comes from an unrouted net crossing a circuit's bundle port (route, then reread) or a circuit-port end reaching several pads (name the pad).
+A bare `No path`, naming no part, can come from an unrouted net crossing a circuit's bundle port (route, then reread), a circuit-port end reaching several pads (name the pad), or an unresolved assignment ([pin-assigned ports](#constraints-on-pin-assigned-ports)).
 
 ### TerminatingPinModel: package delay at an end
 
@@ -117,14 +117,15 @@ The guide must run between single pins (`Guide must be a single pin type`), so a
 
 ## Reference Planes
 
-Reference planes name the return-path `Net` per routing layer: `with ReferencePlanes(self.GND):` (every layer), `with ReferencePlanes({0: self.GND, 2: self.PWR}):`, or `.structure(rs50, ref_layers={0: self.GND})`. A bare `Port` raises `'Port' object has no attribute 'connected'`. A structure with `.reference()` layers errors at build without them; for one with none the context is inert, so check the structure definition.
+Reference planes name the return-path `Net` per routing layer: `with ReferencePlanes(self.GND):` (every layer), `with ReferencePlanes({0: self.GND, 1: self.GND, 2: self.PWR}):`, or `.structure(rs50, ref_layers={0: self.GND})`. A bare `Port` raises `'Port' object has no attribute 'connected'`. A structure with `.reference()` layers errors at build without them; for one with none the context is inert, so check the structure definition.
 
 ## Tag-based routing structures
 
 For nets that share one structure and carry no timing, loss or skew limits, tag them and attach the structure as a design rule:
 
 ```python
-HighSpeedTag().assign(self.clk_net)  # class HighSpeedTag(Tag), jitx.constraints
+from jitx.constraints import Tag, design_constraint  # class HighSpeedTag(Tag): pass
+HighSpeedTag().assign(self.clk_net)
 self.hs_rule = design_constraint(HighSpeedTag()).routing_structure(rs50, ref_net=self.GND)
 ```
 
@@ -138,11 +139,11 @@ For several signal groups, compose one constraint per group, called from `constr
 
 ## Working with Built-in Protocols
 
-`jitxlib.protocols` holds protocol constraints with their port bundles: `usb` (`USB2`, `USBSuperSpeed`, `USB_C`), `displayport`, `ethernet.mii.rgmii`, `ethernet.mdi.mdi100base_tx`, `ethernet.mdi.mdi1000base_t`. Find what your installed version has with your **Grep** tool (pattern `class.*Constraint.*SignalConstraint`, path `.venv`, glob `*.py`). Per-standard parameters: [references/protocol-standards.md](references/protocol-standards.md).
+`jitxlib.protocols` holds protocol constraints with their port bundles: `usb` (`USB2`, `USBSuperSpeed`, `USB_C`), `displayport` (`DisplayPort`), `ethernet.mii.rgmii` (`RGMII`), `ethernet.mdi.mdi100base_tx` (`MDI100BaseTX`), `ethernet.mdi.mdi1000base_t` (`MDI1000BaseT`). Find what your installed version has with your **Grep** tool (pattern `class.*Constraint.*SignalConstraint`, path `.venv`, glob `*.py`). Per-standard parameters: [references/protocol-standards.md](references/protocol-standards.md).
 
 ## Via Structures
 
-`SingleViaStructure(via, ground_cages=[PolarViaGroundCage(...)], antipads=[])` (`jitxlib.via_structures`; `via` a class with `models`; the keyword-only `ground_cages` and `antipads` required) is a `Circuit` with `sig_in`, `sig_out` and `COMMON` ports around `signal_via`. Net it in like a part, join `COMMON` to ground, route to `signal_via` on each layer, and name the outer pads; it binds on plain nets and counts the via's `models` (single-ended and differential). A cage that closes the via off fails the routes (`Missing Connection on Path`): size it, turn it with `theta=`, or gap it with `skips=`. Worked pattern: `jitxexamples.patterns.si_via_structure`.
+`SingleViaStructure(via, ground_cages=[PolarViaGroundCage(...)], antipads=[])` (`jitxlib.via_structures`; `via` a class with `models`; the keyword-only `ground_cages` and `antipads` required) is a `Circuit` with `sig_in`, `sig_out` and `COMMON` ports around `signal_via`. Net it in like a part, join `COMMON` to ground, route to `signal_via` on each layer, and name the outer pads; it binds on plain nets and counts the via's `models` (single-ended and differential, measured on jitx 4.6.0rc10). A cage that closes the via off fails the routes (`Missing Connection on Path`): size it, turn it with `theta=`, or gap it with `skips=`. Worked pattern: `jitxexamples.patterns.si_via_structure`.
 
 `DifferentialViaStructure(vias, pitch, ground_cages=..., antipads=...)` has `DiffPair` ports and vias `via_p` and `via_n`; `enterOn` / `exitOn` add pair insertions. Neither takes `insertion_points`.
 
@@ -193,7 +194,7 @@ Prove binding on a verification design per constrained interface: parts placed, 
        main()
    ```
 
-   Without `satisfied=True` a met constraint is left out. `group.text` shows only a group's first issue. Keep the code in `main()`: design discovery imports the project's `.py` files. `jitx.run` is experimental.
+   Without `satisfied=True` a met constraint is left out. `group.text` shows only a group's first issue. Keep the code in `main()`: design discovery imports the project's `.py` files. `jitx.run` is experimental. Builds against one project run in sequence ([Build safety](../jitx/SKILL.md#build-safety-dont-parallelize-same-design-work)).
 
 3. Count a constraint applied only when its group carries a `Time`, `Loss` or `Skew` measurement naming the intended ends (`met Time: <delay> - Target: 500ps ± 500ps from <begin> to <end>`); `status: ok` or a clean type check is not evidence. Compliance is `group.satisfied`, the only verdict: the text reads the same met or unmet, and a skew `Target` drops its sign. A group also holding an unresolved text ([table](references/verification.md#what-unresolved-looks-like)) is neither proven nor met. Report binding and compliance separately, and an unmet measurement as a violation.
 
