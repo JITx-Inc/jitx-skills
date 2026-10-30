@@ -1,39 +1,51 @@
 #!/usr/bin/env python3
-"""List, and on request remove, the parts.lock.json entries a design does not use.
+"""List, and on request remove, the parts.lock.json entries no design uses.
 
-Run it with the project's Python, from the project root, naming every design the
-lock serves (as `jitx build` names them):
+Run it with the project's Python, from the project root, naming every design that
+writes the lock (as `jitx build` names them):
 
     python prune_lock.py my_board.main.MyDesign
     python prune_lock.py my_board.main.MyDesign --apply
+    python prune_lock.py my_board.main.MyDesign --check
+    python prune_lock.py my_board.main.MyDesign --unpin IDEAL-R-1.27e+06-0402
 
-The designs are elaborated in-process under the `replay` lock mode, which reads
-the lock, asks no provider, and writes nothing. Each lockfile records the keys
-its queries claimed; an entry no query claimed is unused. Unused entries under a
-chain the designs resolve through are stale. Unused entries under a chain no
-named design uses belong to another chain the project may switch back to; they
-are listed and kept unless `--remove-chain LABEL` names that chain.
+It finds the project's designs as `jitx design find` does and says which were not
+named. `--apply`, `--check` and `--unpin` refuse until every one is named or
+excluded with `--exclude DESIGN`; an excluded design's entries count as unused.
 
-By default nothing changes. `--apply` copies the lock to `<lock>.bak`, then
-rewrites it without the stale entries, byte for byte the build's own format, so
-`git diff` shows only removals.
+The named designs are elaborated in-process under the `replay` lock mode, which
+reads the lock, asks no provider, and writes nothing. Each lockfile records the
+keys its queries claimed, read after each design. An entry no query claimed is
+unused. Unused entries under a chain the designs resolve through are stale.
+Unused entries under a chain no named design uses belong to another chain the
+project may switch back to; they are listed and kept unless `--remove-chain
+LABEL` names that chain.
+
+By default nothing changes. `--apply` removes the stale entries. `--unpin MPN`
+removes the entries pinning that part under the chains and scopes the designs
+use, so the next build resolves them again; it refuses while stale entries
+remain. Both plan every lockfile first, refuse if `<lock>.bak` exists, copy the
+lock there, and rewrite it in the build's own format, so `git diff` shows only
+removals. `--check` exits 1 when any stale entry exists.
 
 It refuses to judge a lock the designs do not match: when any query fails to
 replay (a component added or edited since the last build, a renamed chain), it
 prints those queries and exits 1. Build first, then rerun.
 
 The keys a run claimed are read from `jitxlib.parts.resolver._active`, a private
-name, checked on jitxlib-parts 2.0.0rc2.dev3. If that changes, this exits 2
-rather than guess.
+name, checked on jitxlib-parts 2.0.0rc2.dev3. Another version prints a warning;
+if the name is gone, this exits 2 rather than guess.
 
-Exit codes: 0 listed or removed; 1 the lock does not match the designs; 2 usage,
-import, instantiation, or an unreadable lock.
+Exit codes: 0 listed, checked clean, or removed; 1 the lock does not match the
+designs, or `--check` found stale entries; 2 usage, discovery, import, build, an
+unreadable lock, or a refused write.
 """
 
 from __future__ import annotations
 
 import argparse
 import importlib
+import importlib.metadata
 import json
 import os
 import shutil
@@ -60,9 +72,12 @@ class Refusal(Exception):
 
 @dataclass
 class Usage:
-    """What the designs claimed, per lockfile path."""
+    """What the named designs claimed, per lockfile, keyed by resolved path."""
 
     claimed: dict[Path, set[Key]] = field(default_factory=dict)
+
+    def add(self, path: Path, keys: Iterable[Key]) -> None:
+        self.claimed.setdefault(path.resolve(), set()).update(keys)
 
 
 @dataclass
@@ -73,15 +88,31 @@ class Plan:
     stale: list[Mapping[str, Any]] = field(default_factory=list)
     other_removed: list[Mapping[str, Any]] = field(default_factory=list)
     other_kept: list[Mapping[str, Any]] = field(default_factory=list)
+    unpinned: list[Mapping[str, Any]] = field(default_factory=list)
     drop_chains: list[str] = field(default_factory=list)
 
     @property
     def removals(self) -> list[Mapping[str, Any]]:
-        return self.stale + self.other_removed
+        return self.stale + self.other_removed + self.unpinned
+
+
+@dataclass
+class FilePlan:
+    """A lockfile, the text the plan was made from, and what to write."""
+
+    path: Path
+    text: str
+    plan: Plan
+    out_text: str | None = None
 
 
 def entry_key(entry: Mapping[str, Any]) -> Key:
     return (str(entry["digest"]), str(entry["chain"]), str(entry.get("lock_scope", "")))
+
+
+def entry_mpn(entry: Mapping[str, Any]) -> str:
+    identity: Mapping[str, Any] = entry.get("identity", {}) or {}
+    return str(identity.get("mpn", ""))
 
 
 def render(data: Mapping[str, Any]) -> str:
@@ -90,17 +121,24 @@ def render(data: Mapping[str, Any]) -> str:
 
 
 def plan_prune(
-    data: Mapping[str, Any], claimed: set[Key], remove_chains: Iterable[str]
+    data: Mapping[str, Any],
+    claimed: set[Key],
+    remove_chains: Iterable[str],
+    unpin: Iterable[str] = (),
 ) -> Plan:
     """Sort a lock's entries by whether the designs claimed them.
 
     Pure, so the rule that matters is testable without JITX: a claimed key is
-    never removed, and a chain the designs did not use is removed only when named.
+    never removed as stale, a chain the designs did not use is removed only when
+    named, and an unpinned part is removed only under a chain and scope the
+    designs use.
     """
     entries: list[Mapping[str, Any]] = list(data.get("entries", []) or [])
     labels = set((data.get("chains", {}) or {}).keys())
     used_chains = {key[1] for key in claimed}
+    used_scopes = {(key[1], key[2]) for key in claimed}
     named = set(remove_chains)
+    unpins = set(unpin)
     for label in sorted(named):
         if label in used_chains:
             raise Refusal(
@@ -123,7 +161,9 @@ def plan_prune(
     plan = Plan()
     for entry in entries:
         key = entry_key(entry)
-        if key in claimed:
+        if entry_mpn(entry) in unpins and (key[1], key[2]) in used_scopes:
+            plan.unpinned.append(entry)
+        elif key in claimed:
             plan.used.append(entry)
         elif key[1] in used_chains:
             plan.stale.append(entry)
@@ -161,8 +201,16 @@ def read_lock(path: Path) -> tuple[dict[str, Any], str]:
     return data, text
 
 
-def write_atomic(path: Path, text: str) -> None:
-    """Temp file in the same directory, fsync, rename; keep the file's mode."""
+def backup_path(path: Path) -> Path:
+    return path.with_name(path.name + ".bak")
+
+
+def write_atomic(path: Path, text: str, expected: str) -> None:
+    """Temp file in the same directory, fsync, rename; keep the file's mode.
+
+    Refuses if the file no longer holds `expected`, the text the plan was made
+    from, so a build that wrote the lock meanwhile keeps its pins.
+    """
     temp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
     mode = path.stat().st_mode & 0o777
     try:
@@ -171,6 +219,10 @@ def write_atomic(path: Path, text: str) -> None:
             handle.flush()
             os.fsync(handle.fileno())
         os.chmod(temp, mode)
+        if path.read_text(encoding="utf-8") != expected:
+            raise Refusal(
+                f"{path} changed while this ran; nothing was written to it. Rerun.", 2
+            )
         os.replace(temp, path)
     except BaseException:
         temp.unlink(missing_ok=True)
@@ -190,28 +242,67 @@ def no_dump(ob: Mapping[str, Any] | str, /, file: Any = None) -> None:
     """`DryRunBuilder.build` requires a formatter; nothing is dumped."""
 
 
-def collect_usage(designs: Sequence[str], project: Path) -> Usage:
-    """Elaborate each design under `replay` and return the keys it claimed.
-
-    Raises `Refusal` with status 2 when a design cannot be imported or built, and
-    with status 1 when any query does not replay from the lock.
-    """
-    os.chdir(project)
-    sys.path.insert(0, str(project))
+def warn_on_version() -> None:
     try:
-        from jitx.run import DryRunBuilder
-        from jitxlib.parts import resolver
-        from jitxlib.parts.lock import LockMode, force_mode
-        from jitxlib.parts.resolver import EventKind, name_of, parts_verdict
-    except ImportError as exc:
+        installed = importlib.metadata.version("jitxlib-parts")
+    except importlib.metadata.PackageNotFoundError:
+        return
+    if installed.split("+")[0] != CHECKED_ON:
+        print(
+            f"warning: jitxlib-parts {installed} is installed; this script reads "
+            f"its run state and was checked on {CHECKED_ON}",
+            file=sys.stderr,
+        )
+
+
+def discover_designs(project: Path) -> tuple[list[str], dict[str, str]]:
+    """The project's designs as `jitx design find` lists them, and import failures."""
+    from jitx.run import DesignFinder
+
+    finder = DesignFinder(str(project))
+    found = sorted({f"{d.__module__}.{d.__name__}" for d in finder.find_all()})
+    failures = {name: repr(exc) for name, exc in finder.exceptions.items()}
+    return found, failures
+
+
+def claimed_now(usage: Usage) -> None:
+    """Add every lockfile's claimed keys in the current run to `usage`."""
+    from jitxlib.parts import resolver
+
+    try:
+        lockfiles = resolver._active.run.lockfiles
+        snapshot = [
+            (path, set(lockfile.seen_keys))
+            for path, lockfile in lockfiles.items()
+            if path is not None
+        ]
+    except AttributeError as exc:
         raise Refusal(
-            f"cannot import jitx or jitxlib.parts ({exc}); run this with the "
-            f"project's Python",
+            f"jitxlib.parts no longer exposes the run's claimed keys where this "
+            f"script reads them (checked on {CHECKED_ON}); it cannot tell which "
+            f"entries are used",
             2,
         ) from exc
+    for path, keys in snapshot:
+        usage.add(Path(path), keys)
+
+
+def collect_usage(designs: Sequence[str]) -> Usage:
+    """Elaborate each design under `replay` and return the keys it claimed.
+
+    Claims are read after each design and unioned per resolved lock path, so two
+    spellings of one file are one lockfile. Raises `Refusal` with status 2 when a
+    design cannot be imported or built, and with status 1 when any query does not
+    replay from the lock.
+    """
+    from jitx.run import DryRunBuilder
+    from jitxlib.parts.lock import LockMode, force_mode
+    from jitxlib.parts.resolver import EventKind, name_of, parts_verdict
 
     force_mode(LockMode.REPLAY)
+    usage = Usage()
     errors: list[str] = []
+    misses: list[str] = []
     for spec in designs:
         module_name, _, class_name = spec.rpartition(".")
         try:
@@ -220,42 +311,30 @@ def collect_usage(designs: Sequence[str], project: Path) -> Usage:
             raise Refusal(
                 f"cannot import design {spec}:\n{traceback.format_exc()}", 2
             ) from exc
+        before = parts_verdict()
+        start = len(before.events)
         result = DryRunBuilder().build(design, name=spec, formatter=no_dump)
+        after = parts_verdict()
+        events = after.events[start:] if after is before else after.events
+        misses.extend(
+            f"  {spec}: {name_of(e.kind, after.mode)}: {e.description}"
+            + (f"\n    at {e.origin}" if e.origin else "")
+            for e in events
+            if e.kind is not EventKind.PINNED
+        )
         if result.get("errors"):
             errors.append(f"{spec}: {json.dumps(result['errors'], indent=1)}")
+        claimed_now(usage)
 
-    verdict = parts_verdict()
-    misses = [e for e in verdict.events if e.kind is not EventKind.PINNED]
     if misses:
-        lines = [
-            f"  {name_of(e.kind, verdict.mode)}: {e.description}"
-            + (f"\n    at {e.origin}" if e.origin else "")
-            for e in misses
-        ]
         raise Refusal(
             "the lock does not match the design(s); these queries did not replay:\n"
-            + "\n".join(lines)
+            + "\n".join(misses)
             + "\nBuild every design first (jitx build), then rerun.",
             1,
         )
     if errors:
         raise Refusal("design(s) failed to build:\n" + "\n".join(errors), 2)
-
-    try:
-        lockfiles = resolver._active.run.lockfiles
-    except AttributeError as exc:
-        raise Refusal(
-            f"jitxlib.parts no longer exposes the run's lockfiles where this "
-            f"script reads them (checked on {CHECKED_ON}); it cannot tell which "
-            f"entries are used",
-            2,
-        ) from exc
-
-    usage = Usage()
-    for path, lockfile in lockfiles.items():
-        if path is None:
-            continue
-        usage.claimed[Path(path)] = set(lockfile.seen_keys)
     if not usage.claimed:
         raise Refusal(
             "the design(s) resolved no parts through a lockfile; name the designs "
@@ -265,23 +344,19 @@ def collect_usage(designs: Sequence[str], project: Path) -> Usage:
     return usage
 
 
-def prune_one(
-    path: Path, claimed: set[Key], remove_chains: Iterable[str], apply: bool
-) -> bool:
-    """List one lockfile's entries; with `apply`, remove the stale ones.
-
-    Returns whether the file was rewritten.
-    """
-    data, text = read_lock(path)
-    plan = plan_prune(data, claimed, remove_chains)
+def report(fp: FilePlan) -> None:
+    plan = fp.plan
+    total = len(plan.used) + len(plan.removals) + len(plan.other_kept)
     print(
-        f"{path}: {len(plan.used) + len(plan.removals) + len(plan.other_kept)} "
-        f"entries; {len(plan.used)} used, {len(plan.stale)} stale, "
-        f"{len(plan.other_removed) + len(plan.other_kept)} under other chains"
+        f"{fp.path}: {total} entries; {len(plan.used)} used, {len(plan.stale)} "
+        f"stale, {len(plan.other_removed) + len(plan.other_kept)} under other chains"
     )
     if plan.stale:
         print("stale (no named design uses these):")
         print("\n".join(describe(e) for e in plan.stale))
+    if plan.unpinned:
+        print("unpinned by --unpin (the next build resolves these again):")
+        print("\n".join(describe(e) for e in plan.unpinned))
     if plan.other_removed:
         print("other chains, removed by --remove-chain:")
         print("\n".join(describe(e) for e in plan.other_removed))
@@ -292,30 +367,86 @@ def prune_one(
             f"--remove-chain LABEL removes one):"
         )
         print("\n".join(describe(e) for e in plan.other_kept))
-    if not plan.removals:
-        print("nothing to remove")
-        return False
-    if not apply:
-        print(f"dry run: nothing changed; --apply removes {len(plan.removals)}")
-        return False
 
-    if render(data) != text:
+
+def make_plans(
+    usage: Usage, remove_chains: Sequence[str], unpin: Sequence[str], write: bool
+) -> list[FilePlan]:
+    """Plan every lockfile, and refuse before any write if one cannot be written."""
+    plans: list[FilePlan] = []
+    for path, claimed in sorted(usage.claimed.items()):
+        data, text = read_lock(path)
+        plan = plan_prune(data, claimed, remove_chains, unpin)
+        fp = FilePlan(path, text, plan)
+        plans.append(fp)
+        if not write or not plan.removals:
+            continue
+        if render(data) != text:
+            raise Refusal(
+                f"{path} is not in the format the build writes (a formatter or a "
+                f"hand edit changed it), so a rewrite would change more than the "
+                f"removals. Rewrite it in the build's format, commit that, then "
+                f'rerun: python -c "from jitxlib.parts.lock import Lockfile; '
+                f"Lockfile.read('{path}').write()\"",
+                2,
+            )
+        if backup_path(path).exists():
+            raise Refusal(
+                f"{backup_path(path)} exists from an earlier run; delete it once "
+                f"that run's rebuild and parts-check passed, then rerun",
+                2,
+            )
+        if {entry_key(e) for e in plan.stale + plan.other_removed} & claimed:
+            raise Refusal("refusing to remove an entry the design uses", 2)
+        fp.out_text = render(pruned(data, plan))
+
+    stale = sum(len(fp.plan.stale) for fp in plans)
+    if unpin and stale:
         raise Refusal(
-            f"{path} is not in the format the build writes, so a rewrite would "
-            f"change more than the removals; build to rewrite it, then rerun",
+            f"--unpin: {stale} stale entries remain, and the unpinned query could "
+            f"adopt one; remove them with --apply first",
             2,
         )
-    out = pruned(data, plan)
-    gone = {entry_key(e) for e in plan.removals}
-    if gone & claimed:  # plan_prune guarantees this; checked again before writing
-        raise Refusal("refusing to remove an entry the design uses", 2)
-    backup = path.with_name(path.name + ".bak")
-    shutil.copy2(path, backup)
-    write_atomic(path, render(out))
-    print(f"backup: {backup}")
-    count = len(plan.removals)
-    print(f"removed {count} {'entry' if count == 1 else 'entries'} from {path}")
-    return True
+    if unpin:
+        found = {entry_mpn(e) for fp in plans for e in fp.plan.unpinned}
+        absent = sorted(set(unpin) - found)
+        if absent:
+            raise Refusal(
+                f"--unpin: no entry pins {', '.join(absent)} under a chain and "
+                f"scope the named designs use",
+                2,
+            )
+    return plans
+
+
+def check_coverage(
+    found: Sequence[str],
+    failures: Mapping[str, str],
+    named: Sequence[str],
+    excluded: Sequence[str],
+    acting: bool,
+) -> None:
+    """Say which discovered designs were not named; refuse to act until all are."""
+    unknown = sorted(set(excluded) - set(found))
+    if unknown:
+        raise Refusal(f"--exclude names no discovered design: {', '.join(unknown)}", 2)
+    both = sorted(set(excluded) & set(named))
+    if both:
+        raise Refusal(f"named and excluded: {', '.join(both)}", 2)
+    unnamed = [d for d in found if d not in named and d not in excluded]
+    print(f"designs found: {', '.join(found) or 'none'}")
+    if excluded:
+        print(f"excluded (their entries count as unused): {', '.join(excluded)}")
+    if unnamed:
+        print(f"not named: {', '.join(unnamed)}")
+    for module, why in sorted(failures.items()):
+        print(f"warning: module {module} did not import: {why}", file=sys.stderr)
+    if unnamed and acting:
+        raise Refusal(
+            "name every design that writes this lock, or exclude it with "
+            "--exclude DESIGN; an unnamed design's entries would count as unused",
+            2,
+        )
 
 
 def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
@@ -326,15 +457,35 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         "designs",
         nargs="+",
         metavar="DESIGN",
-        help="module.path.DesignClass; name every design the lock serves",
+        help="module.path.DesignClass; name every design that writes the lock",
     )
     parser.add_argument(
         "--project", default=".", help="project root (default: current directory)"
     )
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
         "--apply",
         action="store_true",
-        help="remove the listed entries, after copying the lock to <lock>.bak",
+        help="remove the stale entries, after copying the lock to <lock>.bak",
+    )
+    mode.add_argument(
+        "--check",
+        action="store_true",
+        help="change nothing; exit 1 if any stale entry exists",
+    )
+    parser.add_argument(
+        "--unpin",
+        action="append",
+        default=[],
+        metavar="MPN",
+        help="remove the entries pinning this part, so the next build resolves it",
+    )
+    parser.add_argument(
+        "--exclude",
+        action="append",
+        default=[],
+        metavar="DESIGN",
+        help="a discovered design that does not write this lock",
     )
     parser.add_argument(
         "--remove-chain",
@@ -343,7 +494,10 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         metavar="LABEL",
         help="also remove every entry under this chain, which no named design uses",
     )
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if args.check and args.unpin:
+        parser.error("--check changes nothing; it does not take --unpin")
+    return args
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -352,20 +506,57 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not (project / "pyproject.toml").is_file():
         print(f"error: no pyproject.toml in {project}", file=sys.stderr)
         return 2
+    os.chdir(project)
+    sys.path.insert(0, str(project))
+    write = bool(args.apply or args.unpin)
     try:
-        usage = collect_usage(args.designs, project)
-        written = [
-            prune_one(path, claimed, args.remove_chain, args.apply)
-            for path, claimed in sorted(usage.claimed.items())
-        ]
+        try:
+            importlib.import_module("jitx.run")
+            importlib.import_module("jitxlib.parts.resolver")
+        except ImportError as exc:
+            raise Refusal(
+                f"cannot import jitx or jitxlib.parts ({exc}); run this with the "
+                f"project's Python",
+                2,
+            ) from exc
+        warn_on_version()
+        found, failures = discover_designs(project)
+        check_coverage(found, failures, args.designs, args.exclude, write or args.check)
+        usage = collect_usage(args.designs)
+        plans = make_plans(usage, args.remove_chain, args.unpin, write)
+        for fp in plans:
+            report(fp)
+        removals = sum(len(fp.plan.removals) for fp in plans)
+        stale = sum(len(fp.plan.stale) for fp in plans)
+        if args.check:
+            print(f"check: {stale} stale")
+            return 1 if stale else 0
+        if not removals:
+            print("nothing to remove")
+            return 0
+        if not write:
+            print(f"dry run: nothing changed; --apply removes {removals}")
+            return 0
+        for fp in plans:
+            if fp.out_text is None:
+                continue
+            if fp.path.read_text(encoding="utf-8") != fp.text:
+                raise Refusal(f"{fp.path} changed while this ran; rerun", 2)
+            shutil.copy2(fp.path, backup_path(fp.path))
+            write_atomic(fp.path, fp.out_text, fp.text)
+            count = len(fp.plan.removals)
+            print(f"backup: {backup_path(fp.path)}")
+            print(
+                f"removed {count} {'entry' if count == 1 else 'entries'} from {fp.path}"
+            )
     except Refusal as refusal:
         print(f"error: {refusal}", file=sys.stderr)
         return refusal.status
-    if any(written):
-        print(
-            "next: build, run `jitx design export parts-check <design> --fail all`, "
-            "and show the user `git diff` of the lock"
-        )
+    print(
+        "next: build every named design, run `jitx design export parts-check "
+        "<design> --fail all` on each, show the user `git diff` of the lock, then "
+        "delete the backup"
+    )
     return 0
 
 

@@ -4,14 +4,16 @@
 The rule under test is the one that makes pruning safe: an entry a design uses is
 never removed. The plan tests run anywhere. The project test builds a scratch
 JITX project in a temp dir and runs the script as a user would; it needs a Python
-with jitx 4.6 and jitxlib-parts 2, named by JITX_PYTHON or found as the running
-interpreter, and is skipped without one.
+with jitx 4.6 and jitxlib-parts 2. Set JITX_PYTHON to one: the project tests then
+fail if it cannot import jitx. Without JITX_PYTHON they use the running
+interpreter, and are skipped when it has no jitx.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -22,7 +24,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from prune_lock import Refusal, entry_key, plan_prune, pruned, render
+from prune_lock import Refusal, Usage, entry_key, make_plans, plan_prune, pruned, render
 
 SCRIPT = Path(__file__).resolve().with_name("prune_lock.py")
 
@@ -77,21 +79,68 @@ class Plan(unittest.TestCase):
         with self.assertRaises(Refusal):
             plan_prune(self.data, self.claimed | {("gone", "main", "")}, [])
 
-
-def jitx_python() -> str | None:
-    """An interpreter that can import jitx.run and jitxlib.parts, or None."""
-    candidates = [os.environ.get("JITX_PYTHON"), sys.executable]
-    for candidate in candidates:
-        if not candidate:
-            continue
-        probe = subprocess.run(
-            [candidate, "-c", "import jitx.run, jitxlib.parts.resolver"],
-            capture_output=True,
-            check=False,
+    def test_unpin_stays_inside_the_used_chains_and_scopes(self) -> None:
+        data = lock(
+            entry("a", mpn="IDEAL-R-1k"),
+            entry("b"),
+            entry("c", chain="chain-2", mpn="IDEAL-R-1k"),
+            {**entry("d", mpn="IDEAL-R-1k"), "lock_scope": "other"},
         )
-        if probe.returncode == 0:
-            return candidate
-    return None
+        plan = plan_prune(data, self.claimed, [], ["IDEAL-R-1k"])
+        self.assertEqual([e["digest"] for e in plan.unpinned], ["a"])
+        self.assertEqual([e["digest"] for e in plan.other_kept], ["c"])
+        self.assertEqual([e["digest"] for e in plan.stale], ["d"])
+
+
+class Write(unittest.TestCase):
+    """Refusals that must come before any file is written."""
+
+    def setUp(self) -> None:
+        self.root = Path(tempfile.mkdtemp(prefix="prune-lock-"))
+        self.addCleanup(shutil.rmtree, self.root)
+        data = lock(entry("a"), entry("stale"))
+        self.lock = self.root / "parts.lock.json"
+        self.lock.write_text(render(data))
+        self.usage = Usage()
+        self.usage.add(self.lock, {("a", "main", "")})
+
+    def test_existing_backup_is_refused(self) -> None:
+        (self.root / "parts.lock.json.bak").write_text("{}")
+        with self.assertRaisesRegex(Refusal, "parts.lock.json.bak exists"):
+            make_plans(self.usage, [], [], write=True)
+
+    def test_two_spellings_of_one_lock_are_one_file(self) -> None:
+        (self.root / "sub").mkdir()
+        alias = self.root / "sub" / ".." / "parts.lock.json"
+        self.usage.add(alias, {("stale", "main", "")})
+        plans = make_plans(self.usage, [], [], write=True)
+        self.assertEqual(len(plans), 1)
+        self.assertEqual(plans[0].plan.stale, [])
+
+    def test_a_refusal_on_one_lock_writes_none(self) -> None:
+        other = self.root / "sub"
+        other.mkdir()
+        (other / "parts.lock.json").write_text(self.lock.read_text())
+        (other / "parts.lock.json.bak").write_text("{}")
+        self.usage.add(other / "parts.lock.json", {("a", "main", "")})
+        before = self.lock.read_text()
+        with self.assertRaises(Refusal):
+            make_plans(self.usage, [], [], write=True)
+        self.assertEqual(self.lock.read_text(), before)
+
+
+def imports_jitx(python: str) -> bool:
+    probe = subprocess.run(
+        [python, "-c", "import jitx.run, jitxlib.parts.resolver"],
+        capture_output=True,
+        check=False,
+    )
+    return probe.returncode == 0
+
+
+JITX_PYTHON = os.environ.get("JITX_PYTHON") or (
+    sys.executable if imports_jitx(sys.executable) else None
+)
 
 
 BUILD = textwrap.dedent(
@@ -132,18 +181,50 @@ DESIGN = textwrap.dedent(
 )
 
 
+SECOND = textwrap.dedent(
+    """
+    import jitx
+    from jitx.circuit import Circuit
+    from jitx.sample import SampleDesign
+    from jitx.units import kohm
+    from jitxlib.parts import Resistor
+
+
+    class Pair(Circuit):
+        def __init__(self) -> None:
+            self.a = jitx.Port()
+            self.b = jitx.Port()
+            self.r1 = Resistor(resistance=1 * kohm)
+            self.r4 = Resistor(resistance=4.7 * kohm)
+            self.nets = [self.a + self.r1.p1 + self.r4.p1, self.b + self.r1.p2 + self.r4.p2]
+
+
+    class Second(SampleDesign):
+        circuit = Pair()
+    """
+)
+
+
 @unittest.skipUnless(
-    jitx_python(), "needs JITX_PYTHON with jitx 4.6 and jitxlib-parts 2"
+    JITX_PYTHON, "set JITX_PYTHON to a Python with jitx 4.6 and jitxlib-parts 2"
 )
 class Project(unittest.TestCase):
     """The script against a real project: a removed component's entry goes, the
     rest stay, and a rebuild after pruning re-resolves nothing."""
 
+    @classmethod
+    def setUpClass(cls) -> None:
+        assert JITX_PYTHON is not None
+        if not imports_jitx(JITX_PYTHON):
+            raise AssertionError(
+                f"JITX_PYTHON={JITX_PYTHON} cannot import jitx.run and jitxlib.parts"
+            )
+
     def setUp(self) -> None:
-        python = jitx_python()
-        assert python is not None
-        self.python = python
+        assert JITX_PYTHON is not None
+        self.python = JITX_PYTHON
         self.root = Path(tempfile.mkdtemp(prefix="prune-lock-"))
+        self.addCleanup(shutil.rmtree, self.root)
         (self.root / "pyproject.toml").write_text(
             '[project]\nname = "prunedemo"\nversion = "0.1.0"\n\n'
             '[tool.jitx.parts]\nchain = ["ideal"]\n'
@@ -167,8 +248,8 @@ class Project(unittest.TestCase):
             check=False,
         )
 
-    def build(self) -> None:
-        done = self.run_in_project("-c", BUILD, "prunedemo.main.Main")
+    def build(self, design: str = "prunedemo.main.Main") -> None:
+        done = self.run_in_project("-c", BUILD, design)
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
 
     def mpns(self) -> list[str]:
@@ -215,6 +296,39 @@ class Project(unittest.TestCase):
         self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
         self.assertIn("did not replay", done.stderr)
         self.assertEqual(self.lock.read_text(), before_text)
+
+    def test_an_entry_two_designs_share_is_kept_for_both(self) -> None:
+        (self.root / "prunedemo" / "second.py").write_text(SECOND)
+        both = ("prunedemo.main.Main", "prunedemo.second.Second")
+        for design in both:
+            self.build(design)
+        self.design.write_text(
+            "\n".join(ln for ln in DESIGN.splitlines() if "# REMOVE" not in ln)
+        )
+        self.build()
+        before = json.loads(self.lock.read_text())
+        self.assertEqual(len(before["entries"]), 4)
+
+        # Naming one design is refused: the other's entries would count as unused.
+        alone = self.run_in_project(str(SCRIPT), both[0], "--apply")
+        self.assertEqual(alone.returncode, 2, alone.stdout + alone.stderr)
+        self.assertIn("not named: prunedemo.second.Second", alone.stdout)
+
+        check = self.run_in_project(str(SCRIPT), *both, "--check")
+        self.assertEqual(check.returncode, 1, check.stdout + check.stderr)
+        applied = self.run_in_project(str(SCRIPT), *both, "--apply")
+        self.assertEqual(applied.returncode, 0, applied.stdout + applied.stderr)
+        after = json.loads(self.lock.read_text())
+        queries = sorted(e["query"] for e in after["entries"])
+        self.assertEqual(len(queries), 3, queries)
+        self.assertFalse([q for q in queries if "3 kiloohm" in q])
+        self.assertEqual(len([q for q in queries if "1 kiloohm" in q]), 1)
+        self.assertEqual(len([q for q in queries if "4.7 kiloohm" in q]), 1)
+
+        (self.root / "parts.lock.json.bak").unlink()
+        check = self.run_in_project(str(SCRIPT), *both, "--check")
+        self.assertEqual(check.returncode, 0, check.stdout + check.stderr)
+        self.assertIn("check: 0 stale", check.stdout)
 
 
 if __name__ == "__main__":
