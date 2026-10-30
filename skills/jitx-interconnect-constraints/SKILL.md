@@ -87,17 +87,18 @@ Give every via on a constrained path a `models` entry for the layers it spans; w
 
 ## Closing the path
 
-Path inference follows routed copper. Before routing there is nothing to measure: the report carries `Unconnected Topology on Path: <a>, <b>` per segment, or `Signal path from <a> to <b> is not routed yet`. Route in the board view, or close the path from code so the proof runs headless:
+Path inference follows routed copper. Unrouted, nothing measures: the report carries `Unconnected Topology on Path: <a>, <b>` per segment, or `Signal path from <a> to <b> is not routed yet`. Route in the board view, or close the path from code so the proof runs headless:
 
 ```python
 self.via = EscapeVia().at(0, 0)
+self.via_net = PortAttachment(self.drv.o, self.via)
 self.routes = [
     Route(self.drv.o, self.via, layer=0),
     Route(self.via, self.rcv.i, layer=1),
 ]
 ```
 
-These routes are what the runtime follows to infer the path between the `Topology` ends, which is why the path needs no `>>`: a path crosses a via, or a part with a pin model, where routes land on both sides of it. Route between physical pads, vias and control points, one segment per hop. A route the router cannot make reports `Unable to find path for requested route` under Routing, and the constraint reports `Missing Connection on Path: <a>, <b>`. Control points and route mechanics belong to `jitx-physical-layout`.
+These routes are what the runtime follows to infer the path between the `Topology` ends: a path crosses a via, or a part with a pin model, where routes land on both sides of it. Route between physical pads, vias and control points, one segment per hop. A route the router cannot make reports `Unable to find path for requested route` under Routing, and the constraint reports `Missing Connection on Path: <a>, <b>`. Control points and route mechanics: `jitx-physical-layout`.
 
 ## Differential Pairs
 
@@ -170,7 +171,6 @@ A daisy chain feeds loads in a fixed order, such as a DDR flyby clock. `self.a0 
 
 ## Common Mistakes
 
-- Declaring `>>` on a point-to-point signal, or telling the user `>>` is required for a constraint to apply. Plain nets plus `Topology(begin, end)` are enough.
 - `self.src.data = self.dst.data` is Python assignment, not a connection.
 - Expecting a constraint to create copper: it measures routed paths only.
 
@@ -178,7 +178,7 @@ A daisy chain feeds loads in a fixed order, such as a DDR flyby clock. `self.a0 
 
 Proving each SI constraint applied (width and clearance: `jitx-layout-constraints`; geometry: `jitx-physical-layout`).
 
-Prove binding on a verification design per constrained interface: parts placed, every path code-routed between physical pads (on a pin-assigned port, the provider's pins), passing when each constraint with a timing, loss or skew target measures between its intended ends with no unresolved text; a structure-only constraint never appears, and its code is the evidence. The shipping assembly carries no proof routes: there the unrouted texts (`Unconnected Topology`, `not routed yet`, a bare `No path`, `Unassigned Pin`) are expected only where a path has no route, and a routed path meets the same bar. Details: [references/verification.md](references/verification.md).
+Prove binding on a verification design per constrained interface: parts placed, every path code-routed between physical pads (on a pin-assigned port, the provider's pins). The shipping assembly carries no proof routes. Details: [references/verification.md](references/verification.md).
 
 1. Type check: `pyright path/to/circuit.py`.
 2. Read the design issues from Python, as a script run from the project root while the project's runtime is running (`jitx runtime start --background`):
@@ -207,7 +207,7 @@ Prove binding on a verification design per constrained interface: parts placed, 
 
    Without `satisfied=True` a met constraint is left out. `group.text` shows only a group's first issue. Keep the code in `main()`: design discovery imports the project's `.py` files. `jitx.run` is experimental. Builds against one project run in sequence ([Build safety](../jitx/SKILL.md#build-safety-dont-parallelize-same-design-work)).
 
-3. Count a constraint applied only when its group carries a `Time`, `Loss` or `Skew` measurement naming the intended ends (`met Time: <delay> - Target: 500ps ± 500ps from <begin> to <end>`); `status: ok` or a clean type check is not evidence. Compliance is `group.satisfied`, the only verdict: the text reads the same met or unmet, and a skew `Target` drops its sign. A group also holding an unresolved text ([table](references/verification.md#what-unresolved-looks-like)) is neither proven nor met. Report binding and compliance separately, and an unmet measurement as a violation.
+3. Count a constraint applied only when its group carries a `Time`, `Loss` or `Skew` measurement naming the intended ends (`met Time: <delay> - Target: 500ps ± 500ps from <begin> to <end>`); `status: ok` or a clean type check is not evidence. Compliance is `group.satisfied`, the only verdict: the text reads the same met or unmet, and a skew `Target` drops its sign. A group also holding an unresolved text ([table](references/verification.md#what-unresolved-looks-like)) is neither proven nor met. Report binding and compliance separately, and an unmet measurement as a violation. In the binding report, say what closes each path (the code routes, and each crossed part's pin model) and why it needs no `>>`.
 
 ## API Reference
 
