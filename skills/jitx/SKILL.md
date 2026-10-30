@@ -134,7 +134,7 @@ Worked counter-examples for each: `references/architectural-patterns.md`.
 - **Don't restate data or logic owned by a structural object.** Query the owner: `self.substrate.signal_via[layer]`, `lp.get_pad(row, col)`.
 - **Don't reinvent framework code in design code.** A banned pattern inside the framework class that owns the invariant doesn't license it on your side. Use the public API, or a public adapter on a subclass over a protected method.
 - **Don't generate lookup tables or populate mutable globals at module-import time.** Class-body structural collections are fine.
-- **Don't hand-assign what JITX assigns automatically**: reference designators, net names from topology, layer-derived names.
+- **Don't hand-assign what JITX assigns automatically**: reference designators and layer-derived names. Net names come from the field that stores the net, or `name=` (`jitx-circuit-builder`, Nets).
 - **No `setattr` / `getattr`, no `type(...)` to build classes, no JITX subclass defined inside a function.** These break instantiation tracking.
 - **No `type()` for type checks** (use `isinstance`), no double-underscore members, and no leading-underscore names from elsewhere; a method may call another method on its own class.
 

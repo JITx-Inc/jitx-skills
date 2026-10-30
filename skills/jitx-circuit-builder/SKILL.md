@@ -35,7 +35,8 @@ class SensorCircuit(Circuit):
         )
         self.c_vdd_st = ShortTrace(self.c_vdd.p1, self.u1.VDD)
         self.GND += self.c_vdd.p2
-        self.bus = [self.i2c.sda + self.u1.SDA, self.i2c.scl + self.u1.SCL]
+        self.SDA = self.i2c.sda + self.u1.SDA
+        self.SCL = self.i2c.scl + self.u1.SCL
 ```
 
 A shared open-drain bus's pull-ups (I2C, MDIO's `MIIM.mdio`) belong to the circuit that composes the bus (usually the top-level design), never inside one participant; the base skill's grep gates flag `r_sda` and `r_scl` outside `TOP_LEVEL_PATH`.
@@ -46,8 +47,7 @@ A shared open-drain bus's pull-ups (I2C, MDIO's `MIIM.mdio`) belong to the circu
 2. Boundary ports are class attributes. Components, nets and wiring go in `__init__`, with no `build()` or `circuit()` methods.
 3. Subclass `Circuit` for a circuit and `jitx.Component` for a part.
 4. Never alias a component's port (`self.x = self.r1.p2`): the build fails with `Child object ... has multiple parents`. To expose a pin, net it to a boundary port.
-5. A named net and a public port share one namespace, so name them differently (port `pwr_vccint`, net `VCCINT`).
-6. Mark an unused component pin `no_connect()` in the component or the circuit holding it. Leave an unused circuit port off every net: `no_connect()` on one passes translation and a `TestCase`, then fails the build: `Cannot set a module pin as no-connect`.
+5. Mark an unused component pin `no_connect()` in the component or the circuit holding it. Leave an unused circuit port off every net: `no_connect()` on one passes translation and a `TestCase`, then fails the build: `Cannot set a module pin as no-connect`.
 
 ## Anti-string-hacking
 
@@ -69,12 +69,14 @@ class EthernetPort(Circuit):
         self.reg = RegulatorCircuit()
         self.phy = PhyCircuit()
         self.jack = RJ45Circuit()
-        self.rails = [self.vin + self.reg.vin, self.reg.vout + self.phy.vin]
-        self.mac_side = [self.rgmii + self.phy.rgmii, self.miim + self.phy.miim]
-        self.mdi = self.phy.mdi + self.jack.mdi
+        self.VIN = self.vin + self.reg.vin
+        self.VPHY = self.reg.vout + self.phy.vin
+        self.RGMII = self.rgmii + self.phy.rgmii
+        self.MIIM = self.miim + self.phy.miim
+        self.MDI = self.phy.mdi + self.jack.mdi
 ```
 
-A parent wires its children's boundary ports to each other and to its own. It never reaches into a child's components, and a child never reaches up: a pin the parent needs is a boundary port of the child.
+A parent wires its children's boundary ports to each other and to its own. It never nets into a child's components, and a child never reaches up: a pin the parent needs is a boundary port of the child. SI constraint ends, a verification design's placement and its proof routes may still name a child's pads (`jitx-interconnect-constraints`, "Choosing the ends").
 
 ## Placement
 
@@ -88,7 +90,21 @@ A sub-circuit without `.at` sits at its parent's origin on top. Until a placemen
 
 ## Nets
 
-`Net(...)` takes one iterable of ports, so a whole rail goes on in one call; a bare port raises `TypeError`. Name power and ground nets. Net symbols (`PowerSymbol()`, `GroundSymbol()` from `jitxlib.symbols.net_symbols`, as `symbol=` or `net.symbol = ...`) join a rail across schematic pages and belong in the top-level design only: the base skill's grep gates fail them outside `TOP_LEVEL_PATH` (default `designs/`).
+`Net(...)` takes one iterable of ports, so a whole rail goes on in one call; a bare port raises `TypeError`.
+
+A net's exported name comes from the highest circuit that joins it. Without `name=`, it is the name of the field that stores the net: `self.RESET_n = a + b` is `RESET_n`, a list in `self.CA` gives `CA[0]`, `CA[1]` and so on, and a list of lists in `self.DQ` gives `DQ[0][1]`. A bundle net exports one net per member: `self.CK` on a diff pair gives `CK_p` and `CK_n`, `self.VSYS` on a `Power` gives `VSYS_Vp` and `VSYS_Vn`. The highest circuit's name wins even over a child's `name=`, so a catch-all field in the joining circuit (`self.nets = [...]`) renames every net it touches `nets[0]`, `nets[1]`, whatever the children called them. A sub-circuit's net that no parent joins keeps its own name when no other instance exports that name; two sibling instances `x` and `y` of a circuit with net `E` give `x_E` and `y_E`. A net added with `self += a + b` is stored in no field and exports under an internal name (`_Circuit__iliad[0]`). A `name=` may match a public port's name. Store each signal, or each group of like signals, in its own field named for it, in the highest circuit that joins it; in a loop, keep one list per signal role (`self.TX_P`, `self.TX_N`).
+
+Power and ground get net symbols in the top-level design (the circuit a `Design` builds, in a file under `TOP_LEVEL_PATH`, default `designs/`): `GroundSymbol()` on each ground domain and `PowerSymbol()` on each power rail, both from `jitxlib.symbols.net_symbols`. The base skill's grep gates fail a symbol anywhere else, so a sub-circuit's code puts no symbol on its rails, including one made and used inside it (an LDO's local 1V8), and names them by their field. A symbol on a bundle net raises `ValueError: Cannot set symbol on bundle net`, so keep the rail a bundle net and put the symbol on a net of one member, stored after the bundle in the field that names the rail:
+
+```python
+self.VSYS = self.reg.vout + self.mcu.vin + self.sensor.vin
+self.P3V3 = Net([self.reg.vout.Vp], symbol=PowerSymbol())
+self.GND = Net([self.reg.vout.Vn], symbol=GroundSymbol())
+```
+
+The rail exports as `P3V3` and `GND`, with a symbol at each part on it; the bundle's field name (`VSYS`) does not export. With the symbol net stored after the bundle, its field names the whole rail, so a bundle in `self.P3V3` with its symbol net in `self.P3V3_SYM` exports `P3V3_SYM`.
+
+Measured on jitx 4.6.0rc10.
 
 `+=` takes a port or a `Net`, never a bare list:
 

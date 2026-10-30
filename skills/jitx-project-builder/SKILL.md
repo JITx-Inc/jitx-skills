@@ -78,10 +78,15 @@ The rule is the base skill's [Build safety](../jitx/SKILL.md#build-safety-dont-p
 ### Grep Gate Enforcement
 
 Copy `scripts/grep_gates.py` and `scripts/check.py` from the base `jitx` skill into the
-project's `scripts/` directory. Copy `jitx-interconnect-constraints/scripts/check_si_spans.py`
-to `<project>/scripts/check_si_spans.py` and
+project's `scripts/` directory. Copy
 `jitx-physical-layout/scripts/check_realization.py` to
-`<project>/scripts/check_realization.py`; each is owned and tested by its skill.
+`<project>/scripts/check_realization.py`; it is owned and tested by its skill.
+SI constraints need no copied script. Each design whose SI constraints are
+checked gets a report script under `<ns>/`, at `<ns>/designs/check_si_<name>.py`:
+the Python check in `jitx-interconnect-constraints` "Verification" (its body
+in `main()` behind the `__name__` guard) with that design imported, run from
+the project root as
+`python -m <ns>.designs.check_si_<name>` while the project's runtime is running.
 This skill's `scripts/plan_status.py` is copied when PLAN.md is created as
 described below. Sub-agents and the
 orchestrator at every phase exit gate run the single static-check entry point

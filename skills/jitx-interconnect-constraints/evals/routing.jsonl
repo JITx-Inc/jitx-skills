@@ -1,18 +1,23 @@
-// Positives: topology, timing, SI primitives, and binding verification.
-{"intent":"make this clock path an ordered JITX topology and cap its propagation delay","expected_skill":"jitx-interconnect-constraints"}
+// Positives: timing, loss and skew constraints, pin models, and proof that they measured.
+{"intent":"cap the propagation delay on this clock net from the driver to each load","expected_skill":"jitx-interconnect-constraints"}
 {"intent":"my SI constraint builds status ok; prove it actually bound end to end","expected_skill":"jitx-interconnect-constraints"}
 {"intent":"add insertion-loss limits across the RF feed and its series capacitor","expected_skill":"jitx-interconnect-constraints"}
 {"intent":"constrain P-to-N skew on these four differential lanes","expected_skill":"jitx-interconnect-constraints"}
 {"intent":"match the RGMII data signals to the transmit clock","expected_skill":"jitx-interconnect-constraints"}
 {"intent":"set up DQ-to-DQS timing for this DDR byte lane","expected_skill":"jitx-interconnect-constraints"}
-{"intent":"chain a USB SuperSpeed pair through the AC coupling block","expected_skill":"jitx-interconnect-constraints"}
+{"intent":"constrain a USB SuperSpeed pair through its AC coupling capacitors","expected_skill":"jitx-interconnect-constraints"}
 {"intent":"why does Topology(begin, end) stop before the connector inside my subcircuit","expected_skill":"jitx-interconnect-constraints"}
-{"intent":"add the pin model that joins the topology across this common-mode choke","expected_skill":"jitx-interconnect-constraints"}
+{"intent":"add the pin model that carries the constraint across this common-mode choke","expected_skill":"jitx-interconnect-constraints"}
 {"intent":"apply a 100 ohm differential structure to the PCIe topology","expected_skill":"jitx-interconnect-constraints"}
-{"intent":"compare the SI spans in my module harness and assembled board","expected_skill":"jitx-interconnect-constraints"}
-{"intent":"walk topologySegments in load-cache.json and check every constrained endpoint","expected_skill":"jitx-interconnect-constraints"}
+{"intent":"compare the measured SI constraints in my module harness and assembled board","expected_skill":"jitx-interconnect-constraints"}
+{"intent":"list which signal constraints actually measured in the design issues report","expected_skill":"jitx-interconnect-constraints"}
 {"intent":"build a reusable SignalConstraint for this two-lane serial protocol","expected_skill":"jitx-interconnect-constraints"}
 {"intent":"set the reference plane context for a constrained single-ended topology","expected_skill":"jitx-interconnect-constraints"}
+{"intent":"hold skew across a bundle of four diff pairs without declaring a topology","expected_skill":"jitx-interconnect-constraints"}
+{"intent":"my timing constraint shows no measurement in jitx design issues; find out why it does not bind","expected_skill":"jitx-interconnect-constraints"}
+{"intent":"give the AC coupling caps pin models so the loss limit reaches the connector","expected_skill":"jitx-interconnect-constraints"}
+{"intent":"add a delay and loss model to the escape via between the top and inner layers","expected_skill":"jitx-interconnect-constraints","ambiguous_with":["jitx-substrate-modeler"]}
+{"intent":"time a flyby clock that must be routed in order through each memory chip","expected_skill":"jitx-interconnect-constraints"}
 // Near-miss negatives: layout rules own widths and clearances.
 {"intent":"set the default trace width to 0.15 mm and copper clearance to 0.2 mm","expected_skill":"jitx-layout-constraints","ambiguous_with":["jitx-interconnect-constraints"]}
 {"intent":"make the short QFN escape narrower than the power net class","expected_skill":"jitx-layout-constraints","ambiguous_with":["jitx-interconnect-constraints"]}

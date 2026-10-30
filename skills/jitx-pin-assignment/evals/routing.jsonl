@@ -1,0 +1,12 @@
+// Positives: provide/require, muxing, swaps the part allows, constraints through assigned pins.
+{"intent":"let the solver pick which MCU pins carry the I2C and UART peripherals","expected_skill":"jitx-pin-assignment"}
+{"intent":"the four channels of this ESD array are identical; let USB D+ and D- use either channel pair, either way round","expected_skill":"jitx-pin-assignment"}
+{"intent":"offer P/N inversion on this PCIe lane, the controller datasheet confirms RX polarity inversion","expected_skill":"jitx-pin-assignment"}
+{"intent":"let the FPGA put this LVDS bus on any free pins in bank 34 or bank 35","expected_skill":"jitx-pin-assignment"}
+{"intent":"my skew constraint on a pair through a provide.one_of part never measures; make the assignment resolve so it applies","expected_skill":"jitx-pin-assignment","ambiguous_with":["jitx-interconnect-constraints"]}
+// Near-miss negatives: interconnect constraints own skew and pin models with no pin assignment.
+{"intent":"constrain intra-pair skew on the USB pair from the host to the connector","expected_skill":"jitx-interconnect-constraints","ambiguous_with":["jitx-pin-assignment"]}
+{"intent":"add the bridging pin model so the skew constraint crosses the ESD part","expected_skill":"jitx-interconnect-constraints","ambiguous_with":["jitx-pin-assignment"]}
+// Near-miss negatives: plain wiring and part modelling.
+{"intent":"wire the USB connector D+ and D- through the ESD part to the host","expected_skill":"jitx-circuit-builder","ambiguous_with":["jitx-pin-assignment"]}
+{"intent":"model this four-channel ESD array from its datasheet","expected_skill":"jitx-component-modeler","ambiguous_with":["jitx-pin-assignment"]}

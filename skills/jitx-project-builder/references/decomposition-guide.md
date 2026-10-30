@@ -120,7 +120,7 @@ Within each cluster, tasks may need to be sequential (e.g., constraints before c
 - Instantiate all subcircuits
 - Connect power and ground nets with `GroundSymbol` / `PowerSymbol` (these go HERE, not in subcircuits)
 - Wire interfaces via require() from provides
-- Apply ALL SI constraints here within `ReferencePlanes(GND)` (constraints go HERE, not in subcircuits — subcircuits only create `>>` topologies)
+- Apply ALL SI constraints here within `ReferencePlanes(GND)` (constraints go HERE, not in subcircuits; subcircuits wire their signals with plain `+` nets and give each part with a path through it a `BridgingPinModel`; a flow-through package whose opposite pin is n.c. gets none, and its two lands are one net)
 - Add ground pours on ground plane layers. For designs with multiple power domains, plan power planes and split planes as needed (e.g., analog/digital ground partitioning on mixed-signal boards)
 - Define board geometry (shape, mounting holes). If mechanical constraints exist (DXF board outline, EMN placement data, keepout zones, height restrictions), incorporate them here. A dedicated mechanical interface skill may be used for importing DXF/EMN data.
 - Verify power sequencing requirements are met by the physical power tree
@@ -205,7 +205,7 @@ Top-level: hardcodes self.net1 += esp32.GPIO4 + amp.SCLK  # BAD
 Task description: "Expose I2S bundle port for upstream require()"
 Result: circuit has self.i2s = I2S()  # bundle from jitxlib
 Top-level: i2s = self.esp32.require(I2S)
-           self += i2s.sck + self.amp.i2s.sck  # solver picks pins
+           self.I2S_SCK = i2s.sck + self.amp.i2s.sck  # solver picks pins
 ```
 
 When writing PLAN.md task `Specifics` for circuit tasks:
@@ -252,11 +252,13 @@ Phase 1 (parallel, ~6 tasks):
   comp-04: QSFP/SFP connector
   comp-05: SMA connectors + JTAG header
 
-Phase 2 (clustered parallel, ~7 tasks):
+Phase 2 (clustered parallel, ~9 tasks):
   Cluster A: cir-01 power tree — depends on comp-03
   Cluster B: cst-01 DDR5 constraints, cir-02 DDR5 interface — depends on comp-01, comp-02, sub-01
   Cluster C: cst-02 SerDes constraints, cir-03 SerDes interface — depends on comp-01, comp-04, sub-01
   pin-01: FPGA provides — depends on comp-01
+  ver-01: DDR5 SI verification (depends on pin-01, cir-02, cst-01)
+  ver-02: SerDes SI verification (depends on pin-01, cir-03, cst-02)
 
 Phase 3: Top-level assembly (complex — ReferencePlanes, pours, many constraints)
 Phase 4: Build + verify + iterate

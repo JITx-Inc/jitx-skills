@@ -51,7 +51,7 @@ class McuCircuit(Circuit):
         self.u1 = Mcu()
         self.VDD = Net([self.vin.Vp, self.u1.VDD], name="VDD")
         self.GND = Net([self.vin.Vn, self.u1.VSS], name="GND")
-        self.bus = self.i2c + self.u1.i2c  # a bundle nets to the same bundle type
+        self.I2C = self.i2c + self.u1.i2c  # a bundle nets to the same bundle type
 
 
 class SensorCircuit(Circuit):
@@ -75,9 +75,9 @@ class Board(Circuit):
         self.reg = RegulatorCircuit()
         self.mcu = McuCircuit()
         self.sensor = SensorCircuit()
-        self.input = self.vin + self.reg.vin
-        self.rail = self.reg.vout + self.mcu.vin + self.sensor.vin
-        self.i2c = self.mcu.i2c + self.sensor.i2c
+        self.VIN = self.vin + self.reg.vin
+        self.VSYS = self.reg.vout + self.mcu.vin + self.sensor.vin
+        self.I2C = self.mcu.i2c + self.sensor.i2c
 
 
 class MixedTypes(Circuit):

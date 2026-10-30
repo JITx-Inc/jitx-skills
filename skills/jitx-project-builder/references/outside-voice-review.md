@@ -69,7 +69,7 @@ Prompts are **narrow and evidence-anchored**, not "review everything". The promp
 | Per-task: RF | circuit dir + datasheets + relevant ref design | `<ns>/circuits/<this>.py`, component files, `datasheets/<rf-part>.pdf` | Impedance, return path, ESD, antenna feed structure |
 | Per-task: power converter | circuit dir + regulator datasheet | `<ns>/circuits/<this>.py`, `datasheets/<regulator>.pdf` | Voltage divider math, bootstrap, enable, compensation, dissipation |
 | Per-task: safety-critical | circuit dir + spec doc | `<ns>/circuits/<this>.py`, relevant spec | Isolation, creepage, fail-safe state, fault behavior |
-| Per-task: high-speed digital | circuit dir + protocol spec + substrate | `<ns>/circuits/<this>.py`, substrate file, protocol spec PDF | Constraint application, topology with `>>`, termination, return-path continuity |
+| Per-task: high-speed digital | circuit dir + protocol spec + substrate | `<ns>/circuits/<this>.py`, substrate file, protocol spec PDF | Constraint application, constrained paths on plain nets with pin models, termination, return-path continuity |
 | Per-task: battery/protection | circuit dir + charger datasheet + pack spec | `<ns>/circuits/<this>.py`, `datasheets/<charger>.pdf`, pack spec | Charger config, fuel gauge wiring, thermistor, power-path, fault response |
 
 Append a catch-all line at the end of every prompt: **"Also flag any directly observable blocking electrical or geometry mismatch in the reviewed files."** This preserves narrow focus while allowing obvious unknown unknowns to surface.

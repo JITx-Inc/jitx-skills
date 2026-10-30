@@ -74,7 +74,7 @@ Run `python scripts/check.py <ns>/ --build <module.path.DesignClass>` once from 
 | Domain checklist | <name; N/N; M fixed; K N/A + reasons> |
 | General Gotcha Scrub | N/N |
 | Layout rules | <command; exit; witnessed/unwitnessed> |
-| SI spans | <`python scripts/check_si_spans.py <cache>`; exit code; exact span labels checked / not applicable + reason> |
+| SI measurements | <`ver-` task: `python -m <ns>.designs.check_si_<iface>` command; one quoted group per constraint with a timing, loss or skew target, carrying its Time / Loss / Skew measurement, intended ends, `met` or `NOT MET`, no unresolved text; each structure-only constraint named from its code / any other task: not applicable + reason> |
 | Physical realization | <`python scripts/check_realization.py <module.Design> [witness args]`; exit code; authored pours, stitch targets, board-wide pours / not applicable + reason> |
 | `ruff check` | <`ruff check` summary line; PASS, or FAIL fixed and re-run> |
 | `ruff format` | <`ruff format` summary line; PASS, or reformatted and re-run> |
@@ -88,7 +88,7 @@ Run `python scripts/check.py <ns>/ --build <module.path.DesignClass>` once from 
 | Ports exposed | <bundles; directions> |
 | Power requirements | <voltage; current> |
 | Constraints needed at top level | <list/none> |
-| Harness / assembly constraint parity | <harness constrained span; assembly constrained span; match evidence / not applicable + reason> |
+| Verification design / assembly constraint parity | <constraint class, parameters, routing structure, Topology ends and pin models compared; verification design: measurements (structure-only: code); assembly: constraint code, plus its `Unconnected Topology on Path:` segment list where the report gives one; match evidence / not applicable + reason> |
 
 ### Reviews
 
@@ -121,18 +121,58 @@ The orchestrator (or user) then appends the acceptance decision:
 - **`N/A` requires a reason.** Bare `N/A` in any field is rejected on review.
 - **Primary source must be ground truth.** A prior project as primary source is a flag — the orchestrator should reject and ask for the datasheet (or user-confirmed exception). Prior projects belong under "Secondary references".
 - **Static checks are required where Python was touched.** `python scripts/check.py <ns>/` always runs `ruff check`, `ruff format --check`, `pyright`, and the grep gates. Every check reports `PASS`, `FAIL` or `ERROR`, and only `PASS` reaches acceptance. A `FAIL` is fixed and the command re-run, so the block carries the passing line rather than a recorded violation; a `FAIL` line in a submitted block returns the task to `rework`. An `ERROR` means the check did not run, which is not a pass: it blocks acceptance until the tool is available, or the orchestrator records why the environment cannot run it.
-- **SI-span and physical-realization rows are executable evidence.** When their
-  scope applies, the row carries the command, exit 0, and the witness names. A
-  missing row, exit 1, exit 2, or a claimed pass without named witnesses blocks
-  acceptance. `not applicable` names the concrete reason no SI span or authored
+- **SI-measurement and physical-realization rows are executable evidence.** SI
+  binding is proven on a code-routed verification design, one per constrained
+  interface (the constrained paths between the same modules, with every constraint on them), written
+  by that interface's `ver-` task: it places the parts, code-routes each path
+  between physical pads (on a pin-assigned port, the
+  provider's physical pins), and runs its SI check,
+  `python -m <ns>.designs.check_si_<iface>`. It passes when every constraint
+  with a timing, loss or skew target shows a quoted Time, Loss or Skew
+  measurement from its intended begin pad to its intended end pad, and no group
+  for it holds unresolved text.
+
+  A constraint that carries only `.structure(...)`, with no timing, loss or
+  skew target, never appears in the report, satisfied or not. It is exempt from
+  the measured-line rule and from the absent-from-report rule; its evidence is
+  the constraint in code (class, Topology ends, structure), recorded in the
+  parity row.
+
+  The shipping assembly carries no proof routes. Sort each of its SI groups by
+  whether its constraint's path has copper yet:
+  - No route on the path: `Unconnected Topology`, `not routed yet`, `No path
+    for signal constraint` with no part named, and `Unassigned Pin` on a
+    pin-assigned end are expected and recorded.
+  - Any route on the path: the constraint is held to the verification-design
+    bar, a measurement between its intended ends with no unresolved text,
+    `Missing routing structure` and a placeholder via model included. Those two
+    appear only beside a measurement, so they are checked on the verification
+    design and on routed paths.
+  - Blocking wherever it appears: `No path for signal constraint ... which has
+    no pin model`, `Virtual connection without a pin model`, and a constraint
+    with a timing, loss or skew target that is absent from the report.
+
+  Compliance is read from the routed assembly's own groups
+  (`group.satisfied`); the printed text reads the same met or unmet. A
+  verification design's values are proof-route numbers, not the board's.
+
+  The physical row carries the command, exit 0, and the witness names. A
+  missing row, a verification design that does not pass, a blocking text, exit
+  1, exit 2, or a claimed pass without named witnesses blocks acceptance.
+  `not applicable` names the concrete reason no SI constraint or authored
   physical witness exists; it is not a substitute for an unavailable command.
 - **JITX code review (self) is required for complete-board tier.** A complete-board task acceptance block with `JITX code review (self): not run` defaults to `block`. Bulk dispositions on findings ("all accepted, framework code") without per-line rationale fail review. See `jitx-code-review/SKILL.md`.
-- **Harness / assembly constraint parity is required at assembly acceptance.** The
-  assembly block names each constrained endpoint span in its accepted harness and
-  in the shipping design, including any bridging-pin model, and cites the evidence
-  that they match. A missing comparison or a mismatch returns the assembly task to
-  `rework`. Earlier tasks use `not applicable` with a reason because the assembly
-  does not exist yet.
+- **Verification design / assembly constraint parity is required at assembly
+  acceptance.** Parity compares constraint class, parameters, routing
+  structure, Topology ends and pin models between the verification design and
+  the assembly. The verification side's evidence is its measurements (for a
+  structure-only constraint, its code). The assembly side's is its constraint
+  code, plus the `Unconnected Topology on Path:` segment list where the report
+  gives one; a pin-assigned end reports `Unassigned Pin`, and an unrouted plain
+  chain may report `not routed yet` or a bare `No path`, and then the code
+  comparison stands alone. A missing comparison or a mismatch returns the
+  assembly task to `rework`. Earlier tasks use `not applicable` with a reason
+  because the assembly does not exist yet.
 - **Verdict (self): ready-for-review** is the only valid sub-agent verdict. Any other value (e.g. `done`, `complete`) means the protocol was not followed.
 
 ### Verdict workflow
@@ -170,7 +210,7 @@ A review-required hit does not block, but each hit must appear in the task accep
 |---|------|---------|----|
 | 5 | Module-scope `for` loop — anti-string-hacking theme 9. Module-import-time logic that *might* populate a global table; legitimate uses (dispatch registration, static data generation) exist. Disposition: `fix (move into function)` or `accept (legitimate import-time logic: <reason>)`. See `jitx/SKILL.md` Don'ts and `jitx/references/architectural-patterns.md` § "No code at module-import time". | `^for\s+\w+\s+in\s+` | anywhere in `<ns>/` |
 | 6 | `Pour(..., isolate=...)` — legacy parameter (Pass 3 deprecates in favor of `design_constraint(...)` with Tags) | `\bPour\s*\([^)]*\bisolate\s*=` | anywhere in `<ns>/` |
-| 7 | Bare net/topology expression (silent-drop pattern — `self.a + self.b` or `self.a >> self.b` with no LHS assignment) | `^\s*self\.\w+(\.\w+\|\[[^]]+\])*\s*(\+\|>>)\s*self\.\w+(\.\w+\|\[[^]]+\])*(\s*#.*)?$` | anywhere in `<ns>/` |
+| 7 | Bare net/topology expression (silent-drop pattern 2: `self.a + self.b`, or the same with the daisy-chain operator, with no LHS assignment) | `^\s*self\.\w+(\.\w+\|\[[^]]+\])*\s*(\+\|>>)\s*self\.\w+(\.\w+\|\[[^]]+\])*(\s*#.*)?$` | anywhere in `<ns>/` |
 | 8 | `type(...)` call — verify not used for runtime type construction (use `isinstance` for type checks) | `\btype\s*\(` | anywhere in `<ns>/` |
 | 9 | Tag-like f-string — anti-string-hacking theme 1. f-strings (single- or double-quoted, lowercase or uppercase `f`/`F`) starting with an uppercase letter and building names via brace-substitution (`f"TX_b{i}"`, `f'L{n}_via'`, `F"GND_via_{n}"`) are the canonical string-keyed-name failure mode. See `jitx/SKILL.md` Don'ts and `jitx/references/architectural-patterns.md` § "String-keyed dicts → structural objects". Disposition: `fix (use structural object)` or `accept (legitimate use: <reason>)`. | `[fF]["'][A-Z][A-Za-z0-9_]*\{` | anywhere in `<ns>/` |
 | 10 | Broader `getattr(` — narrower hard-fail Pattern 3 catches `getattr(self, ...)`. This wider net catches `getattr(other, "...")` where strings are still the indirection mechanism. Most are still smells; legitimate framework uses (e.g., `getattr` on a known-typed external object) are dispositioned per-hit. | `\bgetattr\s*\(` | anywhere in `<ns>/` |
@@ -181,9 +221,10 @@ Pattern 8 is intentionally broad; it will match comments and legitimate `isinsta
 
 Pattern 1 skips `constraints/` directories, `main.py`, and test modules
 (`test_*.py`, `*_test.py`, `tests/`) because the prescribed layout puts SI
-constraint definitions, the seeded top-level design, and harnesses there. A hit
-anywhere else is an SI constraint applied inside an ordinary subcircuit and
-blocks acceptance.
+constraint definitions, the seeded top-level design, and test harnesses there.
+It also skips `<ns>/designs/`, where SI verification designs
+(`verify_<iface>.py`) apply their constraints. A hit anywhere else is an SI
+constraint applied inside an ordinary subcircuit and blocks acceptance.
 
 Pattern 9 catches f-strings that look like they're building tag-style identifiers (`ALL_CAPS` prefix + brace). Legitimate uses (log lines like `f"ERROR_{code}"`) need disposition with rationale. The disposition workflow keeps this from becoming compliance theater.
 
@@ -294,7 +335,8 @@ work with a batch count on it.
 | Constraint classes instantiate | <evidence> |
 | Provide/require interfaces consistent | <result> |
 | Bundle-typed ports | <result> |
-| Topology vs net wiring | <result> |
+| Constrained-path wiring and pin models | <plain `+` nets on constrained paths; a `BridgingPinModel` on every part with a path through it, none on a flow-through package whose opposite pin is n.c.; result> |
+| SI verification designs | <per constrained interface: `ver-` task id, `<ns>/designs/verify_<iface>.py`, verdict; every interface with an SI constraint has an accepted one / not applicable + reason> |
 | Power-rail caps on `ShortTrace` | <result; dispositions> |
 | Power circuit outputs match ARCHITECTURE.md | <result> |
 | Open from this phase | <list/none> |
@@ -315,7 +357,8 @@ work with a batch count on it.
 | `GroundSymbol` on GND | <result> |
 | `PowerSymbol` on each rail | <result> |
 | SI constraints at top level in `ReferencePlanes(...)` | <result> |
-| Harness / assembly constraint parity | <each harness span vs assembly span; evidence; result> |
+| Verification design / assembly constraint parity | <per constraint: class, parameters, routing structure, Topology ends and pin models, verification design vs assembly code; segment list where the report gives one; result> |
+| SI design issues dispositioned | <assembly `python -m <ns>.designs.check_si_main` command; each SI group dispositioned expected (path has no route), measured (routed path), or blocking; blocking list empty> |
 | `require()` calls have matching provides | <result> |
 | JITX UI errors | <result/reason> |
 | Build warnings | <result> |
@@ -423,7 +466,7 @@ Final verification before declaring the project done.
 
 **Parts gate (run first):** <exact `jitx build <design>` status line; exact `jitx design export parts-check <design> --fail all` summary line, exit 0; exact last line of `python <path to the jitx skill>/scripts/prune_lock.py <design> [--exclude <test design> ...] --check`, `check: 0 stale` or `check: the named designs resolved no parts through a lockfile`, exit 0; every MPN the final build resolved (read as in `project-builder-flow.md` "Approved passives", not from `parts.lock.json`), none starting `IDEAL-` (the parts check passes an ideal part) and, when PLAN.md `Data Sources` records the example stand-in, each with the user's approval quoted, or the user's list in its place, else a blocking item. A design left on `IDEAL-` parts is a user-approved deferral, listed below>
 
-**Verification command:** `python scripts/check.py <ns>/ --build <ns>.designs.Design`
+**Verification command:** `python scripts/check.py <ns>/ --build <ns>.main.Design`
 
 **Check summary:** <the four check summary lines from `python scripts/check.py` (ruff check, ruff format, pyright, grep gates)>
 
@@ -442,14 +485,14 @@ For each item: pass | fail with details | not run (with reason)
 | Board placement | pass | components placed (or floating with rationale), no overlaps |
 | Issues List | <count> issues | <list, each with disposition> |
 | DRC | pass | <or list of violations with disposition> |
-| SI constraints | all satisfied | <or list of failures with disposition> |
-| SI span binding | exit 0 / not applicable | <exact `check_si_spans.py` command; exact printed span labels / concrete reason no SI span is expected> |
+| SI constraints | all satisfied | <compliance from the routed assembly's own groups (`group.satisfied`; the measurement is binding evidence, not the verdict), or list of failures with disposition; verification-design values are proof-route numbers and do not stand in; a constraint whose path has no route reads `not measured: unrouted; see SI constraint binding` and gets the `SI compliance pending routing` Deferred item> |
+| SI constraint binding | measured / not applicable | <each verification design: exact `python -m <ns>.designs.check_si_<iface>` command and one quoted group per constraint with a timing, loss or skew target, with its measurement (structure-only: named from code); assembly: command and each SI group dispositioned / concrete reason no SI constraint is expected> |
 | Placement overlap | none | <or list> |
 | Physical realization | exit 0 | <exact `check_realization.py` command; authored pour names; stitch targets; board-wide pours> |
 
 If any row is `not run`, give the reason. Common reasons:
 
-- **JITX UI not available** (CI / headless / no display). When this applies, use the build-output checks: parse `cache/netlist.json` for orphan nets, parse `design-info/stable.design` for placement, and the build log for SI/DRC complaints. Note in the row: `not run: headless — checked via netlist.json (no orphans) and build log (no SI errors)`.
+- **JITX UI not available** (CI / headless / no display). When this applies, use the build-output checks: parse `cache/netlist.json` for orphan nets, parse `design-info/stable.design` for placement, the build log for DRC complaints, and `python -m <ns>.designs.check_si_main` for SI. Note in the row: `not run: headless; checked via netlist.json (no orphans), build log, and the SI check script (SI groups dispositioned)`.
 - **Tool not installed.** Reason should name what's missing and a follow-up to install.
 
 A row that is `not run` without a reason fails the gate.
@@ -479,16 +522,30 @@ User-approved deferrals only. Each item: description + reason + follow-up plan.
 Rules:
 
 - A `not run` row with no reason fails the gate.
-- When SI spans are expected, the SI span-binding row is blocking. Absence,
-  `not run`, exit 1, or exit 2 makes the verdict `not-yet`; rerun the command
-  after final rework that changes topology or an SI constraint.
+- When SI constraints are expected, the SI constraint-binding row is blocking.
+  Phase 4 runs the SI check on each verification design and on the assembly
+  and applies the SI rule in [Rules for the block](#rules-for-the-block):
+  structure-only constraints exempt from the measured-line and
+  absent-from-report rules, unrouted texts expected only on a constraint whose
+  path has no route, a routed constraint held to the verification-design bar.
+  Absence, `not run`, a verification design that does not pass, or an assembly
+  constraint below the bar for its routing state makes the verdict `not-yet`.
+  Rerun the commands after final rework that changes routing, a pin model, or
+  an SI constraint.
+- An assembly constraint whose path has no route has binding evidence from
+  its verification design but no compliance measurement. The `SI constraints`
+  row reads `not measured: unrouted` for it, and the row passes only with the
+  Deferred item `SI compliance pending routing: rerun python -m
+  <ns>.designs.check_si_main after routing`, shown to the user with the
+  verdict. Without that item the verdict is `not-yet`.
 - The Physical realization row is blocking. Absence, `not run`, exit 1, or exit
   2 makes the verdict `not-yet`; a clean build does not substitute for it.
 - A `not run` row also requires fallback artifacts: if the JITX UI isn't available, name the build-output files used to substitute for it. Conventional fallbacks:
     - **Schematic / Issues List → `build log`** (cite path; flag any errors/warnings)
     - **Board placement / overlap → `<design-folder>/design-info/stable.design`** (machine-readable; can be inspected for overlap)
     - **Connectivity / orphan nets → `<design-folder>/cache/netlist.json`** (parse for disconnected ports)
-    - **DRC / SI → `build log`** (constraint failures and DRC complaints surface in the build output)
+    - **DRC → `build log`** (DRC complaints surface in the build output)
+    - **SI → `python -m <ns>.designs.check_si_main`** (measured and unresolved SI groups)
   A `not run: headless` row with no fallback artifact named is rejected.
 - "Builds clean" alone is never sufficient. The block's other rows must show real verification (or stated absence with reason and fallback).
 - Blocking items must be empty. Programming-debug headers, antenna implementations, board-edge geometry, and SI constraints on required interfaces are blocking unless the user explicitly de-scoped them in writing.
