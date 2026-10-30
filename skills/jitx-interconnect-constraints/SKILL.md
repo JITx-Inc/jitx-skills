@@ -160,6 +160,7 @@ A daisy chain feeds loads in a fixed order, such as a DDR flyby clock. `self.a0 
 
 ## Common Mistakes
 
+- Declaring `>>` on a point-to-point signal, or telling the user `>>` is required for a constraint to apply. Plain nets plus `Topology(begin, end)` are enough.
 - `self.src.data = self.dst.data` is Python assignment, not a connection.
 - Expecting a constraint to create copper: it measures routed paths only.
 
