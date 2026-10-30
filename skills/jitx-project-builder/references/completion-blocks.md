@@ -355,7 +355,7 @@ work with a batch count on it.
 | Power tree complete | <result> |
 | Symbols and constraints | <result> |
 | `GroundSymbol` on GND | <result> |
-| `PowerSymbol` on each rail that crosses circuits | <result> |
+| `PowerSymbol` on each rail | <result> |
 | SI constraints at top level in `ReferencePlanes(...)` | <result> |
 | Verification design / assembly constraint parity | <per constraint: class, parameters, routing structure, Topology ends and pin models, verification design vs assembly code; segment list where the report gives one; result> |
 | SI design issues dispositioned | <assembly `python -m <ns>.designs.check_si_main` command; each SI group dispositioned expected (path has no route), measured (routed path), or blocking; blocking list empty> |

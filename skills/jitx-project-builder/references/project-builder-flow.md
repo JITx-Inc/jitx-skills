@@ -456,7 +456,7 @@ These checks are cheap, and any extra signal during code review is worth turning
 - [ ] All nets connected (no floating ports on instantiated circuits)
 - [ ] Power tree complete (every load rail connected to a regulator output)
 - [ ] All require() calls have matching provides
-- [ ] `GroundSymbol` on each ground domain, `PowerSymbol` on every power rail that crosses circuits
+- [ ] `GroundSymbol` on GND net, `PowerSymbol` on every power rail
 - [ ] SI constraints applied **at this level** (not inside subcircuits) for every protocol with impedance/timing requirements
 - [ ] Every SI constraint matches its interface's accepted verification design in
       constraint class, parameters, routing structure, Topology ends and pin
