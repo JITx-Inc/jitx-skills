@@ -87,7 +87,17 @@ Give every via on a constrained path a `models` entry for the layers it spans; w
 
 ## Closing the path
 
-The runtime infers the path between the `Topology` ends from routed copper, so no `>>` is needed: a path crosses a via, or a part with a pin model, where routes land on both sides. Unrouted, nothing measures; the report carries `Unconnected Topology on Path: <a>, <b>` per segment or `Signal path from <a> to <b> is not routed yet`. Route in the board view or with code routes between physical pads, vias and control points, one segment per hop (`Route(self.drv.o, self.via, layer=0)`; mechanics in `jitx-physical-layout`). A route the router cannot make reports `Unable to find path for requested route`, and the constraint `Missing Connection on Path`.
+Path inference follows routed copper. Before routing there is nothing to measure: the report carries `Unconnected Topology on Path: <a>, <b>` per segment, or `Signal path from <a> to <b> is not routed yet`. Route in the board view, or close the path from code so the proof runs headless:
+
+```python
+self.via = EscapeVia().at(0, 0)
+self.routes = [
+    Route(self.drv.o, self.via, layer=0),
+    Route(self.via, self.rcv.i, layer=1),
+]
+```
+
+These routes are what the runtime follows to infer the path between the `Topology` ends, which is why the path needs no `>>`: a path crosses a via, or a part with a pin model, where routes land on both sides of it. Route between physical pads, vias and control points, one segment per hop. A route the router cannot make reports `Unable to find path for requested route` under Routing, and the constraint reports `Missing Connection on Path: <a>, <b>`. Control points and route mechanics belong to `jitx-physical-layout`.
 
 ## Differential Pairs
 
