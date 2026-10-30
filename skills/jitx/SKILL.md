@@ -46,7 +46,7 @@ Passive queries need a provider chain in `pyproject.toml` (without one: `NoChain
 chain = ["csv:parts/approved-parts.csv", "ideal"]
 ```
 
-`ideal`, last, synthesizes unorderable `IDEAL-...` parts so the design builds before approval, silently answering most queries the CSV cannot. Before calling it done, pass `jitx build <design>` and `jitx design export parts-check <design> --fail all`, and check on the design itself that no MPN starts with `IDEAL-`: the parts check passes an ideal part. Take an `IDEAL-` part to the user; change a value or rating only with their sign-off. On the stand-in, the user approves the final build's MPNs (`jitx-project-builder` Phase 0) or supplies a list. When that list replaces the stand-in, or a row is added for an `IDEAL-` part, delete `parts.lock.json` (or those entries) and rebuild: the lock keeps what it pinned. CSV format, lockfile, the `IDEAL-` test, parts databases: https://docs.jitx.com/en/latest/essentials/design/parts.html
+`ideal`, last, synthesizes unorderable `IDEAL-...` parts so the design builds before approval, silently answering most queries the CSV cannot. Before calling it done, pass `jitx build <design>` and `jitx design export parts-check <design> --fail all`, and check on the design itself that no MPN starts with `IDEAL-`: the parts check passes an ideal part. Take an `IDEAL-` part to the user; change a value or rating only with their sign-off. On the stand-in, the user approves the final build's MPNs or supplies a list. The lock never prunes, so searching it is not evidence: remove its stale entries with [`prune_lock.py`](scripts/prune_lock.py) before reading it and after removing a component or running a test design. Never delete the whole lock once parts are placed, routed or approved without the user's say-so. Cleanup, care, deliberate re-resolves: [`references/parts-lock.md`](references/parts-lock.md). CSV format, lockfile, the `IDEAL-` test, parts databases: https://docs.jitx.com/en/latest/essentials/design/parts.html
 
 The scaffold skips `git init` (do it and say so). Its `.gitignore` keeps the built design directory tracked on purpose: do not broaden it.
 
@@ -103,7 +103,7 @@ jitx runtime status | grep -q reachable || jitx runtime start --background
 - **Rebuild prompts.** Some rebuilds ask `[Y/n]` before deleting stale instances; headless, the build ends `EOF when reading a line`. The answer is the user's: end your build, tell them what it printed, and rebuild once they answer in the JITX UI or their own terminal. Pipe `yes |` only when the user says to; PowerShell has no verified equivalent.
 - **Stalled build.** Run long builds with `PYTHONUNBUFFERED=1`. If a build shows no output and little CPU for a minute, check `jitx runtime status` in every other open JITX project, `pgrep -fl interactive-client` for accumulated clients, and what `jitx runtime cleanup` reports. Ask before stopping anything.
 - **`status: ok` is not routed copper.** Realization is silent: verify geometry from Python (Introspection, `jitx-physical-layout`).
-- **Exports.** The `legacy-*` plugins are fab and CAD handoffs, not verification; `parts-check` is Step 2's parts gate. Other packages (such as `jitxlib-ansys`) add plugins.
+- **Exports.** The `legacy-*` plugins are fab and CAD handoffs, not verification. Other packages (such as `jitxlib-ansys`) add plugins.
 
 ### Build safety: don't parallelize same-design work
 
@@ -181,8 +181,6 @@ Invoke it before writing that code.
 | provide/require, pin muxing, lane and polarity swapping | `jitx-pin-assignment` |
 | Self-review of JITX code against the rules above | `jitx-code-review` |
 | DXF/IDF/STEP import and export, board outlines, 3D models | `jitx-mechanical` |
-
-One artifact goes straight to its sub-skill; assembling a buildable board goes to `jitx-project-builder`.
 
 ## Documentation lookup
 
