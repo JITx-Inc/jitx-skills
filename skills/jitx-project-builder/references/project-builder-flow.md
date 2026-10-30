@@ -136,7 +136,7 @@ jitx design session --stop <design>
 
 It prints the MPNs as a JSON list, the parts the chain resolved and no modeled components. If `exec` reports `message could not be delivered`, the session is not up yet: run it again. If the background session has exited, read its output, fix the error it reports, and start the session again.
 
-When the user's list replaces the stand-in, delete `parts.lock.json` (the lock keys a CSV on its path, so a file overwritten in place re-resolves nothing), rebuild, and update the `Data Sources` row. After a row is added for a part that resolved `IDEAL-`, delete that entry (or `parts.lock.json`) and rebuild: the lock keeps the ideal part it pinned.
+When the user's list replaces the stand-in, tell the user every passive will be chosen again, delete `parts.lock.json` (the lock keys a CSV on its path, so a file overwritten in place re-resolves nothing), rebuild, and update the `Data Sources` row. That whole-lock delete is the re-resolve the user asked for; nothing else deletes the whole lock. After a row is added for a part that resolved `IDEAL-`, remove the lock's stale entries, then run `prune_lock.py` with `--unpin <IDEAL- MPN>` and rebuild: the lock keeps the ideal part it pinned until it is unpinned, and every other part stays pinned. Both procedures, and the stale-entry cleanup: base `jitx` skill [`references/parts-lock.md`](../../jitx/references/parts-lock.md).
 
 ### Exit Gate: Phase 0 → Phase 1
 
