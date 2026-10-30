@@ -32,6 +32,12 @@ removals. `--check` exits 1 when any stale entry exists. When the designs
 resolve no parts through a lockfile, it exits 0 unless a lockfile under the
 project still holds entries, which it lists.
 
+A design whose lock mode is `off` (`lock-mode = "off"` under `[tool.jitx.parts]`,
+or a `Lock(mode=LockMode.OFF)` in the design's class body) uses no lockfile. It
+is listed as such and not elaborated, so it claims nothing. When the named
+designs claim nothing and one has the lock off, a listing or `--apply` changes
+nothing and exits 0, and `--check` is the no-lockfile case above.
+
 It refuses to judge a lock the designs do not match: when any query fails to
 replay (a component added or edited since the last build, a renamed chain), it
 prints those queries and exits 1. Build first, then rerun.
@@ -57,7 +63,7 @@ import sys
 import traceback
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import Any
 
 Key = tuple[str, str, str]
@@ -79,6 +85,8 @@ class Usage:
     """What the named designs claimed, per lockfile, keyed by resolved path."""
 
     claimed: dict[Path, set[Key]] = field(default_factory=dict)
+    unlocked: list[str] = field(default_factory=list)
+    """Named designs whose lock mode is `off`, which use no lockfile."""
 
     def add(self, path: Path, keys: Iterable[Key]) -> None:
         self.claimed.setdefault(path.resolve(), set()).update(keys)
@@ -236,6 +244,18 @@ def locks_with_entries(project: Path) -> list[tuple[Path, int, list[str]]]:
     return found
 
 
+def reformat_command(path: PurePath) -> str:
+    """The command that rewrites a lock in the build's format, changing no entry.
+
+    The path is written with forward slashes: a Windows path's backslashes inside
+    the Python string literal would be escapes (`C:\\Users` holds `\\U`).
+    """
+    return (
+        'python -c "from jitxlib.parts.lock import Lockfile; '
+        f"Lockfile.read('{path.as_posix()}').write()\""
+    )
+
+
 def backup_path(path: Path) -> Path:
     return path.with_name(path.name + ".bak")
 
@@ -360,6 +380,26 @@ def claimed_now(usage: Usage) -> None:
         usage.add(Path(path), keys)
 
 
+def lock_is_off(design: type) -> bool:
+    """Whether the design runs with the lock off, so it uses no lockfile.
+
+    A `Lock` in the design's class body (any attribute name, the last one in
+    method resolution order winning, as `jitx` enters class-body contexts) sets
+    the mode; otherwise the project's `[tool.jitx.parts] lock-mode` does.
+    """
+    from jitxlib.parts.lock import Lock, LockMode, discovered_lock
+    from jitxlib.parts.policy import current_project
+
+    declared: Lock | None = None
+    for klass in reversed(design.__mro__):
+        for name in vars(klass):
+            value = getattr(design, name, None)
+            if isinstance(value, Lock):
+                declared = value
+    lock = declared if declared is not None else discovered_lock(current_project())
+    return lock.mode == LockMode.OFF
+
+
 def collect_usage(designs: Sequence[str]) -> Usage:
     """Elaborate each design under `replay` and return the keys it claimed.
 
@@ -384,6 +424,9 @@ def collect_usage(designs: Sequence[str]) -> Usage:
             raise Refusal(
                 f"cannot import design {spec}:\n{traceback.format_exc()}", 2
             ) from exc
+        if lock_is_off(design):
+            usage.unlocked.append(spec)
+            continue
         before = parts_verdict()
         start = len(before.events)
         result = DryRunBuilder().build(design, name=spec, formatter=no_dump)
@@ -457,8 +500,7 @@ def make_plans(
                 f"{path} is not in the format the build writes (a formatter or a "
                 f"hand edit changed it), so a rewrite would change more than the "
                 f"removals. Rewrite it in the build's format, commit that, then "
-                f'rerun: python -c "from jitxlib.parts.lock import Lockfile; '
-                f"Lockfile.read('{path}').write()\"",
+                f"rerun: {reformat_command(path)}",
                 2,
             )
         if backup_path(path).exists():
@@ -596,8 +638,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         discovery = discover_designs(project)
         check_coverage(discovery, args.designs, args.exclude, write or args.check)
         usage = collect_usage(args.designs)
+        if usage.unlocked:
+            print(f"lock mode off, no lockfile: {', '.join(usage.unlocked)}")
         if not usage.claimed:
-            if args.check:
+            if args.check or (usage.unlocked and not args.unpin):
                 held = locks_with_entries(project)
                 for path, count, chains in held:
                     print(
@@ -606,10 +650,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                         f"no named design uses; ask the user before removing them"
                     )
                 print(
-                    "check: the named designs resolved no parts through a lockfile"
+                    ("check: " if args.check else "")
+                    + "the named designs resolved no parts through a lockfile"
                     + (f"; {len(held)} lockfile(s) still hold entries" if held else "")
                 )
-                return 1 if held else 0
+                return 1 if held and args.check else 0
             raise Refusal(
                 "the design(s) resolved no parts through a lockfile; name the "
                 "designs the lock belongs to",
