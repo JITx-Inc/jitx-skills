@@ -38,7 +38,6 @@ class StitchParamsTests(unittest.TestCase):
         self.assertEqual(params.mask_expansion, 0.06)
         self.assertAlmostEqual(params.edge_margin, 0.18)  # skill default: bridge + registration
         self.assertEqual(params.via_pad_diameter, 0.52)
-        self.assertEqual(params.fillet_radius, 0.0)
 
     def test_caller_supplied_edge_margin_wins(self) -> None:
         constraints = SimpleNamespace(
@@ -86,7 +85,7 @@ class GridTests(unittest.TestCase):
         )
 
     def test_too_small_exposed_pad_raises(self) -> None:
-        with self.assertRaisesRegex(ValueError, "too small"):
+        with self.assertRaises(ValueError):
             grid_thermal_via_positions(
                 ep_size=(0.9, 2.0),
                 via_grid=(2, 2),

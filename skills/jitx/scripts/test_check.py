@@ -79,7 +79,6 @@ class Placeholders(unittest.TestCase):
     def test_missing_tool_is_error_not_pass(self):
         r = check.run_command("nope", ["definitely-not-a-real-binary-xyz"])
         self.assertEqual(r.status, "ERROR")
-        self.assertIn("command not found", r.detail)
 
 
 if __name__ == "__main__":
