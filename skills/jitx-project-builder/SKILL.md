@@ -69,7 +69,7 @@ Where a note and the datasheet disagree, the note is the defect: a fix sub-agent
 
 **CD-2: The orchestrator does not author design code.** It creates and edits only `PLAN.md`, `ARCHITECTURE.md`, and files under `scripts/`. A sub-agent writes every file under the project namespace `<ns>/`, including one-line fixes. The orchestrator reads code during acceptance review but does not write it. If spawning feels heavy for a fix, batch the fix into the next sub-agent rework cycle.
 
-**CD-3: A sub-agent returns its acceptance block and nothing else.** No transcript, narration, or restated file contents. It names each written file by path in the block; the orchestrator reads it from disk if needed.
+**CD-3: A sub-agent returns its acceptance block and nothing else** (or `blocked: build prompt` with the lines the build printed, task-execution Step 7). No transcript, narration, or restated file contents. It names each written file by path in the block; the orchestrator reads it from disk if needed.
 
 ### Build Safety
 

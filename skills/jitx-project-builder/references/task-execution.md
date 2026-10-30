@@ -33,7 +33,7 @@ Read your task definition from PLAN.md. Note:
 | Task type | Skill / source | Standing instructions |
 |-----------|----------------|-----------------------|
 | `component` | `jitx-component-modeler`; approved datasheet evidence | Checklists: Component Modeling, plus MCU/FPGA where the part is one. Invoke the skill. For complete-board work, use its `extract_pages.py` to read the real pinout, mechanical, and application pages, write `datasheets/<MPN>.spec.md`, then model from the note. For single-task work, model from the datasheet. Follow `jitx-component-modeler/SKILL.md` "Verification and halt" through the application-circuit offer: the capture is mandatory in complete-board work. |
-| `circuit` | `jitx-circuit-builder` + `jitx-component-modeler`; every IC's datasheet evidence | Checklists: Power Circuit or Interface Circuit as applicable, Datasheet Compliance, General Gotcha Scrub. Answer every engineering question with cited evidence from the spec note for complete-board work or the datasheet for single-task work. The English datasheet for every IC is saved to `datasheets/<mpn>.pdf` from the manufacturer's site, not from a sourcing channel whose copy may be another language or revision; the sub-agent counts and implements every required external component without simplification and follows the component-modeler's application-circuit handoff in `jitx-component-modeler/SKILL.md` "Verification and halt" before wiring whenever that routing condition matches. Expose bundle-typed ports, wire constrained paths with `+` and give pass-through parts a `BridgingPinModel`, and place shared-bus pull-ups or termination only at the bus-aggregation level. A circuit whose ports carry SI constraints verifies on its `TestDesign` like any other; the interface's `ver-` task proves the constraints. |
+| `circuit` | `jitx-circuit-builder` + `jitx-component-modeler`; every IC's datasheet evidence | Checklists: Power Circuit or Interface Circuit as applicable, Datasheet Compliance, General Gotcha Scrub. Answer every engineering question with cited evidence from the spec note for complete-board work or the datasheet for single-task work. The English datasheet for every IC is saved to `datasheets/<mpn>.pdf` from the manufacturer's site, not from a sourcing channel whose copy may be another language or revision; the sub-agent counts and implements every required external component without simplification and follows the component-modeler's application-circuit handoff in `jitx-component-modeler/SKILL.md` "Verification and halt" before wiring whenever that routing condition matches. Expose bundle-typed ports, wire constrained paths with `+` and give each part with a path through it a `BridgingPinModel` (none on a flow-through package whose opposite pin is n.c.), and place shared-bus pull-ups or termination only at the bus-aggregation level. A circuit whose ports carry SI constraints verifies on its `TestDesign` like any other; the interface's `ver-` task proves the constraints. |
 | `assembly` | `jitx-circuit-builder` + `jitx-interconnect-constraints` + `jitx-layout-constraints` + `jitx-physical-layout` (pours); accepted subcircuits and ARCHITECTURE.md | Checklists: General Gotcha Scrub. Instantiate every subcircuit; connect power and ground with `PowerSymbol` / `GroundSymbol`; tag those nets with `PowerTag` / `GroundTag`; wire bundles through their typed ports with `+` per `jitx-circuit-builder`, keeping `require()` for pin assignment; add shared-bus parts at the aggregation level; apply every SI constraint inside `ReferencePlanes(...)`; compare each SI constraint with its interface's accepted verification design (constraint class, parameters, routing structure, Topology ends, pin models); define board geometry; set manufacturing-appropriate `CapacitorQuery`, `ResistorQuery` and `InductorQuery` design-level defaults in the Design class body and document each per-circuit override ([Passive query defaults](project-builder-flow.md#passive-query-defaults--match-manufacturing-and-circuit-role)); set the rule set by invoking `jitx-layout-constraints` (the four defaults, the net-class rules, any escape rules; its Layout Constraints checklist applies, and its check script's command and exit code go in the acceptance block). Write the assembly's SI check script, `<ns>/designs/check_si_main.py`, the same check with `<ns>.main`'s design imported. A missing or mismatched verification-design/assembly comparison blocks Step 6. See `project-builder-flow.md` Phase 3. |
 | `substrate` | `jitx-substrate-modeler` when custom; board specification | Checklists: Substrate. If JLCPCB is approved, check `JLC04161H_1080` (4L/1080, RS_50/DRS_90/DRS_100), `JLC04161H_7628` (4L/7628, RS_50/DRS_90/DRS_100), and `JLC06161H_7628` (6L/7628, RS_50/DRS_100); each includes its stackup, fab rules, and vias. Import the suitable class directly. Otherwise invoke the skill. Ensure the layer count, routing structures, and vias fit the interface speeds and component packages. |
 | `constraint` | `jitx-interconnect-constraints`; protocol spec and substrate | Checklists: Substrate, General Gotcha Scrub. Define the protocol constraint classes from the timing/impedance limits; use `ConstrainDiffPair` for differential pairs and the substrate's routing structure. Define here, but apply constraints only in top-level assembly. |
@@ -79,11 +79,12 @@ python scripts/check.py <ns>/ --build <module.path.TestDesign>
 
 Don't run a concurrent build of the same design in parallel — see [Build safety: don't parallelize same-design work](../../jitx/SKILL.md#build-safety-dont-parallelize-same-design-work).
 
-In headless bash, the command is
-`yes | python scripts/check.py <ns>/ --build <module.path.TestDesign>` because a
-component removal can prompt for assent and the CLI has no documented
-non-interactive flag. It does not add `| tail`. If the build produces no output
-and consumes little CPU, Step 3 pauses before retrying and follows the
+A component removal can make the build ask `[Y/n]` before deleting stale
+instances; the CLI has no documented non-interactive flag. The answer is the
+user's: when the build asks, or ends with `EOF when reading a line`, the
+sub-agent ends its build and returns `blocked: build prompt` (Step 7). The user
+answers in the JITX UI or their own terminal, or says to pipe `yes |`. The
+command does not add `| tail`. If the build produces no output and consumes little CPU, Step 3 pauses before retrying and follows the
 `jitx/SKILL.md` stalled-build check for accumulated `jitx interactive-client`
 processes.
 
@@ -157,7 +158,7 @@ Rules (full set in `completion-blocks.md`):
 
 #### Step 7: Return
 
-For complete-board work, the sub-agent returns the task acceptance block and nothing else. It names written files by path in the block and does not return a transcript, narration, or restated file contents. Every tier still completes Steps 4-6 before returning.
+For complete-board work, the sub-agent returns the task acceptance block and nothing else. It names written files by path in the block and does not return a transcript, narration, or restated file contents. Every tier still completes Steps 4-6 before returning, with one exception: a sub-agent stopped at a build prompt (Step 3) ends its build and returns `blocked: build prompt` with the lines the build printed.
 
 ---
 
@@ -166,6 +167,8 @@ For complete-board work, the sub-agent returns the task acceptance block and not
 After a sub-agent returns, the orchestrator performs an independent review of the **task acceptance block** the sub-agent emitted. The orchestrator does NOT trust the block claims at face value — it verifies them against the code, the build, and the checklist.
 
 A returned task without an acceptance block is automatically `rework`; run `python scripts/plan_status.py <task-id> rework --note "missing acceptance block"`. The block is the contract.
+
+A `blocked: build prompt` return is not rework: relay the printed lines to the user, run `python scripts/plan_status.py <task-id> in-progress --note "build prompt: waiting on the user"`, and once the user has answered, re-spawn the task at Step 3 with that answer ("pipe `yes`" included, if the user says so).
 
 When a valid block arrives, run `python scripts/plan_status.py <task-id> review` before starting the acceptance review.
 
@@ -203,7 +206,7 @@ Do not re-run the entire checklist. Focus on the items most commonly missed for 
 | Component (footprint) | Pad positions plausible for package size, row spacing correct, pad dimensions match the datasheet mechanical drawing on the page the note cites, not the note's transcription of it and not memory |
 | MCU/FPGA | All power domains present, programming interface complete, reset pin present |
 | Power circuit | Enable pin handling, PGOOD output type + pull-up, **feedback divider on a named E-series, VOUT recomputed**, bootstrap cap present |
-| Interface circuit | **Exposes bundle-typed ports**, decoupling on every IC power pin, **I2C pull-ups only if this circuit is the bus-aggregation level** (encloses both ends of a private bus); otherwise pull-ups go at the level that composes the bus |
+| Interface circuit | **Exposes bundle-typed ports**, decoupling on every IC power pin, **Shared-bus (I2C, MDIO) pull-ups only if this circuit is the bus-aggregation level** (encloses both ends of a private bus); otherwise pull-ups go at the level that composes the bus |
 | **Any circuit** | **Did the sub-agent implement the datasheet's application circuit?** Compare the code against the application circuit on the datasheet page the note cites, not against the note's summary of it. Count external components; are any missing (transistors, caps, resistors)? Check pull-up voltage domains; nothing should pull to a high-voltage rail like VBUS. |
 | Substrate | All via types defined, ground plane continuity, impedance achievable |
 | SI verification | Each measurement names the intended begin and end pads; the constraints match what the assembly will apply; no module file changed |

@@ -123,7 +123,7 @@ python -c "import importlib.resources as r, shutil; shutil.copy(r.files('jitxexa
 
 If the copy raises `FileNotFoundError`, the installed `jitxexamples` predates the packaged example CSV: ask the user for a parts list instead.
 
-Tell the user the list is a stand-in and record it in PLAN.md `Data Sources`. A stand-in is not an approval: the Phase 4 parts gate lists every MPN the final build resolved, each with the user's approval quoted, or the user's list replaces the stand-in. Read that list from the final build, after `ideal` leaves the chain. Not from `parts.lock.json`: the lock never prunes, so it still holds the earlier chain's entries, `IDEAL-` parts included. Not from `parts-check` either: it prints counts, not MPNs. Start `jitx design session <design>` in the background (it prints nothing until stopped), then:
+Tell the user the list is a stand-in and record it in PLAN.md `Data Sources`. A stand-in is not an approval: the Phase 4 parts gate lists every MPN the final build resolved, each with the user's approval quoted, or the user's list replaces the stand-in. Read that list from the final build. Not from `parts.lock.json`: the lock never prunes, so it still holds stale entries, `IDEAL-` parts included. Not from `parts-check` either: it prints counts, not MPNs. Start `jitx design session <design>` in the background (it prints nothing until stopped), then:
 
 ```bash
 jitx design exec <design> -c '
@@ -136,7 +136,7 @@ jitx design session --stop <design>
 
 It prints the MPNs as a JSON list, the parts the chain resolved and no modeled components. If `exec` reports `message could not be delivered`, the session is not up yet: run it again. If the background session has exited, read its output, fix the error it reports, and start the session again.
 
-When the user's list replaces the stand-in, delete `parts.lock.json` (the lock keys a CSV on its path, so a file overwritten in place re-resolves nothing), rebuild, and update the `Data Sources` row.
+When the user's list replaces the stand-in, delete `parts.lock.json` (the lock keys a CSV on its path, so a file overwritten in place re-resolves nothing), rebuild, and update the `Data Sources` row. After a row is added for a part that resolved `IDEAL-`, delete that entry (or `parts.lock.json`) and rebuild: the lock keeps the ideal part it pinned.
 
 ### Exit Gate: Phase 0 → Phase 1
 
@@ -211,7 +211,7 @@ Run independent clusters in parallel. Within a cluster, respect dependencies.
 
 ### Bundle wiring for constrained signals
 
-Subcircuits that expose bundles (I2C, ULPI, USB2, etc.) wire the bundle sub-ports to component pins with `+`, including for signals that will receive an SI constraint at top level. On jitx 4.6 a constraint binds across plain nets; no `>>` is needed. What it does need is a `BridgingPinModel` on every pass-through part inside the subcircuit and, before it measures, routes along the path. See [Plain nets carry SI constraints (CRITICAL)](#plain-nets-carry-si-constraints-critical).
+Subcircuits that expose bundles (I2C, ULPI, USB2, etc.) wire the bundle sub-ports to component pins with `+`, including for signals that will receive an SI constraint at top level. On jitx 4.6 a constraint binds across plain nets; no `>>` is needed. What it does need is a `BridgingPinModel` on every part inside the subcircuit with a path through it (none on a flow-through package whose opposite pin is n.c.; its two lands are one net) and, before it measures, routes along the path. See [Plain nets carry SI constraints (CRITICAL)](#plain-nets-carry-si-constraints-critical).
 
 Each constrained interface's verification design belongs to its own Phase 2 `ver-` task, not to the module tasks on its path; see [SI verification designs (CRITICAL)](#si-verification-designs-critical).
 
@@ -256,7 +256,7 @@ A single sub-agent assembles the top-level design. The orchestrator reviews its 
    ```
    NEVER hardcode GPIO numbers. If a downstream circuit has individual ports instead of a bundle, wire the required bundle's sub-ports to them. SI-constrained signals use the same `+` wiring; see [Plain nets carry SI constraints (CRITICAL)](#plain-nets-carry-si-constraints-critical).
 6. Add shared-bus components at the **bus-aggregation level** — the level where the bus is composed across multiple participants (master + slaves). Most of the time that's the top-level design here, because typical buses span subcircuits (MCU subcircuit talks to amp + sensor subcircuits). But if a single subcircuit aggregates an entire bus internally (e.g. a sensor-hub subcircuit containing master + 4 sensors all on one private I2C), the pull-ups belong inside that subcircuit. The rule is bus scope, not file location.
-   - **I2C pull-ups** — one set per bus, placed at the level that composes the bus, to the correct voltage rail (usually 3.3V)
+   - **Shared-bus (I2C, MDIO) pull-ups** — one set per bus, placed at the level that composes the bus, to the correct voltage rail (usually 3.3V)
    - **SPI pull-ups** on CS lines — same rule
    - **CAN termination** resistors — same rule
    - Any termination that spans multiple subcircuits goes at the top-level design that aggregates them
@@ -282,11 +282,11 @@ A single sub-agent assembles the top-level design. The orchestrator reviews its 
 
 ### Passive query defaults — match manufacturing and circuit role
 
-A query assigned in the Design class body is the default for every passive of its category built below it, and keywords on one part are added on top of it. Without one, a passive takes the first row of the approved-parts list that matches its value: on the example CSV, a 100 nF capacitor and a 10 kΩ resistor both resolve to 0201 parts. Filter only on keys the approved-parts list has a column for. A key with no column, or a bound no row meets, makes the CSV decline the query, and `ideal` then answers it without a warning while the chain still holds `ideal` (base `jitx` skill, Step 2). The example CSV's columns include `case`, `mounting`, `tolerance`, `rated_voltage_dc`, `type` and `temperature_coefficient_code`. The right values depend on the design:
+A query assigned in the Design class body is the default for every passive of its category built below it, and keywords on one part are added on top of it. Without one, a passive takes the first row of the approved-parts list that matches its value: on the example CSV, a 100 nF capacitor and a 10 kΩ resistor both resolve to 0201 parts. Filter only on keys the approved-parts list has a column for. A key with no column, or a bound no row meets, makes the CSV decline the query, and `ideal` then answers it without a warning (base `jitx` skill, Step 2). The example CSV's columns include `case`, `mounting`, `tolerance`, `rated_voltage_dc`, `type` and `temperature_coefficient_code`. The right values depend on the design:
 
 | Design class | Typical defaults | Why |
 |--------------|------------------|-----|
-| **SMT production / economy** (JLCPCB, full-machine assembly) | SMD-only, ceramic for caps, small case (0402–0805) | Through-hole picks are wrong; small case fits typical decoupling |
+| **SMT production / economy** (JLCPCB, full-machine assembly) | SMD-only, ceramic for caps, every case the assembler accepts from its smallest up (0402 to 1210 in the example); a case left off is excluded | Through-hole picks are wrong; a short list sends a large-value or high-voltage part to `IDEAL-` |
 | **Hand-build / prototype** (hand-soldered, mixed assembly) | SMD or mixed, larger case (0603–1206) for ease, allow common through-hole on large parts | Hand-rework needs accessible sizes |
 | **Specialty** (high-voltage, RF-heavy, precision analog, high-current, automotive temp) | Per-circuit refinement of ratings and dielectric is the rule; design-level defaults stay broad | Circuit role dominates: bulk caps, film, RF passives and shunts each state their voltage, power or dielectric need |
 
@@ -299,14 +299,15 @@ class Design(...):
 
     # Example for an SMT-production design. Adjust per the design's class above.
     # The attribute name is free; the query's class picks the category it applies to.
+    # `case` lists every package the assembler accepts; one left off is excluded.
     capacitor_defaults = CapacitorQuery(
         mounting="smd",
         type="ceramic",
-        case=("0402", "0603", "0805"),
+        case=("0402", "0603", "0805", "1206", "1210"),
     )
     resistor_defaults = ResistorQuery(
         mounting="smd",
-        case=("0402", "0603"),
+        case=("0402", "0603", "0805", "1206", "1210"),
     )
 
     circuit = TopCircuit()
@@ -563,7 +564,7 @@ Do not accept "noted for future refactoring" — if it's broken, fix it now.
 
 ### Phase 4 Process
 
-1. Run the parts gate first (base `jitx` skill, Step 2; https://docs.jitx.com/en/latest/essentials/design/parts.html): remove `ideal` from `[tool.jitx.parts] chain`, then `jitx build <design>` and `jitx design export parts-check <design> --fail all` must pass. When PLAN.md `Data Sources` records the example stand-in, the gate also lists every MPN the final build resolved (read as in Phase 0 "Approved passives"), each with the user's approval quoted, or the user's list has replaced the stand-in; otherwise it is a blocking item. Approved parts can change footprints, so every later check runs on the approved parts. A `no part found` goes to the user, not to a fix sub-agent: ask for the approved part, and change a value only with the user's sign-off and the affected circuit recomputed.
+1. Run the parts gate first (base `jitx` skill, Step 2; https://docs.jitx.com/en/latest/essentials/design/parts.html): `jitx build <design>` and `jitx design export parts-check <design> --fail all` must pass, and no MPN the final build resolved (read as in Phase 0 "Approved passives") may start with `IDEAL-` (`ideal` stays in the chain, and the parts check passes an ideal part). When PLAN.md `Data Sources` records the example stand-in, the gate also lists each of those MPNs with the user's approval quoted, or the user's list has replaced the stand-in; otherwise it is a blocking item. Approved parts can change footprints, so every later check runs on the approved parts. An `IDEAL-` MPN or a `no part found` goes to the user, not to a fix sub-agent: ask for the approved part, and change a value or rating only with the user's sign-off and the affected circuit recomputed.
 2. Run the full verification command: `python scripts/check.py <ns>/ --build <ns>.main.Design`
 3. Check output for:
    - Every summary line reports `PASS`: proceed to verification
@@ -587,7 +588,7 @@ Do not accept "noted for future refactoring" — if it's broken, fix it now.
 
 The Phase 4 Verification Block is the completion criterion. The block enforces:
 
-- [ ] Parts gate passed: `ideal` removed, `parts-check --fail all` exit 0 (or a user-approved deferral), and, when the list is the example stand-in, every MPN the final build resolved (Phase 0 "Approved passives") listed with the user's approval quoted (or the user's list in its place)
+- [ ] Parts gate passed: `parts-check --fail all` exit 0, no `IDEAL-` MPN (or a user-approved deferral), and, when the list is the example stand-in, every MPN the final build resolved (Phase 0 "Approved passives") listed with the user's approval quoted (or the user's list in its place)
 - [ ] `status: ok` on final build
 - [ ] JITX UI verification rows pass or are `not run` with reason
 - [ ] Issues List, DRC, SI rows have status (or `not run` with reason)
