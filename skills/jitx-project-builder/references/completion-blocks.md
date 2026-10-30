@@ -335,7 +335,7 @@ work with a batch count on it.
 | Constraint classes instantiate | <evidence> |
 | Provide/require interfaces consistent | <result> |
 | Bundle-typed ports | <result> |
-| Constrained-path wiring and pin models | <plain `+` nets on constrained paths; a `BridgingPinModel` on every pass-through part; result> |
+| Constrained-path wiring and pin models | <plain `+` nets on constrained paths; a `BridgingPinModel` on every part with a path through it, none on a flow-through package whose opposite pin is n.c.; result> |
 | SI verification designs | <per constrained interface: `ver-` task id, `<ns>/designs/verify_<iface>.py`, verdict; every interface with an SI constraint has an accepted one / not applicable + reason> |
 | Power-rail caps on `ShortTrace` | <result; dispositions> |
 | Power circuit outputs match ARCHITECTURE.md | <result> |

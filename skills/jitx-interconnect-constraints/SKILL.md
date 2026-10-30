@@ -11,6 +11,8 @@ Apply signal integrity constraints (timing, insertion loss, intra-pair skew, ske
 
 Environment setup is handled by the base `jitx` skill. Ensure it has been invoked first.
 
+The worked patterns this skill points at are modules in the `jitxexamples` package. Install it into the project venv once with `pip install --no-deps --upgrade jitxexamples` (`--no-deps` keeps its pins off the project's `jitx`); it is not a project dependency.
+
 ## Package Architecture
 
 ```python
@@ -26,7 +28,7 @@ from jitx import current
 
 **These DO NOT EXIST — never import:**
 `jitx.topology`, `jitx.constraints.si`, `jitx.diffpair`, `jitx.signal`,
-`jitx.si.TopologyNet` (it is in `jitx.net`), `jitxlib.si`, `jitxlib.constraints`
+`jitxlib.si`, `jitxlib.constraints`
 
 `DiffPair`, `Topology` and `TopologyNet` are in `jitx.net` (`Topology` is re-exported from `jitx.si`); every constraint class and routing structure is in `jitx.si`. For complete API signatures, see [jitx.si API docs](https://docs.jitx.com/en/latest/api/jitx.si.html).
 
@@ -238,7 +240,7 @@ self.a0 = self.ctrl.a0 >> self.dram0.a0 >> self.dram1.a0     # the chain is the 
 
 Store the chain like any net. Unrouted, it reports `Unconnected Topology` per segment. Apply the structure once, over the longest path; it covers the shorter one. Two structures on the shared `ctrl.a0` to `dram0.a0` segment add `Overlapping routing structures along path from ...` (and, routed, `Ambiguous routing structures meet at <pad>`). Worked pattern: `jitxexamples.patterns.si_daisy_chain`.
 
-The same chain on a plain `Net([ctrl.a0, dram0.a0, dram1.a0])` also measures once it is code-routed in order (78.396 ps to the first load and 156.793 ps to the second on a two-layer sample board): the routes fix the order. How the autorouter treats a chain with or without `>>` has not been verified; do not claim either way.
+The same chain on a plain `Net([ctrl.a0, dram0.a0, dram1.a0])` also measures once it is code-routed in order: the routes fix the order, and the pattern's docstring prints the same two times for both forms. How the autorouter treats a chain with or without `>>` has not been verified; do not claim either way.
 
 ## Common Mistakes
 

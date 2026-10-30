@@ -73,7 +73,7 @@ class EthernetPort(Circuit):
         self.mdi = self.phy.mdi + self.jack.mdi
 ```
 
-A parent wires its children's boundary ports to each other and to its own. It never reaches into a child's components, and a child never reaches up: a pin the parent needs is a boundary port of the child. Pin assignment through `provide`/`require` is `jitx-pin-assignment`.
+A parent wires its children's boundary ports to each other and to its own. It never nets into a child's components, and a child never reaches up: a pin the parent needs is a boundary port of the child. SI constraint ends, a verification design's placement and its proof routes may still name a child's pads (`jitx-interconnect-constraints`). Pin assignment through `provide`/`require` is `jitx-pin-assignment`.
 
 ## Placement
 

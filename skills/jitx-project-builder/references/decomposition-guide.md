@@ -120,7 +120,7 @@ Within each cluster, tasks may need to be sequential (e.g., constraints before c
 - Instantiate all subcircuits
 - Connect power and ground nets with `GroundSymbol` / `PowerSymbol` (these go HERE, not in subcircuits)
 - Wire interfaces via require() from provides
-- Apply ALL SI constraints here within `ReferencePlanes(GND)` (constraints go HERE, not in subcircuits; subcircuits wire their signals with plain `+` nets and give each pass-through part a `BridgingPinModel`)
+- Apply ALL SI constraints here within `ReferencePlanes(GND)` (constraints go HERE, not in subcircuits; subcircuits wire their signals with plain `+` nets and give each part with a path through it a `BridgingPinModel`; a flow-through package whose opposite pin is n.c. gets none, and its two lands are one net)
 - Add ground pours on ground plane layers. For designs with multiple power domains, plan power planes and split planes as needed (e.g., analog/digital ground partitioning on mixed-signal boards)
 - Define board geometry (shape, mounting holes). If mechanical constraints exist (DXF board outline, EMN placement data, keepout zones, height restrictions), incorporate them here. A dedicated mechanical interface skill may be used for importing DXF/EMN data.
 - Verify power sequencing requirements are met by the physical power tree
