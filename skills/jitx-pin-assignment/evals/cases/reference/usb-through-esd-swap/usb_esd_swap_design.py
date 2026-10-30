@@ -184,12 +184,10 @@ class UsbThroughEsd(Circuit):
 
         # The required pair stays local: a require() port cannot be a member field.
         pair = self.prot.require(ProtectedPair)
-        self.nets = [
-            self.host.usb.p + pair.host.p,
-            self.host.usb.n + pair.host.n,
-            pair.conn.p + self.conn.usb.p,
-            pair.conn.n + self.conn.usb.n,
-        ]
+        self.DP_HOST = self.host.usb.p + pair.host.p
+        self.DN_HOST = self.host.usb.n + pair.host.n
+        self.DP_CONN = pair.conn.p + self.conn.usb.p
+        self.DN_CONN = pair.conn.n + self.conn.usb.n
         self.gnd = Net([self.host.gnd, self.prot.gnd, self.conn.gnd], name="GND")
 
         # Routes end on the ESD part's physical pins, never on the required port.

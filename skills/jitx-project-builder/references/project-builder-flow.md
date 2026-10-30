@@ -353,11 +353,11 @@ class UsbPhyCircuit(Circuit):
 
     def __init__(self) -> None:
         self.phy = UsbPhy()
-        self.usb_net = self.usb + self.phy.usb_data
+        self.USB = self.usb + self.phy.usb_data
 
 
 # Top level: join the bundles with +, constrain between component pins.
-self.usb_link = self.phy_ckt.usb + self.conn_ckt.usb
+self.USB = self.phy_ckt.usb + self.conn_ckt.usb
 with ReferencePlanes(self.GND):
     self.cst_usb = (
         ConstrainDiffPair(Topology(self.phy_ckt.phy.usb_data, self.conn_ckt.conn.usb))
@@ -428,10 +428,10 @@ A passive held only in a local variable, or constructed inline inside a net, is 
 # WRONG — the Net object is built and discarded; no connection in the netlist.
 self.usb.A6 + self.usb.B6                          # bare `+`
 
-# RIGHT — assign to a `self.<name>` attribute (any name is fine — JITX
-# tracks structural objects by their attribute on the parent), or use the
-# `+=` form which adds to the circuit's net list:
-self.dp_mirror = self.usb.A6 + self.usb.B6         # named net
+# RIGHT: assign to a `self.<name>` attribute named for the signal (the field
+# name becomes the net name; jitx-circuit-builder, Nets), or use the `+=` form
+# which adds to the circuit's net list:
+self.USB_DP = self.usb.A6 + self.usb.B6            # named net
 self += self.driver.OUT.p + self.receiver.INP.p    # added to circuit
 ```
 

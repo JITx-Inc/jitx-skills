@@ -233,7 +233,8 @@ class SiChannel(Circuit):
         ]
         self.caps: list[FixtureAcCap] = []
         self.vias: list[Via] = []
-        self.nets: list[Net] = []
+        self.TX_FPGA: list[Net] = []
+        self.TX_CONN: list[Net] = []
         self.escapes: list[PortAttachment] = []
         self.routes: list[Route] = []
         for i, (src, dst, y) in enumerate(zip(bga_pins, conn_pins, ROWS, strict=True)):
@@ -245,7 +246,8 @@ class SiChannel(Circuit):
             via = self.via_class().at(VIA_X, y)
             self.caps.append(cap)
             self.vias.append(via)
-            self.nets += [Net([src, cap.a]), Net([cap.b, dst])]
+            self.TX_FPGA.append(Net([src, cap.a]))
+            self.TX_CONN.append(Net([cap.b, dst]))
             self.escapes.append(PortAttachment(src, via))
             if self.routed:
                 self.routes += [

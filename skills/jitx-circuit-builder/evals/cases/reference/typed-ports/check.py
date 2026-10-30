@@ -53,17 +53,17 @@ class TypedPortChecks(jitx.test.TestCase):
         self.assertIsInstance(self.b.sensor.i2c, I2C)
 
     def test_regulator_output_feeds_both_consumers(self) -> None:
-        rail = list(self.b.rail)
+        rail = list(self.b.VSYS)
         self.assertEqual(len(rail), 3)
         for port in (self.b.reg.vout, self.b.mcu.vin, self.b.sensor.vin):
             self.assertIn(port, rail)
 
     def test_regulator_input_is_not_on_the_output_rail(self) -> None:
-        self.assertNotIn(self.b.reg.vin, list(self.b.rail))
-        self.assertIn(self.b.reg.vin, list(self.b.input))
+        self.assertNotIn(self.b.reg.vin, list(self.b.VSYS))
+        self.assertIn(self.b.reg.vin, list(self.b.VIN))
 
     def test_bus_joins_the_two_i2c_bundles(self) -> None:
-        bus = list(self.b.i2c)
+        bus = list(self.b.I2C)
         self.assertEqual(len(bus), 2)
         self.assertIn(self.b.mcu.i2c, bus)
         self.assertIn(self.b.sensor.i2c, bus)

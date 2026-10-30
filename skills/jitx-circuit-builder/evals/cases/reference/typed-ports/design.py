@@ -75,9 +75,9 @@ class Board(Circuit):
         self.reg = RegulatorCircuit()
         self.mcu = McuCircuit()
         self.sensor = SensorCircuit()
-        self.input = self.vin + self.reg.vin
-        self.rail = self.reg.vout + self.mcu.vin + self.sensor.vin
-        self.i2c = self.mcu.i2c + self.sensor.i2c
+        self.VIN = self.vin + self.reg.vin
+        self.VSYS = self.reg.vout + self.mcu.vin + self.sensor.vin
+        self.I2C = self.mcu.i2c + self.sensor.i2c
 
 
 class MixedTypes(Circuit):
