@@ -115,7 +115,7 @@ A bundle net lists its bundles. Assert that, then assert inside each child that 
 
 `Resistor`, `Capacitor` and `Inductor` from `jitxlib.parts` take `jitx.units` quantities (a bare number is ohms, farads or henries). Bounds are `AtLeast` and `AtMost` from `jitxlib.parts`; a bare value is an exact match. The project's provider chain resolves them: base skill Install Step 2 and [Parts and Providers](https://docs.jitx.com/en/latest/essentials/design/parts.html).
 
-Filter only on columns the approved CSV has, with bounds its rows meet: read it first. A query the CSV cannot meet (`tolerance=AtMost(0.01)` on an X7R whose rows are 10 to 20 percent) falls through to `ideal`, which returns an `IDEAL-` part honoring only value, case, tolerance and polarization: dielectric and ratings are silently dropped. Where the CSV lacks a column or row the design needs (a resistor's temperature coefficient, say), ask for it rather than writing the key.
+Filter only on columns the approved CSV has, with bounds its rows meet: read it first. A query the CSV cannot meet (`tolerance=AtMost(0.01)` on an X7R whose rows are 10 to 20 percent) falls through to `ideal`, which returns an `IDEAL-` part honoring only value, case, tolerance and polarization: dielectric and ratings are silently dropped. Where the CSV lacks a column or row the design needs, ask for it rather than writing the key.
 
 State what the circuit depends on:
 
@@ -132,7 +132,7 @@ class Board(Design):
     capacitor_defaults = CapacitorQuery(case=["0402", "0603", "0805", "1206", "1210"])
 ```
 
-A part's own query or a `with` block replaces the whole default.
+A part's `query=` object or a `with` block replaces the whole default; its keywords add to it.
 
 ## Decouple against the pins
 
