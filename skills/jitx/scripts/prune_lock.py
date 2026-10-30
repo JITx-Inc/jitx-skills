@@ -36,7 +36,11 @@ A design whose lock mode is `off` (`lock-mode = "off"` under `[tool.jitx.parts]`
 or a `Lock(mode=LockMode.OFF)` in the design's class body) uses no lockfile. It
 is listed as such and not elaborated, so it claims nothing. When the named
 designs claim nothing and one has the lock off, a listing or `--apply` changes
-nothing and exits 0, and `--check` is the no-lockfile case above.
+nothing and exits 0, `--unpin` has nothing pinned to remove and exits 0, and
+`--check` is the no-lockfile case above. Only the design's own class body is
+read for this: a `Lock` a circuit inside it declares is not seen, so a design
+judged off whose circuit writes a lockfile has those entries listed as unused.
+The rebuild check after `--apply` catches such a removal.
 
 It refuses to judge a lock the designs do not match: when any query fails to
 replay (a component added or edited since the last build, a renamed chain), it
@@ -641,6 +645,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         if usage.unlocked:
             print(f"lock mode off, no lockfile: {', '.join(usage.unlocked)}")
         if not usage.claimed:
+            if args.unpin and usage.unlocked:
+                print(
+                    "the named designs run with the lock off, so nothing is "
+                    "pinned to remove: a rebuild resolves against the parts "
+                    "source as it is"
+                )
+                return 0
             if args.check or (usage.unlocked and not args.unpin):
                 held = locks_with_entries(project)
                 for path, count, chains in held:

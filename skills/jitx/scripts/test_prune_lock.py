@@ -473,6 +473,12 @@ class Project(unittest.TestCase):
         check = self.run_in_project(str(SCRIPT), "prunedemo.main.Main", "--check")
         self.assertEqual(check.returncode, 0, check.stdout + check.stderr)
         self.assertIn("lock mode off, no lockfile: prunedemo.main.Main", check.stdout)
+        unpin = self.run_in_project(
+            str(SCRIPT), "prunedemo.main.Main", "--unpin", "IDEAL-R-1000-0402"
+        )
+        self.assertEqual(unpin.returncode, 0, unpin.stdout + unpin.stderr)
+        self.assertIn("nothing is pinned to remove", unpin.stdout)
+        self.assertFalse(self.lock.exists())
 
 
 if __name__ == "__main__":
