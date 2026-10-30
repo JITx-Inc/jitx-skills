@@ -46,7 +46,7 @@ Passive queries need a provider chain in `pyproject.toml` (without one: `NoChain
 chain = ["csv:parts/approved-parts.csv", "ideal"]
 ```
 
-`ideal`, last, synthesizes unorderable `IDEAL-...` parts so the design builds before approval, silently answering most queries the CSV cannot. Before calling it done, pass `jitx build <design>` and `jitx design export parts-check <design> --fail all`, and check on the design itself that no MPN starts with `IDEAL-`: the parts check passes an ideal part. Take an `IDEAL-` part to the user; change a value or rating only with their sign-off. On the stand-in, the user approves the final build's MPNs (`jitx-project-builder` Phase 0) or supplies a list. When that list replaces the stand-in, or a row is added for an `IDEAL-` part, delete `parts.lock.json` (or those entries) and rebuild: the lock keeps what it pinned. CSV format, lockfile, the `IDEAL-` test, parts databases: https://docs.jitx.com/en/latest/essentials/design/parts.html
+`ideal`, last, synthesizes unorderable `IDEAL-...` parts so the design builds before approval, silently answering most queries the CSV cannot. Before calling it done, pass `jitx build <design>` and `jitx design export parts-check <design> --fail all`, and check that no MPN starts with `IDEAL-`: the parts check passes an ideal part. Take an `IDEAL-` part to the user; change a value or rating only with their sign-off. On the stand-in, the user approves the final build's MPNs or supplies a list. Read parts and `IDEAL-` MPNs from the design, never from the lock: it never prunes, and other chains' entries survive a cleanup. Run [`prune_lock.py`](scripts/prune_lock.py), excluding test designs, after removing a component or running tests, and before committing or handing off the lock. Never delete the whole lock once parts are placed, routed or approved without the user's say-so. Cleanup, care, deliberate re-resolves: [`references/parts-lock.md`](references/parts-lock.md). CSV format, lockfile, the `IDEAL-` test, parts databases: https://docs.jitx.com/en/latest/essentials/design/parts.html
 
 The scaffold skips `git init` (do it and say so). Its `.gitignore` keeps the built design directory tracked on purpose: do not broaden it.
 
@@ -56,7 +56,7 @@ The scaffold skips `git init` (do it and say so). Its `.gitignore` keeps the bui
 
 ### Step 4: Runtime
 
-Each project runs its own runtime daemon (socket: `.socket.jitx`), but the installed runtime version is machine-wide.
+Each project runs its own runtime daemon (socket: `.socket.jitx`).
 
 ```bash
 jitx runtime introspect | grep '"version"'; jitx --version     # major.minor must match
@@ -89,7 +89,6 @@ jitx runtime status | grep -q reachable || jitx runtime start --background
 | Script the open layout | `jitx design session <design> > .jitx/session.log 2>&1 &`, then `jitx design exec <design> script.py` (runs `main(design)`; paths start `root.`). Until the session is up, exec fails with `message could not be delivered`: retry every 5 s for up to a minute. Then, or on a traceback, report what `.jitx/session.log` says. End with `jitx design session --stop <design>` |
 | Dependencies | `jitx project dependencies check` |
 | Support | `jitx support bundle` / `jitx support request` (sends data to JITX: ask first) |
-| Static checks | `python scripts/check.py <ns>/ [--build <module.path.DesignClass>]` |
 
 `jitx --format json <command>` gives JSON.
 
@@ -97,13 +96,13 @@ jitx runtime status | grep -q reachable || jitx runtime start --background
 
 `jitx build` prints `status: ok` or a traceback and `status: error`. Results land in `designs/<module.path.DesignClass>/`: `cache/netlist.json`, `cache/design-explorer.json` (the hierarchy), and `design-info/` (interactive placements). Never delete `designs/<design>` casually. A cryptic `No field with key '$_...'` after a version change means `design-info/` is unreadable by the new pairing: restore it from git and restart the runtime.
 
-- **`--dry` is not a build.** With no runtime, `jitx build` exits 1 and offers `--dry`, which then reports `status: ok`. It skips the runtime, misses failures such as `Public name already in use`, and never satisfies a step that asks for a build.
+- **`--dry` is not a build.** With no runtime, `jitx build` exits 1 and offers `--dry`, which then reports `status: ok`. It misses failures such as `Public name already in use`, and never satisfies a step that asks for a build.
 - **Dependency check.** Do not run the `jitx project dependencies upgrade` a build suggests: it can leave the supported line.
 - **Parameterized designs.** `jitx find` lists a `Design` whose `__init__` takes required arguments, but building it fails with `Design is parameterized but no parameters were provided`. Add a thin module-scope subclass with concrete values and build that.
 - **Rebuild prompts.** Some rebuilds ask `[Y/n]` before deleting stale instances; headless, the build ends `EOF when reading a line`. The answer is the user's: end your build, tell them what it printed, and rebuild once they answer in the JITX UI or their own terminal. Pipe `yes |` only when the user says to; PowerShell has no verified equivalent.
 - **Stalled build.** Run long builds with `PYTHONUNBUFFERED=1`. If a build shows no output and little CPU for a minute, check `jitx runtime status` in every other open JITX project, `pgrep -fl interactive-client` for accumulated clients, and what `jitx runtime cleanup` reports. Ask before stopping anything.
 - **`status: ok` is not routed copper.** Realization is silent: verify geometry from Python (Introspection, `jitx-physical-layout`).
-- **Exports.** The `legacy-*` plugins are fab and CAD handoffs, not verification; `parts-check` is Step 2's parts gate. Other packages (such as `jitxlib-ansys`) add plugins.
+- **Exports.** The `legacy-*` plugins are fab and CAD handoffs, not verification. Other packages (such as `jitxlib-ansys`) add plugins.
 
 ### Build safety: don't parallelize same-design work
 
@@ -182,7 +181,7 @@ Invoke it before writing that code.
 | Self-review of JITX code against the rules above | `jitx-code-review` |
 | DXF/IDF/STEP import and export, board outlines, 3D models | `jitx-mechanical` |
 
-One artifact goes straight to its sub-skill; assembling a buildable board goes to `jitx-project-builder`.
+One artifact goes to its sub-skill; a buildable board, to `jitx-project-builder`.
 
 ## Documentation lookup
 

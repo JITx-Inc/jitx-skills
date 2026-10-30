@@ -421,7 +421,7 @@ Final verification before declaring the project done.
 ```markdown
 ## Phase 4 Verification: <project-name>
 
-**Parts gate (run first):** <exact `jitx build <design>` status line; exact `jitx design export parts-check <design> --fail all` summary line, exit 0; every MPN the final build resolved (read as in `project-builder-flow.md` "Approved passives", not from `parts.lock.json`), none starting `IDEAL-` (the parts check passes an ideal part) and, when PLAN.md `Data Sources` records the example stand-in, each with the user's approval quoted, or the user's list in its place, else a blocking item. A design left on `IDEAL-` parts is a user-approved deferral, listed below>
+**Parts gate (run first):** <exact `jitx build <design>` status line; exact `jitx design export parts-check <design> --fail all` summary line, exit 0; exact last line of `python <path to the jitx skill>/scripts/prune_lock.py <design> [--exclude <test design> ...] --check`, `check: 0 stale` or `check: the named designs resolved no parts through a lockfile`, exit 0; every MPN the final build resolved (read as in `project-builder-flow.md` "Approved passives", not from `parts.lock.json`), none starting `IDEAL-` (the parts check passes an ideal part) and, when PLAN.md `Data Sources` records the example stand-in, each with the user's approval quoted, or the user's list in its place, else a blocking item. A design left on `IDEAL-` parts is a user-approved deferral, listed below>
 
 **Verification command:** `python scripts/check.py <ns>/ --build <ns>.designs.Design`
 

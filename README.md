@@ -197,7 +197,7 @@ jitx-skills/
 │   ├── jitx/
 │   │   ├── SKILL.md
 │   │   ├── references/
-│   │   └── scripts/                  # check.py, grep_gates.py
+│   │   └── scripts/                  # check.py, grep_gates.py, prune_lock.py
 │   ├── jitx-project-builder/
 │   │   ├── SKILL.md
 │   │   ├── references/
@@ -274,6 +274,14 @@ cited by a truncated name instead of a link:
 
 ```bash
 python scripts/check_doc_links.py .
+```
+
+Run the unit tests. The project tests in `skills/jitx/scripts/test_prune_lock.py` build a
+scratch JITX project, so they need `JITX_PYTHON` set to a Python with jitx 4.6 and
+jitxlib-parts 2; without it they are skipped, and with one that cannot import jitx they fail:
+
+```bash
+JITX_PYTHON=/path/to/venv/bin/python python3 -m pytest -q
 ```
 
 Run Codex manifest validation with the Codex plugin-creator validator:
