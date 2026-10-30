@@ -22,7 +22,7 @@ After the domain-specific checklist, verify these universal items:
 - [ ] SI constraints (`Constrain`, `ConstrainDiffPair`, `ConstrainReferenceDifference`) — applied at top-level within `ReferencePlanes(GND)` context, not inside subcircuits
 - [ ] Ground pours on ground plane layers — applied at top-level design only
 - [ ] **Shared-bus (I2C, MDIO) pull-ups** — placed at the bus-aggregation level (the circuit that composes master + slaves on the bus). Usually the top-level design because most buses span subcircuits; but if one subcircuit fully encloses both ends of a private bus, the pull-ups belong inside that subcircuit. Never local to a single bus participant.
-- [ ] **Shared bus termination** (I2C, SPI, CAN) — pull-ups/termination at top-level only, never duplicated in subcircuits
+- [ ] **Shared bus termination** (I2C, SPI, CAN) — pull-ups/termination at the bus-aggregation level (item above), never duplicated in subcircuits
 
 ### Datasheet Compliance (CRITICAL for circuit tasks)
 - [ ] **Downloaded and read the datasheet** for every IC in this circuit
