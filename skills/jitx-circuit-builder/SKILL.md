@@ -51,7 +51,7 @@ A shared open-drain bus's pull-ups (I2C, MDIO's `MIIM.mdio`) belong to the circu
 
 ## Anti-string-hacking
 
-Construct JITX objects directly. Never walk a `list[dict[str, Any]]` spec to emit JITX calls (batch parameters in a frozen dataclass), and do not add to a circuit from a free function (compose a `Container` member). Worked examples: the base skill's Don'ts and `jitx/references/architectural-patterns.md`.
+Construct JITX objects directly. Never walk a `list[dict[str, Any]]` spec to emit JITX calls (batch parameters in a frozen dataclass), and don't add to a circuit from a free function (compose a `Container` member). Worked examples: the base skill's Don'ts and `jitx/references/architectural-patterns.md`.
 
 ## Typed ports and composition
 
@@ -102,14 +102,14 @@ Pyright reports `Operator "+=" not supported` and instantiation raises `Instanti
 
 ### Asserting connectivity in tests
 
-Assert membership over `list(net)`, never with `in`: `Net.__contains__` stops at the first nested net, so a port after it reports `False`. Count too: `len(list(net))` catches a rail that lost balls:
+Assert membership over `list(net)`, never with `in`: `Net.__contains__` stops at the first nested net, so a port after it reports `False`. Count against the pinout's balls plus other parts' pins: `len(list(net))` catches a lost ball:
 
 ```python
 self.assertIn(self.u1.VCCINT[0], list(circuit.V1V0))
 self.assertEqual(len(list(circuit.GND)), 30)
 ```
 
-A bundle net lists its bundles. Assert that, then assert inside each child that its boundary member reaches the component pin.
+A bundle net lists its bundles. Assert that, then that each child's boundary member reaches the component pin.
 
 ## Passives
 
@@ -138,7 +138,7 @@ A part's `query=` object or a `with` block replaces the whole default; its keywo
 
 A power-rail capacitor is its own attribute on `self`, its supply-side pad joins the pin it serves through `ShortTrace(self.c_x.p1, <the IC power pin port>)` and its other pad joins the return net. `jitx.net.ShortTrace(p1, p2)` takes two ports, each a component pin or a boundary port: never a net (pyright rejects one) or a net's `.port` (pyright passes; translation fails).
 
-This covers decoupling, bulk (to the supply pin it serves nearest) and output-filter capacitors (to the regulator output pin); a `PolarizedCapacitor` uses `.a`. A bootstrap capacitor takes a `ShortTrace` to its BOOT pin, other pad to SW per the datasheet; a crystal load capacitor takes one to its crystal pin, other pad to the return net. AC-coupling, RC timing, compensation and RF matching capacitors are not power-rail; say so for each.
+This covers decoupling, bulk (to the supply pin it serves nearest) and output-filter capacitors (to the regulator output pin); a `PolarizedCapacitor` uses `.a`. A bootstrap capacitor takes a `ShortTrace` to its BOOT pin, other pad to SW per the datasheet; a crystal load capacitor takes one to its crystal pin, other pad to the return net. AC-coupling, RC timing, compensation and RF matching capacitors aren't power-rail; say so for each.
 
 Scale with the pin count, never two caps for a 96-ball core net:
 

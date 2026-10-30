@@ -229,8 +229,8 @@ If the user has not answered, the correct state is stopped, not "proceeded with 
 
 Everything in [component-guide.md](component-guide.md#testing-and-build) applies. Additionally:
 
-- **Counts as literals** — total pins, and per-group counts taken from the inventory report. A
-  generated module will happily produce a self-consistent wrong answer; the literal is what makes the
+- **Counts as literals**: total pins, and per-group counts from the inventory the user approved. A
+  generated module will produce a self-consistent wrong answer; the literal is what makes the
   count an assertion rather than a tautology.
 - **Hand-read spot checks** spanning the grid extremes, a two-letter row, and one pin per group type,
   asserted ball → coordinate → port → pad. Read these off the vendor file by eye; that is the point.
