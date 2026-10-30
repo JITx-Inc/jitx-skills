@@ -62,4 +62,4 @@ The MCU datasheet's alternate-function (pin-mux) table documents the mux fully; 
 
 - I2C: SDA and SCL mux independently per the table, so compose `@provide(I2C)` from a `@provide.one_of` per signal; each instance (I2C1, I2C2) gets its own offer. Worked patterns: `jitxexamples.components.mcus.raspberry_pi_RP2040` (per-signal `one_of` pin lists from the datasheet's Table 279) and `jitxexamples.jumpstart_kits.js3_pin_assignment.mcu_muxing` (requires them; legal and illegal proofs).
 - SPI: `@provide.one_of(SPI)` over the table's valid pin groups. CS is often any GPIO (`@provide(GPIO)`). CPOL/CPHA are set in firmware, not pin assignment.
-- UART: `@provide.one_of(UART)` over the table's valid TX/RX pairs. RTS/CTS are optional, often any GPIO (`UART(cts=True, rts=True)` or `@provide(GPIO)`).
+- UART: `@provide.one_of(UART)` over the table's valid TX/RX pairs. RTS/CTS are optional: when the table fixes them, `@provide.one_of(UART(cts=True, rts=True))`; when any GPIO serves, `@provide(GPIO)`; when they mux independently, a per-signal `one_of` as in the RP2040.

@@ -34,7 +34,7 @@ from jitx import current
 
 ## Anti-string-hacking
 
-Apply per-lane or per-pair constraints by iterating a typed collection (`self.lanes: list[DiffPair]`), never a string-keyed dict or sibling attributes read with `getattr`, and hold constraints in a typed list or dataclass, never `dict[str, Any]` (`jitx/references/architectural-patterns.md`). `jitx-code-review` is the optional self-critique pass.
+Apply per-lane or per-pair constraints by iterating a typed collection (`self.lanes: list[DiffPair]`), never a string-keyed dict or sibling `getattr` attributes, and hold constraints in a typed list or dataclass, never `dict[str, Any]` (`jitx/references/architectural-patterns.md`). Optional self-critique: `jitx-code-review`.
 
 ## Plain nets by default
 
@@ -98,7 +98,7 @@ self.routes = [
 ]
 ```
 
-These routes are what the runtime follows to infer the path between the `Topology` ends: a path crosses a via, or a part with a pin model, where routes land on both sides of it. Route between physical pads, vias and control points, one segment per hop. A route the router cannot make reports `Unable to find path for requested route` under Routing, and the constraint reports `Missing Connection on Path: <a>, <b>`. Control points and route mechanics: `jitx-physical-layout`.
+These routes are what the runtime follows to infer the path between the `Topology` ends: a path crosses a via, or a part with a pin model, where routes land on both sides of it. Route between physical pads, vias and control points, one segment per hop. A route the router cannot make reports `Unable to find path for requested route` under Routing, and the constraint `Missing Connection on Path: <a>, <b>`. Control points and route mechanics: `jitx-physical-layout`.
 
 ## Differential Pairs
 
@@ -207,7 +207,7 @@ Prove binding on a verification design per constrained interface: parts placed, 
 
    Without `satisfied=True` a met constraint is left out. `group.text` shows only a group's first issue. Keep the code in `main()`: design discovery imports the project's `.py` files. `jitx.run` is experimental. Builds against one project run in sequence ([Build safety](../jitx/SKILL.md#build-safety-dont-parallelize-same-design-work)).
 
-3. Count a constraint applied only when its group carries a `Time`, `Loss` or `Skew` measurement naming the intended ends (`met Time: <delay> - Target: 500ps ± 500ps from <begin> to <end>`); `status: ok` or a clean type check is not evidence. Compliance is `group.satisfied`, the only verdict: the text reads the same met or unmet, and a skew `Target` drops its sign. A group also holding an unresolved text ([table](references/verification.md#what-unresolved-looks-like)) is neither proven nor met. Report binding and compliance separately, and an unmet measurement as a violation. In the binding report, say what closes each path (the code routes, and each crossed part's pin model) and why it needs no `>>`.
+3. Count a constraint applied only when its group carries a `Time`, `Loss` or `Skew` measurement naming the intended ends (`met Time: <delay> - Target: 500ps ± 500ps from <begin> to <end>`); `status: ok` or a clean type check is not evidence. Compliance is `group.satisfied`, the only verdict: the text reads the same met or unmet, and a skew `Target` drops its sign. A group also holding an unresolved text ([table](references/verification.md#what-unresolved-looks-like)) is neither proven nor met. Report binding and compliance separately, an unmet measurement as a violation. In the binding report, say what closes each path (code routes, each crossed part's pin model and each via's `models`) and, outside a daisy chain, why it needs no `>>`.
 
 ## API Reference
 

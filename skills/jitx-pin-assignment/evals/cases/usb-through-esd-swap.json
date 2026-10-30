@@ -39,7 +39,7 @@
       "cmd": "python3 skills/jitx-pin-assignment/evals/cases/reference/usb-through-esd-swap/check_usb_esd_swap.py unrouted"
     },
     {
-      "text": "the answer routes the ESD part's physical pins rather than the required port, keeps the required port local (never on self), uses no >>, puts a BridgingPinModel on each ESD channel, offers no end-to-end D+/D- inversion, labels the part fictional and its values as given, and proves the constraint with jitx design issues --satisfied measured lines rather than a clean build",
+      "text": "the answer routes the ESD part's physical pins rather than the required port, keeps the required port local (never on self), uses no >>, puts a BridgingPinModel on each ESD channel, offers no end-to-end D+/D- inversion, labels the part fictional and its values illustrative (or as given), and proves the constraint with jitx design issues --satisfied measured lines rather than a clean build",
       "check": "judge"
     }
   ]
