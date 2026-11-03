@@ -1,0 +1,37 @@
+{
+  "name": "bga-power-escape",
+  "prompt": "fixture_bga_power_escape.py is a board with a hex-grid BGA whose core rail, VCORE, comes out on one ball one column in from the edge. VCORE is a 0.5 mm class with 0.2 mm clearance, and the route from that ball to the first via does not get out of the ball field. Make the escape fit between the balls and keep the class on the rest of the rail. Use the fab sheet for any minimum.",
+  "inputs": {
+    "pyproject.toml": "evals/cases/fixtures/common/pyproject.toml",
+    "lc_substrate.py": "evals/cases/fixtures/common/lc_substrate.py",
+    "lc_fixture_util.py": "evals/cases/fixtures/common/lc_fixture_util.py",
+    "pellingham_lc_fab_sheet.md": "evals/cases/fixtures/common/pellingham_lc_fab_sheet.md",
+    "fixture_bga_power_escape.py": "evals/cases/fixtures/bga-power-escape/fixture_bga_power_escape.py"
+  },
+  "notes": "The fixture imports GenericHexGridBGA from the jitxexamples si_bga_optimization demo, py-components origin/main 9c398d3 (the installed package in the eval venv); no parts database is needed. The fixture module is fixture_bga_power_escape.py, Design BgaPowerEscapeDesign. The demo module defines the ball pitch (BGA_HPITCH 1.0, nearest ball centres on the hex grid) and the ball (BGA_BALL_DIAMETER 0.5); the captured ball pads measured 0.495 across in this suite's own run (2026-11-03), a polygon approximation of the 0.5 circle. Spike S10 on jitx 4.6.0: a priority-1 rule on a tag on the escape Route object governs that segment and leaves the rest at the net's; the same rule on (net tag) & IsTrace narrowed both segments. S10 used routing structures; this suite's own run used trace_width and clearance rules. Measured on the bare fixture: vcore_escape not realized ('Unable to find path for requested route'), vcore_trunk 0.5. This suite's own solution, a tag on vcore_escape with design_constraint(tag, priority=1).trace_width(0.2) and design_constraint(tag, True, priority=1).clearance(0.12): escape 0.2, 0.1476 from the nearest GND ball, trunk 0.5, routing satisfied. A trace_width(0.2) on VcoreTag() & IsTrace at priority 1 narrowed the trunk to 0.2 as well (fails the check). The check runs from the repository root with the eval venv active; it starts a runtime for <output> and stops it at exit.",
+  "runner_models": [
+    "sonnet"
+  ],
+  "runner_rationale": "Customers drive this skill with mixed-strength agents, so the eval runs the skill under a Sonnet-class runner; judges stay frontier-tier.",
+  "runner_artifacts": "The input files are the starting design. Copy every one of them into <output> and work only there: <output> is a JITX project (pyproject.toml) whose modules import each other by file name. Add tags and design rules, in the fixture module named below or in a module it imports, and keep its Design class name. Do not add, move or remove parts, nets, routes, vias or pours; assigning a tag to an existing object, a Route included, is fine. Build the design and read the result back to show the rules applied. Write a completion summary to <output>/COMPLETION.md: each rule with the source of its numbers, what you checked after the build and what it showed, and anything left open. Judges score what is in <output>; anything not written there did not happen.",
+  "expected_output": "A tag on the vcore_escape Route object with a trace width and a clearance at a priority above the VCORE class, the width derived from the ball pitch and pad (a 0.5 channel) and the fab minimums (rows 3 and 4), so the width plus a clearance on each side fits the channel; the class left in force on the trunk; and COMPLETION.md with the derivation, the per-segment widths measured after the build, and the class clearance it relaxed for the escape and why.",
+  "assertions": [
+    {
+      "text": "the escape is realized with a width between the fab minimum and the ball channel less the fab minimum space on each side, its copper stays the fab minimum space from every other ball, and the trunk keeps the 0.5 class width",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-layout-constraints/evals/checks/check_bga_power_escape.py <output>"
+    },
+    {
+      "text": "the runner derives the escape width from the ball pitch and pad diameter in the land pattern and the fab sheet's minimum width and space, and shows the arithmetic",
+      "check": "judge"
+    },
+    {
+      "text": "the runner states that the 0.2 class clearance and 0.5 class width cannot both fit the channel and names what it relaxed for the escape segment only",
+      "check": "judge"
+    },
+    {
+      "text": "the runner reports the widths it measured on each segment after the build, rather than calling the rule verified by build success",
+      "check": "judge"
+    }
+  ]
+}
