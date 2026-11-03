@@ -11,7 +11,8 @@ Layout, on ``LcStandard4`` (``lc_substrate.py``) and the 40 x 30 mm ``LcBoard``:
 - U.FL connector at (-14, 3), turned so its signal pad faces +x.
 - The connector circuit's series inductor ``L`` at (2, 3), on the feed.
 - The RF feed: a code route on layer 0 from the U.FL signal pad to ``L.p1``,
-  straight along y = 3.
+  one straight run from about (-12.81, 2.99) to (2.00, 3.51), 14.82 long, as
+  measured from the captured trace on 2026-11-03.
 - GND pours on all four layers over x -18..18, y -7..13.
 - GND through vias that anchor the pours: two beside the feed on layer 0,
   2.5 mm either side of it at x -5, so the coplanar ground on both sides of the

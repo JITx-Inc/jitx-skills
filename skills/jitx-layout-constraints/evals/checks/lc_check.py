@@ -157,10 +157,6 @@ def route_geom(route: Route) -> BaseGeometry:
     return shapely.union_all(shapes) if shapes else shapely.Polygon()
 
 
-def route_layers(route: Route) -> list[int]:
-    return sorted({tr.layer for tr in route.traces or []})
-
-
 def trace_widths(route: Route) -> list[float | None]:
     """Width of every realized trace shape; None for a shape with no width
     (a ``Polygon``, spike S8), which a width check must not skip silently."""
@@ -170,22 +166,6 @@ def trace_widths(route: Route) -> list[float | None]:
             w = getattr(getattr(s, "geometry", s), "width", None)
             ws.append(None if w is None else round(float(w), 4))
     return ws
-
-
-def trace_widths_on(route: Route, layer: int) -> list[float | None]:
-    ws: list[float | None] = []
-    for tr in route.traces or []:
-        if tr.layer != layer:
-            continue
-        for s in tr.shapes:
-            w = getattr(getattr(s, "geometry", s), "width", None)
-            ws.append(None if w is None else round(float(w), 4))
-    return ws
-
-
-def route_geom_on(route: Route, layer: int) -> BaseGeometry:
-    shapes = [geom(s) for tr in route.traces or [] if tr.layer == layer for s in tr.shapes]
-    return shapely.union_all(shapes) if shapes else shapely.Polygon()
 
 
 def pad_world(rd: Any, pad: Pad) -> BaseGeometry:

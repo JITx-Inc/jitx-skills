@@ -1,0 +1,38 @@
+{
+  "name": "vias-along-the-feed",
+  "prompt": "fixture_vias_along_the_feed.py is our 2.4 GHz board: the U.FL connector feeds the series inductor over a plain trace on L1, with ground pours on all four layers. Run the feed as the substrate's CPWG_50 and add ground vias every 1 mm along both sides of it, as close to the trace as the coplanar gap and the Pellingham sheet allow.",
+  "inputs": {
+    "pyproject.toml": "evals/cases/fixtures/common/pyproject.toml",
+    "lc_substrate.py": "evals/cases/fixtures/common/lc_substrate.py",
+    "lc_fixture_util.py": "evals/cases/fixtures/common/lc_fixture_util.py",
+    "pellingham_lc_fab_sheet.md": "evals/cases/fixtures/common/pellingham_lc_fab_sheet.md",
+    "lc_radio_board.py": "evals/cases/fixtures/common/lc_radio_board.py",
+    "fixture_vias_along_the_feed.py": "evals/cases/fixtures/vias-along-the-feed/fixture_vias_along_the_feed.py"
+  },
+  "notes": "The fixtures import jitxexamples parts from py-components origin/main 9c398d3 (the installed package in the eval venv); the build uses the lc-eval parts chain, the example catalogue then ideal parts, so no parts database is needed. The fixture module is fixture_vias_along_the_feed.py, Design ViasAlongTheFeedDesign. The substrate defines CPWG_50 (width 0.30, gap 0.20, layer 0) unfenced and unapplied. Pass is a structure fence (RoutingStructure.Layer.fence on the structure applied to the feed, spike S9), not a fence_via rule (S4: it fences no route) and not vias placed in code. Closest row: the via pad (0.500, fab row 11) edge at the 0.20 gap, so initial_offset (trace edge to via centre, S9) = 0.20 + 0.25 = 0.45; fab row 4's 0.100 space is smaller than the gap, so the gap governs. The check accepts an inner row from 0.45 to 0.50. Measured on this suite's own solution (2026-11-03): 14 vias per side over the 14.821 run at 0.45, pour gap 0.21, no issue. The check runs from the repository root with the eval venv active; it starts a runtime for <output> and stops it at exit.",
+  "runner_models": [
+    "sonnet"
+  ],
+  "runner_rationale": "Customers drive this skill with mixed-strength agents, so the eval runs the skill under a Sonnet-class runner; judges stay frontier-tier.",
+  "runner_artifacts": "The input files are the starting design. Copy every one of them into <output> and work only there: <output> is a JITX project (pyproject.toml) whose modules import each other by file name. Add tags, design rules and routing structures, in the fixture module named below or in a module it imports, and keep its Design class name. Do not add, move or remove parts, nets, routes, vias or pours; assigning a tag to an existing object is fine. Build the design and read the result back to show the rules applied. Write a completion summary to <output>/COMPLETION.md: each rule with the source of its numbers, what you checked after the build and what it showed, and anything left open. Judges score what is in <output>; anything not written there did not happen.",
+  "expected_output": "A tag on the RF feed net and CPWG_50's layer-0 values with a one-row RoutingStructure.Layer.fence(LcStandard4.ThVia, ViaFencePattern(pitch=1.0, initial_offset=0.45, num_rows=1), reference_layer=0), applied by a routing_structure rule on the tag (or Constrain(...).structure), the 0.45 derived from the gap and the via pad, and COMPLETION.md with the measured rows and counts.",
+  "assertions": [
+    {
+      "text": "the feed is realized at CPWG_50's width with the layer-0 pour at its gap on both sides, and the built design has a row of route fence vias on each side 0.45 to 0.50 mm from the trace edge at the 1 mm pitch along the straight run, with no fence via pad in the gap and no via placed in code",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-layout-constraints/evals/checks/check_vias_along_the_feed.py <output>"
+    },
+    {
+      "text": "the vias come from a fence on the routing structure applied to the feed, not from a fence_via design rule presented as fencing the route and not from vias placed in code",
+      "check": "judge"
+    },
+    {
+      "text": "the runner derives the closest offset from the 0.20 gap and the via pad from fab row 11 (and the fab space row), with the arithmetic shown, and says initial_offset runs from the trace edge to the via centre",
+      "check": "judge"
+    },
+    {
+      "text": "COMPLETION.md reports the measured via count per side against the count derived from the run length and pitch, not build success alone",
+      "check": "judge"
+    }
+  ]
+}
