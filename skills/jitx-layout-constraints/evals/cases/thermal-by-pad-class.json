@@ -1,0 +1,39 @@
+{
+  "name": "thermal-by-pad-class",
+  "prompt": "fixture_thermal_by_pad_class.py is our 24 V buck board. Every ground pad in the L1 pour is tied in solid right now, and assembly says the input caps won't reflow cleanly. Give the two 10 uF input caps four 0.30 mm spokes with a 0.25 mm gap, and the small 100 nF input cap two 0.15 mm spokes with a 0.20 mm gap. The terminal block's ground pole carries the full input current: keep it solid.",
+  "inputs": {
+    "pyproject.toml": "evals/cases/fixtures/common/pyproject.toml",
+    "lc_substrate.py": "evals/cases/fixtures/common/lc_substrate.py",
+    "lc_fixture_util.py": "evals/cases/fixtures/common/lc_fixture_util.py",
+    "pellingham_lc_fab_sheet.md": "evals/cases/fixtures/common/pellingham_lc_fab_sheet.md",
+    "lc_radio_board.py": "evals/cases/fixtures/common/lc_radio_board.py",
+    "lc_power_board.py": "evals/cases/fixtures/common/lc_power_board.py",
+    "fixture_thermal_by_pad_class.py": "evals/cases/fixtures/thermal-by-pad-class/fixture_thermal_by_pad_class.py"
+  },
+  "notes": "The fixtures import jitxexamples parts from py-components origin/main 9c398d3 (the installed package in the eval venv); the build uses the lc-eval parts chain, the example catalogue then ideal parts, so no parts database is needed. The fixture module is fixture_thermal_by_pad_class.py, Design ThermalByPadClassDesign; lc_power_board.py imports box from lc_radio_board.py. Spike S2 on jitx 4.6.0: thermal_relief(gap, spoke_width, num_spokes) takes effect through a tag on the pad, the landpattern or the component, or IsPad; a tag on the net or the pour has no effect (also with & IsPad); a pad with no matching rule joins the pour solid. So 'keep the terminal solid' is met by no rule on it or by an explicit direct connect, stated as such; an IsPad relief alone would relieve the terminal too. Through-hole pads were not tried in S2; in this suite's own solution run (2026-11-03) the terminal's two through-hole ground pads with no rule measured solid, no void. The check measures each ground pad's void gap and spoke widths from the computed L1 pour (the S2 measure). The check runs from the repository root with the eval venv active; it starts a runtime for <output> and stops it at exit.",
+  "runner_models": [
+    "sonnet"
+  ],
+  "runner_rationale": "Customers drive this skill with mixed-strength agents, so the eval runs the skill under a Sonnet-class runner; judges stay frontier-tier.",
+  "runner_artifacts": "The input files are the starting design. Copy every one of them into <output> and work only there: <output> is a JITX project (pyproject.toml) whose modules import each other by file name. Add tags and design rules, in the fixture module named below or in a module it imports, and keep its Design class name. Do not add, move or remove parts, nets, routes, vias or pours; assigning a tag to an existing object is fine. Build the design and read the result back to show the rules applied. Write a completion summary to <output>/COMPLETION.md: each rule with the source of its numbers, what you checked after the build and what it showed, and anything left open. Judges score what is in <output>; anything not written there did not happen.",
+  "expected_output": "Tags on the two 10 uF capacitors and on the 100 nF capacitor (component, landpattern or pad), thermal_relief(0.25, 0.30, 4) and thermal_relief(0.20, 0.15, 2) on them, the terminal left without a relief rule or given an explicit direct connect, stated as such, and COMPLETION.md with each ground pad's measured gap and spokes.",
+  "assertions": [
+    {
+      "text": "each 10 uF input cap ground pad meets the L1 pour through four 0.30 mm spokes across a 0.25 mm gap, the 100 nF cap's through two 0.15 mm spokes across 0.20 mm, and the terminal block's ground pads are solid",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-layout-constraints/evals/checks/check_thermal_by_pad_class.py <output>"
+    },
+    {
+      "text": "the relief rules are conditioned on tags on the parts, landpatterns or pads, not on the GND net or the pour, and not one board-wide IsPad relief",
+      "check": "judge"
+    },
+    {
+      "text": "the runner says how the terminal stays solid (no relief rule matches it, or an explicit direct connect) rather than assuming it",
+      "check": "judge"
+    },
+    {
+      "text": "COMPLETION.md reports each ground pad's relief as measured from the built pour, not build success alone",
+      "check": "judge"
+    }
+  ]
+}
