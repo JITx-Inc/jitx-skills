@@ -6,8 +6,9 @@ On top of the buck board (``lc_power_board.py``):
 - the inductor ``reg.Ind`` at (6, 5);
 - a SW_NODE through via at (3, 0.75), ``sw_via``, 0.8 across (fab row 11's
   0.500 is a minimum). In this suite's own run (2026-11-03) a 0.6 trace
-  leaving a 0.5 via came back as a Polygon with no width; from the 0.8 via
-  it is an ArcPolyline 0.6 wide;
+  leaving a 0.5 via came back as a Polygon with no width (spike S8 saw the
+  same for a 0.5 trace between 0.45 vias); from the 0.8 via it is an
+  ArcPolyline 0.6 wide;
 - ``sw_escape``, a code route on layer 0 from the IC's SW pin (pad 5 of the
   SOT-583 land pattern) to that via, and ``sw_trunk``, a code route on layer
   0 from the via to the inductor's p1;
