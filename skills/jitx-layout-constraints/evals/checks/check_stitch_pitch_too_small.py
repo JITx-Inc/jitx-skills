@@ -12,8 +12,13 @@ Builds <output>/fixture_stitch_pitch_too_small.py, captures it, and checks:
 - at least one stitch_via rule, on a square grid;
 - every rule's pitch is at or above the 0.500 floor and no more than 0.650
   ("closest": the floor plus the 0.100 copper space of row 4, plus margin);
+- every rule's inset is the prompt's 0.5 (the via pad edge 0.5 in from the
+  pour edge; spike S3 measured inset from the via pad edge to the computed
+  pour boundary);
 - the ground pours on all four layers came back with copper;
-- every grid site the rule must fill (stitch_common.required_sites) holds a via.
+- every grid site a rule with the prompt's inset must fill
+  (stitch_common.required_sites, at the rule's pitch and inset 0.5) holds a
+  via.
 """
 
 import sys
@@ -27,6 +32,7 @@ import stitch_common as SC  # noqa: E402
 MAX_PITCH = 0.650
 MIN_PITCH = 0.250 + 0.250
 PAD_SPACE = 0.100  # fab sheet row 4
+PROMPT_INSET = 0.5
 
 out = L.output_dir()
 with L.built(out, "fixture_stitch_pitch_too_small", "StitchPitchTooSmallDesign") as rd:
@@ -52,7 +58,9 @@ with L.built(out, "fixture_stitch_pitch_too_small", "StitchPitchTooSmallDesign")
             L.fail(f"pitch {pitch} is not the closest buildable pitch (0.500 to {MAX_PITCH:.3f})")
         if pitch < MIN_PITCH - 1e-9:
             L.fail(f"pitch {pitch} is under the fab drill-to-drill floor {MIN_PITCH:.3f} (rows 12, 15)")
-        need = SC.required_sites(geoms, pads, pitch, inset, pad_r, PAD_SPACE, placed, MIN_PITCH)
+        if abs(inset - PROMPT_INSET) > 1e-6:
+            L.fail(f"inset {inset}, the prompt fixes {PROMPT_INSET}")
+        need = SC.required_sites(geoms, pads, pitch, PROMPT_INSET, pad_r, PAD_SPACE, placed, MIN_PITCH)
         missing = [s for s in need if (round(s[0], 3), round(s[1], 3)) not in got]
         print(f"derived sites {len(need)}, realized on them {len(need) - len(missing)}")
         if not need:

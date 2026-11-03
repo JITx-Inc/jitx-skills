@@ -53,20 +53,24 @@ with L.built(out, "fixture_rf_from_switcher", "RfFromSwitcherDesign") as rd:
         L.fail("the feed has no realized traces")
     else:
         feed = L.route_geom(c.feed)
-        sw = c.reg.sw_pour
-        for _, p, g in L.world_pours(rd):
-            if p is sw:
-                gap = L.gap(g, feed)
-                print(f"switch-node pour gap to the feed: {gap}")
-                if KEEP - 1e-3 <= gap <= KEEP + 0.03:
-                    L.ok(f"switch-node copper {gap} from the feed")
-                else:
-                    L.fail(f"switch-node copper {gap} from the feed, expected {KEEP} (+0.01)")
-            elif p is c.pours[0]:
-                gap = L.gap(g, feed)
-                print(f"layer-0 GND pour gap to the feed: {gap}")
-                if gap > GND_GAP_MAX:
-                    L.fail(f"the feed's own ground is pushed back to {gap}")
-                else:
-                    L.ok(f"the feed's ground stays at {gap}")
+        found = {p is c.reg.sw_pour: g for _, p, g in L.world_pours(rd) if p is c.reg.sw_pour or p is c.pours[0]}
+        sw_g, gnd_g = found.get(True), found.get(False)
+        if sw_g is None or sw_g.is_empty:
+            L.fail("the switch-node pour's computed copper was not found")
+        else:
+            gap = L.gap(sw_g, feed)
+            print(f"switch-node pour gap to the feed: {gap}")
+            if KEEP - 1e-3 <= gap <= KEEP + 0.03:
+                L.ok(f"switch-node copper {gap} from the feed")
+            else:
+                L.fail(f"switch-node copper {gap} from the feed, expected {KEEP} (+0.01)")
+        if gnd_g is None or gnd_g.is_empty:
+            L.fail("the layer-0 GND pour's computed copper was not found")
+        else:
+            gap = L.gap(gnd_g, feed)
+            print(f"layer-0 GND pour gap to the feed: {gap}")
+            if gap > GND_GAP_MAX:
+                L.fail(f"the feed's own ground is pushed back to {gap}")
+            else:
+                L.ok(f"the feed's ground stays at {gap}")
 L.finish()

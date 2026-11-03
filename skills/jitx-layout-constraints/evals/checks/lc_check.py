@@ -24,6 +24,7 @@ import math
 import shutil
 import subprocess
 import sys
+import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -109,13 +110,89 @@ def runtime_for(out: Path) -> Iterator[None]:
         )
 
 
+# Counts the fixture's objects in a fresh interpreter: the runner's fixture and
+# the bare one share module names, so they cannot share one process.
+# ``_instantiate_design`` is what ``Runtime.submit`` uses to build a Design.
+_COUNT_SCRIPT = """
+import json, importlib, sys
+sys.path.insert(0, sys.argv[1])
+from jitx.circuit import Route
+from jitx.copper import Pour
+from jitx.inspect import visit
+from jitx.run.runtime import _instantiate_design
+from jitx.si import Constraint
+from jitx.via import Via
+d = _instantiate_design(getattr(importlib.import_module(sys.argv[2]), sys.argv[3]))
+print(json.dumps({
+    "routes": len(list(visit(d, Route))),
+    "vias": len(list(visit(d, Via))),
+    "pours": len(list(visit(d, Pour))),
+    "si_constraints": len(list(visit(d, Constraint))),
+    "configured": [str(t.path) for t, r in visit(d, Route) if r.config is not None],
+}))
+"""
+
+SKILL = Path(__file__).resolve().parents[2]
+
+
+def object_counts(project: Path, module: str, cls: str) -> dict[str, Any]:
+    """Routes, code-placed vias, pours and SI constraints in ``module.cls``,
+    and the routes that carry a ``Route.Config``."""
+    run = subprocess.run(
+        [sys.executable, "-c", _COUNT_SCRIPT, str(project), module, cls],
+        cwd=project,
+        capture_output=True,
+        text=True,
+    )
+    if run.returncode != 0:
+        print(run.stdout + run.stderr, file=sys.stderr)
+        print(f"error: could not instantiate {module}.{cls} in {project}", file=sys.stderr)
+        sys.exit(2)
+    return json.loads(run.stdout.strip().splitlines()[-1])
+
+
+def bare_fixture(module: str, into: Path) -> Path:
+    """Copy the case's own inputs (the fixture as shipped) into ``into``."""
+    for case in sorted((SKILL / "evals" / "cases").glob("*.json")):
+        inputs = json.loads(case.read_text())["inputs"]
+        if f"{module}.py" in inputs:
+            into.mkdir(parents=True, exist_ok=True)
+            for dst, src in inputs.items():
+                shutil.copy(SKILL / src, into / dst)
+            return into
+    raise FileNotFoundError(f"no case lists {module}.py")
+
+
+def check_unedited(out: Path, module: str, cls: str) -> None:
+    """Fail when the runner changed what the contract says to leave alone.
+
+    Spike S5: a ``Route.Config`` overrides design rules, so a width set on a
+    route passes every width check without a rule. No fixture sets one. The
+    route, via and pour counts must match the fixture as shipped, and no SI
+    constraint the fixture carries may be removed (a ``Constrain`` is what
+    applies a structure in some cases)."""
+    got = object_counts(out, module, cls)
+    with tempfile.TemporaryDirectory() as tmp:
+        want = object_counts(bare_fixture(module, Path(tmp) / "bare"), module, cls)
+    if got["configured"]:
+        fail(f"Route.Config set on {got['configured']}: a route edit, not a rule")
+    for key in ("routes", "vias", "pours"):
+        if got[key] != want[key]:
+            fail(f"{key}: {got[key]} in the output, {want[key]} in the fixture")
+    if got["si_constraints"] < want["si_constraints"]:
+        fail(f"SI constraints: {got['si_constraints']} in the output, {want['si_constraints']} in the fixture")
+    print(f"objects: {got}, fixture: {want}")
+
+
 @contextmanager
 def built(out: Path, module: str, cls: str, wait: float = 60.0) -> Iterator[Any]:
-    """Submit and capture the design; yields the RuntimeDesign.
+    """Check the output against the fixture as shipped (``check_unedited``),
+    then submit and capture the design; yields the RuntimeDesign.
 
     The stored design state is removed first: a headless submit after a
     design change otherwise aborts at "stabilization" (spike observation 6).
     """
+    check_unedited(out, module, cls)
     design = load_design(out, module, cls)
     stored = out / "designs" / f"{module}.{cls}"
     if stored.exists():
