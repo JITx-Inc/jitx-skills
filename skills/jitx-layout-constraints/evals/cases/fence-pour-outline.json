@@ -9,7 +9,7 @@
     "lc_radio_board.py": "evals/cases/fixtures/common/lc_radio_board.py",
     "fixture_fence_pour_outline.py": "evals/cases/fixtures/fence-pour-outline/fixture_fence_pour_outline.py"
   },
-  "notes": "The fixtures import jitxexamples parts from py-components origin/main 9c398d3 (the installed package in the eval venv); the build uses the lc-eval parts chain, the example catalogue then ideal parts, so no parts database is needed. The fixture module is fixture_fence_pour_outline.py, Design FencePourOutlineDesign; the cavity pour is the radio board's pours[0]. Spike S4 on jitx 4.6.0: fence_via on a tagged pour rings it, and the vias come back as ComputedStitchVia; an outward ring puts side vias at the offset and corner vias on the corner diagonals (0.707 for 0.5). Derived count: the outline grown by 0.5 with square corners is 2 * (22 + 10) + 8 * 0.5 = 68 long, 68 sites at 1.0. Fab: pitch 1.0 is above the 0.500 drill-to-drill floor (rows 12 + 15) and the 0.500 via pad (row 11). Measured on this suite's own solution (2026-11-03): with num_rows 1, initial_offset 0.5 set the ring distance and offset 1.0 had no effect; 68 vias, 64 at 0.5 and 4 at 0.707, no issue. A fence_via rule on a route tag, or vias placed in code, is a hard fail. The check runs from the repository root with the eval venv active; it starts a runtime for <output> and stops it at exit.",
+  "notes": "The fixtures import jitxexamples parts from py-components origin/main 9c398d3 (the installed package in the eval venv); the build uses the lc-eval parts chain, the example catalogue then ideal parts, so no parts database is needed. The fixture module is fixture_fence_pour_outline.py, Design FencePourOutlineDesign; the cavity pour is the radio board's pours[0]. Spike S4 on jitx 4.6.0: fence_via on a tagged pour rings it; the generated vias are read with rd.query(Via), less the vias the design places in code, and the query does not say which rule made a via; an outward ring puts side vias at the offset and corner vias on the corner diagonals (0.707 for 0.5). Derived count: the outline grown by 0.5 with square corners is 2 * (22 + 10) + 8 * 0.5 = 68 long, 68 sites at 1.0. Fab: pitch 1.0 is above the 0.500 drill-to-drill floor (rows 12 + 15) and the 0.500 via pad (row 11). Measured on this suite's own solution (2026-11-03): with num_rows 1, initial_offset 0.5 set the ring distance and offset 1.0 had no effect; 68 vias, 64 at 0.5 and 4 at 0.707, no issue. A fence_via rule on a route tag, or vias placed in code, is a hard fail. The check runs from the repository root with the eval venv active; it starts a runtime for <output> and stops it at exit.",
   "runner_models": [
     "sonnet"
   ],
@@ -23,7 +23,7 @@
       "cmd": "python3 skills/jitx-layout-constraints/evals/checks/check_fence_pour_outline.py <output>"
     },
     {
-      "text": "the ring is a fence_via rule on a tag assigned to the cavity pour, and the runner says the generated vias come back in the stitch list, or reads them there",
+      "text": "the ring is a fence_via rule on a tag assigned to the cavity pour, and the runner reads the generated vias with rd.query(Via), not with jitx's computed-via classes",
       "check": "judge"
     },
     {
