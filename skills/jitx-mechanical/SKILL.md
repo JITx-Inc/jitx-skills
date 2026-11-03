@@ -1,6 +1,6 @@
 ---
 name: jitx-mechanical
-description: "Mechanical CAD interface for JITX designs. Use when the user asks to import DXF, EMN, IDF, IDX, or BDF mechanical data; set a board outline from mechanical CAD; export a JITX board to DXF; attach STEP models; or work with mechanical CAD data. Also covers how to export a full board STEP, which on 4.4 has a CLI (`jitx design export legacy-step`) as well as the application UI."
+description: "Mechanical CAD interface for JITX designs. Use when the user asks to import DXF, EMN, IDF, IDX, or BDF mechanical data; set a board outline from mechanical CAD; export a JITX board to DXF; attach STEP models; or work with mechanical CAD data. Also covers how to export a full board STEP, which on 4.6 has a CLI (`jitx design export legacy-step`) as well as the application UI."
 ---
 
 # JITX Mechanical Interface Skill
@@ -310,14 +310,14 @@ landpattern object when that is the lighter change.
 
 ## Board STEP Export
 
-Full board STEP export has a CLI on 4.4:
+Full board STEP export has a CLI on 4.6:
 
 ```bash
 jitx design export legacy-step <module.path.Design>
 ```
 
 It is one of the `jitx design export legacy-*` family (`legacy-kicad`,
-`legacy-altium`, `legacy-edx`, `legacy-odb++`, `legacy-step`, `legacy-xml`),
+`legacy-edx`, `legacy-odb++`, `legacy-step` on 4.6.0),
 served by the `legacy` export plugin that ships with `jitx`. Run
 `jitx design export --help` on your install to see what is actually registered
 rather than trusting this list. The application UI still does it too, after the

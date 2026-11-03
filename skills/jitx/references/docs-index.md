@@ -44,7 +44,7 @@ Core modules at `api/jitx.<module>.html`:
 | `via` | Via definitions |
 | `anchor` | Anchor points for placement |
 | `transform` | Geometric transformations |
-| `shapes` | Shape primitives (`shapes/primitive.html`, `shapes/composites.html`) |
+| `shapes` | Shape primitives (`api/jitx.shapes.primitive.html`, `api/jitx.shapes.composites.html`) |
 | `units` | Unit handling (mm, mil, etc.) |
 | `toleranced` | Toleranced values |
 | `inspect` | Design introspection utilities |

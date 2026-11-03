@@ -11,7 +11,7 @@ Model flexible pin mappings between circuit-level interfaces and component pins.
 
 Environment setup is handled by the base `jitx` skill. Ensure it has been invoked first.
 
-The worked patterns this skill points at are modules in the `jitxexamples` package. Install it into the project venv once with `pip install --no-deps --upgrade jitxexamples` (`--no-deps` keeps its pins off the project's `jitx`); it is not a project dependency. If importing a pointed-at module raises `ModuleNotFoundError`, the installed `jitxexamples` predates these patterns: say so, and work from the rules here.
+The worked patterns this skill points at are modules in the `jitxexamples` package. Install it into the project venv once with `pip install --no-deps --upgrade "jitxexamples>=2.0,<2.1"` (`--no-deps` keeps its pins off the project's `jitx`); it is not a project dependency. If importing a pointed-at module raises `ModuleNotFoundError`, the installed `jitxexamples` predates these patterns: say so, and work from the rules here.
 
 ## Package Architecture
 
@@ -26,10 +26,10 @@ from jitx.toleranced import Toleranced
 ```
 
 **These DO NOT EXIST — never import:**
-`jitx.provide`, `jitx.providers`, `jitx.pin_assignment`, `jitx.assign`,
+`jitx.providers`, `jitx.pin_assignment`, `jitx.assign`,
 `jitx.net.provide_one_of`, `jitxlib.pin_assignment`, `jitx.pin_assign`
 
-`Provide` is also re-exported from `jitx`. Every constraint class, `DiffPairConstraint` and `ReferencePlanes` included, is in `jitx.si`.
+`provide` and `Provide` are also re-exported from `jitx`. Every constraint class, `DiffPairConstraint` and `ReferencePlanes` included, is in `jitx.si`.
 
 ## When to Use Pin Assignment
 

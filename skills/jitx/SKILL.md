@@ -7,7 +7,11 @@ description: "Base skill for JITX Python PCB design: install, the jitx CLI, auth
 
 Run this skill's setup before any sub-skill: they assume a working runtime.
 
-> **Supported version line.** This bundle targets **jitx 4.6.x** (`jitx >= 4.6, < 4.7`). Sibling skills don't restate the range; their "verified on 4.4.0" notes are evidence for those claims on that release. Where the installed package differs from these pages, follow the package and verify every import with `pyright`.
+> **Supported version line.** This bundle targets **jitx 4.6.x** (`jitx >= 4.6, < 4.7`).
+>
+> - Checked against, for bundle 1.8.1: every name these skills tell you to import, and every docs URL they give, resolves on the released jitx 4.6.0 (runtime 4.6.0), jitxlib-standard 4.6.0, jitxlib-parts 2.0.0, jitxlib-jlcpcb 4.0.0 and jitxexamples 2.0.0. Measured behavior was not re-run on them.
+> - Developed with: the 4.6 release candidates (jitx 4.6.0rc10 with runtime 4.6.0-rc.16, jitxlib-standard 4.6.0rc3, jitxlib-parts 2.0.0rc2.dev3, jitxlib-jlcpcb 4.0.0a4) and unreleased jitxexamples builds 1.7.1.dev37+g688f6e029 and 1.7.1.dev41+gcb91a9f15, whose printed measurements can differ from 2.0.0's.
+> - Sibling skills don't restate these versions; a note there that names a build ("Observed on jitx 4.6.0rc10") is evidence for that claim on that build. Where the installed package differs from these pages, follow the package and verify every import with `pyright`.
 
 Commands are bash. In Windows PowerShell: use `python` for `python3`, activate with `.\.venv\Scripts\Activate.ps1`, write the `[ ... ] ||` guards as `if (-not (Test-Path ...))` and `grep -q` as `Select-String -Quiet`, and clear a `$env:VAR=` setting with `Remove-Item Env:VAR` when it should apply to one command. On Windows, in PowerShell or Git Bash, the `&`, `pkill` and `pgrep` steps have no verified form: ask the user to run long-lived commands in their own terminal and to close viewers themselves.
 
@@ -21,7 +25,7 @@ In an existing project, activate its venv, read `jitx --version`, and ask before
 [ -d .venv ] || python3 -m venv .venv
 source .venv/bin/activate          # Git Bash on Windows: .venv/Scripts/activate
 python -c 'import sys; assert sys.version_info >= (3, 12), sys.version'
-pip install "jitx>=4.6,<4.7" jitxlib-standard jitxlib-parts ruff pyright
+pip install "jitx>=4.6,<4.7" jitxlib-standard "jitxlib-parts>=2,<3" ruff pyright
 jitx --version
 ```
 
@@ -33,11 +37,11 @@ If the assertion fails, recreate `.venv` with Python 3.12 or newer.
 
 ```bash
 [ -f pyproject.toml ] && grep -q jitx pyproject.toml || jitx project layout init   # ask first if files other than .venv exist
-pip install -e . "jitx>=4.6,<4.7" jitxlib-standard jitxlib-parts
+pip install -e . "jitx>=4.6,<4.7" jitxlib-standard "jitxlib-parts>=2,<3"
 python -c "import jitxlib.landpatterns, jitxlib.parts"
 ```
 
-`jitx project layout init` writes a flat `<ns>/` package (not `src/<ns>/`) and `pyproject.toml`. Change its `jitx>=4.4.0,<5` to `jitx>=4.6,<4.7`; add `jitxlib-parts>=2,<3` (and `jitxlib-jlcpcb` when used) to `dependencies`. Without `pip install -e .`, `jitx find` exits 0 listing no designs (`import failed: ModuleNotFoundError`).
+`jitx project layout init` writes a flat `<ns>/` package (not `src/<ns>/`) and `pyproject.toml`. Change its `jitx>=4.4.0,<5` to `jitx>=4.6,<4.7`; add `jitxlib-parts>=2,<3` (and `jitxlib-jlcpcb>=4,<5` when used) to `dependencies`. Without `pip install -e .`, `jitx find` exits 0 listing no designs (`import failed: ModuleNotFoundError`).
 
 Passive queries need a provider chain in `pyproject.toml` (without one: `NoChainConfigured`). Commit `parts/approved-parts.csv` (user-approved parts only) and the build-written `parts.lock.json` (never hand-made). If the user has none, copy the example CSV `jitxexamples` ships there (`jitx-project-builder` Phase 0) and tell the user it is not an approval:
 

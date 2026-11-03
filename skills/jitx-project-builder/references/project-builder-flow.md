@@ -116,7 +116,7 @@ Passives resolve from the project's parts chain, and its first member reads `par
 With no list from the user, copy the example CSV that ships in `jitxexamples` as a stand-in. Install it into the project venv once with `--no-deps`, so its own pins cannot replace the project's `jitx` or `jitxlib-parts`; it is not added to the project's dependencies:
 
 ```bash
-pip install --no-deps --upgrade jitxexamples
+pip install --no-deps --upgrade "jitxexamples>=2.0,<2.1"
 mkdir -p parts
 python -c "import importlib.resources as r, shutil; shutil.copy(r.files('jitxexamples') / 'parts' / 'example-passives.csv', 'parts/approved-parts.csv')"
 ```
