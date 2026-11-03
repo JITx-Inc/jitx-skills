@@ -113,22 +113,69 @@ def runtime_for(out: Path) -> Iterator[None]:
 # Counts the fixture's objects in a fresh interpreter: the runner's fixture and
 # the bare one share module names, so they cannot share one process.
 # ``_instantiate_design`` is what ``Runtime.submit`` uses to build a Design.
+#
+# A structure's signature is, per layer index, its trace width and clearance
+# (and a differential layer's pair spacing, and a neck-down's width and
+# clearance): the values that set copper. A fence, reference layers and the
+# name are left out, so a fenced copy of a substrate structure has the
+# substrate structure's signature.
 _COUNT_SCRIPT = """
 import json, importlib, sys
 sys.path.insert(0, sys.argv[1])
 from jitx.circuit import Route
+from jitx.constraints import UnaryDesignConstraint
 from jitx.copper import Pour
 from jitx.inspect import visit
 from jitx.run.runtime import _instantiate_design
-from jitx.si import Constraint
+from jitx.si import BaseConstrain, Constraint, DifferentialRoutingStructure, RoutingStructure
 from jitx.via import Via
+
+def rnd(x):
+    return None if x is None else round(float(x), 6)
+
+def sig(s):
+    out = {}
+    for i, l in s.layers.items():
+        nd = l.neck_down
+        out[str(i)] = [
+            rnd(l.trace_width),
+            rnd(l.clearance),
+            rnd(getattr(l, "pair_spacing", None)),
+            None if nd is None else [rnd(nd.trace_width), rnd(nd.clearance), rnd(getattr(nd, "pair_spacing", None))],
+        ]
+    return out
+
+def entries(where, s):
+    yield {"where": where, "name": s.name, "layers": sig(s)}
+    u = getattr(s, "uncoupled_region", None)
+    if u is not None:
+        yield from entries(f"{where} (uncoupled region)", u)
+
 d = _instantiate_design(getattr(importlib.import_module(sys.argv[2]), sys.argv[3]))
+applied = []
+constrain_structures = 0
+for t, c in visit(d, BaseConstrain):
+    rsc = getattr(c, "_structure", None)
+    if rsc is not None:
+        constrain_structures += 1
+        applied.extend(entries(f"Constrain at {t.path}", rsc.structure))
+for t, c in visit(d, UnaryDesignConstraint):
+    if c.routing_structure_constraint is not None:
+        applied.extend(entries(f"routing_structure rule at {t.path}", c.routing_structure_constraint.routing_structure))
+# The substrate's class attributes are wrapped until instantiated; visit
+# reads them from the instance, as for any structural object.
+substrate = []
+for t, s in visit(d.substrate, (RoutingStructure, DifferentialRoutingStructure)):
+    substrate.extend(entries(f"{type(d.substrate).__name__}.{t.path}", s))
 print(json.dumps({
     "routes": len(list(visit(d, Route))),
     "vias": len(list(visit(d, Via))),
     "pours": len(list(visit(d, Pour))),
     "si_constraints": len(list(visit(d, Constraint))),
+    "constrain_structures": constrain_structures,
     "configured": [str(t.path) for t, r in visit(d, Route) if r.config is not None],
+    "applied_structures": applied,
+    "substrate_structures": substrate,
 }))
 """
 
@@ -136,8 +183,11 @@ SKILL = Path(__file__).resolve().parents[2]
 
 
 def object_counts(project: Path, module: str, cls: str) -> dict[str, Any]:
-    """Routes, code-placed vias, pours and SI constraints in ``module.cls``,
-    and the routes that carry a ``Route.Config``."""
+    """Routes, code-placed vias, pours, ``jitx.si.Constraint`` objects (timing
+    and loss) and structure-applying ``Constrain`` and ``ConstrainDiffPair``
+    objects in ``module.cls``;
+    the routes that carry a ``Route.Config``; the routing structures the
+    design applies; and the routing structures its substrate class defines."""
     run = subprocess.run(
         [sys.executable, "-c", _COUNT_SCRIPT, str(project), module, cls],
         cwd=project,
@@ -163,14 +213,55 @@ def bare_fixture(module: str, into: Path) -> Path:
     raise FileNotFoundError(f"no case lists {module}.py")
 
 
+def _layer_text(idx: str, v: list[Any]) -> str:
+    text = f"layer {idx} width {v[0]} clearance {v[1]}"
+    if v[2] is not None:
+        text += f" pair spacing {v[2]}"
+    if v[3] is not None:
+        text += f" neck-down {v[3]}"
+    return text
+
+
+def check_structures(applied: list[dict[str, Any]], defined: list[dict[str, Any]]) -> None:
+    """Fail on an applied routing structure with a layer whose width or
+    clearance no structure in the fixture's substrate has on that layer.
+
+    The contract allows applying the substrate's structures, and a fenced copy
+    of one when its width and clearance are unchanged; defining new widths or
+    clearances belongs to jitx-substrate-modeler. Layers compare by value, so
+    a copy made with ``RoutingStructure.Layer.fence`` passes."""
+    allowed: dict[str, list[tuple[str, list[Any]]]] = {}
+    for s in defined:
+        for idx, v in s["layers"].items():
+            allowed.setdefault(idx, []).append((s["where"], v))
+    for s in applied:
+        for idx, v in sorted(s["layers"].items()):
+            if any(v == w for _, w in allowed.get(idx, [])):
+                continue
+            have = "; ".join(f"{where} {_layer_text(idx, w)}" for where, w in allowed.get(idx, [])) or "none"
+            fail(
+                f"routing structure {s['name']} ({s['where']}): {_layer_text(idx, v)} matches no "
+                f"substrate structure on layer {idx} (substrate has: {have}); a new width or "
+                "clearance is a substrate-modeler change, not a rule"
+            )
+
+
 def check_unedited(out: Path, module: str, cls: str) -> None:
     """Fail when the runner changed what the contract says to leave alone.
 
     Spike S5: a ``Route.Config`` overrides design rules, so a width set on a
     route passes every width check without a rule. No fixture sets one. The
-    route, via and pour counts must match the fixture as shipped, and no SI
-    constraint the fixture carries may be removed (a ``Constrain`` is what
-    applies a structure in some cases)."""
+    route, via and pour counts must match the fixture as shipped. Neither the
+    ``jitx.si.Constraint`` count (timing and loss) nor the count of
+    ``Constrain`` and ``ConstrainDiffPair`` objects that apply a structure
+    may drop below the fixture's. Every routing structure the output applies, through
+    ``Constrain(...).structure(...)``, ``ConstrainDiffPair(...).structure(...)``
+    or a ``routing_structure`` rule, must match one the fixture's substrate
+    defines (``check_structures``).
+
+    ``_instantiate_design`` is private: if a jitx upgrade renames it, the
+    count script exits with an import error, which run_cases reports as
+    "could not run", not FAIL."""
     got = object_counts(out, module, cls)
     with tempfile.TemporaryDirectory() as tmp:
         want = object_counts(bare_fixture(module, Path(tmp) / "bare"), module, cls)
@@ -179,9 +270,13 @@ def check_unedited(out: Path, module: str, cls: str) -> None:
     for key in ("routes", "vias", "pours"):
         if got[key] != want[key]:
             fail(f"{key}: {got[key]} in the output, {want[key]} in the fixture")
-    if got["si_constraints"] < want["si_constraints"]:
-        fail(f"SI constraints: {got['si_constraints']} in the output, {want['si_constraints']} in the fixture")
-    print(f"objects: {got}, fixture: {want}")
+    for key, label in (("si_constraints", "SI constraints"), ("constrain_structures", "structure-applying Constrain objects")):
+        if got[key] < want[key]:
+            fail(f"{label}: {got[key]} in the output, {want[key]} in the fixture")
+    check_structures(got["applied_structures"], want["substrate_structures"])
+    summary = {k: got[k] for k in ("routes", "vias", "pours", "si_constraints", "constrain_structures", "configured")}
+    print(f"objects: {summary}, fixture: { {k: want[k] for k in summary} }")
+    print(f"applied structures: {[(s['name'], s['layers']) for s in got['applied_structures']]}")
 
 
 @contextmanager
