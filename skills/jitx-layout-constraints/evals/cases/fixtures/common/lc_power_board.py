@@ -3,10 +3,12 @@
 Parts come from jitxexamples (py-components ``origin/main`` 9c398d3): the
 TPS62933DRLR application circuit (``TPS62933DRLRCircuit``) and a two-pole
 Weidmuller LSF-SMT terminal block. The TPS62933 circuit as shipped tags VIN
-and VOUT with its own ``PowerNetTag`` and carries
-``design_constraint(PowerNetTag()).trace_width(0.25)`` at priority 0, plus
-clearance rules on its switch and bootstrap nets; those are part of the
-library circuit, not of this board.
+and VOUT with its own ``PowerNetTag``, SW_NODE with ``SwTag`` and BST_MID
+with ``BstTag``, and carries three rules of its own:
+``design_constraint(PowerNetTag()).trace_width(0.25)`` and 0.25 clearances
+from ``SwTag`` and ``BstTag`` to everything, all at priority 0. This board
+removes those three rules (``drop_library_rules``) so no case measures a
+width or clearance the fixture did not state; the tags stay.
 
 Layout, on ``LcStandard4`` and the 40 x 30 mm ``LcBoard``:
 
@@ -38,6 +40,18 @@ from lc_radio_board import box
 
 POUR_BOX = (-18.0, -7.0, 18.0, 7.0)
 
+LIBRARY_RULES = ("power_trace_rule", "sw_clearance_rule", "bst_clearance_rule")
+"""The rule attributes TPS62933DRLRCircuit sets on itself."""
+
+
+def drop_library_rules(reg: TPS62933DRLRCircuit) -> None:
+    """Remove the TPS62933 circuit's own design rules, keeping its tags. In
+    this suite's own run (2026-11-03) the rules no longer appeared in the
+    captured design after this, and the VIN route came back at the fab
+    default 0.1 instead of the library's 0.25."""
+    for name in LIBRARY_RULES:
+        delattr(reg, name)
+
 
 class PowerBoard(Circuit):
     def __init__(
@@ -47,6 +61,7 @@ class PowerBoard(Circuit):
     ) -> None:
         self.term = LSF_SMT(2)
         self.reg = TPS62933DRLRCircuit(input_voltage=24.0)
+        drop_library_rules(self.reg)
         self.place(self.term, Transform((-14.0, 0.0), 90))
         self.place(self.reg.buck, Transform((6.0, 0.0), 0))
         c1, c2 = self.reg.input_caps

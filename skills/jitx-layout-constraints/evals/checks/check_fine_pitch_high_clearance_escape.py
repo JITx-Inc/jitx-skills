@@ -11,8 +11,8 @@ measures the two switch-node segments:
   0.100, fab row 3's minimum width;
 - ``sw_trunk`` (via to the inductor): every trace shape 0.6 wide, the
   prompt's switch-node class width;
-- the layer-0 GND pour sits 0.25 from the trunk, the library circuit's
-  ``SwTag`` clearance, within [0.25, 0.28] (spike S9: pour pullback at the
+- the layer-0 GND pour sits 0.25 from the trunk, the fixture's
+  ``SwTag`` class clearance, within [0.25, 0.28] (spike S9: pour pullback at the
   winning clearance plus 0.01).
 
 The escape rule must reach the escape only: a rule on the switch-node net or

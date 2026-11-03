@@ -1,8 +1,8 @@
 """Fixture for the permissive-rule-outranks-protection case: the buck board
 with a rule set that has a broad escape rule above a protection rule.
 
-See ``lc_power_board.py`` for the layout and the rules the TPS62933 library
-circuit carries.
+See ``lc_power_board.py`` for the layout; the buck board removes the TPS62933
+library circuit's own rules.
 """
 
 from jitx.constraints import AnyObject, IsCopper, IsTrace, OnLayer, Tag, design_constraint

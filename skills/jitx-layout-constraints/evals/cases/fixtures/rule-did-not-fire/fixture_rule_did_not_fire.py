@@ -1,8 +1,8 @@
 """Fixture for the rule-did-not-fire case: the buck board with its rule set.
 
 The board's own rules are below. The 0.5 mm VIN width is the one the user
-says is not taking. See ``lc_power_board.py`` for the layout and for the
-rules the TPS62933 library circuit carries.
+says is not taking. See ``lc_power_board.py`` for the layout; the buck
+board removes the TPS62933 library circuit's own rules.
 """
 
 from jitx.constraints import IsCopper, IsTrace, Tag, design_constraint

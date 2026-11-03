@@ -6,9 +6,10 @@ around the U.FL connector, the feed and the series inductor; layers 1 to 3
 keep the full GND pours. A TPS62933DRLR application circuit sits to the right:
 its IC at (6, 3.5), and a layer-0 pour on its switch-node net over x 3.5..9,
 y 0..7 (``SW_BOX``), the switch-node copper. The TPS62933 library circuit tags
-its switch-node net with its own ``SwTag`` and carries
-``design_constraint(SwTag(), True).clearance(0.25)``. No board rule relates
-the switcher to the feed. See ``lc_radio_board.py`` for the radio layout.
+its switch-node net with its own ``SwTag``. It also carries three rules of
+its own (a 0.25 ``PowerNetTag`` width and 0.25 clearances from ``SwTag`` and
+``BstTag`` to everything); this fixture removes them, so no rule relates the
+switcher to the feed or sets a switch-node clearance. See ``lc_radio_board.py`` for the radio layout.
 """
 
 from jitx.copper import Pour
@@ -33,6 +34,9 @@ class SwitcherWithPour(TPS62933DRLRCircuit):
 
     def __init__(self) -> None:
         super().__init__(input_voltage=12.0)
+        # The library circuit's own rules, removed (tags kept).
+        for name in ("power_trace_rule", "sw_clearance_rule", "bst_clearance_rule"):
+            delattr(self, name)
         self.sw_pour = Pour(box(*SW_BOX), layer=0)
         self.SW_NODE += self.sw_pour
 

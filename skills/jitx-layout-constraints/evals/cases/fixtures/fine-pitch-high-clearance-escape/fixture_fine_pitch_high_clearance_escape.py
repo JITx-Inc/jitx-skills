@@ -12,12 +12,13 @@ On top of the buck board (``lc_power_board.py``):
 - ``sw_escape``, a code route on layer 0 from the IC's SW pin (pad 5 of the
   SOT-583 land pattern) to that via, and ``sw_trunk``, a code route on layer
   0 from the via to the inductor's p1;
-- a switch-node class width, ``design_constraint(SwTag()).trace_width(0.6)``.
+- a switch-node class on the TPS62933 library's ``SwTag`` (which the library
+  circuit assigns to SW_NODE): ``design_constraint(SwTag()).trace_width(0.6)``
+  and ``design_constraint(SwTag(), True).clearance(0.25)``. The buck board
+  removes the library circuit's own rules, so these two are the only ones.
 
-The TPS62933 library circuit already tags SW_NODE with ``SwTag`` and carries
-``design_constraint(SwTag(), True).clearance(0.25)``. The land pattern's pads
-are 0.28 x 0.68 at a 0.5 pitch, so the SW pad and the BST pad beside it are
-0.22 apart.
+The land pattern's pads are 0.28 x 0.68 at a 0.5 pitch, so the SW pad and the
+BST pad beside it are 0.22 apart.
 """
 
 from jitx.circuit import Route
@@ -48,6 +49,7 @@ class SwitchNodeBoard(PowerBoard):
         self.sw_escape = Route(reg.buck.SW, self.sw_via, layer=0)
         self.sw_trunk = Route(self.sw_via, reg.Ind.p1, layer=0)
         self.sw_width = design_constraint(SwTag()).trace_width(0.6)
+        self.sw_space = design_constraint(SwTag(), True).clearance(0.25)
 
 
 class FinePitchHighClearanceEscapeDesign(LcDesign):
