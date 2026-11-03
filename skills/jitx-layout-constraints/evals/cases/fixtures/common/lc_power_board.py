@@ -18,6 +18,8 @@ Layout, on ``LcStandard4`` and the 40 x 30 mm ``LcBoard``:
   second's, ``vin_route``;
 - GND pours on all four layers over x -18..18, y -7..7 (a fixture may pass
   ``pour_box``), anchored by the GND pads inside them;
+- with ``ss_route``, the soft-start capacitor ``c_ss`` at (6, -3.5) and a code
+  route on layer 0 from the IC's SS pin to its p1, ``ss_route``;
 - every other part parked in rows below y -8.
 """
 
@@ -38,7 +40,11 @@ POUR_BOX = (-18.0, -7.0, 18.0, 7.0)
 
 
 class PowerBoard(Circuit):
-    def __init__(self, pour_box: tuple[float, float, float, float] = POUR_BOX) -> None:
+    def __init__(
+        self,
+        pour_box: tuple[float, float, float, float] = POUR_BOX,
+        ss_route: bool = False,
+    ) -> None:
         self.term = LSF_SMT(2)
         self.reg = TPS62933DRLRCircuit(input_voltage=24.0)
         self.place(self.term, Transform((-14.0, 0.0), 90))
@@ -53,9 +59,14 @@ class PowerBoard(Circuit):
         self.VOUT = Net([self.reg.vout.Vp], name="VOUT")
 
         self.vin_route = Route(c1.p1, c2.p1, layer=0)
+        placed = [self.term, self.reg.buck, c1, c2, self.reg.c_inp_sm]
+        if ss_route:
+            self.place(self.reg.c_ss, Transform((6.0, -3.5), 0))
+            self.ss_route = Route(self.reg.buck.SS, self.reg.c_ss.p1, layer=0)
+            placed.append(self.reg.c_ss)
 
         self.pours = [Pour(box(*pour_box), layer=layer) for layer in range(4)]
         for p in self.pours:
             self.GND += p
 
-        park(self, [self.term, self.reg.buck, c1, c2, self.reg.c_inp_sm], x0=-18.0, x1=18.0, y=-9.5)
+        park(self, placed, x0=-18.0, x1=18.0, y=-9.5)
