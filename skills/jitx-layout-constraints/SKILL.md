@@ -35,9 +35,8 @@ after capture. Every section below ends in something you can measure.
 
 ## Environment
 
-Environment setup is the base `jitx` skill's job; invoke it first — it owns the
-supported version line, and this skill does not restate it. This page is written
-against and verified on the `jitx.constraints` module as shipped in 4.4.0. Before
+Environment setup is the base `jitx` skill's job; invoke it first. It owns the
+supported versions, and this skill does not restate them. Before
 writing rules on an unfamiliar install, open the installed
 `jitx/constraints.py` and confirm the class and method names in
 `references/rule-reference.md` still exist. Verify every import with `pyright`
@@ -423,9 +422,8 @@ rp = RoutePoint(layer=0).at(x_transition, y_transition)
 self.v5 += rp.port                                # net the control point, or the build fails
 trunk = Route(self.j1.VOUT, rp, layer=0)          # class-width trunk ends here
 esc = Route(rp, self.u1.VIN, layer=0)             # escape segment into the pad;
-                                                  # intermediate sketch points are
-                                                  # dropped on 4.4.0-rc.9, so a turn
-                                                  # needs another RoutePoint
+                                                  # a turn that must hold gets
+                                                  # its own RoutePoint (fanout.md)
 self.escape = [rp, trunk, esc]                    # store each object once: a list OR
                                                   # named attributes, never both
 Tags(QfnEscapeTag()).assign(esc)

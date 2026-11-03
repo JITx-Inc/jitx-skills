@@ -1,6 +1,6 @@
-# Inspecting & Verifying Concrete Geometry (JITX 4.3 reverse flow)
+# Inspecting & Verifying Concrete Geometry (reverse flow)
 
-> **New in 4.3.** After a design is submitted to the runtime and **captured**,
+> After a design is submitted to the runtime and **captured**,
 > python holds the *realized* physical design: every route's copper, control-point
 > transitions, computed pours, vias, placements, and net assignments. Checks written
 > against this data are how hard geometric code gets debugged — not screenshots, not
@@ -213,10 +213,11 @@ fabrication export instead. A removed pour returns `Empty()`;
 calling `.to_shapely()` on it raises
 `ValueError: Unhandled primitive geometry type: Empty()`, so the realization check
 reports the net and layer and exits 1 before any conversion.
-One more: `Route(..., sketch=[...])` intermediate points are dropped on runtime
-4.4.0-rc.9 and the route realizes straight between its endpoints, so a probe
-that relies on a sketch to bend a route passes vacuously; author turns with
-`RoutePoint`s and assert the realized bounds. And a circuit placed with
+One more: on a pre-release runtime, `Route(..., sketch=[...])` intermediate
+points were dropped and the route realized
+straight between its endpoints, so a probe that relies on a sketch to bend a
+route can pass vacuously; author turns that must hold with `RoutePoint`s and
+assert the realized bounds. And a circuit placed with
 `.at(floating=True)` but never placed interactively is subject to the placement
 provenance limitation above.
 

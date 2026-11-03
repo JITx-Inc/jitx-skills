@@ -8,7 +8,7 @@ package rule set that segment's width and clearance.
 This page owns the package geometry derivation. The complete rule surface is
 in `rule-reference.md`.
 Source citations (`jitx/constraints.py:910` and the like) point into the
-installed py-jitx package on a `4.4.0` install; line numbers move between
+installed jitx package; line numbers move between
 builds, so confirm on your own install before relying on one.
  Route and control-point mechanics are in
 `jitx-physical-layout/references/control-points.md`. Coordinate composition and
@@ -323,10 +323,12 @@ self.escape_rules = [
 ]
 ```
 
-`sketch=` is accepted, but on runtime 4.4.0-rc.9 its intermediate points are
-dropped and the route realizes as a straight line between its endpoints
-(`evals/cases/reference/net-net-clearance/NOTES.md`); a turn needs another
-`RoutePoint`. A sketch does not set width or clearance either. The tag selects the two rules. Both routes, the control point, and
+`sketch=` takes a `Route.Sketch` (start, turns, end), which the API documents
+as a hint. On a pre-release runtime, its intermediate points were dropped and the
+route realized as a straight line between its endpoints
+(`evals/cases/reference/net-net-clearance/NOTES.md`); that was not re-run on this
+release. Give a turn that must hold its own `RoutePoint`, and assert the realized
+bounds after capture. A sketch does not set width or clearance either. The tag selects the two rules. Both routes, the control point, and
 the rule list stay on `self`, so the design-tree walk can reach them.
 
 For a single-ended escape, tag the route segment. For a differential

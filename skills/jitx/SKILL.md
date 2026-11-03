@@ -7,11 +7,22 @@ description: "Base skill for JITX Python PCB design: install, the jitx CLI, auth
 
 Run this skill's setup before any sub-skill: they assume a working runtime.
 
-> **Supported version line.** This bundle targets **jitx 4.6.x** (`jitx >= 4.6, < 4.7`).
->
-> - Checked against, for bundle 1.8.1: every name these skills tell you to import, and every docs URL they give, resolves on the released jitx 4.6.0 (runtime 4.6.0), jitxlib-standard 4.6.0, jitxlib-parts 2.0.0, jitxlib-jlcpcb 4.0.0 and jitxexamples 2.0.0. Measured behavior was not re-run on them.
-> - Developed with: the 4.6 release candidates (jitx 4.6.0rc10 with runtime 4.6.0-rc.16, jitxlib-standard 4.6.0rc3, jitxlib-parts 2.0.0rc2.dev3, jitxlib-jlcpcb 4.0.0a4) and unreleased jitxexamples builds 1.7.1.dev37+g688f6e029 and 1.7.1.dev41+gcb91a9f15, whose printed measurements can differ from 2.0.0's.
-> - Sibling skills don't restate these versions; a note there that names a build ("Observed on jitx 4.6.0rc10") is evidence for that claim on that build. Where the installed package differs from these pages, follow the package and verify every import with `pyright`.
+## Supported versions
+
+Bundle 1.8.1 targets JITX 4.6. This table is the only place the skills name supported versions; the install commands below apply them, and the other skills assume them.
+
+| Package | Release | Install with |
+|---|---|---|
+| `jitx` (framework and CLI) | 4.6.0 | `"jitx>=4.6,<4.7"` (Step 1) |
+| JITX runtime | 4.6.0 | `jitx runtime install` (Step 4); its major.minor must match `jitx` |
+| `jitxlib-standard` | 4.6.0 | `jitxlib-standard` (Step 1); it requires `jitx>=4.6,<4.7` |
+| `jitxlib-parts` | 2.0.0 | `"jitxlib-parts>=2,<3"` (Step 1) |
+| `jitxlib-jlcpcb`, JLCPCB boards only | 4.0.0 | `"jitxlib-jlcpcb>=4,<5"` (Step 2) |
+| `jitxexamples` | 2.0.0 | `--no-deps "jitxexamples>=2.0,<2.1"` (Step 1) |
+
+- Every name the skills tell you to import resolves on these package releases, and every docs.jitx.com URL they give returned a page when checked for this bundle.
+- Observed results in the skills (measured values, messages, what a build realized or rejected) come from pre-release builds or earlier releases and were not re-run on these releases, so your install can behave differently.
+- Where the installed package differs from these pages, follow the package and verify every import with `pyright`.
 
 Commands are bash. In Windows PowerShell: use `python` for `python3`, activate with `.\.venv\Scripts\Activate.ps1`, write the `[ ... ] ||` guards as `if (-not (Test-Path ...))` and `grep -q` as `Select-String -Quiet`, and clear a `$env:VAR=` setting with `Remove-Item Env:VAR` when it should apply to one command. On Windows, in PowerShell or Git Bash, the `&`, `pkill` and `pgrep` steps have no verified form: ask the user to run long-lived commands in their own terminal and to close viewers themselves.
 
@@ -26,10 +37,12 @@ In an existing project, activate its venv, read `jitx --version`, and ask before
 source .venv/bin/activate          # Git Bash on Windows: .venv/Scripts/activate
 python -c 'import sys; assert sys.version_info >= (3, 12), sys.version'
 pip install "jitx>=4.6,<4.7" jitxlib-standard "jitxlib-parts>=2,<3" ruff pyright
+pip install --no-deps --upgrade "jitxexamples>=2.0,<2.1"
+pip install "eseries>=1.2.1,<2"   # the one jitxexamples requirement the lines above don't bring
 jitx --version
 ```
 
-`jitx` brings the framework and CLI but no `jitxlib`: `jitxlib-standard` gives `jitxlib.landpatterns`, `.symbols`, `.protocols`, `.bundles`, `.via_structures` and `.physics`; `jitxlib-parts` the `Resistor`/`Capacitor`/`Inductor` queries; `jitxlib-jlcpcb`, only for a confirmed JLCPCB fab, its substrates.
+`jitx` brings the framework and CLI but no `jitxlib`: `jitxlib-standard` gives `jitxlib.landpatterns`, `.symbols`, `.protocols`, `.bundles`, `.via_structures` and `.physics`; `jitxlib-parts` the `Resistor`/`Capacitor`/`Inductor` queries; `jitxlib-jlcpcb`, only for a confirmed JLCPCB fab, its substrates. `jitxexamples` holds the worked patterns, example components and example parts CSV the other skills point at; `--no-deps` keeps its own pins off the project's `jitx` and `jitxlib-parts`, and it is not a project dependency.
 
 If the assertion fails, recreate `.venv` with Python 3.12 or newer.
 
@@ -101,7 +114,7 @@ jitx runtime status | grep -q reachable || jitx runtime start --background
 `jitx build` prints `status: ok` or a traceback and `status: error`. Results land in `designs/<module.path.DesignClass>/`: `cache/netlist.json`, `cache/design-explorer.json` (the hierarchy), and `design-info/` (interactive placements). Never delete `designs/<design>` casually. A cryptic `No field with key '$_...'` after a version change means `design-info/` is unreadable by the new pairing: restore it from git and restart the runtime.
 
 - **`--dry` is not a build.** With no runtime, `jitx build` exits 1 and offers `--dry`, which then reports `status: ok`. It misses failures such as `Public name already in use`, and never satisfies a step that asks for a build.
-- **Dependency check.** Do not run the `jitx project dependencies upgrade` a build suggests: it can leave the supported line.
+- **Dependency check.** Do not run the `jitx project dependencies upgrade` a build suggests: it can leave the supported versions.
 - **Parameterized designs.** `jitx find` lists a `Design` whose `__init__` takes required arguments, but building it fails with `Design is parameterized but no parameters were provided`. Add a thin module-scope subclass with concrete values and build that.
 - **Rebuild prompts.** Some rebuilds ask `[Y/n]` before deleting stale instances; headless, the build ends `EOF when reading a line`. The answer is the user's: end your build, tell them what it printed, and rebuild once they answer in the JITX UI or their own terminal. Pipe `yes |` only when the user says to; PowerShell has no verified equivalent.
 - **Stalled build.** Run long builds with `PYTHONUNBUFFERED=1`. If a build shows no output and little CPU for a minute, check `jitx runtime status` in every other open JITX project, `pgrep -fl interactive-client` for accumulated clients, and what `jitx runtime cleanup` reports. Ask before stopping anything.

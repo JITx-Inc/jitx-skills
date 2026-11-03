@@ -1,9 +1,9 @@
 # Rule Reference
 
 Conditions, effects, and signatures of the JITX design-rule system, cited to
-the installed 4.4 source (`jitx/constraints.py`, `jitx/si.py`,
+the installed source (`jitx/constraints.py`, `jitx/si.py`,
 `jitx/substrate.py`, `jitx/copper.py`, `jitx/circuit.py`). Line numbers are from
-a `jitx 4.4.0` install and move with patch releases; class and method names are
+a pre-release install and move with patch releases; class and method names are
 what this page is really asserting. On any install, open the file and confirm a
 signature before relying on it — that check costs seconds and this page cannot
 track your build.
@@ -53,7 +53,7 @@ Unary rules chain any of these and return `Self`; one rule may set several.
 | Method | Signature | Effect object | Source |
 |---|---|---|---|
 | `trace_width` | `(width: float)` mm | `TraceWidth` | `constraints.py:910` |
-| `stitch_via` | `(definition: type[Via], pattern)` where pattern is `SquareViaStitchGrid(pitch=, inset=)` or `TriangularViaStitchGrid(pitch=, inset=)`; `inset` is boundary to outermost via center | `StitchVia` | `:924`, `:136-168` |
+| `stitch_via` | `(definition: type[Via], pattern)` where pattern is `SquareViaStitchGrid(pitch=, inset=)` or `TriangularViaStitchGrid(pitch=, inset=)`; `inset` is boundary to the outermost via's pad edge, as measured in `jitx-physical-layout` (Stitch-via realization) | `StitchVia` | `:924`, `:136-168` |
 | `fence_via` | `(definition: type[Via], pattern: ViaFencePattern)`; `ViaFencePattern(pitch=, offset=, num_rows=None, min_pitch=None, max_pitch=None, initial_offset=None, input_shape_only=None)` | `FenceVia` | `:944`, `:185-235` |
 | `thermal_relief` | `(gap_distance: float, spoke_width: float, num_spokes: int)` | `ThermalRelief` | `:960` |
 | `serpentine_params` | `(min_radius=None, min_pitch=None)` | `SerpentineParams` | `:982` |
@@ -110,7 +110,7 @@ a region is activated in the UI; no code path creates one. This skill does
 not use them; see SKILL.md, Fanout.
 
 `Pour(shape, layer: int, *, isolate=0, rank=0, orphans=True)`
-(`copper.py:71-79`). `isolate` is deprecated in 4.4 ("Use a design
+(`copper.py:71-79`). `isolate` is deprecated ("Use a design
 constraint instead", `:56-58`); `orphans` is documented as not respected
 (`:65-69`). A pour joins a net by membership (`net += Pour(...)`). Single
 integer layer; no layer set.
@@ -132,17 +132,18 @@ clearance you write with the fab's value.
 
 ## Verified behaviors
 
-Each entry is backed by a built design against the named version; the
+Each entry is backed by a built design on a pre-release build, not re-run on
+this release; the
 reference design lives under `evals/cases/reference/`. Entries are added as
 the work packages record them.
 
-| Question | Version | Result | Where recorded |
-|---|---|---|---|
-| Does `stitch_via` find a via class declared on the substrate through a mixin? | 4.4.0rc5.dev2 | Yes. Mixin-reached, direct-attribute, and module-scope via classes each generated 9 vias on a 2.0 mm grid in an 8 mm pour; the same design with no rule generated 0. | `evals/cases/reference/stitch-via/NOTES.md` |
-| Does a two-condition clearance rule move code-authored routes, and does the fab floor? | 4.4.0rc5.dev2, runtime 4.4.0-rc.9 | Neither. Two tagged routes authored 0.100 mm apart under a 0.25 mm rule realized at 0.1001 mm; authored 0.020 mm apart they realized at 0.0202 mm, below the 0.09 mm floor; both builds `status: ok`. The width rule on the same nets applied (0.2000 mm). Clearance rules act on router-generated copper and pour voiding; authored geometry is realized as authored and nothing at build checks it. | `evals/cases/reference/net-net-clearance/NOTES.md` |
-| Can a direct pad-to-pour connection (no relief) be expressed? | 4.4.0rc5.dev2 | Yes, by a higher-priority `thermal_relief(fab floor gap, spoke width = pad diameter, 4)` on the tagged pad: its void disappears from the computed pour while the default pad keeps four spokes. A higher-priority rule with no effect changes nothing. Visible on the pad's captured `computed_shape`, where the void disappears; the historical run also read it from the fabrication export, which is no longer a verification surface. | `evals/cases/reference/direct-connect/NOTES.md` |
-| Does a width rule apply to a code-authored `Route`, and does a higher-rung escape rule beat the class rule on the same net? | 4.4.0rc5.dev2, runtime 4.4.0-rc.9 | Yes to both: a 0.5 mm class trunk and a 0.25 mm tagged escape on the same net realized at 0.5 and 0.25 mm; both routes realized. | `evals/cases/reference/qfn-power-fanout/NOTES.md` |
-| Do solver-placed capacitors, vias, puddles, and tagged escape routes realize as placed? | 4.4.0rc5.dev2, runtime 4.4.0-rc.9 | Yes: 8 of 8 escape routes realized, placements and via nets matched the solver, loop area 1.30 mm2 per capacitor. A floating bank with no interactive placement was parked off-board and none realized. | `evals/cases/reference/decoupling-bank/NOTES.md` |
-| Does the thermal-pad via stitcher build a pad on the runtime? | 4.4.0rc5.dev2 | Not yet built in a reference design; unit tests only. The helper and its tests now live in `jitx-physical-layout/scripts/`. | `jitx-physical-layout/scripts/test_thermal_via_stitch.py` |
-| Does a fresh agent route to this skill from the descriptions and produce a checked artifact? | 4.4.0rc5.dev2, runtime 4.4.0-rc.9 | Yes: 7 of 7 checks including the 12 V to ground inner-layer clearance read from capture (0.300 mm); the historical run also read 0.304 mm from the fabrication export, which is no longer a verification surface. Also seen: an unstitched inner pour is dropped as orphan copper. | `evals/receipts/raw/e2e/REPORT.md` (local run log) |
-| Does a rule declared on a child `Circuit` apply board-wide or only within that circuit? | 4.4.0rc5.dev2, runtime 4.4.0-rc.9 | Board-wide. A width rule stored only on one child applied to the tagged net's copper in a sibling (0.3000 mm against a 0.12 mm default) and to a tagged net in a circuit that never connects to the rule owner; an untagged net kept the default. | `evals/cases/reference/default-rules/NOTES.md` |
+| Question | Result | Where recorded |
+|---|---|---|
+| Does `stitch_via` find a via class declared on the substrate through a mixin? | Yes. Mixin-reached, direct-attribute, and module-scope via classes each generated 9 vias on a 2.0 mm grid in an 8 mm pour; the same design with no rule generated 0. | `evals/cases/reference/stitch-via/NOTES.md` |
+| Does a two-condition clearance rule move code-authored routes, and does the fab floor? | Neither. Two tagged routes authored 0.100 mm apart under a 0.25 mm rule realized at 0.1001 mm; authored 0.020 mm apart they realized at 0.0202 mm, below the 0.09 mm floor; both builds `status: ok`. The width rule on the same nets applied (0.2000 mm). Clearance rules act on router-generated copper and pour voiding; authored geometry is realized as authored and nothing at build checks it. | `evals/cases/reference/net-net-clearance/NOTES.md` |
+| Can a direct pad-to-pour connection (no relief) be expressed? | Yes, by a higher-priority `thermal_relief(fab floor gap, spoke width = pad diameter, 4)` on the tagged pad: its void disappears from the computed pour while the default pad keeps four spokes. A higher-priority rule with no effect changes nothing. Visible on the pad's captured `computed_shape`, where the void disappears; the historical run also read it from the fabrication export, which is no longer a verification surface. | `evals/cases/reference/direct-connect/NOTES.md` |
+| Does a width rule apply to a code-authored `Route`, and does a higher-rung escape rule beat the class rule on the same net? | Yes to both: a 0.5 mm class trunk and a 0.25 mm tagged escape on the same net realized at 0.5 and 0.25 mm; both routes realized. | `evals/cases/reference/qfn-power-fanout/NOTES.md` |
+| Do solver-placed capacitors, vias, puddles, and tagged escape routes realize as placed? | Yes: 8 of 8 escape routes realized, placements and via nets matched the solver, loop area 1.30 mm2 per capacitor. A floating bank with no interactive placement was parked off-board and none realized. | `evals/cases/reference/decoupling-bank/NOTES.md` |
+| Does the thermal-pad via stitcher build a pad on the runtime? | Not yet built in a reference design; unit tests only. The helper and its tests now live in `jitx-physical-layout/scripts/`. | `jitx-physical-layout/scripts/test_thermal_via_stitch.py` |
+| Does a fresh agent route to this skill from the descriptions and produce a checked artifact? | Yes: 7 of 7 checks including the 12 V to ground inner-layer clearance read from capture (0.300 mm); the historical run also read 0.304 mm from the fabrication export, which is no longer a verification surface. Also seen: an unstitched inner pour is dropped as orphan copper. | `evals/receipts/raw/e2e/REPORT.md` (local run log) |
+| Does a rule declared on a child `Circuit` apply board-wide or only within that circuit? | Board-wide. A width rule stored only on one child applied to the tagged net's copper in a sibling (0.3000 mm against a 0.12 mm default) and to a tagged net in a circuit that never connects to the rule owner; an untagged net kept the default. | `evals/cases/reference/default-rules/NOTES.md` |

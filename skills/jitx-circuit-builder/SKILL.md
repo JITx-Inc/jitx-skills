@@ -104,8 +104,6 @@ self.GND = Net([self.reg.vout.Vn], symbol=GroundSymbol())
 
 The rail exports as `P3V3` and `GND`, with a symbol at each part on it; the bundle's field name (`VSYS`) does not export. With the symbol net stored after the bundle, its field names the whole rail, so a bundle in `self.P3V3` with its symbol net in `self.P3V3_SYM` exports `P3V3_SYM`.
 
-Measured on jitx 4.6.0rc10.
-
 `+=` takes a port or a `Net`, never a bare list:
 
 ```python

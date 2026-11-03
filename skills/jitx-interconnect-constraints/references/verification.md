@@ -1,7 +1,7 @@
 # Proving SI Constraints with Design Issues
 
 The proof that a signal constraint applied, and the debug path when it did
-not. Observed on jitx 4.6.0rc10 with runtime 4.6.0-rc.16.
+not.
 
 ## The check
 

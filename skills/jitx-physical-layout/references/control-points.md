@@ -1,6 +1,6 @@
 # Control Points & Code-Based Routes
 
-> **Surface reshaped in JITX 4.3.0-rc.3+ (py-jitx ≥ 4.3.0a17).** `Route` lives in
+> `Route` lives in
 > `jitx.circuit`; the control-point classes live in `jitx.controlpoint`
 > (`RoutePoint`, `PairInsertion`, `PairPoint` — also re-exported from top-level
 > `jitx`). `SingleControl` / `InsertionControl` / `PairControl` are old alpha-era
@@ -21,7 +21,7 @@ to a specific insertion geometry. For ordinary connectivity, wire nets with `+`
 (`jitx-circuit-builder`); for timing/skew/impedance *constraints*, use
 `jitx-interconnect-constraints`.
 
-**The iron rule (4.3): a `Route` that builds is not a route that exists.** Routes
+**The iron rule: a `Route` that builds is not a route that exists.** Routes
 realize (or silently don't) inside the runtime; `status: ok` says nothing about
 copper. After every build, capture the design and assert `route.traces` on every
 route you authored — the full recipe is in `references/geometry-verification.md`.
@@ -81,7 +81,7 @@ All three subclass `ControlPoint` (don't use the base directly), take a keyword-
 - **`RoutePoint(layer=..., shape=None, bundle=Port)`** — the single-ended control
   point. **`.pad`** is the routing endpoint (`Route(some_port, rp.pad, layer)`); you
   may also pass the `RoutePoint` itself and `Route` unwraps it to `.pad`. **`.port`**
-  is the (separate) netting port. (4.3.0-rc.3+: the old single `.port` that served
+  is the (separate) netting port. (The old single `.port` that served
   both roles was split; the routing field was called `.connection_point` before the
   rename to `.pad`.)
 - **`PairInsertion(layer=..., bundle=DiffPair, invert=False)`** — a differential-pair
@@ -89,11 +89,11 @@ All three subclass `ControlPoint` (don't use the base directly), take a keyword-
   For routing, `.coupled` is a `CoupledRouteConnectionEndpoint` (routes as a pair) and
   `.uncoupled` is an `UncoupledConnectionEndpoint` whose `.p`/`.n` are the two
   single-leg routing endpoints; `.port` is the netting `DiffPair`. It can also be
-  netted directly (via `Net`/`TopologyNet`) now, in addition to `PortAttachment` +
+  netted directly (via `Net`/`TopologyNet`), in addition to `PortAttachment` +
   `Route`. `invert=True` mirrors the chirality (see below).
 - **`PairPoint(layer=..., bundle=DiffPair, invert=False)`** — connects two segments of
   a differential pair *while still paired*, so each segment can be configured
-  independently. **4.3.0-rc.3+: the old single `.pair` field is gone.** For routing use
+  independently. **The old single `.pair` field is gone.** For routing use
   `.front` and `.back` (each a `CoupledRouteConnectionEndpoint`); for netting use
   `.port` (the `DiffPair`). `invert=True` mirrors the chirality (see below).
 
@@ -113,7 +113,7 @@ declare `self.dsig = Net([comp.sig])` (or unify it with the far end:
 single-member net is `Net([port])`, not a bare port (a bare `Port` has no
 `.connected` and fails instantiation).
 
-### The PairInsertion binding map (verified empirically on 4.3)
+### The PairInsertion binding map (verified empirically)
 
 This is the part everyone gets wrong, because the `n`/`p` names on `uncoupled`
 are **positional labels, not net polarity**:
@@ -139,8 +139,8 @@ are **positional labels, not net polarity**:
    control-point-to-control-point (insertion `.coupled` ↔ pair-point `.front`/`.back`,
    or `.coupled` ↔ `.coupled`), never onto a feed/bundle port.
 
-> **4.3.0-rc.3+ — reach for `invert=` before the attachment-order hack.** Chirality is
-> now a first-class constructor argument: `PairInsertion(...)`/`PairPoint(...)` take
+> **Reach for `invert=` before the attachment-order hack.** Chirality is
+> a constructor argument: `PairInsertion(...)`/`PairPoint(...)` take
 > `invert: bool`, which mirrors the p/n handedness of the control point directly.
 > This is the intended mechanism for the "mirrored attachment orders" trunk fix in
 > point 3 and the "which physical side each leg lands on" problem — flip `invert=`
@@ -150,8 +150,8 @@ are **positional labels, not net polarity**:
 > attachment order; `invert=` is the cleaner lever. Verify realization either way
 > with the `route.traces` assert.
 
-**Coupled-connection rules (4.3.0-rc.3+, from the `controlpoint.py` docstrings).** With
-the routing endpoints now explicit (`PairPoint.front`/`.back`, `PairInsertion.coupled`)
+**Coupled-connection rules (from the `controlpoint.py` docstrings).** With
+the routing endpoints explicit (`PairPoint.front`/`.back`, `PairInsertion.coupled`)
 and chirality carried by `invert=`, the legal coupled connections are:
 
 - **Pair-point → pair-point chain** routes `.front → .back` when *neither or both*
@@ -170,10 +170,10 @@ may exit from; a wrong-facing point silently doesn't realize. Flip by adding 180
 `rotate=` (position unchanged), or set `invert=True` to mirror handedness, and
 re-verify.
 
-**`invert=` is the ONLY way to express chirality. Reversing attachment order is now a
+**`invert=` is the ONLY way to express chirality. Reversing attachment order is a
 dead route, not a mirror.** The linker enforces per-conductor net consistency (p↔p,
-n↔n), so `PortAttachment([pair.n, pair.p], cvg)` — the pre-4.3 idiom for flipping a
-pair — no longer crosses the geometry; it asks for a conductor path that does not
+n↔n), so `PortAttachment([pair.n, pair.p], cvg)` does not flip a
+pair or cross the geometry; it asks for a conductor path that does not
 exist, and the route silently produces nothing while the build still reports
 `status: ok`. The rule to write, and to review against:
 
@@ -183,7 +183,7 @@ PortAttachment([pair.p, pair.n], cvg)      # canonical, ELECTRICAL order
 cvg = PairInsertion(layer=0, invert=flip)  # chirality lives HERE
 ```
 
-Measured on one migration to 4.3.0-rc.3: **109 of 128 routes dead**, all of them
+Measured on one design migrated from attachment-order chirality: **109 of 128 routes dead**, all of them
 passing `jitx build`, found only by asserting `route.traces` afterwards. When a design
 predates this rule, crossed attachments are the first thing to look for — and each one
 needs its chirality re-expressed as `invert=`, not merely re-ordered, because which
@@ -211,13 +211,13 @@ the common ancestor. Store `PortAttachment` objects on `self`, not raw foreign
 component ports (a raw port stored on `self` acquires a second structural parent
 and breaks the ancestor walk).
 
-> **Known bug (4.3.0-develop.25 / py-jitx develop):** fan legs authored *inside a
+> **Seen on a pre-release build, not re-checked on this release:** fan legs authored *inside a
 > child circuit* (component + insertion + bound-correct legs all local) may silently
 > fail to realize even though the identical geometry realizes at root level, and
 > even though the insertion's own transition copper is placed correctly. Board-scale
-> designs showed one leg per pair dropping. Until fixed: author fans at the circuit
+> designs showed one leg per pair dropping. Author fans at the circuit
 > level where they verifiably realize, and **always assert `route.traces` on every
-> route after capture** — it is the only reliable detector.
+> route after capture**: it is the only reliable detector.
 
 ## Worked example — deskew fan
 
@@ -252,7 +252,7 @@ for index, lane in enumerate(self.escape_lanes):          # a list, iterated
         PortAttachment(order, insertion),
     ])
     self.routes.extend([
-        # 4.3.0-rc.3+: pair point exposes .front/.back (not .pair). A non-inverted
+        # The pair point exposes .front/.back (not .pair). A non-inverted
         # insertion's .coupled joins the pair point's .back (see connection rules above);
         # if a coupled trunk won't realize, try .front or flip a point's invert=.
         Route(pair_point.back, insertion.coupled, lane.spec.deskew_layer),

@@ -1,6 +1,6 @@
 ---
 name: jitx-physical-layout
-description: "Use when the user asks to author PCB physical layout from code: draw pours or copper, antennas, filters, net ties, custom shapes, board outlines, custom pads, soldermask or paste openings, thermal pads with vias, code-placed vias, fanout or escape tags, direct-connect or thermal-relief tags, control points, code-based routes, diff-pair fans/trunks, escape routing, or deskew, or to inspect or verify realized geometry from Python (jitx.query, RuntimeDesign capture, missing or Empty pours, missing stitch vias, route realization checks). Covers shapely geometry, Copper, OverlappableCopper, Pour realization semantics, pad features, PortAttachment, explicit placement, layout-intent tags, Route/control-point APIs, and the 4.3 reverse-flow geometry-verification workflow. Use jitx-layout-constraints to author pour and via-stitching rules, jitx-substrate-modeler for stackups, via definitions, routing structures, fence-via rules, and fenced pours, and jitx-circuit-builder for net wiring, typed ports, and passives."
+description: "Use when the user asks to author PCB physical layout from code: draw pours or copper, antennas, filters, net ties, custom shapes, board outlines, custom pads, soldermask or paste openings, thermal pads with vias, code-placed vias, fanout or escape tags, direct-connect or thermal-relief tags, control points, code-based routes, diff-pair fans/trunks, escape routing, or deskew, or to inspect or verify realized geometry from Python (jitx.query, RuntimeDesign capture, missing or Empty pours, missing stitch vias, route realization checks). Covers shapely geometry, Copper, OverlappableCopper, Pour realization semantics, pad features, PortAttachment, explicit placement, layout-intent tags, Route/control-point APIs, and the reverse-flow geometry-verification workflow. Use jitx-layout-constraints to author pour and via-stitching rules, jitx-substrate-modeler for stackups, via definitions, routing structures, fence-via rules, and fenced pours, and jitx-circuit-builder for net wiring, typed ports, and passives."
 ---
 
 # JITX Physical Layout
@@ -64,7 +64,7 @@ from jitx.net import Port, PortAttachment
 from jitx.constraints import Tag, Tags
 # Pad config (landpattern feature generation)
 from jitxlib.landpatterns.pads import SMDPadConfig
-# Code-based routes / control points (stable as of 4.2; also re-exported from top-level jitx)
+# Code-based routes / control points (also re-exported from top-level jitx)
 from jitx.circuit import Route
 from jitx.controlpoint import RoutePoint, PairInsertion, PairPoint
 ```
@@ -180,8 +180,8 @@ capture returns `Empty()`.
 
 **Solver-emitted stitch vias do not satisfy that precondition, and neither do
 top-side pads.** A stitch rule can emit hundreds of vias, the build reports
-`status: ok`, and the inner and bottom pours still capture `Empty()`. Measured
-on the 4.4.0 runtime: an inner pour with a stitch rule and nothing else on its
+`status: ok`, and the inner and bottom pours still capture `Empty()`. In one
+measured build, an inner pour with a stitch rule and nothing else on its
 net emitted 9 vias and captured `Empty()`; the same pour with one placed through
 via realized. What holds a pour alive is copper the design placed on that net
 and layer, an explicitly placed via or a pad. Place the anchors first; stitching
@@ -229,22 +229,22 @@ profile unchanged therefore cannot pass.
 ### Stitch-via realization
 
 `design_constraint(...).stitch_via(...)` materializes vias only when its selected
-object is a `Pour`: the same shape as a `Pad`, as `Copper` (re-measured on 4.4.0),
+object is a `Pour`: the same shape as a `Pad`, as `Copper`,
 or through a board-wide `IsPad` rule produced zero stitch vias, each with
 `status: ok`. To stitch a thermal-pad
 region with this rule, the circuit creates a `Pour` from the landpattern thermal
 pad's shape, joins it to the net, and tags that pour. A pad-specific explicit via
 field remains a separate physical-layout pattern.
 
-**`SquareViaStitchGrid.inset` is measured to the via pad edge on the 4.4 runtime, not
-to the via centre as the docstring says.** The docstring reads "Minimum distance from
-the stitched region's boundary to the outermost via centers". A discriminating probe
-on jitx 4.4.0 (8 mm square pour, `pitch=2.0`, `StdViaPreferred` pad 0.45 mm) gave 9
+**`SquareViaStitchGrid.inset` is measured from the region boundary to the via pad
+edge, not to the via centre.** The docstring says "to the outermost via" without
+naming the point. A discriminating probe on an earlier release
+(8 mm square pour, `pitch=2.0`, `StdViaPreferred` pad 0.45 mm) gave 9
 stitch vias at `inset=1.5` and `1.75` and 1 via at `1.8`, `1.9` and `2.1`. The centre
 reading predicts 9 up to `inset=2.0`; the pad-edge reading predicts the drop at
 `2.0 - 0.225 = 1.775`; a hole-edge reading would drop at `1.85`. Plan with the
 pad-edge count, `2 * floor((size / 2 - inset - pad_diameter / 2) / pitch) + 1` per
-axis, and treat the docstring as a library defect until it changes.
+axis.
 
 The achieved inset is measurable from a capture: realized via centres, the pour
 boundary and the via pad diameter are all available, so compute the margin and
@@ -304,7 +304,7 @@ self.copper_radiator = OverlappableCopper(radiator_shape, layer=0)
 Note `OverlappableCopper` is **not** in the set of tag-able objects (see Tags below).
 The full antenna example is in `references/layout-examples.md`.
 
-### Declaring the connection: `VirtualConnection` (4.3.0-rc.3+)
+### Declaring the connection: `VirtualConnection`
 
 Overlap alone is a *physical* connection the tools can't reason about: the
 topology walker doesn't see it, so ratsnest/unrouted warnings fire and no SI
@@ -328,7 +328,7 @@ self.leg_vc = VirtualConnection(
 )
 ```
 
-Rules learned in production (saturn-ethernet, 4.3.0-rc.3):
+Rules learned in production (saturn-ethernet):
 
 - **Endpoints are single electrical targets**: a single-pin `Port`, `Pad`,
   `Via`, or a non-coupled `ConnectionEndpoint` (e.g. `pair_point.front.p`).
@@ -343,8 +343,8 @@ Rules learned in production (saturn-ethernet, 4.3.0-rc.3):
   A model-less leg reports `Virtual connection without a pin model on Path:
   drv.d.p, ins1.p` and nothing measures.
 - Plain `+` nets carry a constrained path through control points and
-  virtual connections on JITX 4.6; no `>>` is needed. Checked on 2026-10-29
-  (jitx 4.6.0rc10, runtime 4.6.0-rc.16, sample substrate): a diff pair netted
+  virtual connections; no `>>` is needed. Checked on 2026-10-29
+  on a sample substrate: a diff pair netted
   with `+` through two `PairInsertion`s, legs and coupled trunk code-routed,
   measured under `ConstrainDiffPair(Topology(drv.d, rcv.d))` (`Time:
   105.311ps` per leg, `Skew: 0s`). With the driver-side legs replaced by
@@ -414,8 +414,8 @@ copper) must be **assigned to a circuit as a structural attribute** — stored o
 `self`, directly or in a list. Geometry reachable ONLY through a `Net` or a
 `PortAttachment` builds with the warning
 `N object(s) appear in nets or port attachments but are not assigned to a
-circuit … deprecated` — and on the 4.3 EDB/HFSS export path that geometry is
-**silently DROPPED from the export** (verified: 485 flagged vias absent from
+circuit … deprecated`, and on a pre-release EDB/HFSS export path that geometry
+was **silently dropped from the export** (485 flagged vias absent from
 the EDB; 0 flagged and all present after storing the instances on `self`).
 Treat that warning as a hard error: store the instance, then attach/net it.
 
@@ -586,11 +586,11 @@ are also re-exported from top-level `jitx`; `SingleControl` / `InsertionControl`
   don't realize.
 
 **Attachment order is ELECTRICAL, not geometric — chirality is `invert=`, never a
-swapped attachment (4.3.0-rc.3+).** Always attach in the canonical order for the
+swapped attachment.** Always attach in the canonical order for the
 bundle (`[p, n]`) and express p/n handedness with `invert=True` on the control point.
 This is not a style preference: the linker enforces **per-conductor net consistency**
-(p↔p, n↔n), so an attachment written in the reverse order to "flip" a pair no longer
-produces crossed geometry — it produces a route with no consistent conductor path,
+(p↔p, n↔n), so an attachment written in the reverse order to "flip" a pair does not
+produce crossed geometry: it produces a route with no consistent conductor path,
 which **silently does not realize**. Older code that crossed the order to get the
 geometry it wanted still builds `status: ok` and emits nothing. Measured on a real
 migration: **109 of 128 routes dead**, every one of them passing every build gate,
@@ -626,7 +626,7 @@ pyright path/to/layout.py        # verify imports/signatures against the install
 ruff format path/to/layout.py
 ```
 
-Then verify **realized geometry, not build success** (4.3 reverse flow): submit +
+Then verify **realized geometry, not build success** (reverse flow): submit +
 `capture()` the design through the runtime and assert against the concrete result —
 `route.traces` non-empty for every route, `rd.query(Copper)` bounds where you meant
 them, `rd.nets.find(...)` on every net-bearing feature. The full loop, the

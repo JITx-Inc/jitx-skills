@@ -47,7 +47,8 @@ replay (a component added or edited since the last build, a renamed chain), it
 prints those queries and exits 1. Build first, then rerun.
 
 The keys a run claimed are read from `jitxlib.parts.resolver._active`, a private
-name, checked on jitxlib-parts 2.0.0rc2.dev3. Another version prints a warning;
+name, checked on the jitxlib-parts release in `CHECKED_ON`; bump it with the
+base skill's version table after re-checking. Another version prints a warning;
 if the name is gone, this exits 2 rather than guess.
 
 Exit codes: 0 listed, checked clean, or removed; 1 the lock does not match the
@@ -73,7 +74,7 @@ from typing import Any
 Key = tuple[str, str, str]
 """An entry's lock key: (query digest, chain label, lock_scope)."""
 
-CHECKED_ON = "2.0.0rc2.dev3"
+CHECKED_ON = "2.0.0"
 
 
 class Refusal(Exception):

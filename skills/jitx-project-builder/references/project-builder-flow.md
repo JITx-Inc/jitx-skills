@@ -113,15 +113,14 @@ Please confirm data sources or provide alternatives (datasheets, footprints, spe
 
 Passives resolve from the project's parts chain, and its first member reads `parts/approved-parts.csv` (base `jitx` skill, Step 2). Ask the user for their approved-parts list at the audit: a CSV whose header names `category`, `mpn`, `manufacturer`, then one column per attribute a query filters on (`capacitance`, `case`, `rated_voltage_dc`, ...), or an internal parts database a `jitxlib.parts.Provider` can serve. Save a CSV to `parts/approved-parts.csv`; a database goes into the chain in place of the `csv:` entry. Format and the provider route: https://docs.jitx.com/en/latest/essentials/design/parts.html
 
-With no list from the user, copy the example CSV that ships in `jitxexamples` as a stand-in. Install it into the project venv once with `--no-deps`, so its own pins cannot replace the project's `jitx` or `jitxlib-parts`; it is not added to the project's dependencies:
+With no list from the user, copy the example CSV that ships in `jitxexamples` as a stand-in. The base `jitx` skill's setup installs `jitxexamples` (Step 1); it is not added to the project's dependencies:
 
 ```bash
-pip install --no-deps --upgrade "jitxexamples>=2.0,<2.1"
 mkdir -p parts
 python -c "import importlib.resources as r, shutil; shutil.copy(r.files('jitxexamples') / 'parts' / 'example-passives.csv', 'parts/approved-parts.csv')"
 ```
 
-If the copy raises `FileNotFoundError`, the installed `jitxexamples` predates the packaged example CSV: ask the user for a parts list instead.
+If the copy raises `ModuleNotFoundError`, `jitxexamples` is not installed: run the base skill's Step 1 `jitxexamples` and `eseries` lines, then copy again. If it raises `FileNotFoundError`, the installed `jitxexamples` predates the packaged example CSV: ask the user for a parts list instead.
 
 Tell the user the list is a stand-in and record it in PLAN.md `Data Sources`. A stand-in is not an approval: the Phase 4 parts gate lists every MPN the final build resolved, each with the user's approval quoted, or the user's list replaces the stand-in. Read that list from the final build. Not from `parts.lock.json`: the lock never prunes, so it still holds stale entries, `IDEAL-` parts included. Not from `parts-check` either: it prints counts, not MPNs. Start `jitx design session <design>` in the background (it prints nothing until stopped), then:
 
@@ -211,7 +210,7 @@ Run independent clusters in parallel. Within a cluster, respect dependencies.
 
 ### Bundle wiring for constrained signals
 
-Subcircuits that expose bundles (I2C, ULPI, USB2, etc.) wire the bundle sub-ports to component pins with `+`, including for signals that will receive an SI constraint at top level. On jitx 4.6 a constraint binds across plain nets; no `>>` is needed. What it does need is a `BridgingPinModel` on every part inside the subcircuit with a path through it (none on a flow-through package whose opposite pin is n.c.; its two lands are one net) and, before it measures, routes along the path. See [Plain nets carry SI constraints (CRITICAL)](#plain-nets-carry-si-constraints-critical).
+Subcircuits that expose bundles (I2C, ULPI, USB2, etc.) wire the bundle sub-ports to component pins with `+`, including for signals that will receive an SI constraint at top level. A constraint binds across plain nets; no `>>` is needed. What it does need is a `BridgingPinModel` on every part inside the subcircuit with a path through it (none on a flow-through package whose opposite pin is n.c.; its two lands are one net) and, before it measures, routes along the path. See [Plain nets carry SI constraints (CRITICAL)](#plain-nets-carry-si-constraints-critical).
 
 Each constrained interface's verification design belongs to its own Phase 2 `ver-` task, not to the module tasks on its path; see [SI verification designs (CRITICAL)](#si-verification-designs-critical).
 
@@ -344,7 +343,7 @@ are present.
 
 ### Plain nets carry SI constraints (CRITICAL)
 
-On jitx 4.6, `Constrain`, `ConstrainDiffPair` and `ConstrainReferenceDifference` apply to `Topology(begin, end)` when the ports between the two ends are joined by ordinary `+` nets. A subcircuit wires its bundle sub-ports to component pins with `+`, the top level merges the bundles with `+`, and the constraint follows the signal across both. No `>>` is needed. On jitx 4.6.0rc10 with runtime 4.6.0-rc.16, a diff pair netted to a circuit-level `DiffPair` port with `+` in each of two subcircuits, joined with `+` at the top and code-routed, measured `Time: 104.529ps` and `Skew: 0s`, with no unresolved text in any group, whether the Topology named the component pins or the two circuit bundle ports. A circuit bundle port resolves to the first pad behind it, so with a series part inside the sub-circuit, name the chip pad instead, and on a single-ended net also put a structure-only constraint on the circuit ports: without it the segment joined through the ports reports `Missing routing structure` (with it the measured Time changes; not tried on a diff pair). `jitx-interconnect-constraints` "Choosing the ends" links the measured case.
+`Constrain`, `ConstrainDiffPair` and `ConstrainReferenceDifference` apply to `Topology(begin, end)` when the ports between the two ends are joined by ordinary `+` nets. A subcircuit wires its bundle sub-ports to component pins with `+`, the top level merges the bundles with `+`, and the constraint follows the signal across both. No `>>` is needed. In one checked build, a diff pair netted to a circuit-level `DiffPair` port with `+` in each of two subcircuits, joined with `+` at the top and code-routed, measured `Time: 104.529ps` and `Skew: 0s`, with no unresolved text in any group, whether the Topology named the component pins or the two circuit bundle ports. A circuit bundle port resolves to the first pad behind it, so with a series part inside the sub-circuit, name the chip pad instead, and on a single-ended net also put a structure-only constraint on the circuit ports: without it the segment joined through the ports reports `Missing routing structure` (with it the measured Time changes; not tried on a diff pair). `jitx-interconnect-constraints` "Choosing the ends" links the measured case.
 
 ```python
 # Subcircuit: the bundle port and the component pin share a plain net.
@@ -627,7 +626,7 @@ Concrete rule:
 1. **Surface the missing dependency to the user immediately.** Name what's missing and what work it blocks.
 2. **Do not substitute a lower-fidelity design as a workaround**: no removing SI constraints because the SI module didn't load, no swapping a custom substrate for a fallback because the predefined package didn't import.
 3. **Wait for user confirmation** before making any design-scope change. If the user explicitly accepts a reduced scope ("ship without controlled impedance, we'll fix the env after"), record that as a deferred item with their approval in the relevant gate block.
-4. **Environment fixes go before design fixes.** If the missing dependency is a setup issue (wrong venv, missing pip install, wrong Python version), fix the setup. If it's a real availability gap (`jitxexamples` not installed but referenced), confirm with the user before proceeding.
+4. **Environment fixes go before design fixes.** If the missing dependency is a setup issue (wrong venv, missing pip install such as `jitxexamples`, wrong Python version), fix the setup. If it's a real availability gap (a package or module the design needs that no install provides), confirm with the user before proceeding.
 
 This rule applies through every phase, not just Phase 0. Mid-project missing-dependency discoveries follow the same protocol.
 

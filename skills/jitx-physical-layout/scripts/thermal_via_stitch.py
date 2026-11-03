@@ -7,7 +7,7 @@ call site uses :func:`grid_thermal_via_positions` and
 net. Containers participate in structural traversal at ``jitx/container.py:27``.
 
 The module deliberately ships no via definition. Pass a class supplied by the
-substrate or the fabrication library; on 4.4 the same class works with
+substrate or the fabrication library; the same class works with
 ``design_constraint(...).stitch_via(...)`` whether it is reached through the
 substrate's mixin, re-declared as a substrate attribute, or declared at module
 scope (see ``jitx-layout-constraints/SKILL.md``, "Why a rule did not fire",

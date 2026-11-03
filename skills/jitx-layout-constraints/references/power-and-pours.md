@@ -5,7 +5,7 @@ This is the worked detail for `SKILL.md`, "Routed power" and "Pours". Use
 surface. Rules remain structural (`jitx/_translate/design.py:187`). Higher priorities win when several rules match (`jitx/constraints.py:802`, `jitx/constraints.py:860`).
 
 Source citations (`jitx/constraints.py:910` and the like) point into the
-installed py-jitx package on a `4.4.0` install; line numbers move between
+installed jitx package; line numbers move between
 builds, so confirm on your own install before relying on one.
 
 Engineering basis: Eric Bogatin, ["Seven Habits of Successful 2-Layer Board Designers"](https://www.signalintegrityjournal.com/blogs/12-fundamentals/post/1207-seven-habits-of-successful-2-layer-board-designers),
@@ -252,7 +252,7 @@ self.rules.extend(
 `OnLayer(index)` is a rule condition, and negative indices count from the
 bottom (`jitx/constraints.py:471`). `Pour` takes one integer layer and joins a
 net through membership (`jitx/copper.py:46`, `jitx/copper.py:71`). The
-`isolate=` argument is deprecated in 4.4. Use clearance rules instead
+`isolate=` argument is deprecated. Use clearance rules instead
 (`jitx/copper.py:54`).
 
 ## 6. Heavy copper
@@ -344,7 +344,7 @@ Read these fields from the selected substrate. The class values are examples, no
 
 ## 8. Direct connect
 
-Result, observed on 4.4.0rc5.dev2 on one pad shape (a 1.6 mm round pad):
+Result, observed on one pad shape (a 1.6 mm round pad):
 candidate 2 below produces a direct connect and candidate 1 does not. Before
 reusing the pattern on another pad shape, size or runtime, confirm it on that
 pad's captured `computed_shape` before relying on it. A higher-priority `thermal_relief` whose spoke width
@@ -353,7 +353,7 @@ and no spokes at the tagged pad, while a default-relief pad on the same net
 keeps its four 0.2 mm spokes; the higher-priority rule carrying no effect leaves
 both pads identical. The raw `LayoutOutput.computed_shape` is the surface that shows that copper. Captured-query interpretation is owned by
 [Pour realization semantics](../../jitx-physical-layout/SKILL.md#pour-realization-semantics);
-`rd.query(Pour)` is not a valid witness for these voids on the tested 4.4 line
+`rd.query(Pour)` is not a valid witness for these voids on the pre-release build tested
 (numbers in `evals/cases/reference/direct-connect/NOTES.md`).
 
 The installed Python surface has no direct-connect effect. A unary rule can
@@ -386,13 +386,13 @@ When reusing candidate 2, read the result on a surface that shows computed
 pour copper. The reference case checked these surfaces:
 
 1. `rd.query(Copper)` and `rd.query(Pour)` after capture
-   (`jitx/run/runtime.py:421`), neither a voiding witness on the tested line.
+   (`jitx/run/runtime.py:421`), neither a voiding witness on the pre-release build tested.
 2. The raw `LayoutOutput.computed_shape`, which reverse flow assigns back to
    an authored pour (`jitx/_translate/reverse_flow/linker.py:1313`,
    `jitx/_translate/reverse_flow/linker.py:1329`).
 3. `Route.derived` for route-derived pours and features (`jitx/circuit.py:564`,
    `jitx/circuit.py:613`).
-Surface 2 shows the voided pour; surfaces 1 and 3 do not on the 4.4 line, so it
+Surface 2 shows the voided pour; surfaces 1 and 3 do not on the pre-release build tested, so it
 is the one to read. A successful build alone is not evidence of direct
 connection.
 

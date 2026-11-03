@@ -16,7 +16,7 @@ layout figure, the datasheet wins.
 ## What the solver controls
 
 Source citations (`jitx/constraints.py:911` and the like) point into an
-installed `4.6.0` jitx package with jitxlib-parts 2.0; line numbers move between
+installed jitx package; line numbers move between
 builds, so confirm on your own install before relying on one.
 
 `scripts/decoupling_solver.py` is pure Python. Copy it into the design project
