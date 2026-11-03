@@ -6,8 +6,14 @@ Builds <output>/fixture_fence_pour_outline.py, captures it, and checks the
 ring of ground vias around the L1 cavity pour, whose outline the prompt gives
 (x -17 to 5, y -2 to 8, a 22 x 10 box):
 
-- a fence_via rule on the pour comes back as ``ComputedStitchVia`` (spike S4),
-  so the ring is read from the stitch list;
+- the ring is read from the generated vias (``lc_check.generated_vias``),
+  which do not say which rule made them; only those within 1.5 of the cavity
+  outline count. A route fence on the feed would also be generated, but the
+  feed's nearest point is 3.0 from the outline (it ends at (2.00, 3.51),
+  lc_radio_board.py), so it counts only if its rows reach 1.5 from the feed,
+  which the prompt does not ask for. A stitch grid on the pour would count
+  too, and no reader can split it from the ring: jitx 4.6.0 reports pour
+  fence vias and stitch vias in the same stitch record (S4);
 - every via within 1.5 of the outline sits outside it, on the sides at the
   prompt's 0.5 from the outline and at the corners on the diagonal at
   0.5 * sqrt(2) = 0.707 (S4: the corner vias of an outward ring sit on the
@@ -42,10 +48,10 @@ with L.built(out, "fixture_fence_pour_outline", "FencePourOutlineDesign") as rd:
     print(f"code-placed vias: {len(placed)}")
     if len(placed) != ANCHORS:
         L.fail(f"{len(placed)} code-placed vias; the fixture has {ANCHORS}")
-    vias = L.stitch_vias(rd)
+    vias = L.generated_vias(rd)
     near = [(v, CAVITY.exterior.distance(Point(v)), CAVITY.contains(Point(v))) for v in vias]
     near = [n for n in near if n[1] <= 1.5]
-    print(f"stitch-list vias {len(vias)}, within 1.5 of the cavity outline {len(near)}")
+    print(f"generated vias {len(vias)}, within 1.5 of the cavity outline {len(near)}")
     inside = [v for v, _, ins in near if ins]
     if inside:
         L.fail(f"{len(inside)} ring vias inside the outline, e.g. {inside[:3]}; the prompt asks for outside")

@@ -11,13 +11,15 @@ fab sheet:
   adds (spike S9), so within [0.20, 0.23]: a wider net clearance would push
   the coplanar ground out (S9 ``rule_wide``);
 - the layer-0 pour is present on both sides of the feed;
-- fence vias from a routing-structure fence exist (``ComputedFenceVia``);
+- generated vias exist (``lc_check.generated_vias``, which does not say
+  which rule made them; fence_common says why the rows below still single
+  out a route fence);
 - two rows per side at 0.35 + 0.500 / 2 = 0.60 mm (prompt's pad-edge spacing,
   via pad from fab row 11) and 0.60 + 0.60 = 1.20 mm from the trace edge to
   the via centre, each with floor(L / 1.0) sites on the straight run, less one
   allowed per row and at least one full row per side (fence_common);
 - the steps along each row are the prompt's 1.0 mm pitch;
-- no fence via pad sits in the coplanar gap: edge distance minus 0.250 is at
+- no generated via pad sits in the coplanar gap: edge distance minus 0.250 is at
   least 0.20;
 - the design still places exactly the six GND anchor vias of the fixture
   (lc_radio_board.py), so no via was placed in code.
@@ -47,7 +49,7 @@ with L.built(out, "fixture_fence_cpwg_two_rows", "FenceCpwgTwoRowsDesign") as rd
     if len(placed) != ANCHORS:
         L.fail(f"{len(placed)} code-placed vias; the fixture has {ANCHORS}")
     if feed is not None:
-        print(f"feed width {feed.width}, run length {feed.length:.3f}, fence vias {len(feed.vias)}")
+        print(f"feed width {feed.width}, run length {feed.length:.3f}, generated vias {len(feed.vias)}")
         if abs(feed.width - WIDTH) > 1e-3:
             L.fail(f"feed width {feed.width}, not CPWG_50's {WIDTH}")
         g = FC.layer_gap(rd, feed, 0)
@@ -55,7 +57,7 @@ with L.built(out, "fixture_fence_cpwg_two_rows", "FenceCpwgTwoRowsDesign") as rd
             L.fail(f"layer-0 pour gap to the feed {g}, not CPWG_50's {GAP} (+0.01)")
         FC.pour_both_sides(rd, feed, 0, GAP + 0.05)
         if not feed.vias:
-            L.fail("no route fence vias realized (a fence_via rule fences no route, spike S4)")
+            L.fail("no generated vias realized (a fence_via rule fences no route, spike S4)")
         else:
             n = FC.full_count(feed, PITCH)
             print(f"sites per row per side on the straight run: {n}")
@@ -74,7 +76,7 @@ with L.built(out, "fixture_fence_cpwg_two_rows", "FenceCpwgTwoRowsDesign") as rd
                     L.fail(f"side {side}: no row holds all {n} sites")
             near = min(v.edge for v in feed.vias)
             if near - PAD / 2 < GAP - 0.01:
-                L.fail(f"a fence via pad edge sits {near - PAD / 2:.3f} from the trace, inside the {GAP} gap")
+                L.fail(f"a generated via pad edge sits {near - PAD / 2:.3f} from the trace, inside the {GAP} gap")
             else:
-                L.ok(f"nearest fence via pad edge {near - PAD / 2:.3f} from the trace edge")
+                L.ok(f"nearest generated via pad edge {near - PAD / 2:.3f} from the trace edge")
 L.finish()
