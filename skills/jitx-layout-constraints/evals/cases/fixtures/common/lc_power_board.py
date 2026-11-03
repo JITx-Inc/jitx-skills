@@ -16,8 +16,8 @@ Layout, on ``LcStandard4`` and the 40 x 30 mm ``LcBoard``:
 - the 100 nF input capacitor ``c_inp_sm`` at (-5, -3);
 - a code route on layer 0 on VIN from the first input capacitor's p1 to the
   second's, ``vin_route``;
-- GND pours on all four layers over x -18..18, y -7..7, anchored by the GND
-  pads inside them;
+- GND pours on all four layers over x -18..18, y -7..7 (a fixture may pass
+  ``pour_box``), anchored by the GND pads inside them;
 - every other part parked in rows below y -8.
 """
 
@@ -38,7 +38,7 @@ POUR_BOX = (-18.0, -7.0, 18.0, 7.0)
 
 
 class PowerBoard(Circuit):
-    def __init__(self) -> None:
+    def __init__(self, pour_box: tuple[float, float, float, float] = POUR_BOX) -> None:
         self.term = LSF_SMT(2)
         self.reg = TPS62933DRLRCircuit(input_voltage=24.0)
         self.place(self.term, Transform((-14.0, 0.0), 90))
@@ -54,7 +54,7 @@ class PowerBoard(Circuit):
 
         self.vin_route = Route(c1.p1, c2.p1, layer=0)
 
-        self.pours = [Pour(box(*POUR_BOX), layer=layer) for layer in range(4)]
+        self.pours = [Pour(box(*pour_box), layer=layer) for layer in range(4)]
         for p in self.pours:
             self.GND += p
 
