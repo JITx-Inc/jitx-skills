@@ -1,24 +1,36 @@
-// Positives: design-rule, power, pour, decoupling, fanout, and after-build asks.
+// Positives: design rules, net classes, pour rules, stitching and fencing as rules, applying routing structures, escape step-down, after-build reading.
 {"intent": "keep the 5 V copper 0.3 mm from ground on the inner layers", "expected_skill": "jitx-layout-constraints"}
 {"intent": "the 0.4 mm rail width from our board rules will not fit the QFN pad", "expected_skill": "jitx-layout-constraints"}
 {"intent": "why isn't my clearance rule applying", "expected_skill": "jitx-layout-constraints"}
 {"intent": "what trace width should I use for a 3 A rail", "expected_skill": "jitx-layout-constraints"}
-{"intent": "set up decoupling placement and short routes for the MCU", "expected_skill": "jitx-layout-constraints", "ambiguous_with": ["jitx-circuit-builder"]}
 {"intent": "add thermal relief rules to the pads", "expected_skill": "jitx-layout-constraints"}
+{"intent": "narrow spokes on the small passives but a solid connection on the terminal block", "expected_skill": "jitx-layout-constraints"}
 {"intent": "stitch the ground pour with the substrate's ground via", "expected_skill": "jitx-layout-constraints"}
+{"intent": "Set a rule that stitches every tagged ground pour with the preferred via on a 2 mm pitch.", "expected_skill": "jitx-layout-constraints", "ambiguous_with": ["jitx-physical-layout"]}
+{"intent": "i need fence vias ringing the antipad outline on my RF board", "expected_skill": "jitx-layout-constraints", "ambiguous_with": ["jitx-substrate-modeler"]}
+{"intent": "Create a fenced pour outline and select the substrate via definition for its fence rule.", "expected_skill": "jitx-layout-constraints", "ambiguous_with": ["jitx-substrate-modeler"]}
+{"intent": "fence the antenna feed with two rows of ground vias as a grounded coplanar line", "expected_skill": "jitx-layout-constraints", "ambiguous_with": ["jitx-substrate-modeler"]}
+{"intent": "add ground vias every 1 mm along the RF feed", "expected_skill": "jitx-layout-constraints"}
+{"intent": "apply the 100 ohm differential structure to the MDI pairs and the neck structure only on their escapes", "expected_skill": "jitx-layout-constraints", "ambiguous_with": ["jitx-interconnect-constraints"]}
 {"intent": "give the board a default trace width and copper clearance", "expected_skill": "jitx-layout-constraints"}
 {"intent": "make separate power and sensitive-analog net classes with their own spacing", "expected_skill": "jitx-layout-constraints"}
 {"intent": "keep traces farther from plated holes than the board default", "expected_skill": "jitx-layout-constraints"}
+{"intent": "pull the pours back from the board edge and from the isolation slot", "expected_skill": "jitx-layout-constraints"}
+{"intent": "the 2 oz inner layer needs wider spacing than the other layers", "expected_skill": "jitx-layout-constraints"}
 {"intent": "remove narrow slivers from the inner ground pour", "expected_skill": "jitx-layout-constraints"}
 {"intent": "verify the built copper really used the tagged widths", "expected_skill": "jitx-layout-constraints"}
 {"intent": "one of my code routes built but has no realized traces", "expected_skill": "jitx-physical-layout", "ambiguous_with": ["jitx-layout-constraints"]}
 {"intent": "make an escape-width rule for the final segment into these BGA balls", "expected_skill": "jitx-layout-constraints", "ambiguous_with": ["jitx-physical-layout"]}
 // Near-miss negatives: shared words, but a sibling owns the requested operation.
+{"intent": "set up decoupling placement and short routes for the MCU", "expected_skill": "jitx-circuit-builder", "ambiguous_with": ["jitx"]}
+{"intent": "Place and route the decoupling capacitors with escape-width and loop-inductance constraints.", "expected_skill": "jitx-circuit-builder", "ambiguous_with": ["jitx"]}
 {"intent": "enter the JLCPCB minimum widths and spaces into the substrate", "expected_skill": "jitx-substrate-modeler", "ambiguous_with": ["jitx-layout-constraints"]}
 {"intent": "model the stackup and fab limits from this fabrication CSV", "expected_skill": "jitx-substrate-modeler", "ambiguous_with": ["jitx-layout-constraints"]}
+{"intent": "set up impedance controlled routing structures for DDR4 on layers 3 and 5", "expected_skill": "jitx-substrate-modeler"}
 {"intent": "constrain the skew on this differential pair", "expected_skill": "jitx-interconnect-constraints", "ambiguous_with": ["jitx-layout-constraints"]}
 {"intent": "add insertion-loss and timing limits to the DDR topology", "expected_skill": "jitx-interconnect-constraints", "ambiguous_with": ["jitx-layout-constraints"]}
 {"intent": "draw an antenna from code with custom copper geometry", "expected_skill": "jitx-physical-layout", "ambiguous_with": ["jitx-layout-constraints"]}
+{"intent": "draw the antenna copper and place the fence vias in code", "expected_skill": "jitx-physical-layout", "ambiguous_with": ["jitx", "jitx-substrate-modeler"]}
 {"intent": "route the BGA deskew fan with pair points and control points", "expected_skill": "jitx-physical-layout", "ambiguous_with": ["jitx-layout-constraints"]}
 {"intent": "model this QFN part and its thermal pad from the datasheet", "expected_skill": "jitx-component-modeler", "ambiguous_with": ["jitx-layout-constraints"]}
 {"intent": "create a JITX component for this BGA package", "expected_skill": "jitx-component-modeler", "ambiguous_with": ["jitx-layout-constraints"]}

@@ -1,0 +1,42 @@
+{
+  "name": "fence-cpwg-two-rows",
+  "prompt": "fixture_fence_cpwg_two_rows.py is our 2.4 GHz board: the U.FL connector feeds the series inductor over a plain trace on L1, with ground pours on all four layers. Make that feed a grounded coplanar line using the substrate's CPWG_50, and fence it with two rows of ground vias on each side: 1 mm pitch, the inner row's via pads 0.35 mm from the trace edge (pad edge to trace edge), and the rows 0.6 mm apart centre to centre. Keep the feed clear of other nets without spoiling the coplanar ground.",
+  "inputs": {
+    "pyproject.toml": "evals/cases/fixtures/common/pyproject.toml",
+    "lc_substrate.py": "evals/cases/fixtures/common/lc_substrate.py",
+    "lc_fixture_util.py": "evals/cases/fixtures/common/lc_fixture_util.py",
+    "pellingham_lc_fab_sheet.md": "evals/cases/fixtures/common/pellingham_lc_fab_sheet.md",
+    "lc_radio_board.py": "evals/cases/fixtures/common/lc_radio_board.py",
+    "fixture_fence_cpwg_two_rows.py": "evals/cases/fixtures/fence-cpwg-two-rows/fixture_fence_cpwg_two_rows.py"
+  },
+  "notes": "The fixtures import jitxexamples parts from py-components origin/main 9c398d3 (the installed package in the eval venv); the build uses the lc-eval parts chain, the example catalogue then ideal parts, so no parts database is needed. The fixture module is fixture_fence_cpwg_two_rows.py, Design FenceCpwgTwoRowsDesign. The substrate defines CPWG_50 (width 0.30, gap 0.20, layer 0) unfenced and unapplied. Spike S9 on jitx 4.6.0: a route fence comes from RoutingStructure.Layer.fence on the applied structure and comes back as ComputedFenceVia; initial_offset is measured from the trace edge to the via centre, so the prompt's 0.35 pad-edge spacing with the 0.500 via pad (fab row 11) is initial_offset 0.35 + 0.25 = 0.60, and the rows sit 0.60 and 1.20 from the trace edge (0.75 and 1.35 from the centreline). o1 - d/2 = 0.35 >= g = 0.20, so no pad sits in the gap. S4: a fence_via design rule fences no route. S9: a clearance(tag, AnyObject) rule wider than the gap pushes the coplanar pour out to the rule's distance with no issue; the feed already sits on its own ground pour, and the parked parts are well away, so the structure's 0.20 gap is the clearance the feed needs. S9 island removal: each coplanar half needs its own same-net object; the fixture's anchors 2.5 mm either side of the feed supply them. Measured on this suite's own solution (2026-11-03): run length 14.821, 14 vias per row per side, pour gap 0.21, no issue; a clearance(tag, AnyObject) 0.5 variant failed the check with the pour gap at 0.5095. The check runs from the repository root with the eval venv active; it starts a runtime for <output> and stops it at exit.",
+  "runner_models": [
+    "sonnet"
+  ],
+  "runner_rationale": "Customers drive this skill with mixed-strength agents, so the eval runs the skill under a Sonnet-class runner; judges stay frontier-tier.",
+  "runner_artifacts": "The input files are the starting design. Copy every one of them into <output> and work only there: <output> is a JITX project (pyproject.toml) whose modules import each other by file name. Add tags and design rules, applying the substrate's routing structures where the task needs one (a fenced copy of one is fine if its width and clearance are unchanged), in the fixture module, fixture_fence_cpwg_two_rows.py, or in a module it imports, and keep its Design class name. Do not add, move or remove parts, nets, routes, vias or pours, and do not set Route.Config on a route; assigning a tag to an existing object is fine. Build the design and read the result back to show the rules applied. Write a completion summary to <output>/COMPLETION.md: each rule with the source of its numbers, what you checked after the build and what it showed, and anything left open. Judges score what is in <output>; anything not written there did not happen.",
+  "expected_output": "A tag on the RF feed net, a fenced copy of CPWG_50's layer-0 values with RoutingStructure.Layer.fence(LcStandard4.ThVia, ViaFencePattern(pitch=1.0, offset=0.6, initial_offset=0.6, num_rows=2), reference_layer=0), applied by a routing_structure rule on the tag (or Constrain(...).structure), the initial_offset derived from the 0.35 pad-edge spacing and the 0.500 via pad, the gap condition o1 - d/2 >= g shown, no net clearance rule wider than the gap, and COMPLETION.md with the measured rows, counts and pour gap.",
+  "assertions": [
+    {
+      "text": "the feed is realized at CPWG_50's width with the layer-0 pour at its gap on both sides, and the built design has two rows of route fence vias per side at 0.60 and 1.20 mm from the trace edge, filled along the straight run at the 1 mm pitch, with no fence via pad in the gap and no via placed in code",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-layout-constraints/evals/checks/check_fence_cpwg_two_rows.py <output>"
+    },
+    {
+      "text": "the fence is RoutingStructure.Layer.fence on the structure applied to the feed, not a fence_via design rule presented as fencing the route, and the runner says which mechanism fences a route",
+      "check": "judge"
+    },
+    {
+      "text": "the runner converts the prompt's pad-edge spacing to the via-centre initial_offset with the via pad from fab row 11, and shows o1 - d/2 >= g with the numbers",
+      "check": "judge"
+    },
+    {
+      "text": "any clearance the runner adds to keep the feed clear of other nets is no wider than the coplanar gap, or the runner states that a wider one pushes the coplanar ground off the fence rows",
+      "check": "judge"
+    },
+    {
+      "text": "COMPLETION.md reports measured fence rows and counts against counts derived from the run length and pitch, and the measured pour gap, not build success alone",
+      "check": "judge"
+    }
+  ]
+}

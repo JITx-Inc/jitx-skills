@@ -1,0 +1,39 @@
+{
+  "name": "heavy-copper-inner-layer",
+  "prompt": "fixture_heavy_copper_inner_layer.py is our 24 V buck board on Pellingham's heavy-inner build: L2 is 2 oz copper and L3 is 0.5 oz. VIN runs on L2 and a sense line on L3. Apply Pellingham's 2 oz width and space floors to the L2 copper. L3 stays on the board defaults.",
+  "inputs": {
+    "pyproject.toml": "evals/cases/fixtures/common/pyproject.toml",
+    "lc_substrate.py": "evals/cases/fixtures/common/lc_substrate.py",
+    "lc_fixture_util.py": "evals/cases/fixtures/common/lc_fixture_util.py",
+    "pellingham_lc_fab_sheet.md": "evals/cases/fixtures/common/pellingham_lc_fab_sheet.md",
+    "lc_radio_board.py": "evals/cases/fixtures/common/lc_radio_board.py",
+    "lc_power_board.py": "evals/cases/fixtures/common/lc_power_board.py",
+    "fixture_heavy_copper_inner_layer.py": "evals/cases/fixtures/heavy-copper-inner-layer/fixture_heavy_copper_inner_layer.py"
+  },
+  "notes": "The fixtures import jitxexamples parts from py-components origin/main 9c398d3 (the installed package in the eval venv); the build uses the lc-eval parts chain, the example catalogue then ideal parts, so no parts database is needed. The fixture module is fixture_heavy_copper_inner_layer.py, Design HeavyCopperInnerLayerDesign; lc_power_board.py imports box from lc_radio_board.py. Fab sheet: row 2 is the stackup (L2 = layer 1, 2 oz; L3 = layer 2, 0.5 oz), rows 5 and 6 are the 2 oz width 0.200 and space 0.250, and the notes keep rows 3 and 4 on a 1 oz or 0.5 oz layer. Spike S8 on jitx 4.6.0: OnLayer(1) matched layer 1 only; OnLayer.internal() matched both inner layers (hard fail here); a width request wider than the end pads came back as a Polygon, so the fixture's 0.500 via pads keep 0.200 well inside. Measured on the bare fixture (this suite's own run, 2026-11-03): both inner routes 0.15 with the pours 0.16 away. This suite's own solution (IsTrace & OnLayer(1) width 0.2, IsCopper & OnLayer(1) to AnyObject clearance 0.25, both priority 1): vin_l2 0.2 and 0.26, sense_l3 0.15 and 0.16, no issue; the same rules on OnLayer.internal() moved sense_l3 to 0.2 and 0.26 and failed the check. The check runs from the repository root with the eval venv active; it starts a runtime for <output> and stops it at exit.",
+  "runner_models": [
+    "sonnet"
+  ],
+  "runner_rationale": "Customers drive this skill with mixed-strength agents, so the eval runs the skill under a Sonnet-class runner; judges stay frontier-tier.",
+  "runner_artifacts": "The input files are the starting design. Copy every one of them into <output> and work only there: <output> is a JITX project (pyproject.toml) whose modules import each other by file name. Add tags and design rules, in the fixture module, fixture_heavy_copper_inner_layer.py, or in a module it imports, and keep its Design class name. Do not add, move or remove parts, nets, routes, vias or pours, and do not set Route.Config on a route; assigning a tag to an existing object is fine. Build the design and read the result back to show the rules applied. Write a completion summary to <output>/COMPLETION.md: each rule with the source of its numbers, what you checked after the build and what it showed, and anything left open. Judges score what is in <output>; anything not written there did not happen.",
+  "expected_output": "A width 0.200 rule and a clearance 0.250 rule conditioned on OnLayer(1) (L2) at a priority above the defaults, citing rows 2, 5 and 6, nothing on OnLayer.internal(), and COMPLETION.md with the measured width and pour gap on both inner layers.",
+  "assertions": [
+    {
+      "text": "the L2 VIN route is 0.200 mm wide with the L2 pour 0.250 mm away, and the L3 sense route is unchanged at 0.15 mm with its pour 0.15 mm away (each gap plus at most 0.03)",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-layout-constraints/evals/checks/check_heavy_copper_inner_layer.py <output>"
+    },
+    {
+      "text": "the rules use OnLayer(1), mapped from L2 through the fab sheet's layer numbering, and not OnLayer.internal(), which would also catch L3",
+      "check": "judge"
+    },
+    {
+      "text": "the values cite fab rows 5 and 6 and the layer mapping cites row 2",
+      "check": "judge"
+    },
+    {
+      "text": "COMPLETION.md reports widths and pour gaps read from the built design on both inner layers, not build success alone",
+      "check": "judge"
+    }
+  ]
+}

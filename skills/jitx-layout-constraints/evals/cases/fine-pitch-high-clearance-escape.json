@@ -1,0 +1,39 @@
+{
+  "name": "fine-pitch-high-clearance-escape",
+  "prompt": "fixture_fine_pitch_high_clearance_escape.py is our buck board. The switch node is a 0.6 mm class with 0.25 mm clearance, and the route from the IC's SW pin to the inductor goes through a via. The 0.6 trace does not come out of the IC's fine-pitch pad. Make the part from the SW pad to the via fit the pad and keep the switch-node width and clearance on the rest of the run. Use the fab sheet for any minimum.",
+  "inputs": {
+    "pyproject.toml": "evals/cases/fixtures/common/pyproject.toml",
+    "lc_substrate.py": "evals/cases/fixtures/common/lc_substrate.py",
+    "lc_fixture_util.py": "evals/cases/fixtures/common/lc_fixture_util.py",
+    "pellingham_lc_fab_sheet.md": "evals/cases/fixtures/common/pellingham_lc_fab_sheet.md",
+    "lc_radio_board.py": "evals/cases/fixtures/common/lc_radio_board.py",
+    "lc_power_board.py": "evals/cases/fixtures/common/lc_power_board.py",
+    "fixture_fine_pitch_high_clearance_escape.py": "evals/cases/fixtures/fine-pitch-high-clearance-escape/fixture_fine_pitch_high_clearance_escape.py"
+  },
+  "notes": "The fixtures import jitxexamples parts from py-components origin/main 9c398d3 (the installed package in the eval venv); the build uses the lc-eval parts chain, the example catalogue then ideal parts, so no parts database is needed. The fixture module is fixture_fine_pitch_high_clearance_escape.py, Design FinePitchHighClearanceEscapeDesign. The TPS62933 library module defines SwTag and tags SW_NODE with it; the fixture states the class on that tag, trace_width(0.6) and clearance(SwTag, True) 0.25 at priority 0. The buck board (lc_power_board.py) removes the TPS62933 library circuit's own three rules (a 0.25 PowerNetTag width and 0.25 SwTag and BstTag clearances, all priority 0) and keeps its tags, so the design carries only the rules the fixture states. Spike S10 on jitx 4.6.0: a priority-1 rule on a tag on the escape Route object governs that segment and leaves the rest at the net's; the same rule on (net tag) & IsTrace narrowed both segments. S10 used routing structures; this suite's own run (2026-11-03) used trace_width and clearance rules. Measured on the bare fixture: sw_escape a Polygon with no width (the 0.6 class width does not fit the pad, S8), sw_trunk 0.6, the layer-0 pour 0.2599 from the trunk. This suite's own solution, a tag on sw_escape with design_constraint(tag, priority=1).trace_width(0.2) and design_constraint(tag, True, priority=1).clearance(0.15): escape 0.2, trunk 0.6, pour 0.2599 from the trunk. A trace_width(0.2) on SwTag() & IsTrace at priority 1 narrowed the trunk to 0.2 as well (fails the check). Also from this suite's own run: a 0.6 trace leaving a 0.5 via came back as a Polygon (spike S8 saw the same for a 0.5 trace between 0.45 vias), so the fixture's via is 0.8 across. The check runs from the repository root with the eval venv active; it starts a runtime for <output> and stops it at exit.",
+  "runner_models": [
+    "sonnet"
+  ],
+  "runner_rationale": "Customers drive this skill with mixed-strength agents, so the eval runs the skill under a Sonnet-class runner; judges stay frontier-tier.",
+  "runner_artifacts": "The input files are the starting design. Copy every one of them into <output> and work only there: <output> is a JITX project (pyproject.toml) whose modules import each other by file name. Add tags and design rules, in the fixture module, fixture_fine_pitch_high_clearance_escape.py, or in a module it imports, and keep its Design class name. Do not add, move or remove parts, nets, routes, vias or pours, and do not set Route.Config on a route; assigning a tag to an existing object, a Route included, is fine. Build the design and read the result back to show the rules applied. Write a completion summary to <output>/COMPLETION.md: each rule with the source of its numbers, what you checked after the build and what it showed, and anything left open. Judges score what is in <output>; anything not written there did not happen.",
+  "expected_output": "A tag on the sw_escape Route object with a trace width strictly under the pad's 0.28 narrow side and at least fab row 3's 0.100, and a clearance the 0.5 mm pitch can hold, both at a priority above the switch-node class; the class width and clearance left in force on the trunk; and COMPLETION.md with the pad size and pitch read from the land pattern, the per-segment widths measured after the build, and the contention stated: the SW pad and the BST pad beside it are 0.22 apart, under the class's 0.25, so the class clearance cannot hold at the pad whatever the trace does.",
+  "assertions": [
+    {
+      "text": "the escape segment is realized with a width inside the narrow side of the SW pad and at or above the fab minimum, the trunk keeps the 0.6 class width, and the ground pour stays the class clearance from the trunk",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-layout-constraints/evals/checks/check_fine_pitch_high_clearance_escape.py <output>"
+    },
+    {
+      "text": "the runner derives the escape width and clearance from the land pattern (0.28 x 0.68 pads at 0.5 pitch, 0.22 between pads) and the fab sheet, not from a guess, and says where each number came from",
+      "check": "judge"
+    },
+    {
+      "text": "the runner states that the class clearance of 0.25 cannot hold between the SW and BST pads (0.22 apart) and so is relaxed for the escape, rather than claiming the class clearance holds everywhere",
+      "check": "judge"
+    },
+    {
+      "text": "the runner reports the widths it measured on each segment after the build, rather than calling the rule verified by build success",
+      "check": "judge"
+    }
+  ]
+}

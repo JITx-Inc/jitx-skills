@@ -1,0 +1,38 @@
+{
+  "name": "stitch-ground-pours",
+  "prompt": "fixture_stitch_ground_pours.py is our 2.4 GHz feed board: a U.FL connector feeding the radio's series inductor, with ground pours on all four layers. Stitch the ground pours together with the board's standard through via on a square grid, keeping the via spacing to no more than one twentieth of the wavelength in the board at 2.4 GHz (the fab quotes er 4.2 for this FR-4). Use the Pellingham capability sheet for anything the via or the grid has to respect.",
+  "inputs": {
+    "pyproject.toml": "evals/cases/fixtures/common/pyproject.toml",
+    "lc_substrate.py": "evals/cases/fixtures/common/lc_substrate.py",
+    "lc_fixture_util.py": "evals/cases/fixtures/common/lc_fixture_util.py",
+    "pellingham_lc_fab_sheet.md": "evals/cases/fixtures/common/pellingham_lc_fab_sheet.md",
+    "lc_radio_board.py": "evals/cases/fixtures/common/lc_radio_board.py",
+    "fixture_stitch_ground_pours.py": "evals/cases/fixtures/stitch-ground-pours/fixture_stitch_ground_pours.py"
+  },
+  "notes": "The fixtures import jitxexamples parts from py-components origin/main 9c398d3 (the installed package in the eval venv); the build uses the lc-eval parts chain, the example catalogue then ideal parts, so no parts database is needed. The fixture module is fixture_stitch_ground_pours.py, Design StitchGroundPoursDesign. lambda/20 at 2.4 GHz in er 4.2 is 299.792458 / 2.4 / sqrt(4.2) / 20 = 3.048 mm, so any pitch from 0.500 (fab rows 12 + 15, drill to drill) to 3.048 passes. The check reads the pitch and inset from the stitch rule in the built design and derives the sites the rule must fill from the computed copper of all four pours (spike S3: absolute grid from (0, 0), via pad plus inset inside the computed pour), less sites over pads and sites within 0.500 of the six fixture anchor vias (both measured in this suite's own solution run, recorded in checks/stitch_common.py). The pours need no new anchor: the fixture's six GND vias anchor them. Vias placed in code where a rule was asked for is a hard fail even if the count matches. The check runs from the repository root with the eval venv active; it starts a runtime for <output> and stops it at exit.",
+  "runner_models": [
+    "sonnet"
+  ],
+  "runner_rationale": "Customers drive this skill with mixed-strength agents, so the eval runs the skill under a Sonnet-class runner; judges stay frontier-tier.",
+  "runner_artifacts": "The input files are the starting design. Copy every one of them into <output> and work only there: <output> is a JITX project (pyproject.toml) whose modules import each other by file name. Add tags and design rules, in the fixture module, fixture_stitch_ground_pours.py, or in a module it imports, and keep its Design class name. Do not add, move or remove parts, nets, routes, vias or pours, and do not set Route.Config on a route; assigning a tag to an existing object is fine. Build the design and read the result back to show the rules applied. Write a completion summary to <output>/COMPLETION.md: each rule with the source of its numbers, what you checked after the build and what it showed, and anything left open. Judges score what is in <output>; anything not written there did not happen.",
+  "expected_output": "A Tag on the four ground pours and one design_constraint(tag).stitch_via(LcStandard4.ThVia, SquareViaStitchGrid(pitch, inset)) with pitch from 0.5 to 3.048 derived in the code or summary from the prompt's criterion and the fab rows, a built and captured design whose stitch vias fill every derived site, and COMPLETION.md giving the derivation and the measured count against the derived count.",
+  "assertions": [
+    {
+      "text": "the stitch rule is on a square grid at a pitch within the prompt's lambda/20 bound and the fab's drill-to-drill floor, and the built design has a stitch via on every grid site the rule must fill on all four ground pours",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-layout-constraints/evals/checks/check_stitch_ground_pours.py <output>"
+    },
+    {
+      "text": "the pitch is derived from the stated criterion (2.4 GHz, er 4.2, one twentieth of a wavelength) with the arithmetic shown, and checked against the via pad and the fab sheet's drill rows by row number",
+      "check": "judge"
+    },
+    {
+      "text": "the stitching is a stitch_via rule on a tag assigned to the pours, not vias placed in code, and the runner did not add, move or remove parts, routes, vias or pours",
+      "check": "judge"
+    },
+    {
+      "text": "COMPLETION.md reports the realized via count against a count derived from the pour geometry, pitch and inset, not build success alone",
+      "check": "judge"
+    }
+  ]
+}
