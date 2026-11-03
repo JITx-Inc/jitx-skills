@@ -1,0 +1,38 @@
+{
+  "name": "apply-routing-structures",
+  "prompt": "fixture_apply_routing_structures.py is our 2.4 GHz board. The antenna feed now goes from the U.FL through a via at x = -9 mm and on to the series inductor, and it has a timing constraint. Run the feed as the substrate's CPWG_50, except the short segment from the connector pad to the via, which should use NECK_50. The build currently complains about a missing routing structure; make that go away.",
+  "inputs": {
+    "pyproject.toml": "evals/cases/fixtures/common/pyproject.toml",
+    "lc_substrate.py": "evals/cases/fixtures/common/lc_substrate.py",
+    "lc_fixture_util.py": "evals/cases/fixtures/common/lc_fixture_util.py",
+    "pellingham_lc_fab_sheet.md": "evals/cases/fixtures/common/pellingham_lc_fab_sheet.md",
+    "lc_radio_board.py": "evals/cases/fixtures/common/lc_radio_board.py",
+    "fixture_apply_routing_structures.py": "evals/cases/fixtures/apply-routing-structures/fixture_apply_routing_structures.py"
+  },
+  "notes": "The fixtures import jitxexamples parts from py-components origin/main 9c398d3 (the installed package in the eval venv); the build uses the lc-eval parts chain, the example catalogue then ideal parts, so no parts database is needed. The fixture module is fixture_apply_routing_structures.py, Design ApplyRoutingStructuresDesign. Spike S10 on jitx 4.6.0: design_constraint(tag).routing_structure(rs, ref_net=GND) on a net tag applies the structure to a code route and clears the Missing routing structure issue; a priority-1 rule on a tag on the escape Route object gives that segment its own structure; a rule on (net tag) & IsTrace hits every segment; a rule silently overrides a .structure(...) on the same net with no issue. Spike S10 also found that a RoutingStructure built at module level is an Instantiable a rule cannot apply; this suite's own solution builds both structures inside the circuit's __init__ with the substrate's values. Measured on the bare fixture (this suite's own run, 2026-11-03): both segments 0.1, Missing routing structure on both paths. This suite's own solution: escape 0.12 with the pour 0.1301 away, main 0.3 with 0.21, timing satisfied and no missing structure. A runner that applies the structures with both a rule and .structure(...) is judged on whether it says which one wins. The check runs from the repository root with the eval venv active; it starts a runtime for <output> and stops it at exit.",
+  "runner_models": [
+    "sonnet"
+  ],
+  "runner_rationale": "Customers drive this skill with mixed-strength agents, so the eval runs the skill under a Sonnet-class runner; judges stay frontier-tier.",
+  "runner_artifacts": "The input files are the starting design. Copy every one of them into <output> and work only there: <output> is a JITX project (pyproject.toml) whose modules import each other by file name. Add tags, design rules and routing structures, in the fixture module named below or in a module it imports, and keep its Design class name. Do not add, move or remove parts, nets, routes, vias or pours; assigning a tag to an existing object is fine. Build the design and read the result back to show the rules applied. Write a completion summary to <output>/COMPLETION.md: each rule with the source of its numbers, what you checked after the build and what it showed, and anything left open. Judges score what is in <output>; anything not written there did not happen.",
+  "expected_output": "A tag on the RF feed net with a routing_structure rule for CPWG_50, a tag on the feed_escape Route object with a higher-priority routing_structure rule for NECK_50, both with ref_net GND, and COMPLETION.md with each segment's measured width and pour gap and the issue report showing no missing routing structure.",
+  "assertions": [
+    {
+      "text": "the escape segment is realized at NECK_50's 0.12 mm with the pour 0.12 mm away, the main segment at CPWG_50's 0.30 mm with the pour 0.20 mm away, and the issue report has no missing routing structure",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-layout-constraints/evals/checks/check_apply_routing_structures.py <output>"
+    },
+    {
+      "text": "the neck structure is scoped to the escape segment by a tag on that Route object at a higher priority, not by a condition that also catches the main segment",
+      "check": "judge"
+    },
+    {
+      "text": "if the runner sets a structure both by rule and by .structure(...), it says the rule wins without an issue; otherwise it uses one mechanism and says which",
+      "check": "judge"
+    },
+    {
+      "text": "COMPLETION.md reports widths per segment and the issue report read from the built design, not build success alone",
+      "check": "judge"
+    }
+  ]
+}

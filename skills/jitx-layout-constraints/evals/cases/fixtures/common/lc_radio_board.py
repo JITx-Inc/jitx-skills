@@ -12,7 +12,10 @@ Layout, on ``LcStandard4`` (``lc_substrate.py``) and the 40 x 30 mm ``LcBoard``:
 - The connector circuit's series inductor ``L`` at (2, 3), on the feed.
 - The RF feed: a code route on layer 0 from the U.FL signal pad to ``L.p1``,
   one straight run from about (-12.81, 2.99) to (2.00, 3.51), 14.82 long, as
-  measured from the captured trace on 2026-11-03.
+  measured from the captured trace on 2026-11-03. With ``feed_via_x`` the
+  feed is two routes instead, ``feed_escape`` from the signal pad to an
+  RF_ANT through via at (feed_via_x, 3) and ``feed`` from that via to
+  ``L.p1``.
 - GND pours on all four layers over x -18..18, y -7..13; a fixture may pass
   ``l1_box`` to pour layer 0 over a smaller region instead.
 - GND through vias that anchor the pours: two beside the feed on layer 0,
@@ -45,7 +48,11 @@ def box(x0: float, y0: float, x1: float, y1: float) -> Polygon:
 
 
 class RadioBoard(Circuit):
-    def __init__(self, l1_box: tuple[float, float, float, float] = POUR_BOX) -> None:
+    def __init__(
+        self,
+        l1_box: tuple[float, float, float, float] = POUR_BOX,
+        feed_via_x: float | None = None,
+    ) -> None:
         self.ufl = U_FL_R_SMT_10()
 
         self.place(self.ufl.component, Transform((-14.0, FEED_Y), -90))
@@ -55,7 +62,13 @@ class RadioBoard(Circuit):
         self.ANT = Net([self.ufl.sig], name="RF_ANT")
 
         # The RF feed, U.FL signal pad to the series inductor, on layer 0.
-        self.feed = Route(self.ufl.component.SIG, self.ufl.L.p1, layer=0)
+        if feed_via_x is None:
+            self.feed = Route(self.ufl.component.SIG, self.ufl.L.p1, layer=0)
+        else:
+            self.feed_via = LcStandard4.ThVia().at(feed_via_x, FEED_Y)
+            self.ANT += self.feed_via
+            self.feed_escape = Route(self.ufl.component.SIG, self.feed_via, layer=0)
+            self.feed = Route(self.feed_via, self.ufl.L.p1, layer=0)
 
         self.pours = [Pour(box(*(l1_box if layer == 0 else POUR_BOX)), layer=layer) for layer in range(4)]
         for p in self.pours:
