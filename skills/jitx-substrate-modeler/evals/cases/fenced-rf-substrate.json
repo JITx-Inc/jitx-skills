@@ -36,7 +36,7 @@
     {
       "text": "every via in board.py runs top to bottom: Via layer indexes are absolute and do not flip, so a bottom-side via drilled from the bottom still has its start_layer above its stop_layer",
       "check": "deterministic",
-      "cmd": "python3 skills/jitx-substrate-modeler/scripts/via_order.py <output>/board.py"
+      "cmd": "python3 skills/jitx-substrate-modeler/scripts/via_order.py --layers 6 <output>/board.py"
     },
     {
       "text": "the fencing matches the spec as declared: the 50 ohm L1 fence and L2 pour keep-out; the 100 ohm pair's fences on exactly L1 and L6; the 50 ohm L4 stripline fenced with TH-1 and referenced to L3 and L5; two fence_via rules on the substrate, the cavity's with UV-1 and the antipad's with TH-1, each conditioned on its own single tag; for each rule, a Pour carrying its tag on a layer its via reaches (the antipad's on a ground plane, L2, L3 or L5, or on L6, the via's stop layer, which holds but say in `why` that the skill does not say an antipad pour belongs on a ground plane); a pour KeepOut of the cavity outline on L1, and of the antipad circle covering L2, L3, L5 and the antipad pour's layer; no Pour with isolate set; and no other substrate design rule",
