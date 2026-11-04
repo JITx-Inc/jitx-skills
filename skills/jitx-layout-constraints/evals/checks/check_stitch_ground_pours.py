@@ -9,7 +9,11 @@ Builds <output>/fixture_stitch_ground_pours.py, captures it, and checks:
   = 3.048 mm) and no less than the drill-to-drill floor of the fab sheet
   (row 12 drill 0.250 + row 15 hole-to-hole 0.250 = 0.500 mm centre to centre);
 - the ground pours on all four layers came back with copper;
-- every grid site the rule must fill (stitch_common.required_sites) holds a via.
+- every grid site the rule must fill (stitch_common.required_sites) holds a
+  generated via (``lc_check.generated_vias``). The generated vias include any
+  pour or route fence as well; the fixture has neither and the prompt asks
+  for neither, and a fence via fills a site only if it lands within 0.0005 of
+  it (the 3-decimal match), so the fixture needs no split.
 """
 
 import math
@@ -40,9 +44,9 @@ with L.built(out, "fixture_stitch_ground_pours", "StitchGroundPoursDesign") as r
         L.fail("expected one ground pour with copper on each of layers 0 to 3")
     pads = [g for _, _, g in L.pads_of(rd, rd.root)]
     placed = L.placed_vias(rd)
-    vias = L.stitch_vias(rd)
+    vias = L.generated_vias(rd)
     got = {(round(x, 3), round(y, 3)) for x, y in vias}
-    print(f"stitch vias realized: {len(vias)}")
+    print(f"generated vias realized: {len(vias)}")
     for pitch, inset, pad_r in patterns:
         print(f"pattern pitch {pitch} inset {inset} via pad radius {pad_r}")
         if pitch > MAX_PITCH + 1e-9:

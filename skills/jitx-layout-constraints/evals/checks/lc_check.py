@@ -11,9 +11,11 @@ The measurement surfaces are the ones the 2026-11-03 layout-constraints spike
   included (spike S1);
 - ``Route.traces[*].shapes`` holds the realized trace shapes (S8: a trace may
   come back as a ``Polygon`` with no width);
-- ``ComputedStitchVia`` and ``ComputedFenceVia`` hold the generated vias (S3,
-  S4, S9); fence vias from a ``fence_via`` rule on a pour come back as
-  ``ComputedStitchVia`` (S4).
+- ``rd.query(Via)`` returns the generated vias (stitch vias from a
+  ``stitch_via`` rule, S3; ring vias from a ``fence_via`` rule on a pour, S4;
+  route-fence vias from ``RoutingStructure.Layer.fence``, S9) together with
+  the vias the design places in code, which ``generated_vias`` leaves out.
+  The query does not say which rule generated a via.
 """
 
 from __future__ import annotations
@@ -34,14 +36,14 @@ import shapely
 from shapely.geometry import Point
 from shapely.geometry.base import BaseGeometry
 
-from jitx._translate.reverse_flow.applied import ComputedFenceVia, ComputedStitchVia
 from jitx.circuit import Route
 from jitx.constraints import DesignConstraint
 from jitx.copper import Pour
 from jitx.design import Design
 from jitx.inspect import visit
-from jitx.landpattern import Pad
+from jitx.landpattern import Pad, PadShape
 from jitx.run.runtime import Runtime
+from jitx.shapes import Shape
 from jitx.shapes.primitive import Empty
 from jitx.via import Via
 
@@ -115,10 +117,17 @@ def runtime_for(out: Path) -> Iterator[None]:
 # ``_instantiate_design`` is what ``Runtime.submit`` uses to build a Design.
 #
 # A structure's signature is, per layer index, its trace width and clearance
-# (and a differential layer's pair spacing, and a neck-down's width and
-# clearance): the values that set copper. A fence, reference layers and the
-# name are left out, so a fenced copy of a substrate structure has the
-# substrate structure's signature.
+# (and a differential layer's pair spacing, a neck-down's width and clearance,
+# and the feature type and width of each ``Layer.geometry`` entry, such as a
+# KeepOut that follows the route): the values that shape the routed copper
+# and the copper around it. A geometry entry's layers, side and KeepOut pour
+# flag are left out, so two entries that differ only there match; no
+# substrate structure in this suite has geometry, so any entry fails today.
+# A fence, reference layers and the name are left out too, so a fenced copy
+# of a substrate structure has the substrate structure's signature. jitx 4.6.0 has no public
+# accessor for a layer's geometry; ``visit`` reaches the private ``_AddGeom``
+# entries, as the translator does, and an upgrade that renames the class
+# stops the script with an import error ("could not run"), not a pass.
 _COUNT_SCRIPT = """
 import json, importlib, sys
 sys.path.insert(0, sys.argv[1])
@@ -127,7 +136,7 @@ from jitx.constraints import UnaryDesignConstraint
 from jitx.copper import Pour
 from jitx.inspect import visit
 from jitx.run.runtime import _instantiate_design
-from jitx.si import BaseConstrain, Constraint, DifferentialRoutingStructure, RoutingStructure
+from jitx.si import BaseConstrain, Constraint, DifferentialRoutingStructure, RoutingStructure, _AddGeom
 from jitx.via import Via
 
 def rnd(x):
@@ -142,6 +151,7 @@ def sig(s):
             rnd(l.clearance),
             rnd(getattr(l, "pair_spacing", None)),
             None if nd is None else [rnd(nd.trace_width), rnd(nd.clearance), rnd(getattr(nd, "pair_spacing", None))],
+            sorted([type(g.feature).__name__, rnd(g.width)] for _, g in visit(l, _AddGeom)),
         ]
     return out
 
@@ -219,17 +229,31 @@ def _layer_text(idx: str, v: list[Any]) -> str:
         text += f" pair spacing {v[2]}"
     if v[3] is not None:
         text += f" neck-down {v[3]}"
+    if v[4]:
+        text += " geometry " + ", ".join(f"{kind} width {w}" for kind, w in v[4])
     return text
 
 
 def check_structures(applied: list[dict[str, Any]], defined: list[dict[str, Any]]) -> None:
-    """Fail on an applied routing structure with a layer whose width or
-    clearance no structure in the fixture's substrate has on that layer.
+    """Fail on an applied routing structure with a layer whose signature
+    (width, clearance and geometry; see ``_COUNT_SCRIPT``) no structure in the
+    fixture's substrate has on that layer.
 
     The contract allows applying the substrate's structures, and a fenced copy
-    of one when its width and clearance are unchanged; defining new widths or
-    clearances belongs to jitx-substrate-modeler. Layers compare by value, so
-    a copy made with ``RoutingStructure.Layer.fence`` passes."""
+    of one when its width, clearance and geometry are unchanged; defining new
+    ones belongs to jitx-substrate-modeler. Layers compare by value, so
+    a copy made with ``RoutingStructure.Layer.fence`` passes, and a copy that
+    adds ``Layer.geometry`` (a KeepOut of any width) fails.
+
+    Each layer is matched on its own, against any substrate structure, and a
+    differential structure's uncoupled region is matched as a structure of
+    its own. So a copy whose layer 0 matches one structure and layer 1
+    another passes, and so does a differential copy that keeps DIFF_100's
+    coupled layer but takes another structure's layer as its uncoupled
+    region. Every structure in this suite's substrate has one layer, and no
+    case asks for a differential structure, so neither form arises here; a
+    future multi-layer or differential fixture needs whole-structure
+    matching."""
     allowed: dict[str, list[tuple[str, list[Any]]]] = {}
     for s in defined:
         for idx, v in s["layers"].items():
@@ -241,8 +265,8 @@ def check_structures(applied: list[dict[str, Any]], defined: list[dict[str, Any]
             have = "; ".join(f"{where} {_layer_text(idx, w)}" for where, w in allowed.get(idx, [])) or "none"
             fail(
                 f"routing structure {s['name']} ({s['where']}): {_layer_text(idx, v)} matches no "
-                f"substrate structure on layer {idx} (substrate has: {have}); a new width or "
-                "clearance is a substrate-modeler change, not a rule"
+                f"substrate structure on layer {idx} (substrate has: {have}); a new width, "
+                "clearance or geometry is a substrate-modeler change, not a rule"
             )
 
 
@@ -254,7 +278,10 @@ def check_unedited(out: Path, module: str, cls: str) -> None:
     route, via and pour counts must match the fixture as shipped. Neither the
     ``jitx.si.Constraint`` count (timing and loss) nor the count of
     ``Constrain`` and ``ConstrainDiffPair`` objects that apply a structure
-    may drop below the fixture's. Every routing structure the output applies, through
+    may drop below the fixture's. Every fixture in this suite applies no
+    structure through ``Constrain``, so that count's floor is 0 and its check
+    cannot fire here; it guards a future fixture that does. Every routing
+    structure the output applies, through
     ``Constrain(...).structure(...)``, ``ConstrainDiffPair(...).structure(...)``
     or a ``routing_structure`` rule, must match one the fixture's substrate
     defines (``check_structures``).
@@ -346,8 +373,7 @@ def pad_world(rd: Any, pad: Pad) -> BaseGeometry:
         if p is pad:
             if trace.transform is None or p.transform is None:
                 raise ValueError(f"unresolved frame for {trace.path}")
-            s = p.shape
-            s = getattr(s, "shape", s)
+            s: Shape = p.shape.shape if isinstance(p.shape, PadShape) else p.shape
             return geom((trace.transform * p.transform) * s)
     raise KeyError("pad not found")
 
@@ -358,8 +384,7 @@ def pads_of(rd: Any, root: Any) -> list[tuple[str, Pad, BaseGeometry]]:
     out = []
     for trace, p in visit(rd.root, Pad):
         if id(p) in ids and trace.transform is not None and p.transform is not None:
-            s = p.shape
-            s = getattr(s, "shape", s)
+            s: Shape = p.shape.shape if isinstance(p.shape, PadShape) else p.shape
             out.append((str(trace.path), p, geom((trace.transform * p.transform) * s)))
     return out
 
@@ -375,20 +400,25 @@ def placed_vias(rd: Any) -> list[tuple[float, float]]:
     return out
 
 
-def stitch_vias(rd: Any) -> list[tuple[float, float]]:
-    return [
-        (float(v.position[0]), float(v.position[1]))
-        for _, s in visit(rd.root, ComputedStitchVia)
-        for v in s.vias
-    ]
+def generated_vias(rd: Any) -> list[tuple[float, float]]:
+    """Centres of the vias the runtime generated, from every stitch, pour
+    fence and route fence together.
 
-
-def fence_vias(rd: Any) -> list[tuple[float, float]]:
-    return [
-        (float(v.position[0]), float(v.position[1]))
-        for _, f in visit(rd.root, ComputedFenceVia)
-        for v in f.vias
-    ]
+    ``rd.query(Via)`` yields them alongside the vias the design places in
+    code. Those are the ``Via`` objects ``visit`` lists in the captured tree,
+    and the query yields them as themselves, so they are left out by
+    identity. A check that needs one kind relies on its fixture: see each
+    caller's docstring."""
+    placed = {id(v) for _, v in visit(rd.root, Via)}
+    out = []
+    for trace, v in rd.query(Via):
+        if id(v) in placed:
+            continue
+        if trace.transform is None or v.transform is None:
+            raise ValueError(f"unresolved frame for a generated via at {trace.path}")
+        x, y = (trace.transform * v.transform).translation
+        out.append((float(x), float(y)))
+    return out
 
 
 def rules(rd_or_design: Any) -> list[DesignConstraint]:
