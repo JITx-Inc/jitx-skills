@@ -173,7 +173,7 @@ Example triggers:
 
 ### jitx-mechanical
 
-Mechanical CAD interface for JITX designs: inspect/import DXF, EMN, IDF, IDX, and BDF data; export DXF; attach STEP models; export a full board STEP with `jitx design export legacy-step` or the JITX application UI.
+Mechanical CAD interface for JITX designs: use `jitxlib-mechanical` to inspect/import DXF and IDF text (.emn/.idf/.idx/.bdf), and export captured designs with `jitx design export dxf`. Attach STEP models and export a full board STEP with `jitx design export legacy-step` or the JITX application UI.
 
 Example triggers:
 
