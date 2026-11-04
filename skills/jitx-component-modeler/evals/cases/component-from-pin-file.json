@@ -122,6 +122,10 @@
       "check": "judge"
     },
     {
+      "text": "a rail too big for one box (GND 50, VCC_CORE 41) is chunked across power units at a per-box ceiling the runner states; the runner's tests assert every box against that ceiling, and the runner asks the user to confirm it on the rendered sheet or lists that confirmation as an open item. The small no-bank supplies (VCC_AUX, VREF_SENSE, VCC_BATT) share one box rather than being spread one per unit or across the bank units",
+      "check": "judge"
+    },
+    {
       "text": "the 16 NC ports are declared no_connect() and each is also on exactly one unit, and on no bank unit (their Bank column is NA). An NC ball left off every unit is a defect: the installed jitx requires a symbol pin for every single-pin port, no-connect included (reference.notes).",
       "check": "judge"
     },
@@ -134,6 +138,10 @@
       "text": "the emitted module (located by find_emitted.py) sits under components/, optionally inside a namespace package and a category subdirectory, with a <manufacturer>_<mpn> style name: acme_ then a stem containing fx500. The orderable MPN reaches the runner only at the phase-1 gate, so the stem is not pinned further.",
       "check": "deterministic",
       "cmd": "M=$(python3 <skill>/evals/checks/find_emitted.py <output>) && python3 -c \"import re,sys;from pathlib import Path;r=Path(sys.argv[1]).resolve().relative_to(Path(sys.argv[2]).resolve()).as_posix();sys.exit(0 if re.fullmatch(sys.argv[3],r,re.I) else 'emitted module at '+r+' does not match '+sys.argv[3])\" \"$M\" <output> '([a-z0-9_]+/)?components/([a-z0-9_]+/)?acme_[a-z0-9_]*fx500[a-z0-9_]*[.]py'"
+    },
+    {
+      "text": "where the runner writes a `BGA` subclass, its tests reach pads by position through a public `get_pad(row, column)` method on it, zero-indexed and stated in its docstring, never through a ball string or a private attribute. With no packaging document the runner may write no land pattern (see the geometry assertion); then this assertion is not applicable and the judge says so",
+      "check": "judge"
     }
   ],
   "future_cases": "Planned siblings in this lane: a pin file whose footer count DISAGREES with its row count, where the only correct behavior is to stop and show the gap rather than reconcile to the footer; and a non-full grid (a package with documented depopulated positions), where the grid-completeness check must distinguish a documented gap from a parse bug."
