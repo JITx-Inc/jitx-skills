@@ -50,6 +50,26 @@
       "cmd": "python3 skills/jitx-interconnect-constraints/evals/cases/reference/si-channel-bga-to-connector/check_si_channel.py no-via-model"
     },
     {
+      "text": "mutation, escape via PortAttachment-ed to a pass-through part's far pad, which the routes reach from the via only through the near pad: the reference checks reject it, every leg reports Cannot infer the signal path ... joined more than once, and nothing measures",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-interconnect-constraints/evals/cases/reference/si-channel-bga-to-connector/check_si_channel.py via-attached-across-pad"
+    },
+    {
+      "text": "fix, the same via put on the net with Net([pt.b, via]) instead of attached: the reference checks pass, every leg measuring through its cap",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-interconnect-constraints/evals/cases/reference/si-channel-bga-to-connector/check_si_channel.py via-netted-across-pad"
+    },
+    {
+      "text": "mutation, connector pads 0.1 mm apart under DRS_100's 0.2 mm clearance: the reference checks reject it and the report carries Unrealizable Route: Insufficient space",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-interconnect-constraints/evals/cases/reference/si-channel-bga-to-connector/check_si_channel.py fine-pitch"
+    },
+    {
+      "text": "fix, the routes into the fine-pitch pads tagged and held to a single-ended neck structure at priority 1: the reference checks pass, with no unrealized route",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-interconnect-constraints/evals/cases/reference/si-channel-bga-to-connector/check_si_channel.py fine-pitch-neck"
+    },
+    {
       "text": "the answer explains that >> is not needed for this point-to-point channel, that routes close the path the runtime infers between the Topology ends, and that every pass-through part and the via carry a pin model; its design has no >>, a BridgingPinModel on every cap, via models, and a single-pin guide for the bundle skew",
       "check": "judge"
     },

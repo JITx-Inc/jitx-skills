@@ -1,6 +1,7 @@
 """Prove on a live runtime that the si-channel reference's constraints bind, or that a mutation fails.
 
-Usage: python3 check_si_channel.py {main,cap-no-model,no-routes,no-via-model}
+Usage: python3 check_si_channel.py {main,cap-no-model,no-routes,no-via-model,
+    via-attached-across-pad,via-netted-across-pad,fine-pitch,fine-pitch-neck}
 
 The script stages a throwaway JITX project (a pyproject.toml and a package
 holding a copy of ``si_channel_design.py``) in the system temp directory,
@@ -19,7 +20,9 @@ model lowers them by exactly the via model.
 
 Each mutation checks two things: the reference checks reject it, and the report
 names the cause (the capacitor without a pin model, the unrouted segments, the
-via without a model).
+via without a model, the via attached across a pad, the routes too wide for the
+fine-pitch pads). ``via-netted-across-pad`` and ``fine-pitch-neck`` are the
+fixes for the last two: each must pass the reference checks.
 
 Exits 0 when every assertion holds and 1 otherwise, printing what it saw.
 """
@@ -80,6 +83,7 @@ NOT_FOLLOWED = (
     "unassigned pin",
     "missing connection",
     "unable to find path",
+    "cannot infer the signal path",
 )
 NOT_FOLLOWED_CLASSES = {
     "UnconnectedTopology",
@@ -91,7 +95,10 @@ NOT_FOLLOWED_CLASSES = {
     "MissingRoute",
     "BlockedPath",
     "DroppedRoute",
+    "AmbiguousTopology",
 }
+# Classes that mean a code route was not realized.
+ROUTE_FAILED_CLASSES = {"UnrealizedRoute"}
 MEASUREMENT_CLASSES = {"UnmetTime", "UnmetLoss", "UnmetTimeDiff"}
 
 TIME_TOL = 1e-14  # 0.01 ps
@@ -278,6 +285,8 @@ def check_reference(r: Report) -> list[str]:
         lowered = i.text.lower()
         if i.cls in NOT_FOLLOWED_CLASSES or any(t in lowered for t in NOT_FOLLOWED):
             problems.append(f"path not followed or not modeled: [{i.cls}] {i.text}")
+        if i.cls in ROUTE_FAILED_CLASSES or "unrealizable route" in lowered:
+            problems.append(f"route not realized: [{i.cls}] {i.text}")
     return problems
 
 
@@ -397,11 +406,50 @@ def check_no_via_model(jitx: str, root: Path) -> list[str]:
     return problems
 
 
+def check_via_attached_across_pad(jitx: str, root: Path) -> list[str]:
+    r = issues_of(jitx, root, "ViaAttachedAcrossPadDesign")
+    problems = rejected(r)
+    ambiguous = {
+        i.paths[0] for i in r.issues if "joined more than once" in i.text and i.paths
+    }
+    if ambiguous != set(PATHS.items()):
+        problems.append(
+            f"ambiguous paths {sorted(ambiguous)}, expected every leg {sorted(PATHS.items())}"
+        )
+    if r.measurements():
+        problems.append(
+            f"an ambiguous path still measures: {[m.text for m in r.measurements()]}"
+        )
+    return problems
+
+
+def check_via_netted_across_pad(jitx: str, root: Path) -> list[str]:
+    r = issues_of(jitx, root, "ViaNettedAcrossPadDesign")
+    return [f"ViaNettedAcrossPadDesign: {p}" for p in check_reference(r)]
+
+
+def check_fine_pitch(jitx: str, root: Path) -> list[str]:
+    r = issues_of(jitx, root, "FinePitchDesign")
+    problems = rejected(r)
+    if not any("insufficient space" in i.text.lower() for i in r.issues):
+        problems.append("no Unrealizable Route: Insufficient space issue")
+    return problems
+
+
+def check_fine_pitch_neck(jitx: str, root: Path) -> list[str]:
+    r = issues_of(jitx, root, "FinePitchNeckDesign")
+    return [f"FinePitchNeckDesign: {p}" for p in check_reference(r)]
+
+
 CHECKS = {
     "main": check_main,
     "cap-no-model": check_cap_no_model,
     "no-routes": check_no_routes,
     "no-via-model": check_no_via_model,
+    "via-attached-across-pad": check_via_attached_across_pad,
+    "via-netted-across-pad": check_via_netted_across_pad,
+    "fine-pitch": check_fine_pitch,
+    "fine-pitch-neck": check_fine_pitch_neck,
 }
 
 
