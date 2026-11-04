@@ -20,7 +20,7 @@
     {
       "text": "the candidate's own tests subclass jitx.test.TestCase: outside the instantiation context a design reads as empty and the suite goes green having compared nothing",
       "check": "deterministic",
-      "cmd": "T=$(find <output> -name '*test*.py' -not -path '*/.*' -not -path '*/site-packages/*') && [ -n \"$T\" ] && grep -q 'jitx.test' $T && ! grep -qE 'class .*\\(unittest\\.TestCase\\)' $T"
+      "cmd": "cd <output> && T=$(find . -name '*test*.py' -not -path '*/.*' -not -path '*/site-packages/*') && [ -n \"$T\" ] && grep -q 'jitx.test' $T && ! grep -qE 'class .*\\(unittest\\.TestCase\\)' $T"
     },
     {
       "text": "the rail is made bundle to bundle (`reg.vout + mcu.vin + sensor.vin`), not member by member across circuits (`reg.vout.Vp + mcu.vin.Vp`, then `Vn`), which loses the typed boundary and invites a dropped member",
@@ -36,6 +36,10 @@
     },
     {
       "text": "the tests assert bundle membership over `list(net)`, assert the regulator input is NOT on the output rail, and assert inside each child that a boundary member reaches the component pin",
+      "check": "judge"
+    },
+    {
+      "text": "each leaf net's test asserts its exact members (`assertCountEqual` over `list(net)`), so an extra port, such as the regulator input on the output rail, fails a test; `assertIn` alone does not meet this",
       "check": "judge"
     }
   ]

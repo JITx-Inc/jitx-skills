@@ -56,6 +56,10 @@
     {
       "text": "the answer routes the ESD part's physical pins rather than the required port, keeps the required port local (never on self), uses no >>, puts a BridgingPinModel on each ESD channel, offers no end-to-end D+/D- inversion, labels the part fictional and its values illustrative (or as given), and proves the constraint with jitx design issues --satisfied measured lines rather than a clean build",
       "check": "judge"
+    },
+    {
+      "text": "in the verification design, every component a proof route touches has its own `.at(...)`, none placed only through its circuit's `.at()`, and any via in a pad is `PortAttachment`-ed to that pad's pin and in no `Net` with it",
+      "check": "judge"
     }
   ]
 }
