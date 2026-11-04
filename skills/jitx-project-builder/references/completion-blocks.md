@@ -543,7 +543,7 @@ Rules:
 - A `not run` row also requires fallback artifacts: if the JITX UI isn't available, name the build-output files used to substitute for it. Conventional fallbacks:
     - **Schematic / Issues List → `build log`** (cite path; flag any errors/warnings)
     - **Board placement / overlap → `<design-folder>/design-info/stable.design`** (machine-readable; can be inspected for overlap)
-    - **Connectivity / orphan nets → the connectivity tests** (`jitx-circuit-builder`, "Asserting connectivity in tests"); `cache/design-explorer.json` keeps nets per module and lists pin-assigned ports unjoined, so it is no netlist
+    - **Connectivity / orphan nets → the connectivity tests** (`jitx-circuit-builder`, "Asserting connectivity in tests"); `cache/design-explorer.json` keeps nets per module, so it is no netlist
     - **DRC → `build log`** (DRC complaints surface in the build output)
     - **SI → `python -m <ns>.designs.check_si_main`** (measured and unresolved SI groups)
   A `not run: headless` row with no fallback artifact named is rejected.

@@ -19,7 +19,7 @@
       "cmd": "python3 skills/jitx/evals/cases/reference/build-outputs/check_build_outputs.py"
     },
     {
-      "text": "the answer names designs/<module.path.DesignClass>/ and cache/design-explorer.json, and never tells the user to read a netlist.json, which 4.6 does not write",
+      "text": "the answer names designs/<module.path.DesignClass>/ and cache/design-explorer.json, and never tells the user to read a netlist.json, which the build does not write",
       "check": "judge"
     },
     {
