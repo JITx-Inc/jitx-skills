@@ -39,6 +39,21 @@
       "cmd": "python3 skills/jitx-pin-assignment/evals/cases/reference/usb-through-esd-swap/check_usb_esd_swap.py unrouted"
     },
     {
+      "text": "CircuitPlaced: the ESD circuit placed with .at() and its part not: a circuit's .at() sets only its frame, so the part is left to the placer, the host-side routes report Unable to find path for requested route with Missing Connection lines, and nothing measures",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-pin-assignment/evals/cases/reference/usb-through-esd-swap/check_usb_esd_swap.py circuit_placed"
+    },
+    {
+      "text": "ViaInPadAttached: the host side through a via in each ESD in pad, PortAttachment-ed to the channel pin, with one bottom-layer route from a host-side via netted to the host pin: resolves and measures like Straight",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-pin-assignment/evals/cases/reference/usb-through-esd-swap/check_usb_esd_swap.py via_in_pad_attached"
+    },
+    {
+      "text": "ViaInPadBoth: the same in-pad vias also in a Net with their pins: the build is rejected with Encountered <via> both in a net and port attached",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-pin-assignment/evals/cases/reference/usb-through-esd-swap/check_usb_esd_swap.py via_in_pad_both"
+    },
+    {
       "text": "the answer routes the ESD part's physical pins rather than the required port, keeps the required port local (never on self), uses no >>, puts a BridgingPinModel on each ESD channel, offers no end-to-end D+/D- inversion, labels the part fictional and its values illustrative (or as given), and proves the constraint with jitx design issues --satisfied measured lines rather than a clean build",
       "check": "judge"
     }

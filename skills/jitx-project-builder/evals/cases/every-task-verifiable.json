@@ -24,6 +24,11 @@
       "cmd": "grep -q 'Check the data flow, not just the declared edges' skills/jitx-project-builder/references/decomposition-guide.md"
     },
     {
+      "text": "the verification design's placement rule, in the flow and in the si-verification brief the sub-agent gets, gives each component a proof route touches its own `.at(...)`: a module's `.at()` sets only its frame and leaves an unplaced component to the placer, so a proof route to it reports `Unable to find path for requested route`",
+      "check": "deterministic",
+      "cmd": "grep -qF 'gives each component a proof route touches its own' skills/jitx-project-builder/references/project-builder-flow.md && grep -qF 'place every component a proof route touches with its own' skills/jitx-project-builder/references/task-execution.md"
+    },
+    {
       "text": "no task in a produced plan is dispatched as ready while missing a data source or a verification",
       "check": "judge"
     }

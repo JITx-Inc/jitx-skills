@@ -23,15 +23,28 @@ substrate offers only a 100 ohm differential structure (``DRS_100``); USB 2.0
 asks for 90 ohm (``USB.v2.impedance``), which a real board's substrate supplies.
 
 Channel ``k`` of the ESD part is index ``k - 1`` of ``ch_in`` and ``ch_out``.
+
+Two more groups of variants route the straight mapping differently:
+
+- Placement: ``CircuitPlaced`` places the ESD provider circuit with ``.at()``
+  and not the ESD part inside it. A circuit's ``.at()`` sets only its frame, so
+  the part is left to the placer and its routes are not made.
+- A via in the ESD part's pad: each host-side leg drops from the host pad
+  through a via netted to the host pin, runs on the bottom layer, and comes up
+  through a via in the ESD channel's pad. ``ViaInPadAttached`` joins that via
+  to the channel pin with ``PortAttachment`` and resolves. ``ViaInPadBoth``
+  also puts it in a ``Net`` with the pin, which the build rejects.
 """
 
 from __future__ import annotations
+
+from typing import Literal
 
 from jitx.circuit import Circuit, Route
 from jitx.component import Component
 from jitx.feature import Courtyard, Soldermask
 from jitx.landpattern import Landpattern, Pad
-from jitx.net import DiffPair, Net, Port, Topology, provide
+from jitx.net import DiffPair, Net, Port, PortAttachment, Topology, provide
 from jitx.sample import SampleDesign, SampleSubstrate
 from jitx.shapes.composites import rectangle
 from jitx.si import BridgingPinModel, ConstrainDiffPair
@@ -43,6 +56,11 @@ ESD_CHANNEL_LOSS = 0.05  # fixture value: 0.05 dB per ESD channel, in to out.
 TIMING_BUDGET = 1e-9  # fixture value: 1 ns host-to-connector delay budget.
 # jitxlib-standard's USB 2.0 intra-pair skew limit, Toleranced(0, 3.75 ps).
 USB2_SKEW = USB.v2.skew
+
+HOST_X = -12.0
+CONN_X = 12.0
+ESD_IN_X = -1.5  # the ESD part's in pads, in its frame
+VIA_LAYER = 1  # the bottom layer, between the in-pad vias
 
 ChannelPair = tuple[int, int]
 """ESD channel indices (P, N): index of the channel carrying D+, then D-."""
@@ -143,12 +161,18 @@ class ProtectedPair(Port):
 
 
 class EsdProtection(Circuit):
-    """Provider: offers one protected pair on either channel pair, either way round."""
+    """Provider: offers one protected pair on either channel pair, either way round.
+
+    ``place_part=False`` leaves the ESD part unplaced, for the variant that
+    places this circuit instead.
+    """
 
     gnd = Port()
 
-    def __init__(self) -> None:
-        self.esd = FlowThroughEsd4().at(0, 0)
+    def __init__(self, place_part: bool = True) -> None:
+        self.esd = FlowThroughEsd4()
+        if place_part:
+            self.esd.at(0, 0)
         self.gnd_net = self.gnd + self.esd.gnd
 
     @provide.one_of(ProtectedPair)
@@ -171,16 +195,24 @@ class UsbThroughEsd(Circuit):
     ``host_channels`` names the ESD channels the host-side routes land on and
     ``conn_channels`` the channels the connector-side routes leave from, each as
     (D+ channel, D- channel). ``None`` leaves that side unrouted.
+    ``place_circuit`` places the provider circuit rather than its ESD part.
+    ``via_join`` routes the host side through a via in each ESD in pad, joined
+    to the channel pin by ``PortAttachment``, or by that and a ``Net`` both.
     """
 
     def __init__(
         self,
         host_channels: ChannelPair | None,
         conn_channels: ChannelPair | None,
+        place_circuit: bool = False,
+        via_join: Literal["attached", "both"] | None = None,
     ) -> None:
-        self.host = UsbHost().at(-12, 0)
-        self.conn = UsbConnector().at(12, 0)
-        self.prot = EsdProtection()
+        self.host = UsbHost().at(HOST_X, 0)
+        self.conn = UsbConnector().at(CONN_X, 0)
+        if place_circuit:
+            self.prot = EsdProtection(place_part=False).at(0, 0)
+        else:
+            self.prot = EsdProtection()
 
         # The required pair stays local: a require() port cannot be a member field.
         pair = self.prot.require(ProtectedPair)
@@ -193,7 +225,27 @@ class UsbThroughEsd(Circuit):
         # Routes end on the ESD part's physical pins, never on the required port.
         esd = self.prot.esd
         self.routes: list[Route] = []
-        if host_channels is not None:
+        self.vias: list[SampleSubstrate.THVia] = []
+        self.via_joins: list[PortAttachment] = []
+        self.via_nets: list[Net] = []
+        if host_channels is not None and via_join is not None:
+            # Host pads sit at y = 1 (D+) and y = 0 (D-); ESD in pad k at 1.5 - k.
+            for host_pin, host_y, k in zip(
+                (self.host.usb.p, self.host.usb.n),
+                (1.0, 0.0),
+                host_channels,
+                strict=True,
+            ):
+                pin = esd.ch_in[k]
+                host_via = SampleSubstrate.THVia().at(HOST_X, host_y)
+                esd_via = SampleSubstrate.THVia().at(ESD_IN_X, 1.5 - k)
+                self.vias += [host_via, esd_via]
+                self.via_nets.append(Net([host_pin, host_via]))
+                self.via_joins.append(PortAttachment(pin, esd_via))
+                if via_join == "both":
+                    self.via_nets.append(Net([pin, esd_via]))
+                self.routes.append(Route(host_via, esd_via, layer=VIA_LAYER))
+        elif host_channels is not None:
             p, n = host_channels
             self.routes += [
                 Route(self.host.usb.p, esd.ch_in[p], layer=0),
@@ -247,3 +299,30 @@ class Unrouted(SampleDesign):
 
     def __init__(self) -> None:
         self.circuit = UsbThroughEsd(host_channels=None, conn_channels=None)
+
+
+class CircuitPlaced(SampleDesign):
+    """Straight routes, with the ESD circuit placed instead of the ESD part."""
+
+    def __init__(self) -> None:
+        self.circuit = UsbThroughEsd(
+            host_channels=(0, 1), conn_channels=(0, 1), place_circuit=True
+        )
+
+
+class ViaInPadAttached(SampleDesign):
+    """Straight, the host side through a via in each ESD in pad, attached to its pin."""
+
+    def __init__(self) -> None:
+        self.circuit = UsbThroughEsd(
+            host_channels=(0, 1), conn_channels=(0, 1), via_join="attached"
+        )
+
+
+class ViaInPadBoth(SampleDesign):
+    """Straight, the ESD-pad vias both attached and netted: the build rejects it."""
+
+    def __init__(self) -> None:
+        self.circuit = UsbThroughEsd(
+            host_channels=(0, 1), conn_channels=(0, 1), via_join="both"
+        )
