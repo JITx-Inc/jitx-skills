@@ -29,7 +29,12 @@
       "cmd": "python3 skills/jitx-substrate-modeler/scripts/check_labels.py <output>/board.py"
     },
     {
-      "text": "board.py matches the report, checked against the CSV twin: layer names, materials and names, vias and drill direction, fab rules, routing structures and reference planes. BD-1 is backdrilled from the bottom and stops at L4 with the stated backdrill dimensions, SV-1 is one laser via from L1 to L3, TH-1 has its non-functional pads on L2 to L7 only, L1 references exactly L3 at 3x the dielectric between them, every stated stackup row matches in type, thickness, Dk, Df and Rz, inner copper is a 1 oz thickness, the unstated core balances the finished thickness, the stack sums to the stated overall and finished thicknesses at the report's precision, and the capability limits that are not lengths are documented with their units in the rules class docstring, not set as attributes. Inner copper may be any 1 oz reading from 0.034 to 0.036 mm (0.035 mm and 1.38 mil both pass; 0.5 oz or 2 oz does not), the core must equal the stated 2.0320 mm finished thickness less the candidate's own other layers within 0.0001 mm, and the stack must sum to the 2.0574 mm overall and 2.0320 mm finished thicknesses to 4 decimal places",
+      "text": "every via in board.py runs top to bottom: Via layer indexes are absolute and do not flip, so a bottom-side via drilled from the bottom still has its start_layer above its stop_layer",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-substrate-modeler/scripts/via_order.py <output>/board.py"
+    },
+    {
+      "text": "board.py matches the report, checked against the CSV twin: layer names, materials and names, vias with spans top to bottom, fab rules, routing structures and reference planes. BD-1 is backdrilled from the bottom and stops at L4 with the stated backdrill dimensions, SV-1 is one laser via from L1 to L3, TH-1 has its non-functional pads on L2 to L7 only, L1 references exactly L3 at 3x the dielectric between them, every stated stackup row matches in type, thickness, Dk, Df and Rz, inner copper is a 1 oz thickness, the unstated core balances the finished thickness, the stack sums to the stated overall and finished thicknesses at the report's precision, and the capability limits that are not lengths are documented with their units in the rules class docstring, not set as attributes. Inner copper may be any 1 oz reading from 0.034 to 0.036 mm (0.035 mm and 1.38 mil both pass; 0.5 oz or 2 oz does not), the core must equal the stated 2.0320 mm finished thickness less the candidate's own other layers within 0.0001 mm, and the stack must sum to the 2.0574 mm overall and 2.0320 mm finished thicknesses to 4 decimal places",
       "check": "judge"
     },
     {
