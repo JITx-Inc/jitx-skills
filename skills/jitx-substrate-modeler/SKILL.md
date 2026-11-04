@@ -18,7 +18,7 @@ Write one Python file holding the substrate. API shapes, units and pitfalls are 
 
 ## The source document is ground truth
 
-Trace every value to a source row, cell or field. The only derived values are this skill's named defaults, each labeled at its call site and under Provenance; anything else unstated is a question for the user. With no document, ask for a datasheet for Dk, Df and their frequency; label any value used without one at its call site (`# skill default: assumed, no datasheet`) and list it as an open item. Before code, restate the document to the user: layer count and construction, each dielectric's Dk/Df and frequency, foil weights and Rz, vias, impedance targets, fab rules, and what is ambiguous.
+Trace every value to a source row, cell or field. The only derived values are this skill's named defaults, each labeled at its call site and under Provenance; anything else unstated is a question for the user. With no document, ask for a datasheet for Dk, Df and their frequency; label any value used without one at its call site (`# skill default: assumed, no datasheet`) and list it as an open item. Before writing any code, send the user a message of its own restating the document: layer count and construction, each dielectric's Dk/Df and frequency, foil weights and Rz, vias, impedance targets, fab rules, and what is ambiguous, with a question for each ambiguity. The completion summary does not stand in for it.
 
 Traps in any report format:
 
@@ -48,7 +48,7 @@ Worked pattern: `jitxexamples.patterns.fenced_pour_outline`.
 ## Verify
 
 1. Run the base `jitx` skill's [`check.py`](../jitx/scripts/check.py) on the substrate's directory, then [`check_labels.py`](scripts/check_labels.py) and [`via_order.py`](scripts/via_order.py) on the substrate file with the project's interpreter. `via_order.py` exits 1 on a via written bottom to top; fix the via, not the check.
-2. Write a design file whose own `Design` binds your substrate (the jitxexamples package's `jumpstart_kits/js1_stackup_components/hdi_stackup/main.py` is a minimal one), never a `SampleDesign` subclass or `SampleSubstrate`. Run `jitx build`; with no runtime, `jitx build --dry --no-dependency-check` still translates, but passes no build gate.
+2. Write a design file whose own `Design` binds your substrate (the jitxexamples package's `jumpstart_kits/js1_stackup_components/hdi_stackup/main.py` is a minimal one), never a `SampleDesign` subclass or `SampleSubstrate`. Its own numbers (pad sizes, gaps, coordinates) take the same call-site labels as the substrate's. Run `jitx build`; with no runtime, `jitx build --dry --no-dependency-check` still translates, but passes no build gate.
 3. Report-driven: write tests that read the source document from a path given at run time, never a re-typed copy of its numbers, and compare it with the built substrate: layer order and names, thicknesses, Dk/Df, via spans and geometry, every fab rule, per-layer widths and reference planes. Subclass `jitx.test.TestCase` (outside its context most reads of a design fail silently), assert the layer count first, and pass `strict=True` to every `zip`. Test default widths against their formula, not the source.
 4. Fill the block below in the completion summary, each row with its evidence (source row or section to class or attribute).
 
