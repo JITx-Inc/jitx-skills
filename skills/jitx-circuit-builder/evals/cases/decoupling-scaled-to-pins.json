@@ -31,6 +31,10 @@
       "check": "judge"
     },
     {
+      "text": "each `ShortTrace` ends on a port that is one ball. Where the FPGA model joins several balls to one port, the `ShortTrace` ends on one component pad instead of that port, which builds with no warning but names no pad; the runner adds no port to the model just to name a pad, and a shared port it could not avoid is listed as an open item",
+      "check": "judge"
+    },
+    {
       "text": "each capacitor's other pad joins the ground net; the runner did not hunt for a specific ground pin per capacitor, which the rule does not require",
       "check": "judge"
     },
