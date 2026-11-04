@@ -18,7 +18,7 @@
   "expected_output": "A tag on the RF feed net, a fenced copy of CPWG_50's layer-0 values with RoutingStructure.Layer.fence(LcStandard4.ThVia, ViaFencePattern(pitch=1.0, offset=0.6, initial_offset=0.6, num_rows=2), reference_layer=0), applied by a routing_structure rule on the tag (or Constrain(...).structure), the initial_offset derived from the 0.35 pad-edge spacing and the 0.500 via pad, the gap condition o1 - d/2 >= g shown, no net clearance rule wider than the gap, and COMPLETION.md with the measured rows, counts and pour gap.",
   "assertions": [
     {
-      "text": "the feed is realized at CPWG_50's width with the layer-0 pour at its gap on both sides, and the built design has two rows of route fence vias per side at 0.60 and 1.20 mm from the trace edge, filled along the straight run at the 1 mm pitch, with no fence via pad in the gap and no via placed in code",
+      "text": "the feed is realized at CPWG_50's width with the layer-0 pour at its gap on both sides, and the built design has two rows of generated vias per side at 0.60 and 1.20 mm from the trace edge, filled along the straight run at the 1 mm pitch, with no generated via pad in the gap and no via placed in code",
       "check": "deterministic",
       "cmd": "python3 skills/jitx-layout-constraints/evals/checks/check_fence_cpwg_two_rows.py <output>"
     },

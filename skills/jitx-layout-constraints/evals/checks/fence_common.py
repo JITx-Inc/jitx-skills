@@ -4,10 +4,29 @@ A route fence comes from ``RoutingStructure.Layer.fence`` on the structure
 applied to the route (spike S9). A ``fence_via`` design rule fences no route
 (S4), so a design that relies on one has no vias along the feed.
 
+Geometry from S9, measured on jitx 4.6.0:
+
+- row k sits at ``initial_offset + (k - 1) * offset`` from the trace edge to
+  the via centre (w/2 + o1 + (k-1)·o from the centreline);
+- along a straight run of length L at pitch p a row holds L/p sites per side
+  (24 for a 24 mm run at 1.0); with no issue reported, row 1 lost one site at
+  a route end in some settings (S9 ``close``, ``rule_wide``), and how end sites
+  are chosen was not established. So a row with one site fewer than
+  floor(L/p) is accepted, and at least one full row per side is required where
+  the prompt asks for more than one row;
+- the coplanar pour sits at the winning clearance plus 0.01 from the trace.
+
 The vias are read with ``lc_check.generated_vias``, which returns every
 generated via and does not say which rule made one. A row is the vias in a
 narrow band at the row's distance from the trace edge (``ROW_TOL`` either
 side), so a stitch or pour-fence via counts only if it lands in that band.
+A stitch grid cannot fill a band: the feed runs from (-12.81, 2.99) to
+(2.00, 3.51) (lc_radio_board.py), a slope whose sine is 0.52 / 14.82 =
+0.0351, so a grid row parallel to the board's x axis (S3: sites sit on
+multiples of the pitch) stays inside a band of width b for b / 0.0351 mm:
+1.14 mm for fence-cpwg-two-rows' 0.04 band and 2.56 mm for
+vias-along-the-feed's 0.09 band, so 3 and 6 vias at most at the 0.500 fab
+floor pitch, against the floor(14.82 / 1.0) - 1 = 13 a row needs.
 Measured on 2026-11-03 (jitx 4.6.0), splitting the vias by jitx's internal
 records in a scratch script:
 
@@ -37,6 +56,12 @@ from jitx.circuit import Route
 import lc_check as L
 
 ROW_TOL = 0.02
+
+NO_ROUTE_FENCE = (
+    "no generated via on any fence row along the feed: a fence_via design rule fences no "
+    "route (spike S4); a route fence comes from RoutingStructure.Layer.fence on the "
+    "structure applied to the feed (S9)"
+)
 
 
 @dataclass

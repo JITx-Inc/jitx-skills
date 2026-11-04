@@ -12,8 +12,14 @@ fab sheet:
   the coplanar ground out (S9 ``rule_wide``);
 - the layer-0 pour is present on both sides of the feed;
 - generated vias exist (``lc_check.generated_vias``, which does not say
-  which rule made them; fence_common says why the rows below still single
-  out a route fence);
+  which rule made them). A stitch grid cannot stand in for a row: the feed
+  rises 0.52 over 14.82 (lc_radio_board.py), so a grid row parallel to the
+  board's x axis stays inside a 0.04 row band for 0.04 / 0.0351 = 1.14 mm,
+  3 vias at most at the 0.500 fab floor pitch, against the 13 a row needs
+  (fence_common);
+- if every row band is empty, the failure names the likely cause: a
+  fence_via rule fences no route (S4), a route fence comes from
+  RoutingStructure.Layer.fence (S9);
 - two rows per side at 0.35 + 0.500 / 2 = 0.60 mm (prompt's pad-edge spacing,
   via pad from fab row 11) and 0.60 + 0.60 = 1.20 mm from the trace edge to
   the via centre, each with floor(L / 1.0) sites on the straight run, less one
@@ -57,16 +63,18 @@ with L.built(out, "fixture_fence_cpwg_two_rows", "FenceCpwgTwoRowsDesign") as rd
             L.fail(f"layer-0 pour gap to the feed {g}, not CPWG_50's {GAP} (+0.01)")
         FC.pour_both_sides(rd, feed, 0, GAP + 0.05)
         if not feed.vias:
-            L.fail("no generated vias realized (a fence_via rule fences no route, spike S4)")
+            L.fail(FC.NO_ROUTE_FENCE)
         else:
             n = FC.full_count(feed, PITCH)
             print(f"sites per row per side on the straight run: {n}")
+            on_rows = 0
             for side in (1, -1):
                 counts = []
                 for k in (1, 2):
                     target = O1 + (k - 1) * O
                     row = FC.straight_row(feed, side, target - FC.ROW_TOL, target + FC.ROW_TOL)
                     counts.append(len(row))
+                    on_rows += len(row)
                     label = f"side {side} row {k} at {target:.2f}"
                     print(f"{label}: {len(row)} vias")
                     if len(row) < n - 1:
@@ -74,6 +82,8 @@ with L.built(out, "fixture_fence_cpwg_two_rows", "FenceCpwgTwoRowsDesign") as rd
                     FC.check_pitch(row, PITCH, label)
                 if max(counts) < n:
                     L.fail(f"side {side}: no row holds all {n} sites")
+            if on_rows == 0:
+                L.fail(FC.NO_ROUTE_FENCE)
             near = min(v.edge for v in feed.vias)
             if near - PAD / 2 < GAP - 0.01:
                 L.fail(f"a generated via pad edge sits {near - PAD / 2:.3f} from the trace, inside the {GAP} gap")

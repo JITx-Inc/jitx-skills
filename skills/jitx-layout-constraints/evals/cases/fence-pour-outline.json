@@ -23,7 +23,7 @@
       "cmd": "python3 skills/jitx-layout-constraints/evals/checks/check_fence_pour_outline.py <output>"
     },
     {
-      "text": "the ring is a fence_via rule on a tag assigned to the cavity pour, and the runner reads the generated vias with rd.query(Via), not with jitx's computed-via classes",
+      "text": "the ring is a fence_via rule on a tag assigned to the cavity pour, and the runner reads the generated vias with a public Via query (rd.query(Via), or jitx.query.query on the captured root), not with jitx's computed-via classes",
       "check": "judge"
     },
     {

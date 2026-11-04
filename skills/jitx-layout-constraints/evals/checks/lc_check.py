@@ -119,9 +119,12 @@ def runtime_for(out: Path) -> Iterator[None]:
 # A structure's signature is, per layer index, its trace width and clearance
 # (and a differential layer's pair spacing, a neck-down's width and clearance,
 # and the feature type and width of each ``Layer.geometry`` entry, such as a
-# KeepOut that follows the route): the values that set copper. A fence,
-# reference layers and the name are left out, so a fenced copy of a substrate
-# structure has the substrate structure's signature. jitx 4.6.0 has no public
+# KeepOut that follows the route): the values that shape the routed copper
+# and the copper around it. A geometry entry's layers, side and KeepOut pour
+# flag are left out, so two entries that differ only there match; no
+# substrate structure in this suite has geometry, so any entry fails today.
+# A fence, reference layers and the name are left out too, so a fenced copy
+# of a substrate structure has the substrate structure's signature. jitx 4.6.0 has no public
 # accessor for a layer's geometry; ``visit`` reaches the private ``_AddGeom``
 # entries, as the translator does, and an upgrade that renames the class
 # stops the script with an import error ("could not run"), not a pass.
