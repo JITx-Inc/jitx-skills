@@ -19,6 +19,7 @@ Bundle 1.8.1 targets JITX 4.6. This table is the only place the skills name supp
 | `jitxlib-parts` | 2.0.0 | `"jitxlib-parts>=2,<3"` (Step 1) |
 | `jitxlib-jlcpcb`, JLCPCB boards only | 4.0.0 | `"jitxlib-jlcpcb>=4,<5"` (Step 2) |
 | `jitxexamples` | 2.0.0 | `--no-deps "jitxexamples>=2.0,<2.1"` (Step 1) |
+| `jitxlib-mechanical`, mechanical CAD only | 0.2.0 | `pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple "jitxlib-mechanical==0.2.0"` |
 
 - Every name the skills tell you to import resolves on these package releases, and every docs.jitx.com URL they give returned a page when checked for this bundle.
 - Observed results in the skills (measured values, messages, what a build realized or rejected) come from pre-release builds or earlier releases and were not re-run on these releases, so your install can behave differently.
@@ -119,7 +120,7 @@ jitx runtime status | grep -q reachable || jitx runtime start --background
 - **Rebuild prompts.** Some rebuilds ask `[Y/n]` before deleting stale instances; headless, the build ends `EOF when reading a line`. The answer is the user's: end your build, tell them what it printed, and rebuild once they answer in the JITX UI or their own terminal. Pipe `yes |` only when the user says to; PowerShell has no verified equivalent.
 - **Stalled build.** Run long builds with `PYTHONUNBUFFERED=1`. If a build shows no output and little CPU for a minute, check `jitx runtime status` in every other open JITX project, `pgrep -fl interactive-client` for accumulated clients, and what `jitx runtime cleanup` reports. Ask before stopping anything.
 - **`status: ok` is not routed copper.** Realization is silent: verify geometry from Python (Introspection, `jitx-physical-layout`).
-- **Exports.** The `legacy-*` plugins are fab and CAD handoffs, not verification. Other packages (such as `jitxlib-ansys`) add plugins.
+- **Exports.** Exported files are fab and CAD handoffs, not verification. Other packages (such as `jitxlib-ansys`) add plugins.
 
 ### Build safety: don't parallelize same-design work
 
