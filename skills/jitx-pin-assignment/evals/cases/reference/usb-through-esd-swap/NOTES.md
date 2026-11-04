@@ -145,10 +145,5 @@ Three more variants; the first five report as above.
   ESD part is left to the placer and the routes to it are not made.
 - The ESD-pad via joined only by `Net([ch_in[k], via])` (no attachment)
   measures in this fixture, with and without the connector-side routes and on
-  the swapped channels, so the check has no variant for it. On a larger
-  pin-assigned design (a memory byte lane with bit and byte swaps) the same
-  join can drop the routes that resolve the assignment (`Code route dropped:
-  its ends are on different nets`, with `Invalid Overlap` between each pad and
-  its via) where the attached form realizes them. The skill states the
-  attached form and the failure the netted form can give, not that the netted
-  form always fails.
+  the swapped channels, so the check has no variant for it. The skill states
+  only the attached form, which `ViaInPadAttached` checks.

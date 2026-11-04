@@ -191,7 +191,4 @@ Four designs, two mutations and their fixes, each its own check variant.
   the reference reports neither.
 - The fixture reports a structure too wide for the gap as `Unrealizable Route:
   Insufficient space`, at gaps from 0.05 to 0.2 mm against clearances of 0.2
-  and 0.6 mm. A board can report the same cause as `Missing Connection on
-  Path: ...` and `Unable to find path for requested route` with no
-  `Unrealizable Route` line, and the same neck fix clears it. No fixture here
-  reproduces that second form, so the check asserts only the first.
+  and 0.6 mm, and the check asserts that form.
