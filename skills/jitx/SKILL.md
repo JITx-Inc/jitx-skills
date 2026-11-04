@@ -112,7 +112,7 @@ jitx runtime status | grep -q reachable || jitx runtime start --background
 
 ## Running designs
 
-`jitx build` prints `status: ok` or a traceback and `status: error`. Results land in `designs/<module.path.DesignClass>/`: `cache/netlist.json`, `cache/design-explorer.json` (the hierarchy), and `design-info/` (interactive placements). Never delete `designs/<design>` casually. A cryptic `No field with key '$_...'` after a version change means `design-info/` is unreadable by the new pairing: restore it from git and restart the runtime.
+`jitx build` prints `status: ok` or a traceback and `status: error`. Results land in `designs/<module.path.DesignClass>/`: `cache/design-explorer.json` (the module tree: each module's own `nets`, its `component-instances` with their `mpn`, and its `module-instances`), and `design-info/` (interactive placements). Never delete `designs/<design>` casually. A cryptic `No field with key '$_...'` after a version change means `design-info/` is unreadable by the new pairing: restore it from git and restart the runtime.
 
 - **`--dry` is not a build.** With no runtime, `jitx build` exits 1 and offers `--dry`, which then reports `status: ok`. It misses failures such as `Public name already in use`, and never satisfies a step that asks for a build.
 - **Dependency check.** Do not run the `jitx project dependencies upgrade` a build suggests: it can leave the supported versions.

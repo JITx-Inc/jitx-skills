@@ -1,0 +1,30 @@
+{
+  "name": "build-outputs",
+  "prompt": "We build our JITX design headless in CI. Where does a build put its results, and how do I confirm from them that U4.EN moved off the old 3V3 rail onto the new EN net after this change?",
+  "inputs": {
+    "jitx": "the jitx release and runtime the base skill's version table names, jitx.sample.SampleSubstrate",
+    "reference": "evals/cases/reference/build-outputs/build_outputs_design.py",
+    "environment": "Commands run from the repository root with python3 resolving to the interpreter of a venv that has jitx installed and its jitx entry point beside it; the check stages its own project under the system temp directory and starts and stops that project's runtime."
+  },
+  "expected_output": "Results land in designs/<module.path.DesignClass>/: cache/design-explorer.json (the module tree, each module with its own nets, its component-instances with their mpn, and its module-instances) and design-info/. There is no netlist.json. The connection is proved by a jitx.test connectivity test asserting U4.EN on the EN net and off the 3V3 rail over list(net), or else by walking every module's nets in design-explorer.json, never by reading one top-level list.",
+  "assertions": [
+    {
+      "text": "the reference module and its check type-check against the installed jitx package",
+      "check": "deterministic",
+      "cmd": "python3 -m pyright --pythonpath \"$(command -v python3)\" skills/jitx/evals/cases/reference/build-outputs/*.py"
+    },
+    {
+      "text": "on the live runtime, jitx build writes cache/design-explorer.json and no cache/netlist.json; the file keeps each module's own nets (the child's net under module-instances, not repeated at the top) and every component instance's mpn",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx/evals/cases/reference/build-outputs/check_build_outputs.py"
+    },
+    {
+      "text": "the answer names designs/<module.path.DesignClass>/ and cache/design-explorer.json, and never tells the user to read a netlist.json, which 4.6 does not write",
+      "check": "judge"
+    },
+    {
+      "text": "the answer proves the U4.EN move with a connectivity test (jitx.test.TestCase, membership over list(net), the pin on the new net and off the old rail), or, if it reads design-explorer.json, walks every module's nets rather than treating the file as one flat netlist",
+      "check": "judge"
+    }
+  ]
+}
