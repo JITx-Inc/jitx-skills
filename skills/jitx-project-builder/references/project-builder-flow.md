@@ -337,8 +337,7 @@ rules on each class of nets' tag, each value with its fab-sheet, prompt or
 cited source. Where no rule matches, copper comes out at the fab floor, so the
 defaults are how a board gets widths and clearances above it. The rule shapes,
 the priority ladder and the floors are owned by the `jitx-layout-constraints`
-skill ([Board defaults](../../jitx-layout-constraints/SKILL.md#board-defaults)
-and [Classes of nets](../../jitx-layout-constraints/SKILL.md#classes-of-nets)).
+skill ([Defaults and classes](../../jitx-layout-constraints/SKILL.md#defaults-and-classes)).
 Invoke it for Phase 3 assembly. The Phase 3 gate checks that every value has
 its source, or that the acceptance block records "no board defaults" or "no
 classes of nets" with a reason.
