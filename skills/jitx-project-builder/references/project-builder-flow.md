@@ -113,6 +113,8 @@ Please confirm data sources or provide alternatives (datasheets, footprints, spe
 
 Passives resolve from the project's parts chain, and its first member reads `parts/approved-parts.csv` (base `jitx` skill, Step 2). Ask the user for their approved-parts list at the audit: a CSV whose header names `category`, `mpn`, `manufacturer`, then one column per attribute a query filters on (`capacitance`, `case`, `rated_voltage_dc`, ...), or an internal parts database a `jitxlib.parts.Provider` can serve. Save a CSV to `parts/approved-parts.csv`; a database goes into the chain in place of the `csv:` entry. Format and the provider route: https://docs.jitx.com/en/latest/essentials/design/parts.html
 
+Once the user chose JLCPCB, the chain and this list follow `jitx-jlcpcb`.
+
 With no list from the user, copy the example CSV that ships in `jitxexamples` as a stand-in. Install it into the project venv once with `--no-deps`, so its own pins cannot replace the project's `jitx` or `jitxlib-parts`; it is not added to the project's dependencies:
 
 ```bash
@@ -144,7 +146,7 @@ When the user's list replaces the stand-in, tell the user every passive will be 
 - [ ] ARCHITECTURE.md exists with power tree and interface map
 - [ ] No duplicated facts remain; task statuses reconcile with unresolved questions and task inputs and dependencies, including transitive blockers — either discrepancy blocks advancement per `completion-blocks.md`
 - [ ] Data source audit completed and user approved
-- [ ] `parts/approved-parts.csv` holds the user's approved-parts list, or the example stand-in recorded as such in PLAN.md (or the chain names the user's parts database)
+- [ ] `parts/approved-parts.csv` holds the user's approved-parts list, or the example stand-in recorded as such in PLAN.md (or the chain names the user's parts database); once the user chose JLCPCB, the list and chain follow `jitx-jlcpcb`
 - [ ] All datasheets and reference materials identified and accessible (or user committed to providing them)
 - [ ] Dependencies are acyclic
 - [ ] No ambiguous requirements remain (ask user if unclear)
@@ -563,7 +565,7 @@ Do not accept "noted for future refactoring" — if it's broken, fix it now.
 
 ### Phase 4 Process
 
-1. Run the parts gate first (base `jitx` skill, Step 2; https://docs.jitx.com/en/latest/essentials/design/parts.html): `jitx build <design>` and `jitx design export parts-check <design> --fail all` must pass, and no MPN the final build resolved (read as in Phase 0 "Approved passives") may start with `IDEAL-` (`ideal` stays in the chain, and the parts check passes an ideal part). When PLAN.md `Data Sources` records the example stand-in, the gate also lists each of those MPNs with the user's approval quoted, or the user's list has replaced the stand-in; otherwise it is a blocking item. Approved parts can change footprints, so every later check runs on the approved parts. An `IDEAL-` MPN or a `no part found` goes to the user, not to a fix sub-agent: ask for the approved part, and change a value or rating only with the user's sign-off and the affected circuit recomputed.
+1. Run the parts gate first (base `jitx` skill, Step 2; https://docs.jitx.com/en/latest/essentials/design/parts.html): `jitx build <design>` and `jitx design export parts-check <design> --fail all` must pass, and no MPN the final build resolved (read as in Phase 0 "Approved passives") may start with `IDEAL-` (`ideal` stays in the chain unless the user chose JLCPCB, whose chain rule is in `jitx-jlcpcb`, and the parts check passes an ideal part). When PLAN.md `Data Sources` records the example stand-in, the gate also lists each of those MPNs with the user's approval quoted, or the user's list has replaced the stand-in; otherwise it is a blocking item. Approved parts can change footprints, so every later check runs on the approved parts. An `IDEAL-` MPN or a `no part found` goes to the user, not to a fix sub-agent: ask for the approved part, and change a value or rating only with the user's sign-off and the affected circuit recomputed.
 2. Run the full verification command: `python scripts/check.py <ns>/ --build <ns>.main.Design`
 3. Check output for:
    - Every summary line reports `PASS`: proceed to verification

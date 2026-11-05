@@ -274,7 +274,7 @@ The criteria mirror the exit-gate bullet lists in `references/project-builder-fl
 
 | Field | Result |
 |-------|--------|
-| Environment probe | <all of `jitx`, `jitxlib`, `jitxlib.parts`, `jitxlib.symbols.box` import; target substrate package (e.g. `jitxlib.jlcpcb`) imports; `jitx --version` and `jitx runtime introspect` report the same major.minor; result> |
+| Environment probe | <all of `jitx`, `jitxlib`, `jitxlib.parts`, `jitxlib.symbols.box` import; the chosen fab's substrate package, if any, imports (none before the fab is chosen); `jitx --version` and `jitx runtime introspect` report the same major.minor; result> |
 | Requirements lock complete | <result; assumptions; with no fab named, the unstated ones of fab house, assembly tier and parts channel open in one question with the gated tasks blocked, never assumed (`decomposition-guide.md` Step 0)> |
 | PLAN.md exists | <path> |
 | ARCHITECTURE.md exists | <path; sections> |

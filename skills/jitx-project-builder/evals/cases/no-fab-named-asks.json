@@ -16,7 +16,7 @@
     {
       "text": "ARCHITECTURE.md does not record JLCPCB as the fab house",
       "check": "deterministic",
-      "cmd": "! grep -Eiq 'Fab house:\\** *\\**JLC' <output>/ARCHITECTURE.md"
+      "cmd": "test -f <output>/ARCHITECTURE.md && ! grep -Eiq 'Fab house:\\** *\\**JLC' <output>/ARCHITECTURE.md"
     },
     {
       "text": "the PLAN.md fab house row reads open with its Open Questions id",

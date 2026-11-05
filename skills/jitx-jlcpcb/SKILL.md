@@ -68,8 +68,9 @@ Before writing code for a named C-number, save its channel evidence (stock, life
 Generator first, as `jitx-component-modeler` orders it, then the manufacturer's KiCad footprint. `LCSCLandpattern` builds pads from third-party catalogue data. Use it only:
 
 - with the user's explicit approval for this project, recorded under the component's `Notes` for a component class you write, or in its data source row for a footprint a parts provider attached;
-- in a component class you write, with `ports={...}` from the manufacturer's pinout, not left to pad order;
 - after checking it pad by pad against the manufacturer's drawing.
+
+In a component class you write, give `ports={...}` from the manufacturer's pinout, not pad order.
 
 With no readable manufacturer drawing or pinout, the part is blocked until the user supplies one; catalogue data never checks itself. For a polarized part, check the anode and cathode pads against the drawing: the in-order mapping assumes the catalogue draws the anode as pad 1. Read every warning the build logs for the footprint: dropped vias, skipped pads, and pads left unmapped.
 

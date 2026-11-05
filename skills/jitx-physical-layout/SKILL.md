@@ -378,7 +378,7 @@ mechanisms, kept distinct:
 
 ```python
 from jitx.feature import Soldermask, Paste
-# JLCPCB convention: mask = copper expanded by solder_mask_registration (~0.05 mm);
+# mask = copper expanded by the substrate's solder_mask_registration;
 # paste = copper exactly. See pad_features.py helpers in references for Circle-exact expansion.
 mask  = Soldermask(expanded_copper_shape, side=Side.Top)
 paste = Paste(copper_shape)

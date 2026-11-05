@@ -161,7 +161,7 @@ class Find(TestCase):
 ```
 
 - **`visit`** yields each structural match with its `Trace` (`path`, `transform`). `extract` is `visit` without the trace. `decompose` stops at direct children, traversing lists and dicts.
-- **`jitx.query.query`** takes `visit`'s filters (`through` is keyword-only) and converts objects through registered transformers, such as `Pad -> Copper`, `Via -> Copper`, `Via -> Cutout` and `Route -> Copper`; a `Pour` is already `Copper`. Results are in the source's local frame: compose `trace.transform` yourself.
+- **`jitx.query.query`** takes keyword-only `through`, `opaque`, `refs` and `filter` and converts objects through registered transformers, such as `Pad -> Copper`, `Via -> Copper`, `Via -> Cutout` and `Route -> Copper`; a `Pour` is already `Copper`. Results are in the source's local frame: compose `trace.transform`.
 - **What the runtime knows:** `with jitx.runtime as r: rd = r.submit(MyDesign)` gives `rd.root`, `rd.query(...)`, `rd.nets.find(element)` (the `Net` the runtime assigned, or `None`) and `rd.layers`. Realized routes and pours need `r.capture(...)`. Capture semantics, verification loop: `jitx-physical-layout` `references/geometry-verification.md`.
 
 ## Sub-skills
