@@ -235,9 +235,9 @@ class Design(...):
         # Written here so the next reader sees the whole ladder.
         self.rules = [
             # Default trace width for any trace not otherwise tagged.
-            UnaryDesignConstraint(IsTrace).trace_width(0.125),  # skill default: JLC04161H-class, above the 0.09 floor
+            UnaryDesignConstraint(IsTrace).trace_width(0.125),  # skill default
             # Default copper-to-copper clearance: traces, pours, pads.
-            BinaryDesignConstraint(IsCopper, IsCopper).clearance(0.125),  # skill default: JLC04161H-class
+            BinaryDesignConstraint(IsCopper, IsCopper).clearance(0.125),  # skill default
             # Thermal relief on pads: gap, spoke width, spoke count.
             UnaryDesignConstraint(IsPad).thermal_relief(0.125, 0.2, 4),  # skill default: gap = default clearance, 0.2 mm spokes, 4 spokes
             # Power and ground get wider traces; priority=1 beats IsTrace.
@@ -245,9 +245,10 @@ class Design(...):
         ]
 ```
 
-The 0.125 mm width and clearance and the 0.4 mm power width are typical
-JLC04161H-class defaults (JLCPCB's 1 oz floor is 0.09 mm). Calibrate to the
-actual substrate's floors and label the source of each number on its line.
+The 0.125 mm width and clearance and the 0.4 mm power width are skill
+defaults: check each against the substrate's `FabricationConstraints` floors,
+or with no substrate yet, ask the user for the fab's minimums. Label each
+number's source on its line.
 `IsTrace`, `IsCopper`, and `IsPad` match every trace, copper, and pad, so
 these four rules cover the board without tagging every net. Non-default
 classes get higher-priority rules in the same list (next section).
