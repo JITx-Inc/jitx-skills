@@ -7,16 +7,16 @@
 {"intent": "get this board assembled at JLC", "expected_skill": "jitx-jlcpcb"}
 {"intent": "use C2874116 for the humidity sensor", "expected_skill": "jitx-jlcpcb"}
 {"intent": "only basic parts please, I don't want the setup fees for extended parts", "expected_skill": "jitx-jlcpcb"}
-{"intent": "make the gerbers JLCPCB wants", "expected_skill": "jitx-jlcpcb"}
-{"intent": "which JLCPCB stackup fits a 4-layer board with a 90 ohm USB pair?", "expected_skill": "jitx-jlcpcb"}
-{"intent": "generate the BOM and CPL files for JLCPCB assembly", "expected_skill": "jitx-jlcpcb"}
+{"intent": "make the gerbers JLCPCB wants", "expected_skill": "jitx-jlcpcb", "ambiguous_with": ["jitx"]}
+{"intent": "which JLCPCB stackup fits a 4-layer board with a 90 ohm USB pair?", "expected_skill": "jitx-jlcpcb", "ambiguous_with": ["jitx-substrate-modeler"]}
+{"intent": "generate the BOM and CPL files for JLCPCB assembly", "expected_skill": "jitx-jlcpcb", "ambiguous_with": ["jitx"]}
 {"intent": "use the LCSC footprint for this connector, no generator covers it", "expected_skill": "jitx-jlcpcb"}
 {"intent": "U3 shows up rotated in JLCPCB's placement preview, fix the orientation", "expected_skill": "jitx-jlcpcb"}
 {"intent": "what is lcsc.lock.json and should I commit it?", "expected_skill": "jitx-jlcpcb"}
 {"intent": "resolve the passives through LCSC's API instead of JLCPCB's", "expected_skill": "jitx-jlcpcb"}
 {"intent": "I'm on the free tier and want my demo board made at JLCPCB", "expected_skill": "jitx-jlcpcb"}
 {"intent": "for this example board let's go with JLCPCB as the fab", "expected_skill": "jitx-jlcpcb"}
-{"intent": "put the JLCPCB catalogue behind our approved parts list", "expected_skill": "jitx-jlcpcb"}
+{"intent": "put the JLCPCB catalogue behind our approved parts list", "expected_skill": "jitx-jlcpcb", "ambiguous_with": ["jitx"]}
 // Negatives: fab, parts or footprint vocabulary with no JLCPCB channel named.
 {"intent": "design me a 4-layer sensor board from these requirements", "expected_skill": "jitx-project-builder"}
 {"intent": "model the substrate from our fab's 8-layer stackup PDF, Isola 370HR", "expected_skill": "jitx-substrate-modeler"}
