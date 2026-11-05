@@ -62,9 +62,13 @@ def required_sites(
     were dropped on every layer although the inner pours accepted them, and
     every other site that met the inset rule on all four layers was kept.
     A site within ``min_centre`` of a via the design places in code is not
-    required either: on the stitch-pitch-too-small solution (pitch 0.5) the
-    ten sites 0.5 or closer to the two feed anchors were dropped, and the fab
-    sheet forbids drills closer than row 12 + row 15 = 0.500 centre to centre.
+    required either: on the stitch-pitch-too-small solution (pitch 0.5, 0.5
+    via pads) the ten sites 0.5 or closer to the two feed anchors were
+    dropped. Where the drop stops between that and the next lattice site was
+    not measured, so callers pass the via pad plus the copper space, the same
+    exclusion the skill's Stitching section gives. The pad condition likewise
+    leaves out sites within ``pad_space`` of a pad, since only sites over pads
+    were measured.
     """
     if not pours or any(p.is_empty for p in pours):
         return []

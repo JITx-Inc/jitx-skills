@@ -63,7 +63,7 @@ with L.built(out, "fixture_stitch_pitch_too_small", "StitchPitchTooSmallDesign")
             L.fail(f"pitch {pitch} is under the fab drill-to-drill floor {MIN_PITCH:.3f} (rows 12, 15)")
         if abs(inset - PROMPT_INSET) > 1e-6:
             L.fail(f"inset {inset}, the prompt fixes {PROMPT_INSET}")
-        need = SC.required_sites(geoms, pads, pitch, PROMPT_INSET, pad_r, PAD_SPACE, placed, MIN_PITCH)
+        need = SC.required_sites(geoms, pads, pitch, PROMPT_INSET, pad_r, PAD_SPACE, placed, 2 * pad_r + PAD_SPACE)
         missing = [s for s in need if (round(s[0], 3), round(s[1], 3)) not in got]
         print(f"derived sites {len(need)}, realized on them {len(need) - len(missing)}")
         if not need:
