@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Any
 
 import shapely
+from shapely.geometry import LineString
 from shapely.geometry.base import BaseGeometry
 
 from jitx.circuit import Route
@@ -386,3 +387,24 @@ def issue_kinds(text: str, *kinds: str) -> list[str]:
         if any(k.lower() in ln.lower() for k in kinds):
             out.append(" ".join(x.strip() for x in lines[i : i + 2]))
     return out
+
+
+def arcs(trace: Any) -> list[Any]:
+    """The arcs of one realized trace, in order."""
+    return [e for s in trace.shapes for e in getattr(getattr(s, "geometry", s), "elements", []) if hasattr(e, "radius")]
+
+
+def centreline(trace: Any, step_deg: float = 5.0) -> LineString:
+    """A realized trace's centre line, arcs sampled every ``step_deg``."""
+    pts: list[tuple[float, float]] = []
+    for s in trace.shapes:
+        for el in getattr(getattr(s, "geometry", s), "elements", []):
+            if hasattr(el, "radius"):
+                cx, cy = el.center
+                n = max(2, math.ceil(abs(el.arc) / step_deg))
+                for i in range(n + 1):
+                    t = math.radians(el.start + el.arc * i / n)
+                    pts.append((cx + el.radius * math.cos(t), cy + el.radius * math.sin(t)))
+            else:
+                pts.append((float(el[0]), float(el[1])))
+    return LineString(pts)
