@@ -70,7 +70,7 @@
       "check": "judge"
     },
     {
-      "text": "each C-number the runner wrote in an LCSCPart has channel evidence (stock, lifecycle, datasheet URL, pinout) saved under datasheets/sourcing/ and cited in that part's PLAN.md data-source row, or in COMPLETION.md when there is no PLAN.md",
+      "text": "each C-number the runner wrote in an LCSCPart has channel evidence (stock, lifecycle or `none stated`, datasheet URL, pinout) saved under datasheets/sourcing/ and cited in that part's PLAN.md data-source row, or in COMPLETION.md when there is no PLAN.md",
       "check": "judge"
     },
     {
