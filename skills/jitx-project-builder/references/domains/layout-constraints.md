@@ -9,7 +9,7 @@ Run after the design-rule set is written and the design builds. Use with the
 - [ ] Every rule is a structural attribute reachable from the Design (no module-level rules, no dropped locals)
 - [ ] Board-wide rules are on the Design; rules about one circuit's objects (escape routes, puddles, fence pours) are attributes of that circuit
 - [ ] Tag classes are declared at module scope; builtin tags are used only as conditions
-- [ ] No other rule is looser than a `FabricationConstraints` floor (the floor would override it silently); a routing structure whose width or pair gap is below a floor (a structure overrides the floors) is listed as an open item for the user
+- [ ] No rule other than a routing structure is looser than a `FabricationConstraints` floor (the floor would override it silently); a routing structure whose width or pair gap is below a floor (a structure overrides the floors) is listed as an open item for the user
 
 ### Defaults and classes
 - [ ] The board defaults and the classes of nets the design needs are on the Design, or the acceptance block records "no board defaults" or "no classes of nets" with a reason

@@ -203,8 +203,11 @@ For any authored layout, the minimum battery (checks 1 to 5 are 1 to 3 lines eac
    trace with no pitch rule, the routing structure's clearance (not measured for
    pairs); set `min_pitch` to at least that copper plus
    `min_copper_copper_space`. Measure pad-to-edge distance against
-   `rd.root.board.shape`. `scripts/check_realization.py` checks edge distance
-   for pours only, not pads or traces.
+   `rd.root.board.shape`. Report a structure the substrate lists as an open
+   item below the floors, or edge pads the user's fabricator allows, as an open
+   item rather than a failure; any other miss fails.
+   `scripts/check_realization.py` checks edge distance for pours only, not pads
+   or traces.
 
 Structure them as a plain script (`python -m myproj.checks`) or pytest module in
 the design project; print `[PASS]/[FAIL]` per check and exit nonzero on failure.
