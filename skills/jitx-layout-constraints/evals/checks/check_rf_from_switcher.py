@@ -5,13 +5,16 @@ Usage: check_rf_from_switcher.py <output-dir>
 Builds <output>/fixture_rf_from_switcher.py, captures it, and checks:
 
 - a two-condition clearance rule of at least the prompt's 2.5 exists with
-  neither condition AnyObject (TrueExpr), so it relates the feed to the
-  switcher rather than the feed to everything;
+  one condition naming a tag that sits on the feed (the RF_ANT net, the feed
+  route, the U.FL part or the series inductor) and the other a tag that sits
+  on the switch node (its net, its pour or the regulator circuit), so it
+  relates the feed to the switcher rather than either one to everything;
 - the feed is still realized;
 - the switch-node pour's computed copper sits at least 2.5 from the feed
-  trace (measured on jitx 4.6, pour pullback sits at the rule's value plus
-  0.01). There is no upper bound: a pour held farther back, for instance by
-  also keeping 2.5 from the feed's pads, still meets the prompt;
+  trace (the reference solution measured 2.5028). Only the trace is
+  measured, not the feed's pads. There is no upper bound: a pour held
+  farther back, for instance by also keeping 2.5 from the inductor's pads,
+  still meets the prompt;
 - the feed's layer-0 GND pour stays at the board's default gap, fab row 4's
   0.100 plus the runtime's 0.01, at most 0.14: a clearance from the feed to
   AnyObject would push its own ground back.
@@ -26,28 +29,80 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from jitx.constraints import BinaryDesignConstraint, TrueExpr  # noqa: E402
+from typing import Any  # noqa: E402
+
+from jitx.constraints import (  # noqa: E402
+    AndExpr,
+    AtomExpr,
+    BinaryDesignConstraint,
+    BoolExpr,
+    BuiltinTag,
+    OrExpr,
+    _ApplyTag,
+)
+from jitx.inspect import extract  # noqa: E402
 
 import lc_check as L  # noqa: E402
 
 KEEP = 2.5
 GND_GAP_MAX = 0.100 + 0.01 + 0.03
 
+
+def named_tags(expr: BoolExpr) -> set[type]:
+    """User tag types an expression names outside a negation."""
+    if isinstance(expr, AtomExpr):
+        atom = expr.atom
+        return set() if isinstance(atom, BuiltinTag) else {type(atom)}
+    if isinstance(expr, (AndExpr, OrExpr)):
+        return named_tags(expr.left) | named_tags(expr.right)
+    return set()
+
+
+def tags_on(root: Any, objs: list[Any]) -> set[type]:
+    """User tag types assigned anywhere under root to one of objs."""
+    targets = [o for o in objs if o is not None]
+    found: set[type] = set()
+    for rec in extract(root, _ApplyTag):
+        if any(rec.target is o for o in targets):
+            found |= {type(x) for x in rec.tags.tags if not isinstance(x, BuiltinTag)}
+    return found
+
+
 out = L.output_dir()
 with L.built(out, "fixture_rf_from_switcher", "RfFromSwitcherDesign") as rd:
     c = rd.root.circuit
+    feed_tags = tags_on(
+        rd.root,
+        [
+            c.ANT,
+            c.feed,
+            getattr(c, "feed_escape", None),
+            c.ufl,
+            c.ufl.component,
+            c.ufl.L,
+        ],
+    )
+    sw_tags = tags_on(rd.root, [c.reg.SW_NODE, c.reg.sw_pour, c.reg])
+    print(f"tags on the feed: {sorted(t.__name__ for t in feed_tags)}")
+    print(f"tags on the switch node: {sorted(t.__name__ for t in sw_tags)}")
+
+    def relates(r: BinaryDesignConstraint) -> bool:
+        a, b = named_tags(r.first), named_tags(r.second)
+        return bool((a & feed_tags and b & sw_tags) or (b & feed_tags and a & sw_tags))
+
     pair_rules = [
         r
         for r in L.rules(rd.root)
         if isinstance(r, BinaryDesignConstraint)
         and r.clearance_constraint is not None
         and r.clearance_constraint.clearance >= KEEP - 1e-9
-        and not isinstance(r.first, TrueExpr)
-        and not isinstance(r.second, TrueExpr)
+        and relates(r)
     ]
-    print(f"two-condition clearance rules of at least {KEEP}: {len(pair_rules)}")
+    print(f"feed-to-switcher clearance rules of at least {KEEP}: {len(pair_rules)}")
     if not pair_rules:
-        L.fail(f"no two-condition clearance of at least {KEEP} between named classes")
+        L.fail(
+            f"no clearance of at least {KEEP} between a feed tag and a switch-node tag"
+        )
     widths = L.trace_widths(c.feed)
     print(f"feed widths: {widths}")
     if not widths:
