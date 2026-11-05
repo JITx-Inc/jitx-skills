@@ -107,10 +107,10 @@ A class of nets is a tag assigned to nets: the power nets are the nets carrying 
 | High voltage, isolated | `design_constraint(HvTag(), AnyObject, priority=p).clearance(c)` | the standard the prompt names, cited |
 
 - Power is routed as traces under its tag's width; a pour on a rail needs its reason on the line that creates it. A power pad that changes layers needs vias sized and counted for its current from the prompt or the fab sheet; set `via_in_pad = True` on the via class only where the fab sheet allows via-in-pad.
-- Keep board-wide clearances (copper default, trace-to-pour) at or below the smallest coplanar gap on the board; each structure's clearance is its own line's gap. With no rule on the line's own tags, any clearance rule matching the line that is wider than the gap widens it (measured on jitx 4.6, priorities 0 to 3).
-- A net tag reaches the net's pours, so the tag pair sets the gap. At priority 2 the pair rule holds the gap against a wider rule lower on the ladder (a board rule at 0, an `AnyObject` keep-away at the default priority) and loses to a wider one above it (measured on jitx 4.6).
+- Keep board-wide clearances (copper default, trace-to-pour) at or below the smallest coplanar gap on the board; each structure's clearance is its own line's gap. The gap is the wider of the structure's clearance and the clearance rule that wins between the line and its ground, by priority, then specificity, plus 0.01; a winning rule below the structure's clearance does not narrow it (measured on jitx 4.6).
+- A net tag reaches the net's pours, so the tag pair holds the gap. At priority 2 the pair rule beats a wider rule lower on the ladder (a board rule at 0, an `AnyObject` keep-away at the default priority) and loses to a wider one above it (measured on jitx 4.6).
 - On a net with more than one coplanar gap, such as a necked escape, set the pair rule to the net's smallest gap. Each structure's clearance then sets its own section's gap, since the gap is the wider of the structure's clearance and the winning rule (measured on jitx 4.6).
-- A two-tag clearance keeps one class from another without moving ground: `(RFLineTag(), AnyObject)` also pushes the coplanar ground away, unless the line's pair rule to ground outranks it. Worked pattern: `jitxexamples.patterns.layout_sensitive_net_clearance`.
+- A two-tag clearance keeps one class from another without moving ground: `(RFLineTag(), AnyObject)` at a protection rung (5 or above) outranks the pair rule and pushes the coplanar ground out. Worked pattern: `jitxexamples.patterns.layout_sensitive_net_clearance`.
 
 ## Pours and relief
 
@@ -164,7 +164,7 @@ Explanation: [Fencing](https://docs.jitx.com/en/latest/essentials/physical_desig
 - A `fence_via` rule fences no route and raises no issue. Keyed on a net's tag, it fences that net's pours, the same vias as the tag on the pour. Route fences come only from `Layer.fence`.
 - `offset` is the spacing between rows and the default `initial_offset`. `Layer.fence` gives the vias the net of the structure's reference plane on that layer.
 - Row k of a route fence sits `w/2 + initial_offset + (k-1)·offset` from the centreline. Keep the first row out of the gap, `initial_offset - pad/2 >= clearance`; nothing checks it.
-- Row k's pad lands in the coplanar pour when `initial_offset + (k-1)·offset + pad/2 > C + 0.01`, where C is the larger of the structure's clearance and the winning clearance rule for the line against its ground: with no rule on the line's own tags, the largest matching rule, whatever its tags; a pair rule at priority 2 beats a wider rule lower on the ladder ([Classes of nets](#classes-of-nets)).
+- Row k's pad lands in the coplanar pour when `initial_offset + (k-1)·offset + pad/2 > C + 0.01`, where C is the larger of the structure's clearance and the clearance rule that wins, by priority, then specificity, between the line and its ground ([Classes of nets](#classes-of-nets)).
 - The line cuts the coplanar pour in two, and each half needs its own same-net via: fence vias do not anchor a pour.
 - A pitch below the via pad is thinned; `min_pitch` and `max_pitch` bound the pitch.
 

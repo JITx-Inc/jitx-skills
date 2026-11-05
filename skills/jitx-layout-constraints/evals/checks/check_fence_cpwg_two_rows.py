@@ -8,9 +8,9 @@ fab sheet:
 
 - the feed is realized at CPWG_50's width, 0.30 (lc_substrate.py);
 - the layer-0 pour sits at CPWG_50's gap, 0.20, plus the 0.01 the runtime
-  adds, so within [0.20, 0.23]: a winning clearance rule above 0.20 for
-  the feed and the pour (a board rule included, unless a rule on the
-  feed's own tags outranks it) would push the coplanar ground out;
+  adds, so within [0.20, 0.23]: the clearance rule that wins between the
+  feed and its ground (priority, then specificity), if above 0.20, would
+  push the coplanar ground out;
 - the layer-0 pour is present on both sides of the feed;
 - generated vias exist (``lc_check.generated_vias``, which does not say
   which rule made them). A stitch grid cannot stand in for a row: the feed
