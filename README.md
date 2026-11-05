@@ -118,7 +118,7 @@ Model JITX substrates: stackups, materials, vias, routing structures, and fabric
 Example triggers:
 
 - "Model a substrate from our fab's stackup report"
-- "Define a 14-layer RF stackup with via fencing"
+- "Define a 14-layer RF stackup"
 - "Set up 100-ohm differential routing structure"
 
 ### jitx-physical-layout

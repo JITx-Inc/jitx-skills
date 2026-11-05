@@ -33,7 +33,7 @@
 {"intent": "constrain the skew on this differential pair", "expected_skill": "jitx-interconnect-constraints", "ambiguous_with": ["jitx-layout-constraints"]}
 {"intent": "add insertion-loss and timing limits to the DDR topology", "expected_skill": "jitx-interconnect-constraints", "ambiguous_with": ["jitx-layout-constraints"]}
 {"intent": "draw an antenna from code with custom copper geometry", "expected_skill": "jitx-physical-layout", "ambiguous_with": ["jitx-layout-constraints"]}
-{"intent": "draw the antenna copper and place the fence vias in code", "expected_skill": "jitx-physical-layout", "ambiguous_with": ["jitx", "jitx-substrate-modeler"]}
+{"intent": "draw the antenna copper and place the fence vias in code", "expected_skill": "jitx-physical-layout", "ambiguous_with": ["jitx", "jitx-layout-constraints"]}
 {"intent": "route the BGA deskew fan with pair points and control points", "expected_skill": "jitx-physical-layout", "ambiguous_with": ["jitx-layout-constraints"]}
 {"intent": "model this QFN part and its thermal pad from the datasheet", "expected_skill": "jitx-component-modeler", "ambiguous_with": ["jitx-layout-constraints"]}
 {"intent": "create a JITX component for this BGA package", "expected_skill": "jitx-component-modeler", "ambiguous_with": ["jitx-layout-constraints"]}

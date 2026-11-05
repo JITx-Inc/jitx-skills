@@ -585,7 +585,7 @@ def _capture_checks(
     try:
         min_feature = float(rd.root.substrate.constraints.min_copper_width)
     except Exception:
-        min_feature = 0.09  # JLCPCB-class floor; only used to size the predicate
+        min_feature = 0.09  # a typical fab floor; only used to size the predicate
     checks.extend(check_keepouts(pours, tuple(keepout_samples), min_feature))
 
     board_wide_labels: dict[str, str] = {}
