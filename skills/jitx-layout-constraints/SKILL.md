@@ -110,7 +110,7 @@ A class of nets is a tag assigned to nets: the power nets are the nets carrying 
 - Keep board-wide clearances (copper default, trace-to-pour) at or below the smallest coplanar gap on the board; each structure's clearance is its own line's gap. The gap is 0.01 plus the wider of the structure's clearance and the clearance rule that wins between the line and its ground (by priority, then specificity); a winning rule below the structure's clearance does not narrow it (measured on jitx 4.6, priorities 0 to 3).
 - A net tag reaches the net's pours, so the tag pair holds the gap. At priority 2 the pair rule beats a wider rule lower on the ladder (a board rule at 0, an `AnyObject` keep-away at the default priority) and loses to a wider one above it (measured on jitx 4.6).
 - On a net with more than one coplanar gap, such as a necked escape, set the pair rule to the net's smallest gap. Each structure's clearance then sets its own section's gap, since the gap is the wider of the structure's clearance and the winning rule (measured on jitx 4.6).
-- A two-tag clearance keeps one class from another without moving ground; `(RFLineTag(), AnyObject)` at a protection rung (5 or above) outranks the pair rule and, when wider, pushes the coplanar ground out. Worked pattern: `jitxexamples.patterns.layout_sensitive_net_clearance`.
+- A class-to-class clearance keeps one class from another without moving ground; a keep-away `(RFLineTag(), AnyObject)` at a protection rung (5 or above) outranks the pair rule and, when wider than the structure's clearance, pushes the coplanar ground out. Worked pattern: `jitxexamples.patterns.layout_sensitive_net_clearance`.
 
 ## Pours and relief
 
