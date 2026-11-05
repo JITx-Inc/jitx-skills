@@ -188,6 +188,14 @@ For any authored layout, the minimum battery (each is 1–3 lines):
    for vias). The known drop: any via/copper reachable only through a `Net` or
    `PortAttachment` (build warning "not assigned to a circuit … deprecated") is
    SILENTLY ABSENT from the EDB — store instances structurally on the circuit.
+6. **Fabrication minimums**: measure realized copper widths, copper-to-copper
+   gaps and copper-to-edge distances against the substrate's
+   `FabricationConstraints`. The build's issues do not catch these: on jitx 4.6.0
+   none was raised for meander gaps of 0.1 and 0.0588 mm (set by
+   `serpentine_params(min_pitch=...)`) under a 0.127 mm `min_copper_copper_space`,
+   for connector pads starting at the board edge under a 0.5 mm
+   `min_copper_edge_space`, or for a routing structure's 0.08 mm traces 0.1 mm
+   apart, routed at those values below the fab minimums.
 
 Structure them as a plain script (`python -m myproj.checks`) or pytest module in
 the design project; print `[PASS]/[FAIL]` per check and exit nonzero on failure.
