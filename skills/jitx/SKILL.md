@@ -1,6 +1,6 @@
 ---
 name: jitx
-description: "Base skill for JITX Python PCB design: install, the jitx CLI, auth and the runtime, building designs, the viewers, exports, code quality (ruff, pyright, type annotations, check.py and grep gates), and design introspection (jitx.inspect, jitx.query, runtime submit). Use to set up JITX, start the runtime, build or find a design, open the viewer, fix a build or environment error, run ruff, pyright or static checks, or find things in a design from Python. Route a whole board from requirements to jitx-project-builder, self-review of written code to jitx-code-review, component modeling to jitx-component-modeler, wiring and passives to jitx-circuit-builder, stackups to jitx-substrate-modeler, layout geometry and realized-geometry checks to jitx-physical-layout, design rules to jitx-layout-constraints, SI constraints to jitx-interconnect-constraints, pin flexibility to jitx-pin-assignment, and mechanical CAD to jitx-mechanical."
+description: "Base skill for JITX Python PCB design: install, the jitx CLI, auth and the runtime, building designs, the viewers, exports, code quality (ruff, pyright, type annotations, check.py and grep gates), and design introspection (jitx.inspect, jitx.query, runtime submit). Use to set up JITX, start the runtime, build or find a design, open the viewer, fix a build or environment error, run ruff, pyright or static checks, or find things in a design from Python. Route a whole board from requirements to jitx-project-builder, self-review of written code to jitx-code-review, component modeling to jitx-component-modeler, wiring and passives to jitx-circuit-builder, stackups to jitx-substrate-modeler, layout geometry and realized-geometry checks to jitx-physical-layout, design rules to jitx-layout-constraints, SI constraints to jitx-interconnect-constraints, pin flexibility to jitx-pin-assignment, mechanical CAD to jitx-mechanical, and JLCPCB fab, parts and order packet to jitx-jlcpcb."
 ---
 
 # JITX
@@ -25,7 +25,7 @@ pip install "jitx>=4.6,<4.7" jitxlib-standard jitxlib-parts ruff pyright
 jitx --version
 ```
 
-`jitx` brings the framework and CLI but no `jitxlib`: `jitxlib-standard` gives `jitxlib.landpatterns`, `.symbols`, `.protocols`, `.bundles`, `.via_structures` and `.physics`; `jitxlib-parts` the `Resistor`/`Capacitor`/`Inductor` queries; `jitxlib-jlcpcb`, only for a confirmed JLCPCB fab, its substrates.
+`jitx` brings the framework and CLI but no `jitxlib`: `jitxlib-standard` gives `jitxlib.landpatterns`, `.symbols`, `.protocols`, `.bundles`, `.via_structures` and `.physics`; `jitxlib-parts` the `Resistor`/`Capacitor`/`Inductor` queries; `jitxlib-jlcpcb` JLCPCB's substrates and parts, installed only once the user chooses JLCPCB (`jitx-jlcpcb`).
 
 If the assertion fails, recreate `.venv` with Python 3.12 or newer.
 
@@ -39,14 +39,14 @@ python -c "import jitxlib.landpatterns, jitxlib.parts"
 
 `jitx project layout init` writes a flat `<ns>/` package (not `src/<ns>/`) and `pyproject.toml`. Change its `jitx>=4.4.0,<5` to `jitx>=4.6,<4.7`; add `jitxlib-parts>=2,<3` (and `jitxlib-jlcpcb` when used) to `dependencies`. Without `pip install -e .`, `jitx find` exits 0 listing no designs (`import failed: ModuleNotFoundError`).
 
-Passive queries need a provider chain in `pyproject.toml` (without one: `NoChainConfigured`). Commit `parts/approved-parts.csv` (user-approved parts only) and the build-written `parts.lock.json` (never hand-made). If the user has none, copy the example CSV `jitxexamples` ships there (`jitx-project-builder` Phase 0) and tell the user it is not an approval:
+Passive queries resolve through the provider chain in `pyproject.toml` (without one: `NoChainConfigured`, or JLCPCB's catalogue if `jitxlib-jlcpcb` is installed). Commit `parts/approved-parts.csv` (user-approved parts only) and the build-written `parts.lock.json` (never hand-made). If the user has none, copy in the example CSV from `jitxexamples` (`jitx-project-builder` Phase 0), telling them it is not an approval:
 
 ```toml
 [tool.jitx.parts]
 chain = ["csv:parts/approved-parts.csv", "ideal"]
 ```
 
-`ideal`, last, synthesizes unorderable `IDEAL-...` parts so the design builds before approval, silently answering most queries the CSV cannot. Before calling it done, pass `jitx build <design>` and `jitx design export parts-check <design> --fail all`, and check that no MPN starts with `IDEAL-`: the parts check passes an ideal part. Take an `IDEAL-` part to the user; change a value or rating only with their sign-off. On the stand-in, the user approves the final build's MPNs or supplies a list. Read parts and `IDEAL-` MPNs from the design, never from the lock: it never prunes, and other chains' entries survive a cleanup. Run [`prune_lock.py`](scripts/prune_lock.py), excluding test designs, after removing a component or running tests, and before committing or handing off the lock. Never delete the whole lock once parts are placed, routed or approved without the user's say-so. Cleanup, care, deliberate re-resolves: [`references/parts-lock.md`](references/parts-lock.md). CSV format, lockfile, the `IDEAL-` test, parts databases: https://docs.jitx.com/en/latest/essentials/design/parts.html
+`ideal`, last, synthesizes unorderable `IDEAL-...` parts so the design builds before approval, silently answering most queries the CSV cannot. Before calling it done, pass `jitx build <design>` and `jitx design export parts-check <design> --fail all`, and check that no MPN starts with `IDEAL-`: the parts check passes an ideal part. Take an `IDEAL-` part to the user; change a value or rating only with their sign-off. Read parts and `IDEAL-` MPNs from the design, never from the lock. Run [`prune_lock.py`](scripts/prune_lock.py) after removing a component or running tests, and before committing the lock. Never delete the whole lock once parts are placed, routed or approved without the user's say-so. Cleanup, care, deliberate re-resolves: [`references/parts-lock.md`](references/parts-lock.md). CSV format, lockfile, the `IDEAL-` test, parts databases: https://docs.jitx.com/en/latest/essentials/design/parts.html
 
 The scaffold skips `git init` (do it and say so). Its `.gitignore` keeps the built design directory tracked on purpose: do not broaden it.
 
@@ -160,7 +160,7 @@ class Find(TestCase):
         top = [c for _, c in query(design, Copper, filter=lambda c: c.layer == 0)]
 ```
 
-- **`visit(root, types, through=None, *, opaque=None, refs=False, filter=None)`** yields each structural match with its `Trace` (`path`, `transform`). `extract` is `visit` without the trace. `decompose` stops at direct children, traversing lists and dicts.
+- **`visit`** yields each structural match with its `Trace` (`path`, `transform`). `extract` is `visit` without the trace. `decompose` stops at direct children, traversing lists and dicts.
 - **`jitx.query.query`** takes the same filters (`through` is keyword-only) and converts objects through registered transformers, such as `Pad -> Copper`, `Via -> Copper`, `Via -> Cutout` and `Route -> Copper`; a `Pour` is already `Copper`. Results are in the source's local frame: compose `trace.transform` yourself.
 - **What the runtime knows:** `with jitx.runtime as r: rd = r.submit(MyDesign)` gives `rd.root`, `rd.query(...)`, `rd.nets.find(element)` (the `Net` the runtime assigned, or `None`) and `rd.layers`. Realized routes and pours need `r.capture(...)`. Its semantics and the geometry-verification loop are in `jitx-physical-layout` `references/geometry-verification.md`.
 
@@ -180,6 +180,7 @@ Invoke it before writing that code.
 | provide/require, pin muxing, lane and polarity swapping | `jitx-pin-assignment` |
 | Self-review of JITX code against the rules above | `jitx-code-review` |
 | DXF/IDF/STEP import and export, board outlines, 3D models | `jitx-mechanical` |
+| JLCPCB substrates, parts and ordering, once chosen | `jitx-jlcpcb` |
 
 One artifact goes to its sub-skill; a buildable board, to `jitx-project-builder`.
 
