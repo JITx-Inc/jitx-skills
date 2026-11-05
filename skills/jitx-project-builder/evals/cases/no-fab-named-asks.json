@@ -9,14 +9,19 @@
   "runner_artifacts": "The runner writes PLAN.md and ARCHITECTURE.md to <output>. Judges score what is in <output>; anything only in the chat did not happen.",
   "assertions": [
     {
-      "text": "no generated source or project file imports or names a JLCPCB substrate before the user has chosen a fab",
+      "text": "the PLAN.md Requirements Lock does not fill the fab house or assembly tier row with JLCPCB or LCSC",
       "check": "deterministic",
-      "cmd": "! grep -rq 'jitxlib.jlcpcb\\|JLC0[46]161H' <output> --include='*.py' --include='*.toml'"
+      "cmd": "! grep -Eiq '^\\| *(Fab house|Assembly cost)[^|]*\\|[^|]*(JLC|LCSC)' <output>/PLAN.md"
     },
     {
-      "text": "PLAN.md mentions the fab at all, so the question was at least surfaced",
+      "text": "ARCHITECTURE.md does not record JLCPCB as the fab house",
       "check": "deterministic",
-      "cmd": "grep -qi 'fab' <output>/PLAN.md"
+      "cmd": "! grep -Eiq 'Fab house:\\** *JLC' <output>/ARCHITECTURE.md"
+    },
+    {
+      "text": "the PLAN.md fab house row reads open with its Open Questions id",
+      "check": "deterministic",
+      "cmd": "grep -Eiq '^\\| *Fab house[^|]*\\|[^|]*open: *OQ-' <output>/PLAN.md"
     },
     {
       "text": "the fabrication house is asked, as an open question with an owner and a resolution path, not assumed or filled in with a value the request never gave",
