@@ -1,6 +1,6 @@
 # Substrate
 
-- [ ] **User's fab house confirmed**: if user confirmed JLCPCB, predefined substrates from `jitxlib.jlcpcb` (JLC04161H_1080, JLC04161H_7628, JLC06161H_7628) are available for standard FR-4 + 50/90/100 ohm. Otherwise, create a custom substrate (default)
+- [ ] **User's fab house confirmed** (`decomposition-guide.md` Step 0): if it is JLCPCB, its predefined substrates are in `jitx-jlcpcb`; for any other fab, create a custom substrate
 - [ ] Layer count sufficient for routing density and reference plane continuity
 - [ ] Impedance targets achievable with chosen dielectric Dk and geometry
 - [ ] Via definitions cover ALL needed layer transitions (not just top-to-bottom)
