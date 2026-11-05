@@ -85,7 +85,7 @@ class StitchRealizationTests(unittest.TestCase):
         self.assertIn("selected-pour-targets=0", result.detail)
 
 
-MIN_FEATURE = 0.09  # a JLCPCB-class minimum copper width, in mm
+MIN_FEATURE = 0.09  # an assumed fab minimum copper width, in mm
 
 
 class KeepoutAndEdgeTests(unittest.TestCase):
@@ -210,15 +210,30 @@ class CaptureAdapterTests(unittest.TestCase):
             frozenset({2, 3}),
         )
 
-    def test_capture_inventory_reaches_every_required_check(self) -> None:
+    def _capture(self, with_generated_via: bool) -> tuple[list[CheckResult], bool]:
+        """Run _capture_checks on a faked capture with one code-placed via inside
+        the stitched pour, on its net, and optionally one generated via."""
+
         class FakePour:
             pass
 
         class FakeKeepOut:
             pass
 
-        class FakeComputedStitchVia:
+        class FakeVia:
             pass
+
+        class FakeTransform:
+            def __init__(self, translation: tuple[float, float]) -> None:
+                self.translation = translation
+
+            def __mul__(self, other: "FakeTransform") -> "FakeTransform":
+                return FakeTransform(
+                    (
+                        self.translation[0] + other.translation[0],
+                        self.translation[1] + other.translation[1],
+                    )
+                )
 
         class FakeDesign:
             pass
@@ -236,11 +251,11 @@ class CaptureAdapterTests(unittest.TestCase):
         pour_trace = SimpleNamespace(path="circuit.ground", transform=object())
         keepout_trace = SimpleNamespace(path="circuit.moat", transform=object())
         runtime_net = SimpleNamespace(name="GND")
-        group_net = object()
-        stitch_group = SimpleNamespace(
-            net=group_net,
-            vias=[SimpleNamespace(position=(2.0, 2.0))],
-        )
+        generated_via = FakeVia()
+        generated_via.transform = FakeTransform((2.0, 2.0))
+        placed_via = FakeVia()
+        placed_via.transform = FakeTransform((5.0, 5.0))
+        via_trace = SimpleNamespace(path="circuit", transform=FakeTransform((0.0, 0.0)))
         root = SimpleNamespace(
             circuit=SimpleNamespace(ground=pour_object),
             board=SimpleNamespace(shape=board_shape),
@@ -251,7 +266,7 @@ class CaptureAdapterTests(unittest.TestCase):
 
         class FakeNets:
             def find(self, target: object) -> object | None:
-                if target is pour_object or target is group_net:
+                if target is pour_object or target is generated_via or target is placed_via:
                     return runtime_net
                 return None
 
@@ -270,7 +285,9 @@ class CaptureAdapterTests(unittest.TestCase):
 
             def query(self, target: type):
                 self.queried = target
-                return [(SimpleNamespace(), stitch_group)]
+                if with_generated_via:
+                    return [(via_trace, generated_via), (via_trace, placed_via)]
+                return [(via_trace, placed_via)]
 
         rd = FakeRuntimeDesign()
 
@@ -291,15 +308,15 @@ class CaptureAdapterTests(unittest.TestCase):
         copper_module.Pour = FakePour  # type: ignore[attr-defined]
         feature_module = types.ModuleType("jitx.feature")
         feature_module.KeepOut = FakeKeepOut  # type: ignore[attr-defined]
-        applied_module = types.ModuleType("jitx._translate.reverse_flow.applied")
-        applied_module.ComputedStitchVia = FakeComputedStitchVia  # type: ignore[attr-defined]
+        via_module = types.ModuleType("jitx.via")
+        setattr(via_module, "Via", FakeVia)
         transform_module = types.ModuleType("jitx.transform")
         transform_module.IDENTITY = object()  # type: ignore[attr-defined]
         modules = {
             "jitx": jitx_module,
             "jitx.copper": copper_module,
             "jitx.feature": feature_module,
-            "jitx._translate.reverse_flow.applied": applied_module,
+            "jitx.via": via_module,
             "jitx.transform": transform_module,
         }
 
@@ -308,6 +325,8 @@ class CaptureAdapterTests(unittest.TestCase):
                 return [(pour_trace, pour_object)]
             if target is FakeKeepOut:
                 return [(keepout_trace, keepout_object)]
+            if target is FakeVia:
+                return [(via_trace, placed_via)]
             raise AssertionError(f"unexpected visit target {target}")
 
         def geometry(shape: object, _transform: object):
@@ -338,8 +357,11 @@ class CaptureAdapterTests(unittest.TestCase):
                 ("circuit.ground",),
                 ("circuit.ground",),
             )
+        return checks, rd.capture_called
 
-        self.assertTrue(rd.capture_called)
+    def test_capture_inventory_reaches_every_required_check(self) -> None:
+        checks, capture_called = self._capture(with_generated_via=True)
+        self.assertTrue(capture_called)
         self.assertEqual(
             {result.name for result in checks},
             {
@@ -354,6 +376,17 @@ class CaptureAdapterTests(unittest.TestCase):
             "what the caller wants proved, and copper-edge-spacing proves it.",
         )
         self.assertTrue(all(result.passed for result in checks))
+
+    def test_code_placed_via_does_not_witness_stitching(self) -> None:
+        # The stitch witness counts generated vias only (check_stitch_targets'
+        # contract), and code-placed vias are the ones visit lists, matched by
+        # identity. A code-placed via on the pour's net inside the pour, with
+        # no generated via, must leave the stitch check failing.
+        checks, _ = self._capture(with_generated_via=False)
+        stitch = [result for result in checks if result.name == "stitch-realization"]
+        self.assertEqual(len(stitch), 1)
+        self.assertFalse(stitch[0].passed)
+        self.assertEqual(stitch[0].measured, 0)
 
 
 class CommandContractTests(unittest.TestCase):

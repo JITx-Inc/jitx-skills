@@ -19,5 +19,5 @@
 {"intent": "Wire this regulator and add its passives.", "expected_skill": "jitx-circuit-builder"}
 {"intent":"Define the six-layer stackup and the through, blind, and buried via classes.","expected_skill":"jitx-substrate-modeler","ambiguous_with":["jitx-physical-layout"]}
 {"intent":"Turn the fab report into FabricationConstraints, including minimum copper-to-edge spacing.","expected_skill":"jitx-substrate-modeler","ambiguous_with":["jitx-physical-layout"]}
-{"intent":"Create a fenced pour outline and select the substrate via definition for its fence rule.","expected_skill":"jitx-substrate-modeler","ambiguous_with":["jitx-physical-layout"]}
+{"intent":"Create a fenced pour outline and select the substrate via definition for its fence rule.","expected_skill":"jitx-layout-constraints","ambiguous_with":["jitx-substrate-modeler"]}
 {"intent":"Model this QFN component and its exposed thermal pad from the datasheet.","expected_skill":"jitx-component-modeler","ambiguous_with":["jitx-physical-layout"]}

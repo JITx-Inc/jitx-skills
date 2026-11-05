@@ -1,0 +1,43 @@
+{
+  "name": "edge-and-isolation-slot",
+  "prompt": "fixture_edge_and_isolation_slot.py is our 24 V buck board. The ground pours run right out to the board edge, and there's an isolation slot milled at x 11.5 to 12.5 mm, y -5 to 5 mm. Pull the pours back 1.0 mm from the board edge for the card guides, and keep copper 1.5 mm from the slot for creepage. Check the numbers against the Pellingham sheet.",
+  "inputs": {
+    "pyproject.toml": "evals/cases/fixtures/common/pyproject.toml",
+    "lc_substrate.py": "evals/cases/fixtures/common/lc_substrate.py",
+    "lc_fixture_util.py": "evals/cases/fixtures/common/lc_fixture_util.py",
+    "pellingham_lc_fab_sheet.md": "evals/cases/fixtures/common/pellingham_lc_fab_sheet.md",
+    "lc_radio_board.py": "evals/cases/fixtures/common/lc_radio_board.py",
+    "lc_power_board.py": "evals/cases/fixtures/common/lc_power_board.py",
+    "fixture_edge_and_isolation_slot.py": "evals/cases/fixtures/edge-and-isolation-slot/fixture_edge_and_isolation_slot.py"
+  },
+  "notes": "The fixtures import jitxexamples parts from py-components origin/main 9c398d3 (the installed package in the eval venv); the build uses the lc-eval parts chain, the example catalogue then ideal parts, so no parts database is needed. The fixture module is fixture_edge_and_isolation_slot.py, Design EdgeAndIsolationSlotDesign; lc_power_board.py imports box from lc_radio_board.py. Measured on jitx 4.6: IsHole covers a circuit Cutout, a hole in the board outline and every via drill; IsBoardEdge covers the outer edge only, as does the fab min_copper_edge_space. A rule on IsBoardEdge alone leaves the slot at its default. Fab rows 8 and 9 put the floors at 0.300 to the outline and to a slot, so 1.0 and 1.5 sit above them. Measured on the bare fixture (this suite's own run, 2026-11-03): pours 0.31 from the edge and 0.2028 from the slot. This suite's own solution, clearance(IsBoardEdge, AnyObject) 1.0 and clearance(IsHole, AnyObject) 1.5 at priority 1: 1.01 and 1.5005 on all four layers, no issue. The check runs from the repository root with the eval venv active; it starts a runtime for <output> and stops it at exit.",
+  "runner_models": [
+    "sonnet"
+  ],
+  "runner_rationale": "Customers drive this skill with mixed-strength agents, so the eval runs the skill under a Sonnet-class runner; judges stay frontier-tier.",
+  "runner_artifacts": "The input files are the starting design. Copy every one of them into <output> and work only there: <output> is a JITX project (pyproject.toml) whose modules import each other by file name. Add tags and design rules, in the fixture module, fixture_edge_and_isolation_slot.py, or in a module it imports, and keep its Design class name. Do not add, move or remove parts, nets, routes, vias or pours, and do not set Route.Config on a route; assigning a tag to an existing object is fine. Build the design and read the result back to show the rules applied. Write a completion summary to <output>/COMPLETION.md: each rule with the source of its numbers, what you checked after the build and what it showed, and anything left open. Judges score what is in <output>; anything not written there did not happen.",
+  "expected_output": "A clearance rule on IsBoardEdge at 1.0 and one on IsHole at 1.5 (second condition AnyObject or IsPour), both above the fab rows 8 and 9 floors, a statement that the IsHole rule also pulls copper back from every via drill, and COMPLETION.md with the measured edge and slot pullback per layer.",
+  "assertions": [
+    {
+      "text": "every GND pour sits 1.0 mm (plus at most 0.03) from the outer board edge and 1.5 mm (plus at most 0.03) from the slot on all four layers",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-layout-constraints/evals/checks/check_edge_and_isolation_slot.py <output>"
+    },
+    {
+      "text": "the slot clearance uses IsHole, not IsBoardEdge, and the runner says the IsHole rule also applies to every via drill, and either measures a plated hole or says plated holes are untested",
+      "check": "judge"
+    },
+    {
+      "text": "the runner compares 1.0 and 1.5 with fab rows 8 and 9 by row number",
+      "check": "judge"
+    },
+    {
+      "text": "COMPLETION.md reports the pullback measured from the built pours, not build success alone",
+      "check": "judge"
+    },
+    {
+      "text": "COMPLETION.md gives, for each rule, the need it holds: what goes wrong on this board without it, in a sentence.",
+      "check": "judge"
+    }
+  ]
+}

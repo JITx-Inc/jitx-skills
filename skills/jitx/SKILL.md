@@ -1,6 +1,6 @@
 ---
 name: jitx
-description: "Base skill for JITX Python PCB design: install, the jitx CLI, auth and the runtime, building designs, the viewers, exports, code quality (ruff, pyright, type annotations, check.py and grep gates), and design introspection (jitx.inspect, jitx.query, runtime submit). Use to set up JITX, start the runtime, build or find a design, open the viewer, fix a build or environment error, run ruff, pyright or static checks, or find things in a design from Python. Route a whole board from requirements to jitx-project-builder, self-review of written code to jitx-code-review, component modeling to jitx-component-modeler, wiring and passives to jitx-circuit-builder, stackups to jitx-substrate-modeler, layout geometry and realized-geometry checks to jitx-physical-layout, design rules to jitx-layout-constraints, SI constraints to jitx-interconnect-constraints, pin flexibility to jitx-pin-assignment, mechanical CAD to jitx-mechanical, and JLCPCB fab, parts and order packet to jitx-jlcpcb."
+description: "Base skill for JITX Python PCB design: install, the jitx CLI, auth and the runtime, building designs, the viewers, exports, code quality (ruff, pyright, type annotations, check.py and grep gates), and design introspection (jitx.inspect, jitx.query, runtime submit). Use to set up JITX, start the runtime, build or find a design, open the viewer, fix a build or environment error, run ruff, pyright or static checks, or find things in a design from Python. Route a whole board from requirements to jitx-project-builder, code self-review to jitx-code-review, component modeling to jitx-component-modeler, wiring and passives to jitx-circuit-builder, stackups to jitx-substrate-modeler, layout geometry and realized-geometry checks to jitx-physical-layout, design rules, stitching, fencing and routing structures by tag to jitx-layout-constraints, SI constraints to jitx-interconnect-constraints, pin flexibility to jitx-pin-assignment, mechanical CAD to jitx-mechanical, and JLCPCB fab, parts and order packet to jitx-jlcpcb."
 ---
 
 # JITX
@@ -175,7 +175,7 @@ Invoke it before writing that code.
 | Wiring, nets, typed ports and bundles, hierarchy, placement, passives | `jitx-circuit-builder` |
 | Stackup, materials, vias, routing structures, fab rules | `jitx-substrate-modeler` |
 | Pours, copper, shapes, pad features, code-placed vias and routes, realized-geometry checks | `jitx-physical-layout` |
-| Design rules, clearances, net classes, power widths, decoupling placement, fanout step-down | `jitx-layout-constraints` |
+| Design rules, clearances, classes of nets by tag, power widths, pour and relief rules, stitching and fencing, routing structures applied by tag, fanout step-down | `jitx-layout-constraints` |
 | Topology, SI constraints, diff pairs, protocol constraints | `jitx-interconnect-constraints` |
 | provide/require, pin muxing, lane and polarity swapping | `jitx-pin-assignment` |
 | Self-review of JITX code against the rules above | `jitx-code-review` |
