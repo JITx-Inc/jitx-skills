@@ -5,7 +5,7 @@ description: "Use when the user has chosen JLCPCB or LCSC as fab, assembler or p
 
 # JITX JLCPCB
 
-`jitxlib-jlcpcb` covers one fab end to end, from supply chain to release: the substrates JLCPCB builds, passives resolved against the catalogue its assembly line stocks, catalogue footprints, and the order packet. JITX ships no default fab, and this skill never chooses JLCPCB for a user: it starts once the user has.
+`jitxlib-jlcpcb` covers one fab end to end, from supply chain to release: substrates, catalogue parts and footprints, and the order packet. JITX ships no default fab, and this skill never chooses JLCPCB for a user: it starts once the user has.
 
 The API is in the package docstrings, read with `help()`: `jitxlib.jlcpcb` (substrates, export and lock file usage), `jitxlib.jlcpcb.parts`, `jitxlib.jlcpcb.parts.library` and `jitxlib.jlcpcb.landpattern`. This skill holds the order of work, what to check and what to ask.
 
@@ -14,7 +14,7 @@ The API is in the package docstrings, read with `help()`: `jitxlib.jlcpcb` (subs
 - Environment, runtime, builds and the parts gates: the base `jitx` skill.
 - A whole board from requirements: `jitx-project-builder`. Once the user picks JLCPCB, its substrate, parts and release work come here.
 - A stackup outside JLCPCB's predefined set: `jitx-substrate-modeler`.
-- Component code, generators and KiCad footprint import: `jitx-component-modeler`. Wiring and placing passives: `jitx-circuit-builder`.
+- Component code, generators and KiCad footprint import: `jitx-component-modeler`. Wiring and placement: `jitx-circuit-builder`.
 
 ## Opt in
 
@@ -37,7 +37,7 @@ The user's approved list comes first, the catalogue behind it, and no `ideal`, s
 
 - An approved-list part reaches the BOM with no C-number, because the exporter reads only an `LCSCPart`, and the user matches it by hand in JLCPCB's BOM step. Tell the user which parts those are.
 - With no approved list of the user's own, cut `parts/approved-parts.csv` to the header row of the example CSV the `jitx` skill copies. The example parts carry no C-number, and first in the chain they would outrank the catalogue.
-- Use `"lcsc"` in place of `"jlcpcb"` only when the user asks for LCSC's source. It is faster and can filter a chip resistor's rated voltage, but it has no assembly-library tier (`jitxlib.jlcpcb.parts.jlcpcb`). Switching sources re-resolves every passive once.
+- Use `"lcsc"` in place of `"jlcpcb"` only when the user asks for LCSC's source. It is faster and can filter a chip resistor's rated voltage, but it has no assembly-library tier (`jitxlib.jlcpcb.parts.jlcpcb`).
 
 The `jitx` skill's parts gates still apply, and the user approves the final build's MPNs and C-numbers before anything is ordered.
 
@@ -61,21 +61,21 @@ A queried passive in a case the chip generator does not build (a tantalum or alu
 
 Every other assembled component names its part with `lcsc = LCSCPart("C...")`, a field of the component itself, never of a circuit or landpattern. A component without one reaches the BOM unmatched.
 
-Before writing code for a named C-number, save its channel evidence (stock, lifecycle, datasheet URL and pinout, from its catalogue page) to `datasheets/sourcing/<mpn>-lcsc.txt`, and cite it in the part's data source row. The manufacturer's datasheet outranks it for pins and dimensions; record any disagreement.
+Before writing code for a named C-number, save its channel evidence (stock, lifecycle, datasheet URL and pinout, from its catalogue page) to `datasheets/sourcing/<mpn>-lcsc.txt`, and cite it in the part's data source row: PLAN.md's Data Sources table, or the COMPLETION.md block below when there is no PLAN.md. The manufacturer's datasheet outranks it for pins and dimensions; record any disagreement.
 
 ## Landpatterns
 
 Generator first, as `jitx-component-modeler` orders it, then the manufacturer's KiCad footprint. `LCSCLandpattern` builds pads from third-party catalogue data. Use it only:
 
-- with the user's explicit approval for this project, recorded under the component's `Notes` for a component class you write, or in the part's data source row for a footprint a parts provider attached;
+- with the user's explicit approval for this project, recorded under the component's `Notes` for a component class you write, or in its data source row for a footprint a parts provider attached;
 - in a component class you write, with `ports={...}` from the manufacturer's pinout, not left to pad order;
 - after checking it pad by pad against the manufacturer's drawing.
 
-For a polarized part, check the anode and cathode pads against the drawing: the in-order mapping assumes the catalogue draws the anode as pad 1. Read every warning `jitxlib.jlcpcb.landpattern` logs in the build: dropped vias, skipped bottom-layer, polygon or zero-size pads, and pads left unmapped.
+For a polarized part, check the anode and cathode pads against the drawing: the in-order mapping assumes the catalogue draws the anode as pad 1. Read every warning the build logs for the footprint: dropped vias, skipped pads, and pads left unmapped.
 
 ## The lock file
 
-`lcsc.lock.json` at the project root records, by C-number, each catalogue footprint and each measured placement orientation. It is a checked-in project file, not a cache: commit it. The first build and export need network access to jlcpcb.com, www.lcsc.com, wmsc.lcsc.com, easyeda.com, modules.easyeda.com and pro.easyeda.com; later runs read the lock. Correct a wrong orientation by editing that part's entry, which outranks `LCSCPart(orientation=...)`; delete one entry to fetch that part again.
+`lcsc.lock.json` at the project root records, by C-number, each catalogue footprint and each measured placement orientation. It is a checked-in project file, not a cache: commit it. The first build and export need network access to jlcpcb.com, wmsc.lcsc.com and easyeda.com; later runs read the lock. Correct a wrong orientation by editing that part's entry, which outranks `LCSCPart(orientation=...)`; delete one entry to fetch that part again.
 
 ## Export
 
@@ -83,18 +83,18 @@ For a polarized part, check the anode and cathode pads against the drawing: the 
 jitx design export jlcpcb --output <packet-dir> <module.Design>
 ```
 
-`<module.Design>` is the build target `jitx find` prints. `--no-assembly` writes a bare-board packet, the gerber archive and order sheet only, and the way to give the user gerbers alone with the drill file and settings JLCPCB's intake needs. `--overwrite` allows a non-empty output directory.
+`<module.Design>` is the build target `jitx find` prints. `--no-assembly` writes a bare-board packet (gerber archive and order sheet only) and is the way to give the user gerbers alone. Do not use the docstring's `jitx design export gerber --names jlcpcb`: it skips the NC drill file and the macro-rotation fix the packet applies. `--overwrite` allows a non-empty output directory.
 
-The packet is orderable only once every soldered component is placed, the board is routed, and the design rule check is clean in the board view. Routing and that check are the user's steps; until both are done, report the packet as not yet orderable and say what is missing. The export itself fails on a soldered component with no placement.
+The packet is orderable only once every soldered component is placed, the board is routed, and the design rule check is clean. Routing is the user's step; report the design rule check as clean, or not run with the reason. Until all three hold, report the packet as not yet orderable and say what is missing.
 
 Done means:
 
-- the build passes, `jitx design export parts-check <module.Design> --fail all` passes, and no MPN starts with `IDEAL-`;
+- the build passes, `jitx design export parts-check <module.Design> --fail all` passes, and no MPN read from the design starts with `IDEAL-`;
 - the packet holds `<stem>-gerber.zip` and `<stem>-order.md`, and for an assembled order `<stem>-bom.csv` and `<stem>-cpl.csv`;
 - for an assembled order, every BOM row's `JLCPCB Part #` is a C-number, or each row without one is named to the user;
 - the order sheet's layer count and thickness match the substrate.
 
-Report the packet listing to the user, with the order sheet's lists of parts placed with no orientation correction and footprints taken from class names. Ask them to check rotations in JLCPCB's Confirm Parts Placement preview and to confirm the surface finish, which the sheet marks preliminary. Never upload or order.
+Report the packet listing and the order sheet's attention lists to the user. Ask them to check rotations in JLCPCB's Confirm Parts Placement preview and to confirm the surface finish, which the sheet marks preliminary. Never upload or order.
 
 Write this block in `COMPLETION.md`, each row with its evidence:
 

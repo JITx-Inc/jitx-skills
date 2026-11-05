@@ -3,7 +3,7 @@
   "prompt": "I'm on the free tier and want a small sensor board made and assembled at JLCPCB. USB-C for 5 V power only, an AP2112K-3.3 LDO down to 3.3 V, an SHT40 humidity sensor on I2C with its pull-ups, decoupling where the datasheets ask for it, a green status LED on 3.3 V, and a 4-pin 2.54 mm header bringing out 3V3, GND, SDA and SCL. 4 layers, about 25 x 30 mm. Use JLCPCB basic parts wherever you can. LCSC catalogue footprints are fine for anything no generator covers. When it's done, give me the folder to upload to JLCPCB.",
   "inputs": {
     "notes": "The skill's representative lane: a free-tier user who has chosen JLCPCB, from substrate through parts and components to the order packet. Nothing is supplied but the prompt. The runner chooses the parts, so no C-number is pinned here: the judges check that each C-number the runner wrote in an LCSCPart has saved channel evidence, and the deterministic assertions check the packet the export wrote. The user's sentence about catalogue footprints is the explicit approval for this project that an LCSCLandpattern needs; the runner still records it under the component's Notes and checks the pads against the manufacturer's drawing. The BOM assertion is stricter than the skill's done list, which allows a BOM row without a C-number when it is named to the user: that allowance exists for parts an approved list supplies, and this prompt has no approved list, so every row should resolve through the catalogue or an LCSCPart. A run that leaves the board unrouted should report the packet as not yet orderable; the deterministic assertions check only that the packet exists.",
-    "environment": "A scratch project directory at <output> with a Python 3.12 virtual environment holding jitx 4.6.x, jitxlib-standard, jitxlib-parts, jitxexamples and jitxlib-jlcpcb 4.x, a signed-in JITX account and a runtime the runner may start. Network access to jlcpcb.com, www.lcsc.com, wmsc.lcsc.com and easyeda.com, which the parts providers, LCSCLandpattern and the export's orientation measurement reach on a first build, and to manufacturer datasheet sites.",
+    "environment": "A scratch project directory at <output> with a Python 3.12 virtual environment holding jitx 4.6.x, jitxlib-standard, jitxlib-parts, jitxexamples and jitxlib-jlcpcb 4.x, a signed-in JITX account and a runtime the runner may start. Network access to jlcpcb.com, wmsc.lcsc.com and easyeda.com, which the parts providers, LCSCLandpattern and the export's orientation measurement reach on a first build, and to manufacturer datasheet sites.",
     "offline": false,
     "traps": [
       "Filtering every passive with library=\"basic\" can find nothing: the basic library is small. The skill asks for rank=Minimize(\"library\"), with a filter only when the user insists on basic alone.",
@@ -66,11 +66,11 @@
       "check": "judge"
     },
     {
-      "text": "every LCSCLandpattern in the design has the user's approval recorded, under the component's Notes for a component class the runner wrote or in the part's data source row for a footprint the parts provider attached; a runner-written class gives a ports= map from the manufacturer's pinout; every catalogue footprint has a recorded pad-by-pad check against the manufacturer's drawing; and any polarized part on a catalogue footprint has its anode and cathode pads checked",
+      "text": "every LCSCLandpattern in the design has the user's approval recorded, under the component's Notes for a component class the runner wrote or, for a footprint the parts provider attached, in the part's PLAN.md data-source row or COMPLETION.md's catalogue-footprints row; a runner-written class gives a ports= map from the manufacturer's pinout; every catalogue footprint has a recorded pad-by-pad check against the manufacturer's drawing; and any polarized part on a catalogue footprint has its anode and cathode pads checked",
       "check": "judge"
     },
     {
-      "text": "each C-number the runner wrote in an LCSCPart has channel evidence (stock, lifecycle, datasheet URL, pinout) saved under datasheets/sourcing/ and cited in that part's data source row",
+      "text": "each C-number the runner wrote in an LCSCPart has channel evidence (stock, lifecycle, datasheet URL, pinout) saved under datasheets/sourcing/ and cited in that part's PLAN.md data-source row, or in COMPLETION.md when there is no PLAN.md",
       "check": "judge"
     },
     {
@@ -86,7 +86,7 @@
       "check": "judge"
     },
     {
-      "text": "the runner reports the packet as orderable only if every soldered component is placed, the board is routed and DRC is clean, and otherwise says it is not yet orderable and which of those steps remains for the user",
+      "text": "the runner reports the packet as orderable only if every soldered component is placed, the board is routed and DRC is clean, reports DRC as clean or as not run with the reason, and otherwise says the packet is not yet orderable and what remains",
       "check": "judge"
     },
     {
