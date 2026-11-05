@@ -143,14 +143,14 @@ Pour drawing and realization belong to `jitx-physical-layout` ([Pour realization
 
 - Sites sit on multiples of the pitch from the board origin, not from the pour, so moving the pour changes which sites fit.
 - `inset` runs from the via pad's edge to the computed pour boundary, after pullback from other-net copper: a site is kept when its centre is at least `inset + pad/2` inside `Pour.shape`. A site that fails is dropped, never moved or shrunk, and the count falls with no issue.
-- A pitch below the via pad thins the grid to a checkerboard, so a smaller pitch can give fewer vias. Nothing checks pitch against the fab's spacing: refuse a pitch below that pattern's `min_stitch_pitch`, the larger of pad plus `min_copper_copper_space` and drill plus `min_hole_to_hole`, before you write the rule.
+- A pitch below the via pad thins the grid to a checkerboard, so a smaller pitch can give fewer vias. Nothing checks pitch against the fab's spacing: refuse a pitch below that pattern's `min_stitch_pitch`, the larger of one via pad and drill plus `min_hole_to_hole`, before you write the rule. Neighbouring stitch pads need no `min_copper_copper_space`: the vias take the pour's net, and clearance is not enforced between copper of the same net.
 - A fence on the same pour displaces the stitch sites near it, whatever the priorities (measured on jitx 4.6: an inward fence 0.6 in removed the stitch ring 1.0 in); leave those sites out of the derived set.
 
 Required sites before you check, with the pitch at or above the pad: the origin-lattice points that pass each condition below, from what was measured on jitx 4.6. Every required site holds a generated via, matched by position; a generated via in a left-out band is neither required nor a failure.
 
 - The via pad, grown by `inset`, lies inside every pour the rule stitches, as measured with every layer's pour stitched (each captured `Pour.shape` in board frame, `trace.transform * pour.shape` from `visit(rd.root, Pour)`; [Coordinate frames](../jitx-physical-layout/references/geometry-verification.md#coordinate-frames)).
-- Sites over pads were dropped on every layer. Where a site near a pad starts to drop was not measured, so leave out sites whose via pad comes within `min_copper_copper_space` of a pad.
-- Sites 0.5 or closer to a code-placed via were dropped, with 0.5 via pads; the threshold between that and the next lattice site was not measured, so leave out sites within the stitch via's pad plus `min_copper_copper_space` of a code-placed via.
+- Sites over pads were dropped on every layer. Where a site near a pad starts to drop was not measured, so leave out sites whose via pad comes within `min_copper_copper_space` of a pad, a margin for that unmeasured edge, not a pitch requirement.
+- Sites 0.5 or closer to a code-placed via were dropped, with 0.5 via pads; the threshold between that and the next lattice site was not measured, so leave out sites within the stitch via's pad plus `min_copper_copper_space` of a code-placed via, the same margin.
 
 ## Fencing
 

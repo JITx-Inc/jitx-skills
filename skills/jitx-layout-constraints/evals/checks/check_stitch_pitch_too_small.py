@@ -3,23 +3,21 @@
 Usage: check_stitch_pitch_too_small.py <output-dir>
 
 The prompt asks for 0.4 mm and, if the fab cannot build it, the closest pitch
-it can. Two floors are correct here, and the check accepts either:
+it can. The floor is 0.500 mm centre to centre, from both terms of
+``min_stitch_pitch`` in jitxexamples.patterns.layout_stitched_pour: drill
+0.250 (row 12) plus hole-to-hole 0.250 (row 15), and one via pad, 0.500
+(row 11). Clearance is not enforced between copper of the same net (the
+sheet's header: "same-net copper may touch"), and every stitch via is on GND,
+so the pad-to-pad row 4 does not bind.
 
-- the sheet's own: drill 0.250 (row 12) plus hole-to-hole 0.250 (row 15) =
-  0.500 mm centre to centre. The sheet lets same-net copper touch, and every
-  stitch via is on GND, so the pad-to-pad row 4 does not bind;
-- the skill's, ``min_stitch_pitch`` in jitxexamples.patterns.layout_stitched_pour:
-  the larger of pad plus ``min_copper_copper_space`` (0.500 + 0.100, rows 11
-  and 4) and drill plus ``min_hole_to_hole`` (0.500), so 0.600.
-
-Either way 0.4 cannot be built; at 0.4 the runtime thins the grid silently
+So 0.4 cannot be built; at 0.4 the runtime thins the grid silently
 and places no via short of the floor (measured on jitx 4.6: pitch 0.4 under a
 0.45 pad kept 231 of 650 sites, a checkerboard, with no issue).
 
 Builds <output>/fixture_stitch_pitch_too_small.py, captures it, and checks:
 - at least one stitch_via rule, on a square grid;
-- every rule's pitch is at or above the sheet's 0.500 floor and no more than
-  0.650 ("closest": the skill's 0.600 floor plus a 0.05 rounding margin);
+- every rule's pitch is at or above the 0.500 floor and no more than 0.550
+  ("closest": the floor plus a 0.05 rounding margin);
 - every rule's inset is the prompt's 0.5 (the via pad edge 0.5 in from the
   pour edge; the inset is measured from the via pad edge to the computed
   pour boundary);
@@ -40,10 +38,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import lc_check as L  # noqa: E402
 import stitch_common as SC  # noqa: E402
 
-PAD_SPACE = 0.100  # fab sheet row 4
-MIN_PITCH = 0.250 + 0.250  # rows 12 and 15; same-net pads may touch
-SKILL_FLOOR = max(0.500 + PAD_SPACE, MIN_PITCH)  # min_stitch_pitch: rows 11 and 4, or 12 and 15
-MAX_PITCH = SKILL_FLOOR + 0.05
+PAD_SPACE = 0.100  # fab sheet row 4; only for the sites required_sites leaves out
+MIN_PITCH = max(0.500, 0.250 + 0.250)  # pad, row 11; drill plus hole-to-hole, rows 12 and 15
+MAX_PITCH = MIN_PITCH + 0.05
 PROMPT_INSET = 0.5
 
 out = L.output_dir()
@@ -69,7 +66,7 @@ with L.built(out, "fixture_stitch_pitch_too_small", "StitchPitchTooSmallDesign")
         if pitch > MAX_PITCH + 1e-9:
             L.fail(f"pitch {pitch} is not the closest buildable pitch ({MIN_PITCH:.3f} to {MAX_PITCH:.3f})")
         if pitch < MIN_PITCH - 1e-9:
-            L.fail(f"pitch {pitch} is under the fab drill-to-drill floor {MIN_PITCH:.3f} (rows 12, 15)")
+            L.fail(f"pitch {pitch} is under the floor {MIN_PITCH:.3f} (rows 11, 12, 15)")
         if abs(inset - PROMPT_INSET) > 1e-6:
             L.fail(f"inset {inset}, the prompt fixes {PROMPT_INSET}")
         need = SC.required_sites(geoms, pads, pitch, PROMPT_INSET, pad_r, PAD_SPACE, placed, 2 * pad_r + PAD_SPACE)
