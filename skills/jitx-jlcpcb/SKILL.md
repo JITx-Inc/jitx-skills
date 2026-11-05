@@ -5,7 +5,7 @@ description: "Use when the user has chosen JLCPCB or LCSC as fab, assembler or p
 
 # JITX JLCPCB
 
-`jitxlib-jlcpcb` covers one fab end to end, from supply chain to release: substrates, catalogue parts and footprints, and the order packet. JITX ships no default fab, and this skill never chooses JLCPCB for a user: it starts once the user has.
+`jitxlib-jlcpcb` covers one fab end to end: substrates, catalogue parts and footprints, and the order packet. JITX ships no default fab, and this skill never chooses JLCPCB for a user: it starts once the user has.
 
 The API is in the package docstrings, read with `help()`: `jitxlib.jlcpcb` (substrates, export and lock file usage), `jitxlib.jlcpcb.parts`, `jitxlib.jlcpcb.parts.library` and `jitxlib.jlcpcb.landpattern`.
 
@@ -13,7 +13,6 @@ The API is in the package docstrings, read with `help()`: `jitxlib.jlcpcb` (subs
 
 - Environment, runtime, builds and the parts gates: the base `jitx` skill.
 - A whole board from requirements: `jitx-project-builder`. Once the user picks JLCPCB, its substrate, parts and release work come here.
-- A stackup outside JLCPCB's predefined set: `jitx-substrate-modeler`.
 - Component code, generators and KiCad footprint import: `jitx-component-modeler`. Wiring and placement: `jitx-circuit-builder`.
 
 ## Opt in
@@ -72,11 +71,11 @@ Generator first, as `jitx-component-modeler` orders it, then the manufacturer's 
 
 In a component class you write, give `ports={...}` from the manufacturer's pinout, not pad order.
 
-With no readable manufacturer drawing or pinout, the part is blocked until the user supplies one; catalogue data never checks itself. A pad or hole differing from the drawing rules it out; tell the user. For a polarized part, check the anode and cathode pads against the drawing: the in-order mapping assumes the catalogue draws the anode as pad 1. Read every warning the build logs for the footprint: dropped vias, skipped pads, and pads left unmapped.
+With no readable manufacturer drawing or pinout, the part is blocked until the user supplies one; catalogue data never checks itself. A pad or hole outside the drawing's tolerance rules out the footprint: name the pad and difference in your reply and use the next source `jitx-component-modeler` orders. For a polarized part, check the anode and cathode pads against the drawing: the in-order mapping assumes the catalogue draws the anode as pad 1. Read every warning the build logs for the footprint: dropped vias, skipped pads, and pads left unmapped.
 
 ## The lock file
 
-`lcsc.lock.json` at the project root records, by C-number, each catalogue footprint and each measured placement orientation. It is a checked-in project file, not a cache: commit it. The first build and export need network access to jlcpcb.com, wmsc.lcsc.com and easyeda.com; later runs read the lock. Correct a wrong orientation by editing that part's entry, which outranks `LCSCPart(orientation=...)`; delete one entry to fetch that part again.
+`lcsc.lock.json` at the project root records, by C-number, each catalogue footprint and each measured placement orientation. Commit it: it is a project file, not a cache. The first build and export need network access to jlcpcb.com, wmsc.lcsc.com and easyeda.com; later runs read the lock. Correct a wrong orientation by editing that part's entry, which outranks `LCSCPart(orientation=...)`; delete one entry to fetch that part again.
 
 ## Export
 
@@ -95,7 +94,7 @@ Done means:
 - for an assembled order, every BOM row's `JLCPCB Part #` is a C-number, or each row without one is named to the user;
 - the order sheet's layer count and thickness match the substrate.
 
-Report the packet listing to the user, with the order sheet's "Footprints taken from landpattern class names" and "Placed with no orientation correction" lists. Ask them to check rotations in JLCPCB's Confirm Parts Placement preview and to confirm the surface finish, which the sheet marks preliminary. Never upload or order.
+Report the packet listing to the user, with the order sheet's "Footprints taken from landpattern class names" and "Placed with no orientation correction" lists. Ask them to check rotations in JLCPCB's Confirm Parts Placement preview and to confirm the surface finish. Never upload or order.
 
 Write this block in `COMPLETION.md`, each row with its evidence:
 
@@ -105,7 +104,7 @@ Opt-in: <where the user chose JLCPCB>; dependency and chain as written
 Substrate: <class> for <layers, impedances> | custom: <reason>
 Parts: tier <ranked | filtered: user asked>; <N> LCSCPart components; IDEAL- MPNs: none
 Sources: <C-number: datasheets/sourcing/<mpn>-lcsc.txt>
-Catalogue footprints: none | <part: approval text or its location, pads checked against <drawing>>
+Catalogue footprints: none | <part: approval text or its location, pads checked against <drawing>> | ruled out: <part, pad, difference>
 Packet: <file listing>; BOM rows without a C-number: none | <list>; orderable | not yet, re-export after: <routing, DRC>
 Approval: MPNs and C-numbers <approved by the user | awaiting the user>
 ```
