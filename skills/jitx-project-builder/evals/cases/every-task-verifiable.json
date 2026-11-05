@@ -1,6 +1,6 @@
 {
   "name": "every-task-verifiable",
-  "prompt": "Same board, using a predefined JLCPCB substrate class rather than a custom stackup.",
+  "prompt": "Build me a board. STM32U575 MCU, USB-C for 5V input and USB 2.0 data, a 5V to 3.3V buck plus a filtered analog rail, an ICM-42688-P IMU on SPI, an SHT40 on I2C, a microSD socket on SDIO, one WS2812B LED, a user button, and a Tag-Connect TC2050 footprint. 4-layer JLCPCB, 90 ohm USB pair. 40 x 60 mm with four M2 holes. Use a predefined JLCPCB substrate class rather than a custom stackup.",
   "expected_output": "The substrate task still carries a command that runs: a test design importing the predefined class and building. No task in the graph has an empty, absent, or non-executable verification.",
   "assertions": [
     {
