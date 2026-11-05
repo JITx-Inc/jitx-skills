@@ -1,7 +1,7 @@
 # Eval contract for jitx-layout-constraints.
 #
 # Scope: the constraints a placed and routed design carries. Board-wide
-# defaults, net classes as tags with their width and clearance rules, per-layer
+# defaults, classes of nets as tags with their width and clearance rules, per-layer
 # rules, pour rules (relief, sliver removal, stitching), fencing (fence_via on a
 # tagged pour, and RoutingStructure.Layer.fence on a routed line), applying
 # the substrate's routing structures to nets and segments by tag, escape-width step-down rules,
@@ -10,8 +10,7 @@
 # pours; the runner adds tags and rules only. Defining a structure's widths
 # and clearances belongs to jitx-substrate-modeler. Decoupling is out of scope.
 #
-# Behaviors cited below were measured on jitx 4.6.0 with runtime 4.6.0 in the
-# 2026-11-03 layout-constraints spike (S1 to S10).
+# Behaviors cited below were measured on jitx 4.6.
 goal: |
   Given a design with its components, circuits, placement and routes, add the
   constraints and show they applied. An engineer names what the board needs in
@@ -20,31 +19,30 @@ goal: |
   Python that express it, plus a build that reads the realized copper back and
   compares it with values worked out from the fab sheet, the prompt and the
   design's own geometry. Excellent = every rule uses an effect and a tag target
-  the 4.6.0 runtime acts on, every number traces to a fab row, a value in the
+  the 4.6 runtime acts on, every number traces to a fab row, a value in the
   prompt, or a derivation shown from the design's geometry, nothing but tags and
   rules is changed, and nothing is called done on build success alone: a too
-  small pitch, a fence that never appeared, or a relief rule on a target that
-  ignores it all build clean, so the runner measures counts, widths, gaps and
+  small pitch, a fence that never appeared, or a pad class left on the default
+  relief all build clean, so the runner measures counts, widths, gaps and
   reliefs and says which rules capture cannot show. A weaker agent model
   following the skill should still get there, because the skill carries the
   checks rather than assuming a strong model.
 dimensions:
-  - "RULE_CORRECTNESS: does every rule use an effect that exists (eight one-condition effects; clearance the only two-condition effect), target something the effect acts on (thermal_relief on a pad, landpattern or component tag or IsPad, never a net or pour tag; fence_via on a tagged pour; a route fence through RoutingStructure.Layer.fence; OnLayer(i) on the named layer, not OnLayer.internal() where only one inner layer is meant), and sit at a priority above the default it overrides without a permissive rule outranking a protection?"
+  - "RULE_CORRECTNESS: does every rule use an effect that exists (eight one-condition effects; clearance the only two-condition effect), target something the effect acts on (thermal_relief on the pads it should relieve: a net tag for all of a net's pads and code-placed vias, a pad, landpattern or component tag for some of them, IsPad for every pad; fence_via on a tagged pour; a route fence through RoutingStructure.Layer.fence; OnLayer(i) on the named layer, not OnLayer.internal() where only one inner layer is meant), and sit at a priority above the default it overrides without a permissive rule outranking a protection?"
   - "PROVENANCE: does every width, clearance, gap, pitch, offset and relief trace to a fab-sheet row, a value in the prompt, or a derivation from the design's own geometry shown with its arithmetic, with values none of those give raised as open items rather than invented?"
-  - "REALIZATION_VERIFIED: after the build, does the runner read the captured design (Pour.shape computed copper, route trace widths, the count and positions of the generated stitch and fence vias, read by any means, relief voids and spokes per pad) and compare it with values it derived independently, and does it name as unverified what capture cannot show (clearance between authored routes, which the runtime neither moves nor reports)?"
-  - "SILENT_FAILURES: does the runner catch the ways a rule set builds clean and still does nothing or less than asked: a stitch or fence pitch below the via pad or the fab's drill-to-drill floor (thinned or crowded with no issue), a fence row whose pad falls in the coplanar gap, a clearance to everything wider than a coplanar gap (it pushes the coplanar pour off the fence rows), a pour region whose only same-net connection is fence vias (removed as an island), a routing_structure rule silently overriding a .structure() on the same net, a relief rule on a target it ignores?"
+  - "REALIZATION_VERIFIED: after the build, does the runner read the captured design (Pour.shape computed copper, route trace widths, the count and positions of the generated stitch and fence vias, read by any means, relief voids and spokes per pad) and compare it with values it derived independently, and does it check Copper shapes placed from code against the rules, since they reach the layout as written whatever the rules say?"
+  - "SILENT_FAILURES: does the runner catch the ways a rule set builds clean and still does nothing or less than asked: a stitch or fence pitch below the via pad or the fab's drill-to-drill floor (thinned or crowded with no issue), a fence row whose pad falls in the coplanar gap, a clearance to everything wider than a coplanar gap (it pushes the coplanar pour off the fence rows), a pour region whose only same-net connection is fence vias (removed as an island), a routing_structure rule silently overriding a .structure() on the same net?"
   - "SCOPE_AND_OWNERSHIP: does the runner change only tags and rules, applying the substrate's routing structures where a case calls for one (a fenced copy of a substrate structure is allowed when its width and clearance are unchanged), with no added, moved or removed parts, nets, routes, vias or pours and no Route.Config, put board-wide rules on the Design or the top circuit and local ones with the circuit that owns the tagged objects, and keep tags and rules as structural attributes (no string-keyed tables, no rules built at module import time)?"
-  - "ROUTE_CONFIG_HONESTY: setting Route.Config on a fixture route is a route edit and fails the route-editing hard fail below. Where the runner mentions Route.Config at all, does it present it as what it is, a per-route override that beats design rules in both directions (spike S5), and not as a design rule or as the way to set a net class?"
+  - "ROUTE_CONFIG_HONESTY: setting Route.Config on a fixture route is a route edit and fails the route-editing hard fail below. Where the runner mentions Route.Config at all, does it present it as what it is, a per-route override that beats design rules in both directions (measured on jitx 4.6), and not as a design rule or as the way to set a net class?"
 hard_fails:
   - "A clearance effect on a one-condition rule, or any effect the installed jitx.constraints module does not have."
-  - "Routes, placement, parts, nets, vias or pours edited, added or removed, beyond assigning tags to existing objects, adding rules, and applying the substrate's routing structures (a fenced copy of a substrate structure is allowed when its width and clearance are unchanged). Setting Route.Config on a fixture route is a route edit (spike S5: it overrides design rules, so a width check passes with no rule). Defining a structure with new widths or clearances belongs to jitx-substrate-modeler."
+  - "Routes, placement, parts, nets, vias or pours edited, added or removed, beyond assigning tags to existing objects, adding rules, and applying the substrate's routing structures (a fenced copy of a substrate structure is allowed when its width and clearance are unchanged). Setting Route.Config on a fixture route is a route edit (measured on jitx 4.6: it overrides design rules, so a width check passes with no rule). Defining a structure with new widths or clearances belongs to jitx-substrate-modeler."
   - "Stitch or fence vias placed in code where the prompt asked for a stitching or fencing rule."
   - "One board-wide relief rule (or IsPad alone) when the prompt names pad classes that need different reliefs."
-  - "A thermal_relief rule conditioned on a net tag or a pour tag (it has no effect on 4.6.0), presented as setting the relief."
   - "A fence_via design rule presented as fencing a route or a routed line (it fences tagged pours only; route fences come from RoutingStructure.Layer.fence)."
   - "A stitch or fence count below the count derived from the geometry, pitch and offset or inset, passed as done."
   - "A stitch or fence pitch the fab sheet forbids (below the via pad or below drill plus the hole-to-hole row), passed as done."
   - "A width or clearance value with no fab-sheet row, no prompt value and no shown derivation at the point of use (an invented number)."
   - "An IPC current-carrying chart, formula, or coefficient presented as the basis for a trace width."
-  - "A route-width check passes with zero realized traces, skips a realized Polygon because it has no width field (spike S8: a width request wider than the end pads came back as a Polygon), or accepts an escape width equal to or wider than any pad selected by the rule."
+  - "A route-width check passes with zero realized traces, skips a realized Polygon because it has no width field (measured on jitx 4.6: a width request wider than the end pads came back as a Polygon), or accepts an escape width equal to or wider than any pad selected by the rule."
   - "The rule set presented as done without an after-build reading of the realized copper when a runtime is available; an unavailable runtime must be declared as an open item, never silently skipped."
