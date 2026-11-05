@@ -44,7 +44,7 @@ WIDTH = 0.30
 GAP = 0.20
 PAD = 0.500
 O1 = 0.35 + PAD / 2
-O = 0.60
+ROW_OFFSET = 0.60
 PITCH = 1.0
 ANCHORS = 6
 
@@ -72,7 +72,7 @@ with L.built(out, "fixture_fence_cpwg_two_rows", "FenceCpwgTwoRowsDesign") as rd
             for side in (1, -1):
                 counts = []
                 for k in (1, 2):
-                    target = O1 + (k - 1) * O
+                    target = O1 + (k - 1) * ROW_OFFSET
                     row = FC.straight_row(feed, side, target - FC.ROW_TOL, target + FC.ROW_TOL)
                     counts.append(len(row))
                     on_rows += len(row)
