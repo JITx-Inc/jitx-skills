@@ -217,8 +217,20 @@ class CaptureAdapterTests(unittest.TestCase):
         class FakeKeepOut:
             pass
 
-        class FakeComputedStitchVia:
+        class FakeVia:
             pass
+
+        class FakeTransform:
+            def __init__(self, translation: tuple[float, float]) -> None:
+                self.translation = translation
+
+            def __mul__(self, other: "FakeTransform") -> "FakeTransform":
+                return FakeTransform(
+                    (
+                        self.translation[0] + other.translation[0],
+                        self.translation[1] + other.translation[1],
+                    )
+                )
 
         class FakeDesign:
             pass
@@ -236,11 +248,11 @@ class CaptureAdapterTests(unittest.TestCase):
         pour_trace = SimpleNamespace(path="circuit.ground", transform=object())
         keepout_trace = SimpleNamespace(path="circuit.moat", transform=object())
         runtime_net = SimpleNamespace(name="GND")
-        group_net = object()
-        stitch_group = SimpleNamespace(
-            net=group_net,
-            vias=[SimpleNamespace(position=(2.0, 2.0))],
-        )
+        generated_via = FakeVia()
+        generated_via.transform = FakeTransform((2.0, 2.0))
+        placed_via = FakeVia()
+        placed_via.transform = FakeTransform((0.5, 0.5))
+        via_trace = SimpleNamespace(path="circuit", transform=FakeTransform((0.0, 0.0)))
         root = SimpleNamespace(
             circuit=SimpleNamespace(ground=pour_object),
             board=SimpleNamespace(shape=board_shape),
@@ -251,7 +263,7 @@ class CaptureAdapterTests(unittest.TestCase):
 
         class FakeNets:
             def find(self, target: object) -> object | None:
-                if target is pour_object or target is group_net:
+                if target is pour_object or target is generated_via:
                     return runtime_net
                 return None
 
@@ -270,7 +282,7 @@ class CaptureAdapterTests(unittest.TestCase):
 
             def query(self, target: type):
                 self.queried = target
-                return [(SimpleNamespace(), stitch_group)]
+                return [(via_trace, generated_via), (via_trace, placed_via)]
 
         rd = FakeRuntimeDesign()
 
@@ -291,15 +303,15 @@ class CaptureAdapterTests(unittest.TestCase):
         copper_module.Pour = FakePour  # type: ignore[attr-defined]
         feature_module = types.ModuleType("jitx.feature")
         feature_module.KeepOut = FakeKeepOut  # type: ignore[attr-defined]
-        applied_module = types.ModuleType("jitx._translate.reverse_flow.applied")
-        applied_module.ComputedStitchVia = FakeComputedStitchVia  # type: ignore[attr-defined]
+        via_module = types.ModuleType("jitx.via")
+        setattr(via_module, "Via", FakeVia)
         transform_module = types.ModuleType("jitx.transform")
         transform_module.IDENTITY = object()  # type: ignore[attr-defined]
         modules = {
             "jitx": jitx_module,
             "jitx.copper": copper_module,
             "jitx.feature": feature_module,
-            "jitx._translate.reverse_flow.applied": applied_module,
+            "jitx.via": via_module,
             "jitx.transform": transform_module,
         }
 
@@ -308,6 +320,8 @@ class CaptureAdapterTests(unittest.TestCase):
                 return [(pour_trace, pour_object)]
             if target is FakeKeepOut:
                 return [(keepout_trace, keepout_object)]
+            if target is FakeVia:
+                return [(via_trace, placed_via)]
             raise AssertionError(f"unexpected visit target {target}")
 
         def geometry(shape: object, _transform: object):
