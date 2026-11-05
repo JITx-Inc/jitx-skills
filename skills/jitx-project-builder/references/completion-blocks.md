@@ -275,7 +275,7 @@ The criteria mirror the exit-gate bullet lists in `references/project-builder-fl
 | Field | Result |
 |-------|--------|
 | Environment probe | <all of `jitx`, `jitxlib`, `jitxlib.parts`, `jitxlib.symbols.box` import; target substrate package (e.g. `jitxlib.jlcpcb`) imports; `jitx --version` and `jitx runtime introspect` report the same major.minor; result> |
-| Requirements lock complete | <result; assumptions; fab house, assembly tier and parts channel each user-stated or open, never assumed (`decomposition-guide.md` Step 0)> |
+| Requirements lock complete | <result; assumptions; with no fab named, fab house, assembly tier and parts channel open in one question with the gated tasks blocked, never assumed (`decomposition-guide.md` Step 0)> |
 | PLAN.md exists | <path> |
 | ARCHITECTURE.md exists | <path; sections> |
 | No fact copied between documents | <N checked; name the specific pairs compared; duplication counts at the sentence level, not the section level; clean, or each copy and its owner> |

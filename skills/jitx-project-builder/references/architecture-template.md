@@ -35,9 +35,9 @@ Copy this into the project root alongside PLAN.md. Maintain it as the single own
 
 - **Dimensions:** [width × height mm, or source drawing]
 - **Layer count:** [count]
-- **Material:** [material]
+- **Material:** [material \| open: OQ-n]
 - **Fab house:** [fab house \| open: OQ-n]
-- **Substrate class:** [predefined class or custom class]
+- **Substrate class:** [predefined class or custom class \| open: OQ-n]
 - **[Mechanical constraint]:** [one actual mounting, keepout, height, or outline constraint; repeat only for constraints that exist]
 
 ## Object-Hierarchy Decisions
