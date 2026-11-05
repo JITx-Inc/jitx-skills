@@ -6,20 +6,22 @@ How to analyze requirements and break a hardware design into a parallelizable ta
 
 Before proposing subsystems or components, force the user to answer the requirements that drive part selection, mechanical fit, and assembly cost. Without these locked, every later proposal is guesswork and will need rework when the user pushes back. An audit of an earlier board found the agent designed an ESP32 + USB-C input only to be told "no, that triggers the assembly cost I wanted to avoid" — the assembly-cost target wasn't locked before parts were chosen.
 
-Lock these answers in PLAN.md before Phase 0 closes. Each row records who settled the item: `user-stated`, or `not specified — assuming: X`, or `no constraint`. That provenance is what holds the design to the user, and no self-consistent design can manufacture it. Where a table owns the realized value (rail voltages, stackup, outline), the row names the source and points at the owning section rather than copying the value; where nothing else owns it (programming path, UI count, assembly tier, RF policy), the row carries the constraint itself. A value a datasheet settles is not an assumption: that is an open question with an owner.
+Lock these answers in PLAN.md before Phase 0 closes. Each row records who settled the item: `user-stated`, or `not specified — assuming: X`, or `no constraint`, or, under the no-fab rule below, `open: OQ-n`. That provenance is what holds the design to the user, and no self-consistent design can manufacture it. Where a table owns the realized value (rail voltages, stackup, outline), the row names the source and points at the owning section rather than copying the value; where nothing else owns it (programming path, UI count, assembly tier, RF policy), the row carries the constraint itself. A value a datasheet settles is not an assumption: that is an open question with an owner.
 
 | Lock item | Why it matters | Example answers |
 |-----------|---------------|-----------------|
 | **Programming / debug path** | Drives MCU choice, connector, board area | "USB-C programming via on-chip bootloader", "JTAG via TC2050 pads", "pre-programmed module, no debug" |
 | **User interface (UI) count and class** | Drives connector list, board area, edge geometry | "0 (sealed)", "1 button + 1 LED", "OLED + 4 buttons", "rotary encoder + audio jack" |
 | **Power rails needed (count + voltage + load)** | Drives regulator topology, BOM, sequencing | "3.3V @ 200 mA", "3.3V + 1.8V + 5V analog, sequenced", "single 5V from USB-PD" |
-| **Assembly cost target / tier** | Eliminates whole part categories before proposing | "JLCPCB economy (basic parts only)", "JLCPCB standard (extended OK)", "hand-build prototype", "production-volume custom assembly" |
+| **Assembly cost target / tier** | Eliminates whole part categories before proposing | "production-volume custom assembly", "hand-build prototype", "JLCPCB economy (basic parts only)", "TBD, asked with the fab house" |
 | **RF / wireless module policy** | RF integration is a major design decision | "no RF", "BLE module (pre-certified)", "WiFi+BLE SoC (DIY antenna)", "external antenna module via U.FL" |
 | **Connector UX** | Drives footprint, mechanical, ESD strategy | "USB-C edge-mount, plug from end", "USB-C top-mount, plug from above", "screw terminals", "internal-only board-to-board" |
-| **Fab house / process** | Drives substrate choice (predefined vs custom), DRC | "JLCPCB 4-layer FR-4", "JLCPCB 6-layer 7628", "custom fab (Rogers)", "TBD — orchestrator asks" |
+| **Fab house / process** | Drives substrate choice (predefined vs custom), DRC | "the user's usual fab, 6-layer FR-4", "custom fab (Rogers)", "JLCPCB 4-layer FR-4", "TBD, orchestrator asks" |
 | **Mechanical / enclosure constraint** | Drives board outline, height, mounting | "fits an Adafruit 1.4\" case", "DXF outline at <path>", "no enclosure constraint", "must mount to existing PCB via M3 holes" |
 
-The Phase 0 → 1 gate block requires that each of these is answered or explicitly marked "no constraint". Bare or hand-waved answers ("we'll figure out programming later") block the gate — they reliably become rework cycles.
+**With no fab named, the fab house, assembly tier and parts channel are never assumed.** Ask once, as one Open Questions row owned by the user, for the fab house, the assembly tier and the parts channel, leaving out any of the three the user did state, which stays `user-stated`. That row also records an unstated parts channel, which has no lock row of its own; a parts channel the user did state is recorded as `user-stated` in the assembly tier row's text. Until it is answered, an unstated fab house or assembly tier lock row reads `open: OQ-n`, never an assumed or recommended value, and the tasks it gates read `blocked: OQ-n`: the substrate task, every task that needs the stackup, and every part-choice task the assembly tier constrains (`parts-sourcing.md` "Part Selection Workflow"). The question may offer JLCPCB as one option, since it has predefined substrates and an export from parts to the order packet (`jitx-jlcpcb`), beside "a fab and assembler you already use". Never choose it for the user, list it first, or call it the default. When the user named the fab, the assembly tier and parts channel may follow from it as `assuming: X`, with the parts channel written into the assembly tier row.
+
+The Phase 0 → 1 gate block requires that each of these is answered or explicitly marked "no constraint"; under the no-fab rule, the fab house and assembly tier may read `open: OQ-n` while the tasks the rule above names read `blocked: OQ-n`. Bare or hand-waved answers ("we'll figure out programming later") block the gate: they reliably become rework cycles.
 
 ## Step 1: Identify Subsystems
 
@@ -37,23 +39,15 @@ Parse the requirements and categorize everything needed:
 | Passives | Resistors, caps, inductors | No task needed — these come from jitxlib at circuit build time |
 
 ### Substrate (always one task; what varies is whether it models or only selects)
+
+The substrate follows from the fab house in the requirements lock. With no fab named, the task is blocked on the Step 0 fab question.
+
 - If the design has **no SI constraints** (no differential pairs, no impedance control) **and** the layer count is appropriate for the routing density: `SampleDesign` from jitx.sample may be sufficient. The task still exists: it selects, records the choice, and verifies that a design importing it builds. However, `SampleDesign` uses a fixed layer count that may not match the design's complexity. A high-pin-count BGA or dense routing topology will require more layers than SampleDesign provides.
-- If the design has **SI constraints** (USB, Ethernet, DDR, PCIe, etc.): a substrate with routing structures is required. **Ask the user which fab house they are targeting:**
+- If the design has **SI constraints** (USB, Ethernet, DDR, PCIe, etc.): a substrate with routing structures is required.
 
-  **If user confirms JLCPCB**, predefined substrates from `jitxlib.jlcpcb` are available:
-  | Class | Layers | Prepreg | Routing Structures | Import |
-  |-------|--------|---------|-------------------|--------|
-  | `JLC04161H_1080` | 4 | 1080 | RS_50, DRS_90, DRS_100 | `from jitxlib.jlcpcb import JLC04161H_1080` |
-  | `JLC04161H_7628` | 4 | 7628 | RS_50, DRS_90, DRS_100 | `from jitxlib.jlcpcb import JLC04161H_7628` |
-  | `JLC06161H_7628` | 6 | 7628 | RS_50, DRS_100 | `from jitxlib.jlcpcb import JLC06161H_7628` |
+  **If the user chose JLCPCB**, its predefined substrates and the rule for choosing one are in `jitx-jlcpcb`.
 
-  These include stackup, fabrication constraints, vias (9 via definitions including tented/filled for via-in-pad), and impedance-matched routing structures:
-  ```python
-  from jitxlib.jlcpcb import JLC04161H_1080
-  substrate = JLC04161H_1080()
-  ```
-
-  **When to create custom (default path):** User has not confirmed JLCPCB, non-FR-4 materials (Rogers, Megtron), unusual layer count, non-standard impedance targets, or additional routing structures needed. In this case, invoke `jitx-substrate-modeler` and define:
+  **Custom substrate:** the path for any fab without predefined substrates, and for non-FR-4 materials (Rogers, Megtron), an unusual layer count, non-standard impedance targets, or routing structures a predefined substrate lacks. Invoke `jitx-substrate-modeler` and define:
   - Layer count and material class (FR-4, low-loss, RF)
   - Routing structures (single-ended and differential) for each impedance class
   - Via types needed (through-hole, microvia, blind, buried, backdrilled)

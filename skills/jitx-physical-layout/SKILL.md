@@ -1,6 +1,6 @@
 ---
 name: jitx-physical-layout
-description: "Use when the user asks to author PCB physical layout from code: draw pours or copper, antennas, filters, net ties, custom shapes, board outlines, custom pads, soldermask or paste openings, thermal pads with vias, code-placed vias, fanout or escape tags, direct-connect or thermal-relief tags, control points, code-based routes, diff-pair fans/trunks, escape routing, or deskew, or to inspect or verify realized geometry from Python (jitx.query, RuntimeDesign capture, missing or Empty pours, missing stitch vias, route realization checks). Covers shapely geometry, Copper, OverlappableCopper, Pour realization semantics, pad features, PortAttachment, explicit placement, layout-intent tags, Route/control-point APIs, and the 4.3 reverse-flow geometry-verification workflow. Use jitx-layout-constraints to author pour, relief, via-stitching and via-fencing rules (fenced pours included) and to apply routing structures by tag, jitx-substrate-modeler for stackups, via definitions and routing structures, and jitx-circuit-builder for net wiring, typed ports, and passives."
+description: "Use when the user asks to author PCB physical layout from code: draw pours or copper, antennas, filters, net ties, custom shapes, board outlines, custom pads, soldermask or paste openings, thermal pads with vias, code-placed vias, fanout or escape tags, direct-connect or thermal-relief tags, control points, code-based routes, diff-pair fans/trunks, escape routing, or deskew, or to inspect or verify realized geometry from Python (jitx.query, RuntimeDesign capture, missing or Empty pours, missing stitch vias, route realization checks). Covers shapely geometry, Copper, OverlappableCopper, Pour realization semantics, pad features, PortAttachment, explicit placement, layout-intent tags, Route/control-point APIs, and the reverse-flow geometry-verification workflow. Use jitx-layout-constraints for pour, relief, stitching and fencing rules and routing structures by tag, jitx-substrate-modeler for stackups, via definitions and routing structures, and jitx-circuit-builder for net wiring, typed ports, and passives."
 ---
 
 # JITX Physical Layout
@@ -384,7 +384,7 @@ mechanisms, kept distinct:
 
 ```python
 from jitx.feature import Soldermask, Paste
-# JLCPCB convention: mask = copper expanded by solder_mask_registration (~0.05 mm);
+# mask = copper expanded by the substrate's solder_mask_registration;
 # paste = copper exactly. See pad_features.py helpers in references for Circle-exact expansion.
 mask  = Soldermask(expanded_copper_shape, side=Side.Top)
 paste = Paste(copper_shape)
@@ -435,8 +435,8 @@ plain net membership.
 
 ```python
 # Ground / thermal vias: structural list on self + net membership.
-# Source the via class from the substrate / JLCPCB library — do NOT redefine vias here:
-via_cls = substrate.signal_via[layer]          # or: from jitxlib.jlcpcb.vias import JLCPCBVias
+# Source the via class from the substrate; do NOT redefine vias here:
+via_cls = substrate.signal_via[layer]          # or a Via subclass the substrate module defines
 self.thermal_vias = [via_cls().at(x, y) for (x, y) in via_positions]   # structural: stored on self
 for via in self.thermal_vias:
     self.GND += via
@@ -463,7 +463,7 @@ self.attachments = [PortAttachment(self.serdes.TX.p, via_cls().at(x, y))]
 **Vias are defined in the substrate**, not here (see `jitx-substrate-modeler`). This
 skill *places* instances of them. Define a custom module-scope `Via`
 subclass only with a fab-verified reason — e.g. the tented-unfilled thermal via in
-the thermal-pad example, where JLCPCB charges nothing for tented vias inside a pad.
+the thermal-pad example, once the fab confirms tented, unfilled vias inside a pad.
 
 **Placement — place a direct descendant with `.at()`; use `Circuit.place()` sparingly.**
 

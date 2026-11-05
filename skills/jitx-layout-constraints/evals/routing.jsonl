@@ -27,7 +27,7 @@
 // Near-miss negatives: shared words, but a sibling owns the requested operation.
 {"intent": "set up decoupling placement and short routes for the MCU", "expected_skill": "jitx-circuit-builder", "ambiguous_with": ["jitx"]}
 {"intent": "Place and route the decoupling capacitors with escape-width and loop-inductance constraints.", "expected_skill": "jitx-circuit-builder", "ambiguous_with": ["jitx"]}
-{"intent": "enter the JLCPCB minimum widths and spaces into the substrate", "expected_skill": "jitx-substrate-modeler", "ambiguous_with": ["jitx-layout-constraints"]}
+{"intent": "enter the JLCPCB minimum widths and spaces into the substrate", "expected_skill": "jitx-substrate-modeler", "ambiguous_with": ["jitx-layout-constraints", "jitx-jlcpcb"]}
 {"intent": "model the stackup and fab limits from this fabrication CSV", "expected_skill": "jitx-substrate-modeler", "ambiguous_with": ["jitx-layout-constraints"]}
 {"intent": "set up impedance controlled routing structures for DDR4 on layers 3 and 5", "expected_skill": "jitx-substrate-modeler"}
 {"intent": "constrain the skew on this differential pair", "expected_skill": "jitx-interconnect-constraints", "ambiguous_with": ["jitx-layout-constraints"]}
