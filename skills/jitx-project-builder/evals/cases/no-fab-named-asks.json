@@ -1,0 +1,34 @@
+{
+  "name": "no-fab-named-asks",
+  "prompt": "Build me a board. nRF52840 module, USB-C for 5V input and USB 2.0 data with a 90 ohm pair, a 5V to 3.3V buck, a BME280 on I2C, one user button and one status LED. 4 layers, 30 x 50 mm.",
+  "expected_output": "PLAN.md and ARCHITECTURE.md. The request names no fabrication house and no parts channel, so the fab is an open question with an owner and a resolution path, and the substrate task (and anything that depends on the stackup, such as the 90 ohm routing structure) is blocked on the answer. JLCPCB may appear as one option among others, such as a fab the user already works with; it is not chosen for the user.",
+  "runner_models": [
+    "sonnet"
+  ],
+  "substitutions": "<output> = the runner's writable output directory, substituted by the harness before the cmd strings below are executed.",
+  "runner_artifacts": "The runner writes PLAN.md and ARCHITECTURE.md to <output>. Judges score what is in <output>; anything only in the chat did not happen.",
+  "assertions": [
+    {
+      "text": "no generated source or project file imports or names a JLCPCB substrate before the user has chosen a fab",
+      "check": "deterministic",
+      "cmd": "! grep -rq 'jitxlib.jlcpcb\\|JLC0[46]161H' <output> --include='*.py' --include='*.toml'"
+    },
+    {
+      "text": "PLAN.md mentions the fab at all, so the question was at least surfaced",
+      "check": "deterministic",
+      "cmd": "grep -qi 'fab' <output>/PLAN.md"
+    },
+    {
+      "text": "the fabrication house is asked, as an open question with an owner and a resolution path, not assumed or filled in with a value the request never gave",
+      "check": "judge"
+    },
+    {
+      "text": "if JLCPCB is offered, it is one option among others, with no wording that makes it the default, the recommended choice, or the fallback when the user names nothing",
+      "check": "judge"
+    },
+    {
+      "text": "no task depends on a JLCPCB substrate, or on stackup values taken from one, before the user answers the fab question; the substrate task is marked blocked on that question",
+      "check": "judge"
+    }
+  ]
+}
