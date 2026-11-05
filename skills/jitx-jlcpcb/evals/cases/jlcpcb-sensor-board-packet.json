@@ -1,0 +1,97 @@
+{
+  "name": "jlcpcb-sensor-board-packet",
+  "prompt": "I'm on the free tier and want a small sensor board made and assembled at JLCPCB. USB-C for 5 V power only, an AP2112K-3.3 LDO down to 3.3 V, an SHT40 humidity sensor on I2C with its pull-ups, decoupling where the datasheets ask for it, a green status LED on 3.3 V, and a 4-pin 2.54 mm header bringing out 3V3, GND, SDA and SCL. 4 layers, about 25 x 30 mm. Use JLCPCB basic parts wherever you can. LCSC catalogue footprints are fine for anything no generator covers. When it's done, give me the folder to upload to JLCPCB.",
+  "inputs": {
+    "notes": "The skill's representative lane: a free-tier user who has chosen JLCPCB, from substrate through parts and components to the order packet. Nothing is supplied but the prompt. The runner chooses the parts, so no C-number is pinned here: the judges check that each C-number the runner wrote in an LCSCPart has saved channel evidence, and the deterministic assertions check the packet the export wrote. The user's sentence about catalogue footprints is the project's catalogue-footprint opt-in; the runner records it in COMPLETION.md's Opt-in row (and PLAN.md when there is one) and takes the catalogue footprints as published. The BOM assertion is stricter than the skill's done list, which allows a BOM row without a C-number when it is named to the user: that allowance exists for parts an approved list supplies, and this prompt has no approved list, so every row should resolve through the catalogue or an LCSCPart. A run that leaves the board unrouted should report the packet as not yet orderable; the deterministic assertions check only that the packet exists.",
+    "environment": "A scratch project directory at <output> with a Python 3.12 virtual environment holding jitx 4.6.x, jitxlib-standard, jitxlib-parts, jitxexamples and jitxlib-jlcpcb 4.x, a signed-in JITX account and a runtime the runner may start. Network access to jlcpcb.com, wmsc.lcsc.com and easyeda.com, which the parts providers, LCSCLandpattern and the export's orientation measurement reach on a first build, and to manufacturer datasheet sites.",
+    "offline": false,
+    "traps": [
+      "Filtering every passive with library=\"basic\" can find nothing: the basic library is small. The skill asks for rank=Minimize(\"library\"), with a filter only when the user insists on basic alone.",
+      "The USB-C receptacle is a connector no generator builds. A catalogue footprint is allowed by the prompt, but its pad-to-port map must come from the manufacturer's pinout, not pad order.",
+      "The LED is polarized. Its component class maps anode and cathode from the manufacturer's pinout, whichever footprint it uses.",
+      "An IC or connector carries no C-number unless the component names one with LCSCPart on the component itself; one without it reaches the BOM unmatched and fails the BOM assertion.",
+      "The jitx skill seeds the example passives CSV as an approved list. Those parts carry no C-number, so for this project the CSV holds its header row only.",
+      "The 6-layer class has no 90 ohm pair, and this board has no impedance-controlled interface at all: any 4-layer JLC04161H class fits, and the choice between 1080 and 7628 prepreg should be stated, not defaulted silently."
+    ]
+  },
+  "reference": {
+    "notes": "No committed reference solution. Judges score the packet and the code against the skill's rules, the installed jitxlib-jlcpcb source and the manufacturers' datasheets."
+  },
+  "runner_models": [
+    "sonnet"
+  ],
+  "runner_rationale": "Customers on the free tier drive this skill with mixed-strength agents, so the eval runs it under a Sonnet-class runner and holds the judges at frontier tier. The case probes whether the skill keeps a weaker model from inventing jitxlib-jlcpcb names, from filtering basic parts to nothing, from mapping a catalogue footprint's ports in pad order, and from using a catalogue footprint where a generator expresses the package.",
+  "runner_isolation": "Start the runner in a scratch directory with the skill and a writable output directory, and nothing else: no access to a repository containing a finished JLCPCB design of this shape. Reading the installed jitx, jitxlib and jitxlib-jlcpcb source and docstrings is expected.",
+  "runner_artifacts": "The project root is <output>: pyproject.toml, lcsc.lock.json and the design package sit directly under it, and the packet directory sits inside it. The runner MUST write its completion summary, with the JLCPCB check block, to <output>/COMPLETION.md, not only into its final chat message. Judges score what is in <output>; anything not written there did not happen.",
+  "runner_build": "Tell the runner to run `jitx find`, build the target it prints, run the parts check, and export the JLCPCB packet into a directory under <output>, recording each exact command and result. Do NOT tell it to skip the build or the export: the contract hard-fails on an available build that was not done. Where a step genuinely cannot run (no runtime, no network to the catalogue), the runner declares it as an open item in COMPLETION.md, which satisfies the hard-fail's own escape clause. Tell the runner it may not upload or order anything.",
+  "expected_output": "A JITX project at <output> whose pyproject.toml lists jitxlib-jlcpcb in dependencies and names the chain csv:parts/approved-parts.csv then jlcpcb, with no ideal; a design on a JLC04161H class; passives ranked toward basic parts; LCSCPart on every IC, connector and LED component; channel evidence under datasheets/sourcing/ for each named C-number; the catalogue-footprint opt-in recorded, and any catalogue footprint in a runner-written class carrying a manufacturer-pinout ports= map; lcsc.lock.json at the root; a packet directory holding the gerber zip, BOM, CPL and order sheet with a C-number on every BOM row; and a COMPLETION.md whose JLCPCB check block is filled and which asks the user to approve the MPNs and C-numbers and to check rotations in JLCPCB's placement preview before ordering.",
+  "assertions": [
+    {
+      "text": "pyproject.toml lists jitxlib-jlcpcb in dependencies, and its parts chain starts with a csv: approved list, ends with jlcpcb, and holds no ideal",
+      "check": "deterministic",
+      "cmd": "python3 -c \"import re,sys,tomllib;d=tomllib.load(open(sys.argv[1]+'/pyproject.toml','rb'));deps=d.get('project',{}).get('dependencies',[]);c=d.get('tool',{}).get('jitx',{}).get('parts',{}).get('chain',[]);dep=any(re.match(r'jitxlib[-_]jlcpcb',x.replace(' ','')) for x in deps);sys.exit(0 if dep and c and c[0].startswith('csv:') and c[-1]=='jlcpcb' and 'ideal' not in c else 'dependencies '+str(deps)+' chain '+str(c))\" <output>"
+    },
+    {
+      "text": "the design uses one of the 4-layer JLCPCB classes",
+      "check": "deterministic",
+      "cmd": "python3 -c \"import re,sys;from pathlib import Path;o=Path(sys.argv[1]);f=[p for p in o.rglob('*.py') if not any((q/'pyvenv.cfg').exists() for q in p.parents) and 'site-packages' not in p.parts];sys.exit(0 if any(re.search(r'JLC04161H_(1080|7628)',p.read_text(encoding='utf-8',errors='ignore')) for p in f) else 'no project .py file names a JLC04161H class')\" <output>"
+    },
+    {
+      "text": "one directory under <output> holds the gerber zip, the BOM CSV, the CPL CSV and the order sheet the export writes",
+      "check": "deterministic",
+      "cmd": "python3 -c \"import sys;from pathlib import Path;o=Path(sys.argv[1]);d=[p.parent for p in o.rglob('*-bom.csv') if not any((q/'pyvenv.cfg').exists() for q in p.parents) and 'site-packages' not in p.parts];ok=[x for x in d if list(x.glob('*-gerber.zip')) and list(x.glob('*-cpl.csv')) and list(x.glob('*-order.md'))];sys.exit(0 if ok else 'no directory under '+str(o)+' holds a gerber zip, BOM, CPL and order sheet together')\" <output>"
+    },
+    {
+      "text": "every BOM data row carries a C-number in its JLCPCB Part # column",
+      "check": "deterministic",
+      "cmd": "python3 -c \"import csv,re,sys;from pathlib import Path;o=Path(sys.argv[1]);b=[p for p in o.rglob('*-bom.csv') if not any((q/'pyvenv.cfg').exists() for q in p.parents) and 'site-packages' not in p.parts];rows=[r for p in b for r in csv.DictReader(open(p,newline='',encoding='utf-8'))];bad=[r for r in rows if not re.fullmatch(r'C[0-9]+',(r.get('JLCPCB Part #') or '').strip())];sys.exit(0 if b and rows and not bad else 'BOM files '+str(len(b))+', rows '+str(len(rows))+', rows without a C-number: '+str(bad))\" <output>"
+    },
+    {
+      "text": "no BOM names an IDEAL- part",
+      "check": "deterministic",
+      "cmd": "python3 -c \"import sys;from pathlib import Path;o=Path(sys.argv[1]);b=[p for p in o.rglob('*-bom.csv') if not any((q/'pyvenv.cfg').exists() for q in p.parents) and 'site-packages' not in p.parts];hit=[str(p) for p in b if 'IDEAL-' in p.read_text(encoding='utf-8')];sys.exit(0 if b and not hit else 'no BOM found' if not b else 'IDEAL- part in '+str(hit))\" <output>"
+    },
+    {
+      "text": "lcsc.lock.json exists at the project root",
+      "check": "deterministic",
+      "cmd": "test -s <output>/lcsc.lock.json"
+    },
+    {
+      "text": "the completion summary was written to <output>/COMPLETION.md",
+      "check": "deterministic",
+      "cmd": "test -s <output>/COMPLETION.md"
+    },
+    {
+      "text": "basic parts are preferred by rank=Minimize(\"library\") rather than filtered with library=\"basic\" on every query; a filter, where used, is justified by a case where the user asked for basic alone or the rank still found a basic part",
+      "check": "judge"
+    },
+    {
+      "text": "the request's catalogue-footprint opt-in is recorded in COMPLETION.md's Opt-in row, and every LCSCLandpattern in a runner-written class is on a part no generator expresses; a runner-written class gives a ports= map from the manufacturer's pinout; a part whose pinout could not be read is blocked rather than given pad-order or generic ports; any polarized passive whose catalogue footprint the provider attaches is named to the user for a polarity check in the placement preview; each build footprint warning is named to the user; catalogue footprints are taken as published, never checked or replaced over their pads against the drawing",
+      "check": "judge"
+    },
+    {
+      "text": "each C-number the runner wrote in an LCSCPart has channel evidence (stock, lifecycle or `none stated`, datasheet URL, pinout) saved under datasheets/sourcing/ and cited in that part's PLAN.md data-source row, or in COMPLETION.md when there is no PLAN.md",
+      "check": "judge"
+    },
+    {
+      "text": "the runner told the user that installing jitxlib-jlcpcb publishes a parts chain that changes resolution for a project naming none",
+      "check": "judge"
+    },
+    {
+      "text": "the runner asks the user to approve the resolved MPNs and C-numbers before ordering, and to check rotations in JLCPCB's placement preview, and neither uploads nor orders anything nor claims to have",
+      "check": "judge"
+    },
+    {
+      "text": "the substrate choice is stated with its reason (layer count, impedances needed or none, prepreg), and the order sheet's layer count and thickness match it",
+      "check": "judge"
+    },
+    {
+      "text": "the runner reports the packet as orderable only if it was exported after the board was routed and DRC was clean, and it reports DRC as clean or as not run with the reason; otherwise it says the packet is not yet orderable, what remains for the user, and that the export must run again after routing",
+      "check": "judge"
+    },
+    {
+      "text": "every jitxlib.jlcpcb name, argument and CLI flag in the code and the recorded commands exists in the installed package",
+      "check": "judge"
+    }
+  ]
+}

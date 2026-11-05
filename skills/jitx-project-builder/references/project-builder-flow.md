@@ -64,7 +64,7 @@ Every transition above runs through `python scripts/plan_status.py <task-id> <st
 
 4. **Plan the power tree**: trace power from input through regulators to every load. Note voltage, current, and sequencing requirements.
 
-5. **Assess substrate needs**: based on interface speeds, routing density, and component package complexity (e.g., high-pin-count BGAs require more layers), determine layer count, material class, and via technology. **Ask the user which fab house they are targeting.** If they confirm JLCPCB and need standard 4-layer or 6-layer FR-4 with 50/90/100 ohm impedance, predefined substrates from `jitxlib.jlcpcb` (JLC04161H_1080, JLC04161H_7628, JLC06161H_7628) are available — no substrate *modeling* is needed, and sub-01 narrows to selection and verification rather than disappearing. Otherwise, create a custom substrate (the default path).
+5. **Assess substrate needs**: based on interface speeds, routing density, and component package complexity (e.g., high-pin-count BGAs require more layers), determine layer count, material class, and via technology. The fab house comes from the requirements lock; with none named, ask (`decomposition-guide.md` Step 0). If the user chose JLCPCB, its predefined substrates are in `jitx-jlcpcb`, and sub-01 narrows to selecting and verifying one rather than disappearing. Otherwise sub-01 selects or models one as `decomposition-guide.md` "Substrate" sets out.
 
 6. **Data source audit**: for every component, identify where its data will come from, and ask for the user's approved-parts list for passives. Present a table to the user for approval **before proceeding**. See the Data Source Audit section below.
 
@@ -101,7 +101,7 @@ Before decomposing into tasks, present the user with a data source plan for each
 Please confirm data sources or provide alternatives (datasheets, footprints, specs).
 ```
 
-**Channel evidence is required.** If the user has named a sourcing channel (LCSC/JLCPCB, Digi-Key/Mouser, internal PLM), the audit table must include channel-specific evidence for every named IC and connector before code is written. For LCSC/JLCPCB, that means the part's channel record (stock, lifecycle, datasheet URL, pin labels) saved to the project. See [Required-Sourcing Rule (named channel → channel-specific evidence)](parts-sourcing.md#required-sourcing-rule-named-channel--channel-specific-evidence) for the full ladder including non-LCSC channels.
+**Channel evidence is required.** If the user has named a sourcing channel (LCSC/JLCPCB, Digi-Key/Mouser, internal PLM), the audit table must include channel-specific evidence for every named IC and connector before code is written. For LCSC/JLCPCB, what to save is in `jitx-jlcpcb`. With no channel and no fab named, ask for the channel with the fab house (`decomposition-guide.md` Step 0) and do not propose one; with a user-named fab, the channel may follow from it as `assuming: X` in the assembly tier row. See [Required-Sourcing Rule (named channel → channel-specific evidence)](parts-sourcing.md#required-sourcing-rule-named-channel--channel-specific-evidence) for the full ladder including non-LCSC channels.
 
 **Rules:**
 - Always prefer user-provided data over automated lookups
@@ -112,6 +112,8 @@ Please confirm data sources or provide alternatives (datasheets, footprints, spe
 ### Approved passives
 
 Passives resolve from the project's parts chain, and its first member reads `parts/approved-parts.csv` (base `jitx` skill, Step 2). Ask the user for their approved-parts list at the audit: a CSV whose header names `category`, `mpn`, `manufacturer`, then one column per attribute a query filters on (`capacitance`, `case`, `rated_voltage_dc`, ...), or an internal parts database a `jitxlib.parts.Provider` can serve. Save a CSV to `parts/approved-parts.csv`; a database goes into the chain in place of the `csv:` entry. Format and the provider route: https://docs.jitx.com/en/latest/essentials/design/parts.html
+
+Once the user chose JLCPCB, the chain and this list follow `jitx-jlcpcb`.
 
 With no list from the user, copy the example CSV that ships in `jitxexamples` as a stand-in. Install it into the project venv once with `--no-deps`, so its own pins cannot replace the project's `jitx` or `jitxlib-parts`; it is not added to the project's dependencies:
 
@@ -144,7 +146,7 @@ When the user's list replaces the stand-in, tell the user every passive will be 
 - [ ] ARCHITECTURE.md exists with power tree and interface map
 - [ ] No duplicated facts remain; task statuses reconcile with unresolved questions and task inputs and dependencies, including transitive blockers — either discrepancy blocks advancement per `completion-blocks.md`
 - [ ] Data source audit completed and user approved
-- [ ] `parts/approved-parts.csv` holds the user's approved-parts list, or the example stand-in recorded as such in PLAN.md (or the chain names the user's parts database)
+- [ ] `parts/approved-parts.csv` holds the user's approved-parts list, or the example stand-in recorded as such in PLAN.md (or the chain names the user's parts database); once the user chose JLCPCB, the list and chain follow `jitx-jlcpcb`
 - [ ] All datasheets and reference materials identified and accessible (or user committed to providing them)
 - [ ] Dependencies are acyclic
 - [ ] No ambiguous requirements remain (ask user if unclear)
@@ -286,7 +288,7 @@ A query assigned in the Design class body is the default for every passive of it
 
 | Design class | Typical defaults | Why |
 |--------------|------------------|-----|
-| **SMT production / economy** (JLCPCB, full-machine assembly) | SMD-only, ceramic for caps, every case the assembler accepts from its smallest up (0402 to 1210 in the example); a case left off is excluded | Through-hole picks are wrong; a short list sends a large-value or high-voltage part to `IDEAL-` |
+| **SMT production / economy** (full-machine assembly, JLCPCB's for example) | SMD-only, ceramic for caps, every case the assembler accepts from its smallest up (0402 to 1210 in the example); a case left off is excluded | Through-hole picks are wrong; a short list sends a large-value or high-voltage part to `IDEAL-` |
 | **Hand-build / prototype** (hand-soldered, mixed assembly) | SMD or mixed, larger case (0603–1206) for ease, allow common through-hole on large parts | Hand-rework needs accessible sizes |
 | **Specialty** (high-voltage, RF-heavy, precision analog, high-current, automotive temp) | Per-circuit refinement of ratings and dielectric is the rule; design-level defaults stay broad | Circuit role dominates: bulk caps, film, RF passives and shunts each state their voltage, power or dielectric need |
 
@@ -563,7 +565,7 @@ Do not accept "noted for future refactoring" — if it's broken, fix it now.
 
 ### Phase 4 Process
 
-1. Run the parts gate first (base `jitx` skill, Step 2; https://docs.jitx.com/en/latest/essentials/design/parts.html): `jitx build <design>` and `jitx design export parts-check <design> --fail all` must pass, and no MPN the final build resolved (read as in Phase 0 "Approved passives") may start with `IDEAL-` (`ideal` stays in the chain, and the parts check passes an ideal part). When PLAN.md `Data Sources` records the example stand-in, the gate also lists each of those MPNs with the user's approval quoted, or the user's list has replaced the stand-in; otherwise it is a blocking item. Approved parts can change footprints, so every later check runs on the approved parts. An `IDEAL-` MPN or a `no part found` goes to the user, not to a fix sub-agent: ask for the approved part, and change a value or rating only with the user's sign-off and the affected circuit recomputed.
+1. Run the parts gate first (base `jitx` skill, Step 2; https://docs.jitx.com/en/latest/essentials/design/parts.html): `jitx build <design>` and `jitx design export parts-check <design> --fail all` must pass, and no MPN the final build resolved (read as in Phase 0 "Approved passives") may start with `IDEAL-` (`ideal` stays in the chain unless the user chose JLCPCB, whose chain rule is in `jitx-jlcpcb`, and the parts check passes an ideal part). When PLAN.md `Data Sources` records the example stand-in, the gate also lists each of those MPNs with the user's approval quoted, or the user's list has replaced the stand-in; otherwise it is a blocking item. Approved parts can change footprints, so every later check runs on the approved parts. An `IDEAL-` MPN or a `no part found` goes to the user, not to a fix sub-agent: ask for the approved part, and change a value or rating only with the user's sign-off and the affected circuit recomputed.
 2. Run the full verification command: `python scripts/check.py <ns>/ --build <ns>.main.Design`
 3. Check output for:
    - Every summary line reports `PASS`: proceed to verification
