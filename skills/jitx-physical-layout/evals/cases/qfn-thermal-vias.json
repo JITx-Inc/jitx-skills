@@ -1,0 +1,42 @@
+{
+  "name": "qfn-thermal-vias",
+  "prompt": "fixture_qfn_thermal_vias.py has a KSZ9031RNX gigabit PHY whose exposed pad is on GND, with a GND plane on L2. Put thermal vias in the exposed pad down to that plane: a square grid at 1.0 mm pitch centred on the pad, as many as fit with each via pad's rim at least 0.25 mm inside the pad edge, using a via the Pellingham sheet accepts inside a pad. Keep the part's land pattern, its mask and its paste windows, as they are.",
+  "inputs": {
+    "pyproject.toml": "evals/cases/fixtures/common/pyproject.toml",
+    "cl_substrate.py": "evals/cases/fixtures/common/cl_substrate.py",
+    "cl_parts.py": "evals/cases/fixtures/common/cl_parts.py",
+    "pellingham_cl_fab_sheet.md": "evals/cases/fixtures/common/pellingham_cl_fab_sheet.md",
+    "cl_phy_board.py": "evals/cases/fixtures/common/cl_phy_board.py",
+    "fixture_qfn_thermal_vias.py": "evals/cases/fixtures/qfn-thermal-vias/fixture_qfn_thermal_vias.py"
+  },
+  "notes": "The fixtures import jitxexamples parts from py-components e6bf1cb (the installed package in the eval venv, 2.0.1.dev74+ge6bf1cbc2) and import no jitxexamples.patterns module; the fictional parts in cl_parts.py need no parts database. The fixture module is fixture_qfn_thermal_vias.py, Design QfnThermalViasDesign. The exposed pad is 3.60 square (land pattern figure 13-3) with four 1.425 square paste windows (8.1225 mm2) and a 3.80 mask opening. Row 16's VipVia (0.450 pad, via_in_pad True) is the via the sheet accepts in a pad; row 11's ThVia has via_in_pad False. Count: centres within 1.80 - 0.25 - 0.225 = 1.325 of the pad centre, so 3 per axis at 1.0 pitch, 9 in all. Spike C9: the runtime raised no issue for a via in a pad that does not allow one, so the check reads via_in_pad itself, and the judge asks whether the runner did. The skill's thermal_via_stitch helper builds its own mask-defined pad; the prompt keeps the part's pad, so the helper's land pattern call does not fit here, though its grid arithmetic does. Measured on this suite's own solution (2026-11-05): 9 VipVia at (-1, 0, 1) squared, each in the realized L2 pour, paste 8.1225 mm2, mask covering the pad, no design issues. The same grid of ThVia failed the check 9 times (via_in_pad False); a 0.6 rim margin gave a 2 x 2 grid off the centred 1.0 grid and failed. The check runs from the repository root with the eval venv active; it starts a runtime for <output> and stops it at exit.",
+  "runner_models": [
+    "sonnet"
+  ],
+  "runner_rationale": "Customers drive this skill with mixed-strength agents, so the eval runs the skill under a Sonnet-class runner; judges stay frontier-tier.",
+  "runner_artifacts": "The input files are the starting design. Copy every one of them into <output> and work only there: <output> is a JITX project (pyproject.toml) whose modules import each other by file name. Write the layout in the fixture module, fixture_qfn_thermal_vias.py, or in a module it imports, and keep its Design class name, QfnThermalViasDesign. Do not move or remove the fixture's parts, nets, pours or vias, do not change the KSZ9031RNX's land pattern, and do not change the substrate. Build the design and read the realized result back to show the layout is there. Write a completion summary to <output>/COMPLETION.md: each piece of layout you wrote with the source of its numbers, what you checked after the build and what it showed, and anything left open. Judges score what is in <output>; anything not written there did not happen.",
+  "expected_output": "Nine ClStandard4.VipVia on GND at (-1, 0, 1) x (-1, 0, 1), the count derived from the pad side, pitch, rim margin and row 16's pad, the via chosen for via_in_pad, the land pattern untouched, and a build that reads the vias back and shows them inside the realized L2 pour.",
+  "assertions": [
+    {
+      "text": "the exposed pad holds exactly the count of vias the pad side, the 1.0 pitch, the 0.25 rim margin and row 16's 0.450 pad allow, on a 1.0 grid centred on the pad, each with via_in_pad True and each inside the realized L2 ground pour, and the pad keeps its 8.1225 mm2 of paste and a mask opening over it",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-physical-layout/evals/checks/check_qfn_thermal_vias.py <output>"
+    },
+    {
+      "text": "the runner checks that the via it uses is allowed in a pad (via_in_pad, fab row 16) itself, and does not rely on the build to flag a via in a pad that disallows one",
+      "check": "judge"
+    },
+    {
+      "text": "the via count is derived in COMPLETION.md from the pad side read from the land pattern, the pitch, the rim margin and the via pad, with the arithmetic shown",
+      "check": "judge"
+    },
+    {
+      "text": "the vias are joined to GND and the runner shows from the capture that they reach the L2 plane, not only that they were placed",
+      "check": "judge"
+    },
+    {
+      "text": "COMPLETION.md gives, for each piece of layout the prompt asked for, the electrical or fabrication need it holds: what goes wrong on this board without it, in a sentence.",
+      "check": "judge"
+    }
+  ]
+}
