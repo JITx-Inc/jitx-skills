@@ -8,15 +8,18 @@ part's docstring) against the prompt and the land pattern:
 
 - every route realized, on layer 0;
 - each DVDDL pad is touched by routed copper, and the routed copper over
-  the pad spans at most 0.25 across the pad's short side (the prompt's
-  neck), which is under the pad's own width, its short side as captured
-  (0.30, land pattern figure 13-3 X1). The span is measured on the copper's
-  geometry, not read from a drawn width, so a trace drawn at 0.25 and a
-  ``Route.Target`` taper that realizes as a polygon both count;
-- the connected piece of routed copper that leaves each pad is 0.40 wide
-  somewhere past the pad (the prompt's run width), read as the widest cut
-  across the pad's long axis outside the pad, so a drawn 0.40 trace and a
-  taper that reaches 0.40 both count, and it reaches a via placed in code;
+  the pad is nowhere wider than 0.25 (the prompt's neck), which is under
+  the pad's own width, its short side as captured (0.30, land pattern
+  figure 13-3 X1). The width is measured on the copper, whatever construct
+  made it: the copper over the pad, shrunk by half the neck plus 0.001,
+  must vanish. That holds for a 0.25 trace at any angle across the pad
+  and fails for copper that fills the pad's 0.30;
+- the connected piece of routed copper that leaves each pad carries the
+  prompt's 0.40 run width past the pad: a realized trace drawn 0.40 wide,
+  or, for copper with no drawn width, the piece outside the pad shrunk by
+  half of 0.40 less 0.001 is not empty. Only the lower bound is read from
+  the geometry, since a bend in a 0.40 trace survives a larger shrink; and
+  the piece reaches a via placed in code;
 - that via stands outside the package body (7.00 square, the part's BODY)
   and its centre lies inside the realized L3 1V2 pour, so it joins the
   plane; each pin has its own via, six in all;
@@ -28,7 +31,7 @@ import sys
 from pathlib import Path
 
 import shapely
-from shapely.geometry import LineString, Point
+from shapely.geometry import Point
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -38,23 +41,7 @@ PINS = (14, 18, 23, 26, 30, 39)
 NECK = 0.25
 RUN = 0.40
 BODY_HALF = 7.00 / 2
-CUT_STEP = 0.01
-
-
-def widest_cut(piece: shapely.geometry.base.BaseGeometry, pad: shapely.geometry.base.BaseGeometry) -> float:
-    """Widest cut across ``piece`` perpendicular to the pad's long axis, outside the pad."""
-    bx0, by0, bx1, by1 = pad.bounds
-    px0, py0, px1, py1 = piece.bounds
-    along_y = by1 - by0 > bx1 - bx0
-    lo, hi, pad_lo, pad_hi = (py0, py1, by0, by1) if along_y else (px0, px1, bx0, bx1)
-    best = 0.0
-    t = lo
-    while t <= hi:
-        if not pad_lo <= t <= pad_hi:
-            cut = LineString([(px0 - 1, t), (px1 + 1, t)] if along_y else [(t, py0 - 1), (t, py1 + 1)])
-            best = max(best, piece.intersection(cut).length)
-        t += CUT_STEP
-    return round(best, 4)
+TOL = 1e-3
 
 
 out = L.output_dir()
@@ -90,21 +77,24 @@ with L.built(out, "fixture_qfn_power_fanout_geometry", "QfnPowerFanoutGeometryDe
         if over.area <= 1e-6:
             L.fail(f"pin {pin}: no routed copper on the pad")
             continue
-        ox0, oy0, ox1, oy1 = over.bounds
-        span = round(ox1 - ox0 if bx1 - bx0 < by1 - by0 else oy1 - oy0, 4)
-        if span > NECK + 1e-3:
-            L.fail(f"pin {pin}: routed copper spans {span} across the {pad_w} pad, over the {NECK} neck")
+        necked = over.buffer(-(NECK / 2 + TOL)).is_empty
+        if not necked:
+            L.fail(f"pin {pin}: routed copper over the {pad_w} pad is wider than the {NECK} neck somewhere")
         piece = next((pc for pc in pieces if pc.distance(pad) < 1e-3), None)
-        run = widest_cut(piece, pad) if piece is not None else 0.0
-        if abs(run - RUN) > 2e-3:
-            L.fail(f"pin {pin}: the fanout is {run} wide at its widest past the pad, not {RUN}")
+        drawn = piece is not None and any(
+            w is not None and abs(w - RUN) < TOL and g.distance(piece) < 1e-3 for _, w, g in shapes
+        )
+        reached = piece is not None and not piece.difference(pad).buffer(-(RUN / 2 - TOL)).is_empty
+        run = "drawn 0.40 trace" if drawn else "0.40 reached by copper with no drawn width" if reached else "none"
+        if not (drawn or reached):
+            L.fail(f"pin {pin}: the fanout carries no {RUN} run past the pad")
         hit = [(x, y) for x, y, disc in vias if piece is not None and piece.distance(disc) < 1e-3]
         if not hit:
             L.fail(f"pin {pin}: the fanout reaches no code-placed via outside the body on the 1V2 plane")
             continue
         used.add((round(hit[0][0], 3), round(hit[0][1], 3)))
         print(
-            f"pin {pin}: pad {pad_w} wide, copper over it {span} across, fanout {run} at its widest, via {hit[0][0]:.3f}, {hit[0][1]:.3f}"
+            f"pin {pin}: pad {pad_w} wide, neck within {NECK}: {necked}, run: {run}, via {hit[0][0]:.3f}, {hit[0][1]:.3f}"
         )
     if len(used) != len(PINS):
         L.fail(f"{len(used)} distinct fanout vias for {len(PINS)} pins")

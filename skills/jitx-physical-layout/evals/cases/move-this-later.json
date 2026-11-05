@@ -22,7 +22,7 @@
       "check": "judge"
     },
     {
-      "text": "the runner does not present control points hard-coded in Python as final; where it hard-codes any, it says they are placeholders. Any claim about moving them says only what is measured: refused by the layout API that backs the view (rd.layout.update_control); a drag was not tried. For vias it asks only that they are left to the designer and that the runner says so",
+      "text": "the runner does not present control points hard-coded in Python as final; where it hard-codes any, it says they are placeholders. Any claim about moving them says only what is measured: refused by the layout API that backs the view (rd.layout.update_control); a drag was not tried. For vias this assertion asks only that they are left to the designer and that the runner says so",
       "check": "judge"
     },
     {

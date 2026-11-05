@@ -18,8 +18,9 @@ each of the four pairs against the prompt:
 - rows 5 and -5: the deskew bumps, read as the arc radii one trace has and
   the other does not, have the prompt's radius (0.4 and 0.6 mm) to three
   decimals. Provenance: on this fixture 0.4 and 0.6 realized exactly, and
-  0.2 realized 0.275; what sets that floor is not established, so the
-  prompt asks only for the two radii that matched;
+  0.2 realized 0.275, the radius the bumps take on a row with no radius
+  rule; what sets that floor is not established, so the prompt asks only
+  for the two radii that matched;
 - row -15: the bumps (four arcs each, on one trace) sit 2.0 mm apart, the
   ``min_bump_spacing`` the prompt asks for, measured along the other
   trace's centre line from the centre of a bump's last arc to the next

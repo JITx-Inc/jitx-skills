@@ -20,8 +20,8 @@ escape against the prompt:
   the pair is split at a control point, not narrowed for its whole length;
 - the 0.08 copper reaches no further than 2.345 below the field box. The
   prompt asks for DIFF_100 everywhere outside the field; spike C8 split a
-  pair at control points 4.0, 4.5 and 6.0 below the ball centres of a
-  field whose pad edge sat at 3.655, and the transition followed the
+  pair at control points at local y -4.0, -4.5 and -6.0, against a field
+  whose bottom pad edge sat at y -3.655, and the transition followed the
   control point each time, so a split 6.0 - 3.655 = 2.345 below the field
   edge is the furthest a tested escape put it. A neck that runs on toward
   the chips fails here;
