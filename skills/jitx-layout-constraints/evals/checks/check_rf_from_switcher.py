@@ -8,9 +8,10 @@ Builds <output>/fixture_rf_from_switcher.py, captures it, and checks:
   neither condition AnyObject (TrueExpr), so it relates the feed to the
   switcher rather than the feed to everything;
 - the feed is still realized;
-- the switch-node pour's computed copper sits 2.5 from the feed, within
-  [2.5, 2.53] (measured on jitx 4.6, pour pullback sits at the rule's value
-  plus 0.01);
+- the switch-node pour's computed copper sits at least 2.5 from the feed
+  trace (measured on jitx 4.6, pour pullback sits at the rule's value plus
+  0.01). There is no upper bound: a pour held farther back, for instance by
+  also keeping 2.5 from the feed's pads, still meets the prompt;
 - the feed's layer-0 GND pour stays at the board's default gap, fab row 4's
   0.100 plus the runtime's 0.01, at most 0.14: a clearance from the feed to
   AnyObject would push its own ground back.
@@ -53,17 +54,23 @@ with L.built(out, "fixture_rf_from_switcher", "RfFromSwitcherDesign") as rd:
         L.fail("the feed has no realized traces")
     else:
         feed = L.route_geom(c.feed)
-        found = {p is c.reg.sw_pour: g for _, p, g in L.world_pours(rd) if p is c.reg.sw_pour or p is c.pours[0]}
+        found = {
+            p is c.reg.sw_pour: g
+            for _, p, g in L.world_pours(rd)
+            if p is c.reg.sw_pour or p is c.pours[0]
+        }
         sw_g, gnd_g = found.get(True), found.get(False)
         if sw_g is None or sw_g.is_empty:
             L.fail("the switch-node pour's computed copper was not found")
         else:
             gap = L.gap(sw_g, feed)
             print(f"switch-node pour gap to the feed: {gap}")
-            if KEEP - 1e-3 <= gap <= KEEP + 0.03:
+            if gap >= KEEP - 1e-3:
                 L.ok(f"switch-node copper {gap} from the feed")
             else:
-                L.fail(f"switch-node copper {gap} from the feed, expected {KEEP} (+0.01)")
+                L.fail(
+                    f"switch-node copper {gap} from the feed, expected at least {KEEP}"
+                )
         if gnd_g is None or gnd_g.is_empty:
             L.fail("the layer-0 GND pour's computed copper was not found")
         else:

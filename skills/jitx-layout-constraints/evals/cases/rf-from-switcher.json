@@ -18,7 +18,7 @@
   "expected_output": "A tag on the RF feed net and a two-condition clearance(RF tag, switch-node tag) of 2.5, the reason a one-sided clearance to AnyObject is wrong here, and COMPLETION.md with the measured switch-node pullback, the feed's ground gap, and the measured distance from the switch-node copper to the feed.",
   "assertions": [
     {
-      "text": "a two-condition clearance of at least 2.5 mm relates the feed to the switcher, the feed is realized, the switch-node copper sits 2.5 mm from the feed, and the feed's own ground pour is not pushed back",
+      "text": "a two-condition clearance of at least 2.5 mm relates the feed to the switcher, the feed is realized, the switch-node copper sits at least 2.5 mm from the feed, and the feed's own ground pour is not pushed back",
       "check": "deterministic",
       "cmd": "python3 skills/jitx-layout-constraints/evals/checks/check_rf_from_switcher.py <output>"
     },
