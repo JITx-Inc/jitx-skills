@@ -1,0 +1,42 @@
+{
+  "name": "route-around-with-sketch",
+  "prompt": "fixture_route_around_with_sketch.py has two edge SMA jacks with a column of ground vias standing across the straight path between them. Route the RF line on L1 at MS_50's width from SMA to SMA, passing below the via column (the -y side): the area above it is reserved for a sensor I add later.",
+  "inputs": {
+    "pyproject.toml": "evals/cases/fixtures/common/pyproject.toml",
+    "cl_substrate.py": "evals/cases/fixtures/common/cl_substrate.py",
+    "cl_parts.py": "evals/cases/fixtures/common/cl_parts.py",
+    "pellingham_cl_fab_sheet.md": "evals/cases/fixtures/common/pellingham_cl_fab_sheet.md",
+    "cl_launch_board.py": "evals/cases/fixtures/common/cl_launch_board.py",
+    "fixture_route_around_with_sketch.py": "evals/cases/fixtures/route-around-with-sketch/fixture_route_around_with_sketch.py"
+  },
+  "notes": "The fixtures import jitxexamples parts from py-components e6bf1cb (the installed package in the eval venv, 2.0.1.dev74+ge6bf1cbc2) and import no jitxexamples.patterns module; the fictional parts in cl_parts.py need no parts database. The fixture module is fixture_route_around_with_sketch.py, Design RouteAroundWithSketchDesign. Spike C1: Route.Sketch turns are a side hint, not waypoints, and act only when an obstacle forces a detour. In this fixture a route with no sketch passes the column above (measured 2026-11-05: its copper crosses x = 0 at y 1.948 to 2.248), so the prompt names the other side and a plain route fails the check. Measured on this suite's own solution, a sketch with turns at (-3, -3) and (3, -3): copper at x = 0 spans y -2.248 to -1.948, no design issues. Copper drawn as Copper along the same path fails the check (a Route was asked for). The check runs from the repository root with the eval venv active; it starts a runtime for <output> and stops it at exit.",
+  "runner_models": [
+    "sonnet"
+  ],
+  "runner_rationale": "Customers drive this skill with mixed-strength agents, so the eval runs the skill under a Sonnet-class runner; judges stay frontier-tier.",
+  "runner_artifacts": "The input files are the starting design. Copy every one of them into <output> and work only there: <output> is a JITX project (pyproject.toml) whose modules import each other by file name. Write the layout in the fixture module, fixture_route_around_with_sketch.py, or in a module it imports, and keep its Design class name, RouteAroundWithSketchDesign. Do not move or remove the fixture's parts, nets, vias or keepouts, and do not change the substrate or its structures; applying one of its structures to a net is fine. Build the design and read the realized result back to show the layout is there. Write a completion summary to <output>/COMPLETION.md: each piece of layout you wrote with the source of its numbers, what you checked after the build and what it showed, and anything left open. Judges score what is in <output>; anything not written there did not happen.",
+  "expected_output": "A Route(j1.sig, j2.sig, layer=0, sketch=Route.Sketch(...)) whose turns sit on the -y side of the column, MS_50 applied, the column untouched, and a build that reads where the copper crosses x = 0.",
+  "assertions": [
+    {
+      "text": "the RF line is realized as code routes on layer 0 joining both SMA centre pads, its copper at x = 0 entirely below the via column, the column's five vias still in place, and no copper drawn in code",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-physical-layout/evals/checks/check_route_around_with_sketch.py <output>"
+    },
+    {
+      "text": "the runner uses a Route.Sketch (or control points) to choose the side and says that sketch turns are a side hint the router follows only as far as the obstacle needs, not waypoints the copper passes through",
+      "check": "judge"
+    },
+    {
+      "text": "COMPLETION.md reports where the realized copper crosses the column, measured from the captured route, not the sketch's coordinates",
+      "check": "judge"
+    },
+    {
+      "text": "the runner says the sketch's turns are a choice a designer may want to move in the physical design view, and that a sketch set in code cannot be edited there until it is removed from code",
+      "check": "judge"
+    },
+    {
+      "text": "COMPLETION.md gives, for each piece of layout the prompt asked for, the electrical or fabrication need it holds: what goes wrong on this board without it, in a sentence.",
+      "check": "judge"
+    }
+  ]
+}

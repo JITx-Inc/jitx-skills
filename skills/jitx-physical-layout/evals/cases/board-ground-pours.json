@@ -1,0 +1,42 @@
+{
+  "name": "board-ground-pours",
+  "prompt": "fixture_board_ground_pours.py is the two-SMA coupon before layout. Pour ground on all four layers over the whole board, pulled back from the board edge by the fab's copper-to-outline minimum from the Pellingham sheet. The RF line goes in later.",
+  "inputs": {
+    "pyproject.toml": "evals/cases/fixtures/common/pyproject.toml",
+    "cl_substrate.py": "evals/cases/fixtures/common/cl_substrate.py",
+    "cl_parts.py": "evals/cases/fixtures/common/cl_parts.py",
+    "pellingham_cl_fab_sheet.md": "evals/cases/fixtures/common/pellingham_cl_fab_sheet.md",
+    "cl_launch_board.py": "evals/cases/fixtures/common/cl_launch_board.py",
+    "fixture_board_ground_pours.py": "evals/cases/fixtures/board-ground-pours/fixture_board_ground_pours.py"
+  },
+  "notes": "The fixtures import jitxexamples parts from py-components e6bf1cb (the installed package in the eval venv, 2.0.1.dev74+ge6bf1cbc2) and import no jitxexamples.patterns module; the fictional parts in cl_parts.py need no parts database. The fixture module is fixture_board_ground_pours.py, Design BoardGroundPoursDesign. GND reaches L1 and L4 through the SMA ground pads and nothing on L2 or L3: a pour needs a same-net object on its own layer to realize, or it comes back Empty() with no issue (layout-constraints spike S14). The fixture leaves the inner layers without one and the prompt does not mention it. Measured 2026-11-05: four board-outline pours with nothing added realized on L1 and L4 and came back Empty on L2 and L3, at status ok with no design issues, and failed the check. Pours drawn on the outline unchanged and pours drawn 0.300 inside it both realized 0.31 from the outline. This suite's own solution (outline less row 8, a GND through via in each corner): areas 2335.5, 2338.4, 2338.4 and 2338.4 mm2 of the 2340.4 inside the pullback, edge gap 0.31 on every layer. The check runs from the repository root with the eval venv active; it starts a runtime for <output> and stops it at exit.",
+  "runner_models": [
+    "sonnet"
+  ],
+  "runner_rationale": "Customers drive this skill with mixed-strength agents, so the eval runs the skill under a Sonnet-class runner; judges stay frontier-tier.",
+  "runner_artifacts": "The input files are the starting design. Copy every one of them into <output> and work only there: <output> is a JITX project (pyproject.toml) whose modules import each other by file name. Write the layout in the fixture module, fixture_board_ground_pours.py, or in a module it imports, and keep its Design class name, BoardGroundPoursDesign. Do not move or remove the fixture's parts, nets, vias or keepouts, and do not change the substrate or its structures; applying one of its structures to a net is fine. Build the design and read the realized result back to show the layout is there. Write a completion summary to <output>/COMPLETION.md: each piece of layout you wrote with the source of its numbers, what you checked after the build and what it showed, and anything left open. Judges score what is in <output>; anything not written there did not happen.",
+  "expected_output": "Four Pours on GND, one per layer, drawn from the board outline less row 8's 0.300, a same-net anchor for L2 and L3 (GND vias), a build whose captured Pour.shape is measured on every layer, and COMPLETION.md with the area and edge gap per layer.",
+  "assertions": [
+    {
+      "text": "each of the four layers carries a realized pour (not Empty) covering at least 90 % of the board inside row 8's pullback, every pour at least 0.300 from the outline, and the L1 and L4 pours joined to the SMA ground pads",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-physical-layout/evals/checks/check_board_ground_pours.py <output>"
+    },
+    {
+      "text": "the runner reads Pour.shape after capture on every layer and would have caught an Empty() inner pour, rather than reporting the pours from the code it wrote or from status ok",
+      "check": "judge"
+    },
+    {
+      "text": "the edge pullback traces to row 8 of the fab sheet, and the realized edge gap is measured, not assumed from the drawn outline",
+      "check": "judge"
+    },
+    {
+      "text": "the runner says why the inner pours needed a same-net object of their own (a via or other GND copper on that layer), not just that it added vias",
+      "check": "judge"
+    },
+    {
+      "text": "COMPLETION.md gives, for each piece of layout the prompt asked for, the electrical or fabrication need it holds: what goes wrong on this board without it, in a sentence.",
+      "check": "judge"
+    }
+  ]
+}
