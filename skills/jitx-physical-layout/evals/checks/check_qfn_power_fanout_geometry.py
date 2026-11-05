@@ -12,17 +12,21 @@ part's docstring) against the prompt and the land pattern:
   copper on the pad stays narrower than the pad"). The pad's width is its
   short side as captured (0.30, land pattern figure 13-3 X1). The routed
   copper over the pad is cut across the pad's long axis every 0.005 along
-  it, and no cut may span the pad's width less 0.001. The step is chosen
-  against the shortest full-width band known to slip past a coarser test:
-  a 0.40 run's round end cap reaching back over the pad fills the full
-  width for about 0.03 of the pad's length when its RoutePoint sits 0.10
-  past the edge, and a 0.005 step puts about six cuts in that band. The
-  0.25 neck width itself is judged, not checked here;
+  it and at both ends, and no cut may span the pad's width less 0.001.
+  The step was chosen against the band a 0.40 run's round end leaves when
+  its RoutePoint sits just past the pad edge: the end spans the full 0.30
+  for about 0.033 of the pad's length with the RoutePoint 0.10 past the
+  edge (synthetic probe, round caps as jitx builds them), and a 0.005 step
+  puts about six cuts in that band. A band shorter than the step, from a
+  RoutePoint close to 0.13 past the edge where the end stops spanning the
+  pad, can fall between cuts. The 0.25 neck width itself is judged, not
+  checked here;
 - the connected piece of routed copper that leaves each pad reaches a via
-  placed in code, and every realized trace shape that touches that via's
-  disc is drawn 0.40 wide (the prompt's run width, within 0.001). Copper
-  with no drawn width at the via, such as a ``Route.Target`` taper, fails
-  here and is left to the judge;
+  placed in code, and every route whose endpoint is that via has every
+  realized trace drawn 0.40 wide (the prompt's run width, within 0.001).
+  Only routes ending at the via count, so a neck that ends near the via
+  does not. Copper with no drawn width there, such as a ``Route.Target``
+  taper, fails;
 - that via stands outside the package body (7.00 square, the part's BODY)
   and its centre lies inside the realized L3 1V2 pour, so it joins the
   plane; each pin has its own via, six in all;
@@ -54,8 +58,7 @@ def widest_cut(over: BaseGeometry, pad: BaseGeometry) -> float:
     along_y = by1 - by0 > bx1 - bx0
     lo, hi = (by0, by1) if along_y else (bx0, bx1)
     best = 0.0
-    for k in range(int((hi - lo) / CUT_STEP) + 1):
-        t = lo + k * CUT_STEP
+    for t in [lo + k * CUT_STEP for k in range(int((hi - lo) / CUT_STEP) + 1)] + [hi]:
         cut = LineString([(bx0 - 1, t), (bx1 + 1, t)] if along_y else [(t, by0 - 1), (t, by1 + 1)])
         best = max(best, over.intersection(cut).length)
     return round(best, 4)
@@ -73,7 +76,7 @@ with L.built(out, "fixture_qfn_power_fanout_geometry", "QfnPowerFanoutGeometryDe
     if plane.is_empty:
         L.fail("the L3 1V2 pour did not realize")
     vias = [
-        (x, y, Point(x, y).buffer(float(v.diameter) / 2))
+        (x, y, v, Point(x, y).buffer(float(v.diameter) / 2))
         for x, y, v in L.placed_vias(rd)
         if max(abs(x), abs(y)) > BODY_HALF and plane.contains(Point(x, y))
     ]
@@ -98,17 +101,19 @@ with L.built(out, "fixture_qfn_power_fanout_geometry", "QfnPowerFanoutGeometryDe
         if widest >= pad_w - TOL:
             L.fail(f"pin {pin}: routed copper spans {widest} across the {pad_w} pad, not narrower than the pad")
         piece = next((pc for pc in pieces if pc.distance(pad) < 1e-3), None)
-        hit = [(x, y, disc) for x, y, disc in vias if piece is not None and piece.distance(disc) < 1e-3]
+        hit = [(x, y, v, disc) for x, y, v, disc in vias if piece is not None and piece.distance(disc) < 1e-3]
         if not hit:
             L.fail(f"pin {pin}: the fanout reaches no code-placed via outside the body on the 1V2 plane")
             continue
-        x, y, disc = hit[0]
-        at_via = sorted({w for _, w, g in shapes if g.distance(disc) < 1e-3}, key=str)
+        x, y, via, _ = hit[0]
+        at_via = sorted(
+            {w for _, r in routes if r.source is via or r.destination is via for w in L.trace_widths(r)}, key=str
+        )
         if not at_via or any(w is None or abs(w - RUN) >= TOL for w in at_via):
-            L.fail(f"pin {pin}: trace widths at the via {at_via}, not all drawn {RUN}")
+            L.fail(f"pin {pin}: widths of the routes ending at the via {at_via}, not all drawn {RUN}")
         used.add((round(x, 3), round(y, 3)))
         print(
-            f"pin {pin}: pad {pad_w} wide, widest cut over it {widest}, widths at the via {at_via}, via {x:.3f}, {y:.3f}"
+            f"pin {pin}: pad {pad_w} wide, widest cut over it {widest}, widths of the routes ending at the via {at_via}, via {x:.3f}, {y:.3f}"
         )
     if len(used) != len(PINS):
         L.fail(f"{len(used)} distinct fanout vias for {len(PINS)} pins")
