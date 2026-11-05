@@ -1,6 +1,6 @@
 # Substrate
 
-- [ ] **User's fab house confirmed** (`decomposition-guide.md` Step 0): if it is JLCPCB, its predefined substrates are in `jitx-jlcpcb`; for any other fab, create a custom substrate
+- [ ] **User's fab house confirmed** (`decomposition-guide.md` Step 0): if it is JLCPCB, its predefined substrates are in `jitx-jlcpcb`; otherwise select or model one as `decomposition-guide.md` "Substrate" sets out
 - [ ] Layer count sufficient for routing density and reference plane continuity
 - [ ] Impedance targets achievable with chosen dielectric Dk and geometry
 - [ ] Via definitions cover ALL needed layer transitions (not just top-to-bottom)

@@ -64,7 +64,7 @@ Every transition above runs through `python scripts/plan_status.py <task-id> <st
 
 4. **Plan the power tree**: trace power from input through regulators to every load. Note voltage, current, and sequencing requirements.
 
-5. **Assess substrate needs**: based on interface speeds, routing density, and component package complexity (e.g., high-pin-count BGAs require more layers), determine layer count, material class, and via technology. The fab house comes from the requirements lock; with none named, ask (`decomposition-guide.md` Step 0). If the user chose JLCPCB, its predefined substrates are in `jitx-jlcpcb`, and sub-01 narrows to selecting and verifying one rather than disappearing. For any other fab, sub-01 models a custom substrate.
+5. **Assess substrate needs**: based on interface speeds, routing density, and component package complexity (e.g., high-pin-count BGAs require more layers), determine layer count, material class, and via technology. The fab house comes from the requirements lock; with none named, ask (`decomposition-guide.md` Step 0). If the user chose JLCPCB, its predefined substrates are in `jitx-jlcpcb`, and sub-01 narrows to selecting and verifying one rather than disappearing. Otherwise sub-01 selects or models one as `decomposition-guide.md` "Substrate" sets out.
 
 6. **Data source audit**: for every component, identify where its data will come from, and ask for the user's approved-parts list for passives. Present a table to the user for approval **before proceeding**. See the Data Source Audit section below.
 
