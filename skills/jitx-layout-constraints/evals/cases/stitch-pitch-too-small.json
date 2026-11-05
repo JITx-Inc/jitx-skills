@@ -29,6 +29,10 @@
     {
       "text": "the runner says that a build succeeding at 0.4 mm would not have shown the problem (the runtime thins or crowds a too-small grid without an issue), or verifies the realized count against the derived count instead of relying on the build",
       "check": "judge"
+    },
+    {
+      "text": "COMPLETION.md gives, for each rule, the electrical need it holds: what goes wrong on this board without it, in a sentence.",
+      "check": "judge"
     }
   ]
 }

@@ -33,6 +33,10 @@
     {
       "text": "COMPLETION.md reports the realized via count against a count derived from the pour geometry, pitch and inset, not build success alone",
       "check": "judge"
+    },
+    {
+      "text": "COMPLETION.md gives, for each rule, the electrical need it holds: what goes wrong on this board without it, in a sentence.",
+      "check": "judge"
     }
   ]
 }

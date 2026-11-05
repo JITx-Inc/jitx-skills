@@ -33,6 +33,10 @@
     {
       "text": "COMPLETION.md reports the measured ring count against a count derived from the outline, the offset and the pitch, not build success alone",
       "check": "judge"
+    },
+    {
+      "text": "COMPLETION.md gives, for each rule, the electrical need it holds: what goes wrong on this board without it, in a sentence.",
+      "check": "judge"
     }
   ]
 }

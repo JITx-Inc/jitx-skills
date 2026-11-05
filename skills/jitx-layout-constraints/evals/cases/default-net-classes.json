@@ -34,6 +34,10 @@
     {
       "text": "COMPLETION.md reports widths and pour gaps read from the built design, not build success alone",
       "check": "judge"
+    },
+    {
+      "text": "COMPLETION.md gives, for each rule, the electrical need it holds: what goes wrong on this board without it, in a sentence.",
+      "check": "judge"
     }
   ]
 }
