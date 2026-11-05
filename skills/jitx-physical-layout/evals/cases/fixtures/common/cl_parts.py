@@ -35,7 +35,7 @@ class SquarePad(Pad):
 
 class OnePad(Landpattern):
     def __init__(self) -> None:
-        self.pad = SquarePad()
+        self.pad = SquarePad().at(0.0, 0.0)
         self.courtyard = Courtyard(rectangle(1.2, 1.2))
 
 

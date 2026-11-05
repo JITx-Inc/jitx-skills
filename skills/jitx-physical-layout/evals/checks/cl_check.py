@@ -326,3 +326,63 @@ def joins(copper: BaseGeometry, a: BaseGeometry, b: BaseGeometry) -> bool:
         if piece.distance(a) < 1e-3 and piece.distance(b) < 1e-3:
             return True
     return False
+
+
+def _end_point(el: Any, last: bool) -> tuple[float, float] | None:
+    """First (or last) point of one ArcPolyline element: a point or an Arc."""
+    if isinstance(el, tuple) and len(el) == 2:
+        return (float(el[0]), float(el[1]))
+    centre = getattr(el, "center", None)
+    if centre is None:
+        return None
+    a = math.radians(float(el.start) + (float(el.arc) if last else 0.0))
+    r = float(el.radius)
+    return (float(centre[0]) + r * math.cos(a), float(centre[1]) + r * math.sin(a))
+
+
+def trace_ends(route: Route) -> list[tuple[tuple[float, float], tuple[float, float]]]:
+    """First and last point of each realized trace shape, in board
+    coordinates. Elements may be points or arcs."""
+    out = []
+    for tr in route.traces or []:
+        for s in tr.shapes:
+            g = getattr(s, "geometry", s)
+            els = list(getattr(g, "elements", []))
+            if not els:
+                continue
+            a, b = _end_point(els[0], False), _end_point(els[-1], True)
+            if a is None or b is None:
+                continue
+            xf = getattr(s, "transform", None)
+            if xf is not None:
+                a, b = tuple(map(float, xf * a)), tuple(map(float, xf * b))
+            out.append((a, b))
+    return out
+
+
+def chip_pads(rd: Any, cls: type) -> list[BaseGeometry]:
+    """World geometry of every pad of every component of type ``cls``."""
+    out = []
+    for _, comp in visit(rd.root, cls):
+        for _, pad in visit(comp.landpattern, Pad):
+            out.append(pad_world(rd, pad))
+    return out
+
+
+def piece_touching(copper: BaseGeometry, *targets: BaseGeometry) -> BaseGeometry | None:
+    """The connected piece of ``copper`` that touches every one of ``targets``."""
+    for piece in getattr(copper, "geoms", [copper]):
+        if all(piece.distance(t) < 1e-3 for t in targets):
+            return piece
+    return None
+
+
+def issue_kinds(text: str, *kinds: str) -> list[str]:
+    """Lines of an issue report that name any of kinds (any case), each
+    joined with the line after it, which carries the detail."""
+    lines = text.splitlines()
+    out = []
+    for i, ln in enumerate(lines):
+        if any(k.lower() in ln.lower() for k in kinds):
+            out.append(" ".join(x.strip() for x in lines[i : i + 2]))
+    return out
