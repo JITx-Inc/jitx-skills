@@ -26,16 +26,25 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from typing import Self
+from typing import Protocol, Self
 
 from jitx import Container
 from jitx.shapes import Shape
-from jitx.substrate import FabricationConstraints
 from jitx.via import Via, ViaDiameter
 from jitxlib.landpatterns.pads import SMDPadConfig
 
 _COORDINATE_DIGITS = 6  # skill default: 6 decimal places when grouping grid axes.
 _CIRCLE_RESOLUTION = 24  # skill default: 24 segments per quadrant for mask dams.
+
+
+class MaskRules(Protocol):
+    """The two :class:`FabricationConstraints` fields the stitch reads."""
+
+    @property
+    def min_soldermask_bridge(self) -> float: ...
+
+    @property
+    def solder_mask_registration(self) -> float: ...
 
 
 @dataclass(frozen=True)
@@ -51,7 +60,7 @@ class StitchParams:
     @classmethod
     def from_substrate(
         cls,
-        constraints: FabricationConstraints,
+        constraints: MaskRules,
         via_cls: type[Via],
         *,
         edge_margin: float | None = None,  # None: skill default, bridge + registration
@@ -93,9 +102,9 @@ def grid_thermal_via_positions(
     """Return an evenly spaced columns-by-rows grid in the EP-local frame.
 
     The outermost via pad rim stays ``edge_margin`` from each exposed-pad edge.
-    ``edge_margin`` normally comes from
-    ``FabricationConstraints.min_copper_edge_space`` and ``via_pad_diameter``
-    from the selected via class through :meth:`StitchParams.from_substrate`.
+    ``edge_margin`` and ``via_pad_diameter`` normally come from
+    :meth:`StitchParams.from_substrate`: the caller's margin or the skill
+    default bridge plus registration, and the selected via class's pad.
     """
 
     nx, ny = via_grid
