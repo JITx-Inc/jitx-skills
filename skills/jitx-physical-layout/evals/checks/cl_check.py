@@ -361,10 +361,13 @@ def trace_ends(route: Route) -> list[tuple[tuple[float, float], tuple[float, flo
     return out
 
 
-def chip_pads(rd: Any, cls: type) -> list[BaseGeometry]:
-    """World geometry of every pad of every component of type ``cls``."""
+def chip_pads(rd: Any, cls: type, mpn: str | None = None) -> list[BaseGeometry]:
+    """World geometry of every pad of every component of type ``cls`` (and,
+    with ``mpn``, that part number)."""
     out = []
     for _, comp in visit(rd.root, cls):
+        if mpn is not None and getattr(comp, "mpn", None) != mpn:
+            continue
         for _, pad in visit(comp.landpattern, Pad):
             out.append(pad_world(rd, pad))
     return out
