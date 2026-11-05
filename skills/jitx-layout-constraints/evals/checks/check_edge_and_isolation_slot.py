@@ -8,9 +8,9 @@ each GND pour's computed copper on layers 0 to 3 against the prompt:
 - 1.0 from the outer edge of the 40 x 30 board;
 - 1.5 from the slot at x 11.5..12.5, y -5..5.
 
-Spike S7 measured pour pullback at the rule's value plus at most 0.01 for
+Measured on jitx 4.6, pour pullback sits at the rule's value plus at most 0.01 for
 both IsBoardEdge and IsHole rules, so each gap must lie in [value, value +
-0.03]. S7: IsBoardEdge covers the outer edge only; a slot needs IsHole (which
+0.03]. IsBoardEdge covers the outer edge only; a slot needs IsHole (which
 covers cutouts, outline holes and via drills).
 """
 

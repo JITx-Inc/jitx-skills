@@ -1,6 +1,6 @@
 """Stitch-via measurement shared by the stitch cases.
 
-The derived count follows the spike's S3 findings on jitx 4.6.0:
+The derived count follows what was measured on jitx 4.6:
 
 - sites sit on the square grid at multiples of the pitch from (0, 0), not
   from the pour;
@@ -54,9 +54,9 @@ def required_sites(
     """Grid sites a through-via stitch rule over pours must fill.
 
     A site is required when the via pad grown by the inset lies inside the
-    computed copper of every pour (spike S3's inset rule, applied on each layer
+    computed copper of every pour (the inset rule, applied on each layer
     the through via crosses), and the via pad stays pad_space clear of every
-    pad. The pad condition is this suite's own measurement, not the spike's: on
+    pad. The pad condition is this suite's own measurement: on
     the stitch-ground-pours solution (4 layers, pitch 2.0, inset 0.5,
     2026-11-03) the four sites over the U.FL ground pads and the inductor pads
     were dropped on every layer although the inner pours accepted them, and

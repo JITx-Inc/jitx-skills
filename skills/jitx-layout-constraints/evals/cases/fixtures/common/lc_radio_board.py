@@ -2,9 +2,8 @@
 
 Parts come from jitxexamples (py-components ``origin/main`` 9c398d3): the
 Hirose U.FL-R-SMT(10) connector circuit, whose series inductor ``L`` ends the
-feed. (The nRF52840 reference circuit at that commit does not translate on jitx
-4.6.0, an assertion at ``jitx/_translate/idmap.py:801``, so the radio itself is
-not on the board; the feed is what the cases constrain.)
+feed. (The radio itself is not on the board; the feed is what the cases
+constrain.)
 
 Layout, on ``LcStandard4`` (``lc_substrate.py``) and the 40 x 30 mm ``LcBoard``:
 

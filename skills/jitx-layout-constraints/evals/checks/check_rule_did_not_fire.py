@@ -5,7 +5,7 @@ Usage: check_rule_did_not_fire.py <output-dir>
 Builds <output>/fixture_rule_did_not_fire.py, captures it, and checks:
 
 - the VIN route between the two input capacitors is realized, every trace
-  shape has a width (a Polygon would mean the width did not fit, spike S8),
+  shape has a width (a Polygon would mean the width did not fit),
   and every width is the prompt's 0.5;
 - the board's 0.15 default trace width rule is still in the design, so the
   fix did not remove the default to let the rail rule through.

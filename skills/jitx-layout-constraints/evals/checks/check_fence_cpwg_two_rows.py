@@ -8,8 +8,8 @@ fab sheet:
 
 - the feed is realized at CPWG_50's width, 0.30 (lc_substrate.py);
 - the layer-0 pour sits at CPWG_50's gap, 0.20, plus the 0.01 the runtime
-  adds (spike S9), so within [0.20, 0.23]: a wider net clearance would push
-  the coplanar ground out (S9 ``rule_wide``);
+  adds, so within [0.20, 0.23]: a wider net clearance would push
+  the coplanar ground out;
 - the layer-0 pour is present on both sides of the feed;
 - generated vias exist (``lc_check.generated_vias``, which does not say
   which rule made them). A stitch grid cannot stand in for a row: the feed
@@ -18,8 +18,8 @@ fab sheet:
   3 vias at most at the 0.500 fab floor pitch, against the 13 a row needs
   (fence_common);
 - if every row band is empty, the failure names the likely cause: a
-  fence_via rule fences no route (S4), a route fence comes from
-  RoutingStructure.Layer.fence (S9);
+  fence_via rule fences no route, a route fence comes from
+  RoutingStructure.Layer.fence;
 - two rows per side at 0.35 + 0.500 / 2 = 0.60 mm (prompt's pad-edge spacing,
   via pad from fab row 11) and 0.60 + 0.60 = 1.20 mm from the trace edge to
   the via centre, each with floor(L / 1.0) sites on the straight run, less one

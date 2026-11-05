@@ -9,8 +9,8 @@ two code routes against the prompt's classes:
   0.15, and the layer-0 GND pour 0.100 (fab row 4) + 0.05 = 0.15 away;
 - the power class (the VIN route): width 0.5, the pour 0.3 away.
 
-Every realized trace shape must have a width (spike S8: a width that does not
-fit comes back as a Polygon). Spike S9 measured pour gaps at the winning
+Every realized trace shape must have a width (a width that does not fit
+comes back as a Polygon). Pour gaps measured on jitx 4.6 sit at the winning
 clearance plus 0.01, so each gap must lie in [value, value + 0.03].
 """
 

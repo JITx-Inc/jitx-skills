@@ -5,7 +5,7 @@ Usage: check_stitch_pitch_too_small.py <output-dir>
 The prompt asks for 0.4 mm and, if the fab cannot build it, the closest pitch
 it can. The fab floor is drill 0.250 (row 12) plus hole-to-hole 0.250 (row 15)
 = 0.500 mm centre to centre, so 0.4 cannot be built; at 0.4 the runtime thins
-the grid silently and places no via short of the floor (spike S3: pitch 0.4
+the grid silently and places no via short of the floor (measured on jitx 4.6: pitch 0.4
 under a 0.45 pad kept 231 of 650 sites, a checkerboard, with no issue).
 
 Builds <output>/fixture_stitch_pitch_too_small.py, captures it, and checks:
@@ -13,7 +13,7 @@ Builds <output>/fixture_stitch_pitch_too_small.py, captures it, and checks:
 - every rule's pitch is at or above the 0.500 floor and no more than 0.650
   ("closest": the floor plus the 0.100 copper space of row 4, plus margin);
 - every rule's inset is the prompt's 0.5 (the via pad edge 0.5 in from the
-  pour edge; spike S3 measured inset from the via pad edge to the computed
+  pour edge; the inset is measured from the via pad edge to the computed
   pour boundary);
 - the ground pours on all four layers came back with copper;
 - every grid site a rule with the prompt's inset must fill

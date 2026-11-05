@@ -11,10 +11,10 @@ the two inner-layer routes against the fab sheet:
   0.15 wide with the layer-2 pour 0.15 away (rows 3 and 4 plus 0.05; the
   sheet's note keeps rows 3 and 4 on a non-2 oz layer).
 
-Spike S8: OnLayer.internal() matched both inner layers, so a rule written on
+Measured on jitx 4.6: OnLayer.internal() matches both inner layers, so a rule written on
 it moves ``sense_l3`` too and fails here. Pour gaps were measured at the
-winning clearance plus 0.01 (S8, S9), so each gap must lie in [value,
-value + 0.03]. Every trace shape must have a width (S8: Polygon traces).
+winning clearance plus 0.01, so each gap must lie in [value,
+value + 0.03]. Every trace shape must have a width (a Polygon trace fails).
 """
 
 import sys

@@ -12,12 +12,12 @@ ring of ground vias around the L1 cavity pour, whose outline the prompt gives
   feed's nearest point is 3.0 from the outline (it ends at (2.00, 3.51),
   lc_radio_board.py), so it counts only if its rows reach 1.5 from the feed,
   which the prompt does not ask for. A stitch grid on the pour would count
-  too, and no reader can split it from the ring: jitx 4.6.0 reports pour
-  fence vias and stitch vias in the same stitch record (S4);
+  too, and no reader can split it from the ring: capture does not say which
+  rule made a via;
 - every via within 1.5 of the outline sits outside it, on the sides at the
   prompt's 0.5 from the outline and at the corners on the diagonal at
-  0.5 * sqrt(2) = 0.707 (S4: the corner vias of an outward ring sit on the
-  corner diagonals);
+  0.5 * sqrt(2) = 0.707 (measured on jitx 4.6: the corner vias of an outward ring sit
+  on the corner diagonals);
 - the ring holds the derived count: the outline grown by 0.5 with square
   corners is 2 * (22 + 10) + 8 * 0.5 = 68 long, so 68 sites at the 1.0 pitch;
 - the steps along the bottom side are the prompt's 1.0 pitch;
