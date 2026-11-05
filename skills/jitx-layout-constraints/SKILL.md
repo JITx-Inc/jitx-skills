@@ -9,7 +9,7 @@ Tags, `design_constraint` rules keyed on them, and the reads after capture that 
 
 ## Environment
 
-Invoke the base `jitx` skill first. Add `jitxexamples` to the project's `dependencies`: the design calls its functions at build time. An `ImportError`, or a `TypeError` from a named function (an older `derive_escape` takes no `escape_clearance`), means the installed copy predates them: upgrade it. Never drop a keyword to make a call work.
+Invoke the base `jitx` skill first. Add `jitxexamples` to the project's `dependencies`: the design calls its functions at build time. An `ImportError`, or a `TypeError` from a named function (an older `derive_escape` takes no `escape_clearance`), means the installed copy predates them: upgrade it. If the upgrade does not bring them in, stop and list each value the function would derive as an open item. Never drop a keyword to make a call work, and never derive the value by hand instead.
 
 ## The rule system
 
@@ -21,7 +21,7 @@ A `Tag` subclass declared at module scope matches what it reaches ([What a tag r
 
 ### Effects
 
-A two-condition rule takes only `.clearance(mm)`. A one-condition rule takes `.trace_width`, `.thermal_relief(gap, spoke_width, num_spokes)`, `.pour_feature_size`, `.stitch_via`, `.fence_via`, `.routing_structure`, `.serpentine_params` or `.coupled_pair_params`. There is no neckdown, pour-isolation or direct-connect effect.
+A two-condition rule takes only `.clearance(mm)`. A one-condition rule takes `.trace_width`, `.thermal_relief(gap_distance, spoke_width, num_spokes)`, `.pour_feature_size`, `.stitch_via`, `.fence_via`, `.routing_structure`, `.serpentine_params` or `.coupled_pair_params`. There is no neckdown, pour-isolation or direct-connect effect.
 
 ### Priority
 
@@ -48,7 +48,7 @@ Rules are found by walking the design tree: one at module scope, or built and dr
 
 ## What a tag reaches
 
-A tag on a `Net` reaches its traces, pours, pads and code-placed vias, so a clearance or relief rule on it acts on the pads and vias too. On a `Pad`, `Landpattern` or `Component` it reaches those pads, the way to pick out some of a net's pads; on a `Route`, that route's segments only; on a `Pour` or `Via`, that object. Tags assigned outside a design context, or to anything but these, a `TopologyNet`, `Copper`, `Circuit` or `ControlPoint`, warn and do nothing.
+A tag on a `Net` reaches its traces, pours, pads and code-placed vias, so a clearance or relief rule on it acts on the pads and vias too. On a `Pad`, `Landpattern` or `Component` it reaches those pads, the way to pick out some of a net's pads; on a `Route`, that route's segments only; on a `Pour` or `Via`, that object. Tags on a `TopologyNet`, `Copper`, `Circuit` or `ControlPoint` are also accepted; tags assigned outside a design context, or to anything else, warn and do nothing.
 
 ## Board defaults
 
@@ -56,7 +56,7 @@ Unruled copper comes out at the fab floor (measured on jitx 4.6: a route at `min
 
 The coplanar cap: board-wide clearances (the copper default and the trace-to-pour rule) stay at or below the smallest coplanar structure's clearance on the board, since a wider board rule widens the gap of a coplanar line with no pair rule. Lower a fab-sheet value to the cap, cited as such; write a wider prompt value and list it as an open item naming the clearance it exceeds.
 
-Every value traces to a fab-sheet row cited by number, the prompt, a cited datasheet or standard, or a derivation with its arithmetic shown; for a function's value, the call, its inputs and what it returns (`Escape.pad_width`, `.centreline_clearance`, `.escape_clearance`, `.width`; the `coplanar_gap` value). Anything else is an open item. No chart or formula of your choosing sets a width from a current: ask for the width, or the copper weight, temperature rise and sizing standard.
+Every value traces to a fab-sheet row cited by number, the prompt, a cited datasheet or standard, or a derivation with its arithmetic shown; for a function's value, the call, its inputs, what it returns (QFN `Escape.pad_width`, `.pad_gap`, `.centreline_clearance`, `.escape_clearance`, `.width`; `BgaEscape.channel_clearance`, `.escape_clearance`, `.width`; the `coplanar_gap` value), and the relation the function checks, from its docstring, with the numbers (for `checked_fence_pattern`, `initial_offset - pad/2 >= pour_gap`). Anything else is an open item. No chart or formula of your choosing sets a width from a current: ask for the width, or the copper weight, temperature rise and sizing standard.
 
 ## Classes of nets
 
@@ -66,9 +66,10 @@ A class of nets is a tag on nets with its rules written once; a subclass (`HighC
 |---|---|
 | Power | `PowerTag()` width and `(PowerTag(), AnyObject)` clearance, at 2 |
 | RF, coplanar | `RFLineTag` with a `routing_structure` rule, and the pair rule `design_constraint(RFLineTag(), GroundTag(), priority=2).clearance(c_s)`, `c_s` the structure's clearance |
+| Kelvin sense | a `SenseTag` on the sense `Route`s, not the net (it shares the power net), its width at 3, a clearance to `PowerTag` at `p` |
 | Sensitive against noisy | `(RFLineTag(), NoisyTag())` clearance at `p` (`layout_sensitive_net_clearance`) |
 
-- The coplanar gap, trace edge to pour, is `coplanar_gap(structure_clearance, winning_rule_clearance)` (`layout_cpwg_two_row_fence`): the structure's clearance is a floor, and a wider winning rule between line and ground widens it. At 2 the pair rule beats a wider rule lower on the ladder (a board rule at 0, an `AnyObject` keep-away at the default priority) and loses to one above (measured on jitx 4.6). With several coplanar structures on a net, set it to the smallest structure's clearance.
+- The coplanar gap, trace edge to pour, is `coplanar_gap(structure_clearance, winning_rule_clearance)` (`layout_cpwg_two_row_fence`): the structure's clearance is a floor, and a wider winning rule between line and ground widens it. At 2 the pair rule beats a wider rule lower on the ladder (a board rule at 0, an `AnyObject` keep-away at the default priority) and loses to one above (measured on jitx 4.6). With several coplanar structures on a net, set the pair rule to the smallest structure's clearance.
 - A class-to-class clearance keeps a line from a noisy net and leaves ground alone. A keep-away `(RFLineTag(), AnyObject)` at a protection rung outranks the pair rule and, wider than the structure's clearance, pushes the coplanar ground out.
 
 ## Pours and relief
@@ -91,7 +92,7 @@ Pour realization belongs to `jitx-physical-layout` ([Pour realization semantics]
 Heavy copper on one layer (`layout_heavy_copper_layer`):
 
 - `heavy_layer_index(current.substrate)` finds the layer by conductor thickness and raises when no one layer is heaviest (a substrate task first; with two heavy layers, pass each index). Select it with `OnLayer(i)`; `OnLayer.internal()` matches every inner layer.
-- A floor at 1 loses, unreported, to every rule at 2 or above on the layer. `heavy_layer_rules(layer, min_width, min_clearance, trace_to_pour, class_rules, exclude=...)` returns the floors at 1 and a layer copy at 3, at the floor, of each rule in `class_rules` below it. Pass every `trace_width` and two-condition `clearance` rule at 2 or 3 that can match the layer; write any other shape's layer form by hand.
+- A floor at 1 loses, unreported, to every rule at 2 or above on the layer. `heavy_layer_rules(layer, min_width, min_clearance, trace_to_pour, class_rules, exclude=...)` returns the floors and the trace-to-pour rule's layer form at 1, and a layer copy at 3, at the floor, of each rule in `class_rules` below it. Pass every `trace_width` and two-condition `clearance` rule at 2 or 3 whose (first) condition is one tag and that can match the layer; write any other shape's layer form by hand (`PowerTag() & OnLayer(1)` raises). A class that wants more than the floor there writes its own `& OnLayer(i)` rule at 3 and stays out of `class_rules`.
 - `exclude` (such as `SenseTag`) narrows the width copies only; the docstring gives the cost. An escape, a protection or a pad-side rule at 3 that can match the layer meets the floor itself, or is an open item.
 
 ## Stitching
@@ -116,7 +117,7 @@ Explanation: [Fencing](https://docs.jitx.com/en/latest/essentials/physical_desig
 - Row k sits `initial_offset + (k-1)·offset` out; an unset `initial_offset` takes `offset`. A pitch below the via pad is thinned.
 - `checked_fence_pattern(pattern, via, pour_gap)`, with `pour_gap` from `coplanar_gap`, refuses a first row whose pads sit in the gap, which JITX does not check; `rows_in_coplanar_pour` lists the rows that reach the coplanar pour.
 - A coplanar pour needs a same-net via in each region the line separates.
-- Counts: `fence_count_range(outline, offset_k, pitch, via, fab)` per outline row (an outward offset keeps each corner square, one via on its diagonal); `straight_run_fence_sites(run_length, pitch, row)` per side per row of a route's straight run, its round ends checked by position only. A distance band does not separate fence vias from a stitch grid; position on the derived row does.
+- Counts: `fence_count_range(outline, row_offset, pitch, via, fab)` per outline row, `row_offset` that row's offset from the line above (an outward offset keeps each corner square, one via on its diagonal); `straight_run_fence_sites(run_length, pitch, row)` per side per row of a route's straight run, its round ends checked by position only. A distance band does not separate fence vias from a stitch grid; position on the derived row does.
 
 ## Routing structures by tag
 
