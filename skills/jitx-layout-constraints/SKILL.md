@@ -117,6 +117,7 @@ A class of nets is a tag assigned to nets: the power nets are the nets carrying 
 - Every width, clearance and gap traces to a fab-sheet row, a value in the prompt, a cited datasheet or standard, or a derivation from a sourced value with its arithmetic on the line. A value with none of those is an open item that the check fails on until the user supplies it.
 - No current-carrying chart or formula sets a trace width; widths come from the prompt or the fab sheet.
 - Power is routed as traces under its tag's width; a pour on a rail needs its reason on the line that creates it.
+- A power pad that changes layers needs vias sized and counted for its current from the prompt or the fab sheet; set `via_in_pad = True` on the via class only where the fab sheet allows via-in-pad.
 - A two-tag clearance keeps one class from another without moving ground: `(RFLineTag(), AnyObject)` also pushes the coplanar ground away. Worked pattern: `jitxexamples.patterns.layout_sensitive_net_clearance` ([Keeping an RF line away from a switch node](https://docs.jitx.com/en/latest/essentials/physical_design/layout-constraints.html#keeping-an-rf-line-away-from-a-switch-node)).
 
 ## Pours and relief
