@@ -42,7 +42,8 @@ from jitx.inspect import visit
 from jitx.landpattern import Pad, PadShape
 from jitx.run.runtime import Runtime
 from jitx.shapes import Shape
-from jitx.shapes.primitive import Empty
+from jitx.shapes.primitive import Arc, Empty
+from jitx.transform import Transform
 from jitx.via import Via
 
 FAILURES: list[str] = []
@@ -333,12 +334,11 @@ def _end_point(el: Any, last: bool) -> tuple[float, float] | None:
     """First (or last) point of one ArcPolyline element: a point or an Arc."""
     if isinstance(el, tuple) and len(el) == 2:
         return (float(el[0]), float(el[1]))
-    centre = getattr(el, "center", None)
-    if centre is None:
+    if not isinstance(el, Arc):
         return None
     a = math.radians(float(el.start) + (float(el.arc) if last else 0.0))
     r = float(el.radius)
-    return (float(centre[0]) + r * math.cos(a), float(centre[1]) + r * math.sin(a))
+    return (float(el.center[0]) + r * math.cos(a), float(el.center[1]) + r * math.sin(a))
 
 
 def trace_ends(route: Route) -> list[tuple[tuple[float, float], tuple[float, float]]]:
@@ -392,9 +392,16 @@ def issue_kinds(text: str, *kinds: str) -> list[str]:
     return out
 
 
-def arcs(trace: Any) -> list[Any]:
+def placed(transform: Transform | None) -> Transform:
+    """A visited feature's transform, failing loud when the visit gave none."""
+    if transform is None:
+        raise RuntimeError("visited feature has no transform")
+    return transform
+
+
+def arcs(trace: Any) -> list[Arc]:
     """The arcs of one realized trace, in order."""
-    return [e for s in trace.shapes for e in getattr(getattr(s, "geometry", s), "elements", []) if hasattr(e, "radius")]
+    return [e for s in trace.shapes for e in getattr(getattr(s, "geometry", s), "elements", []) if isinstance(e, Arc)]
 
 
 def centreline(trace: Any, step_deg: float = 5.0) -> LineString:
@@ -402,7 +409,7 @@ def centreline(trace: Any, step_deg: float = 5.0) -> LineString:
     pts: list[tuple[float, float]] = []
     for s in trace.shapes:
         for el in getattr(getattr(s, "geometry", s), "elements", []):
-            if hasattr(el, "radius"):
+            if isinstance(el, Arc):
                 cx, cy = el.center
                 n = max(2, math.ceil(abs(el.arc) / step_deg))
                 for i in range(n + 1):

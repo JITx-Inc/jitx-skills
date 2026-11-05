@@ -9,7 +9,7 @@
     "cl_launch_board.py": "evals/cases/fixtures/common/cl_launch_board.py",
     "fixture_route_around_with_sketch.py": "evals/cases/fixtures/route-around-with-sketch/fixture_route_around_with_sketch.py"
   },
-  "notes": "The fixtures import jitxexamples parts from py-components e6bf1cb (the installed package in the eval venv, 2.0.1.dev74+ge6bf1cbc2) and import no jitxexamples.patterns module; the fictional parts in cl_parts.py need no parts database. The fixture module is fixture_route_around_with_sketch.py, Design RouteAroundWithSketchDesign. Spike C1: Route.Sketch turns are a side hint, not waypoints, and act only when an obstacle forces a detour. In this fixture a route with no sketch passes the column on the +y side, so the prompt names the other side and a plain route fails the check; a sketch with its turns below the column, such as (-3, -3) and (3, -3), takes the -y side. Copper drawn as Copper along the same path fails the check (a Route was asked for). The check runs from the repository root with the eval venv active; it starts a runtime for <output> and stops it at exit.",
+  "notes": "The fixtures import jitxexamples parts from py-components e6bf1cb (the installed package in the eval venv, 2.0.1.dev74+ge6bf1cbc2) and import no jitxexamples.patterns module; the fictional parts in cl_parts.py need no parts database. The fixture module is fixture_route_around_with_sketch.py, Design RouteAroundWithSketchDesign. Spike C1: Route.Sketch turns are a side hint, not waypoints, and act only when an obstacle forces a detour. The fixture's column sits 1.0 below the straight path (y -2.5 to 0.5), so the detour above it is the shorter one by geometry; the prompt names the side below, and a sketch with its turns below the column, such as (-3, -4) and (3, -4), takes it. Copper drawn as Copper along the same path fails the check (a Route was asked for). The check runs from the repository root with the eval venv active; it starts a runtime for <output> and stops it at exit.",
   "runner_models": [
     "sonnet"
   ],
@@ -31,7 +31,7 @@
       "check": "judge"
     },
     {
-      "text": "the runner says the sketch's turns are a choice a designer may want to move in the physical design view, and that a sketch set in code cannot be edited there until it is removed from code",
+      "text": "the runner says the sketch's turns are a choice a designer may want to move, and if it says anything about editing them it says only what is measured: a turn edit through the layout API that backs the view (rd.layout.modify) is refused while the sketch is set in code; a drag in the view was not tried",
       "check": "judge"
     },
     {

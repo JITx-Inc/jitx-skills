@@ -12,10 +12,11 @@ two lines against the prompt:
   pads (the prompt's spacing; a ``Route.Config`` trace space sets the pour's
   pullback from the trace, measured 0.402 for 0.4 in spike C4);
 - DATA: one connected piece joins its two pads (y -8). At least one of its
-  routes carries ``Route.Config(envelope_overhead=3.0)`` (the prompt's
-  3 mm), and that section's copper stays within half the envelope plus half
-  the trace (1.5 + 0.15) of the chord between its two ends (spike C2: the
-  envelope is the total extra width, half on each side). Every other DATA
+  routes carries ``Route.Config(envelope_overhead=E)`` with 0 < E <= 3.0
+  (the prompt's "no more than 3 mm" envelope), and each configured
+  section's copper stays within E/2 plus half the trace of the chord between
+  its two ends (spike C2: the envelope is the centreline's total extra
+  width, half on each side, so the copper reaches E/2 + w/2). Every other DATA
   route lies within half its trace width of its own chord: no length is
   drawn by hand with control points;
 - the issue report has no ``UnmetTime``, ``UnmetTimeDiff`` or
@@ -35,7 +36,7 @@ import cl_check as L  # noqa: E402
 
 CLK_WIDTH = 0.25
 CLK_SPACE = 0.35
-ENVELOPE = 3.0
+MAX_ENVELOPE = 3.0
 TOL = 0.01
 
 out = L.output_dir()
@@ -82,7 +83,9 @@ with L.built(out, "fixture_route_config_length", "RouteConfigLengthDesign") as r
             chord = LineString(ends[0])
             chords += chord.length
             if env:
-                if abs(env - ENVELOPE) < 1e-6:
+                if env > MAX_ENVELOPE + 1e-9:
+                    L.fail(f"{path}: envelope {env}, over the prompt's {MAX_ENVELOPE}")
+                else:
                     sections += 1
                 reach = env / 2 + w / 2
                 off = geoms[path].difference(chord.buffer(reach + TOL)).area
@@ -105,7 +108,7 @@ with L.built(out, "fixture_route_config_length", "RouteConfigLengthDesign") as r
                 f"DATA chords add to {chords:.3f}, over 5% more than the {span:.3f} between its pads: length added by hand"
             )
         if sections == 0:
-            L.fail(f"no DATA route carries Route.Config(envelope_overhead={ENVELOPE})")
+            L.fail(f"no DATA route carries a Route.Config envelope_overhead above 0 and at most {MAX_ENVELOPE}")
     text = L.issues_text(rd)
     bad = L.issue_kinds(text, "signal constraint", "UnmetTime", "UnsquiggledRoute")
     print("issues:", text.strip().splitlines()[:6])

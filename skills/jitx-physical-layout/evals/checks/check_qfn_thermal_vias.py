@@ -87,8 +87,8 @@ with L.built(out, "fixture_qfn_thermal_vias", "QfnThermalViasDesign") as rd:
         L.fail(f"vias not inside the realized L2 ground pour: {outside}")
     elif inside:
         L.ok("every via in the pad sits in the realized L2 ground pour")
-    paste = [L.geom(t.transform * f.shape) for t, f in visit(ep, Paste)]
-    mask = [L.geom(t.transform * f.shape) for t, f in visit(ep, Soldermask)]
+    paste = [L.geom(L.placed(t.transform) * f.shape) for t, f in visit(ep, Paste)]
+    mask = [L.geom(L.placed(t.transform) * f.shape) for t, f in visit(ep, Soldermask)]
     local = L.geom(ep.shape)
     pa = shapely.union_all(paste) if paste else shapely.Polygon()
     ma = shapely.union_all(mask) if mask else shapely.Polygon()

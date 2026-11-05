@@ -14,15 +14,15 @@
   ],
   "runner_rationale": "Customers drive this skill with mixed-strength agents, so the eval runs the skill under a Sonnet-class runner; judges stay frontier-tier.",
   "runner_artifacts": "The input files are the starting design. Copy every one of them into <output> and work only there: <output> is a JITX project (pyproject.toml) whose modules import each other by file name. Write the layout in the fixture module, fixture_hex_bga_escape.py, or in a module it imports, and keep its Design class name, HexBgaEscapeDesign. Do not move or remove the fixture's parts, nets or ground vias, and do not change the substrate or its structures. Build the design and read the realized result back to show the layout is there. Write a completion summary to <output>/COMPLETION.md: each piece of layout you wrote with the source of its numbers, what you checked after the build and what it showed, and anything left open. Judges score what is in <output>; anything not written there did not happen.",
-  "expected_output": "Per pair, legs from the two balls to a PairInsertion in the channel below them, a coupled neck to a PairPoint just below the field, those routes tagged with a DIFF_100_FIELD routing_structure rule at a priority above the net's DIFF_100 rule, then the full pair to an insertion above the chip and legs to its pads; a build with every route made; COMPLETION.md with widths and gaps read back in and below the field.",
+  "expected_output": "Per pair, legs from the two balls to a PairInsertion in the channel below them, a coupled neck to a PairPoint just below the field, those routes tagged with a DIFF_100_FIELD routing_structure rule that outranks whatever gives the nets DIFF_100 (a net rule or Constrain(...).structure(...)), then the full pair to an insertion above the chip and legs to its pads; a build with every route made; COMPLETION.md with widths and gaps read back in and below the field.",
   "assertions": [
     {
-      "text": "every route is made on L1; inside the ball field traces are 0.08 wide and pairs 0.10 apart, below it 0.15 and 0.20; each pair has a coupled section in each; every ground ball keeps its via; no copper is drawn in code",
+      "text": "every route is made on L1; inside the ball field traces are 0.08 wide and pairs 0.10 apart, below it 0.15 and 0.20; each pair has a coupled section in each, and the 0.08 copper reaches no more than 2.345 below the field; every ground ball keeps its via; no copper is drawn in code",
       "check": "deterministic",
       "cmd": "python3 skills/jitx-physical-layout/evals/checks/check_hex_bga_escape.py <output>"
     },
     {
-      "text": "the narrow structure is applied by a tag on the routes inside the field, with a rule at a priority above the net's structure rule, and the nets keep DIFF_100; not the narrow structure on the whole net",
+      "text": "the narrow structure is applied by a tag on the routes inside the field, with a rule that outranks whatever gives the net its full structure, a net rule or Constrain(...).structure(...), and the nets keep DIFF_100; not the narrow structure on the whole net",
       "check": "judge"
     },
     {

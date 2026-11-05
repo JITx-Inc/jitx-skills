@@ -5,15 +5,16 @@ Usage: check_route_around_with_sketch.py <output-dir>
 Builds <output>/fixture_route_around_with_sketch.py, captures it, and checks
 the RF line against the prompt and the fixture:
 
-- the five ground vias of the column still stand at x = 0, y -1.5 to 1.5,
-  0.75 apart (cl_launch_board.py), so the obstacle was not moved or removed;
+- the five ground vias of the column still stand at x = 0, y -2.5 to 0.5,
+  0.75 apart (the fixture), so the obstacle was not moved or removed;
 - the design has at least one Route, and every route realized on layer 0;
 - the routed copper is one connected piece touching both SMA centre pads;
 - where that copper crosses the column's centre line, x = 0, all of it lies
   below the column: its top edge is under the lowest via pad's bottom edge,
-  -1.5 - 0.500 / 2 = -1.75 (row 11 pad). The prompt names the side below.
-  With no sketch the router passes the column above, so a plain route
-  fails here; a route through the column fails here too;
+  -2.5 - 0.500 / 2 = -2.75 (row 11 pad). The prompt names the side below.
+  The column reaches 2.75 below the straight path and 0.75 above it, so
+  the shorter detour, and the one a route with no sketch has no reason to
+  avoid, is above; a route through the column fails here too;
 - no Copper or OverlappableCopper is drawn in code: the prompt asks for a
   code route.
 """
@@ -28,9 +29,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import cl_check as L  # noqa: E402
 
-COLUMN = [(0.0, -1.5 + 0.75 * k) for k in range(5)]
+COLUMN = [(0.0, -2.5 + 0.75 * k) for k in range(5)]
 VIA_PAD = 0.500
-LOWEST_PAD_EDGE = -1.5 - VIA_PAD / 2
+LOWEST_PAD_EDGE = -2.5 - VIA_PAD / 2
 
 out = L.output_dir()
 with L.built(out, "fixture_route_around_with_sketch", "RouteAroundWithSketchDesign") as rd:

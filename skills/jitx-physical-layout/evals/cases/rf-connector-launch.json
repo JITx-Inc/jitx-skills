@@ -17,7 +17,7 @@
   "expected_output": "CPWG_50_FENCED applied to RF with GND as reference; a RoutePoint on each pad's axis 2.0 mm past its inner end, a route from each pad to its point and one between the points; an anchored L2 GND pour with a void under each centre pad grown by 0.5 mm; COMPLETION.md with the exits, cutouts and fence rows read back.",
   "assertions": [
     {
-      "text": "the line is routed on L1 at 0.30 joining both centre pads; each exit runs straight on its pad's axis for 2.0 mm; the realized L2 pour has a void over each centre pad grown by 0.5 mm with pour around it; the runtime's fence stands in two rows; no fence via is placed by hand and no copper is drawn in code",
+      "text": "the line is routed on L1 at 0.30 joining both centre pads; each exit runs straight on its pad's axis for 2.0 mm; the realized L2 pour has a void over each centre pad grown by 0.5 mm with pour around it; the runtime's fence stands in two rows; no via placed in code stands on either fence row and no copper is drawn in code",
       "check": "deterministic",
       "cmd": "python3 skills/jitx-physical-layout/evals/checks/check_rf_connector_launch.py <output>"
     },

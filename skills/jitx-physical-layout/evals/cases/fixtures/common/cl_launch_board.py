@@ -12,7 +12,9 @@ centre pad (0.61 wide, 1.97 long).
 Options add what a case needs around the line:
 
 - ``via_column``: five ``ClStandard4.ThVia`` on GND at x = 0, 0.75 apart,
-  centred on y = 0, across the straight path between the centre pads.
+  centred on y = ``column_y``, across the straight path between the centre
+  pads. With ``column_y`` below 0 the column reaches further below the path
+  than above it, so the +y detour is the shorter one.
 - ``j2_fenced``: a ring of ``ClStandard4.ThVia`` on GND around ``j2``'s
   centre pad, 0.75 apart, and a layer-0 route keepout over the ring's band,
   closing every way in to that pad on L1.
@@ -39,7 +41,7 @@ COLUMN_COUNT = 5
 
 
 class LaunchBoard(Circuit):
-    def __init__(self, via_column: bool = False, j2_fenced: bool = False) -> None:
+    def __init__(self, via_column: bool = False, j2_fenced: bool = False, column_y: float = 0.0) -> None:
         self.j1 = Wurth60312202114514()
         self.j2 = Wurth60312202114514()
         self.place(self.j1, Transform((-EDGE_X, 0.0), 0))
@@ -49,7 +51,7 @@ class LaunchBoard(Circuit):
         self.GND = Net([self.j1.gnd, self.j2.gnd], name="GND")
 
         if via_column:
-            first = -(COLUMN_COUNT - 1) * COLUMN_PITCH / 2
+            first = column_y - (COLUMN_COUNT - 1) * COLUMN_PITCH / 2
             self.column = [ClStandard4.ThVia().at(0.0, first + k * COLUMN_PITCH) for k in range(COLUMN_COUNT)]
             for v in self.column:
                 self.GND += v

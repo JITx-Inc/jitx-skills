@@ -21,9 +21,13 @@ launch against the prompt:
 - the fence: the vias the runtime generated, read by their distance to the
   routed line's centre line, stand in two rows (two distinct distances, each
   held by at least four vias), the two rows ``CPWG_50_FENCED`` declares;
-- no via placed in code stands within 2 mm of the RF copper (the fence is
-  the structure's, not hand-placed), and no Copper or OverlappableCopper is
-  drawn in code.
+- no via placed in code stands on a fence row: ``CPWG_50_FENCED``'s
+  ``ViaFencePattern(offset=0.6, initial_offset=0.6, num_rows=2)`` puts the
+  rows 0.6 and 1.2 from the trace edge, 0.75 and 1.35 from the centre line
+  of a 0.30 trace, and a via placed in code whose 0.500 pad (row 11)
+  covers either distance is a hand fence. A via elsewhere, such as one
+  tying the L2 pour to GND, is not scored. No Copper or OverlappableCopper
+  is drawn in code.
 """
 
 import math
@@ -43,6 +47,8 @@ EXIT = 2.0
 GROW = 0.5
 DRIFT = 0.01
 ANGLE = 0.1
+FENCE_ROWS = (WIDTH / 2 + 0.6, WIDTH / 2 + 1.2)
+VIA_PAD = 0.500
 
 out = L.output_dir()
 with L.built(out, "fixture_rf_connector_launch", "RfConnectorLaunchDesign") as rd:
@@ -105,7 +111,15 @@ with L.built(out, "fixture_rf_connector_launch", "RfConnectorLaunchDesign") as r
     print(f"{len(gen)} generated vias; rows (distance from the centre line: count) {dict(sorted(rows.items()))}")
     if len(held) != 2:
         L.fail(f"generated vias stand at {held} from the line, not in two rows")
-    hand = [(x, y) for x, y, _ in L.placed_vias(rd) if copper.distance(Point(x, y)) < 2.0]
+    hand = (
+        [
+            (x, y)
+            for x, y, _ in L.placed_vias(rd)
+            if any(abs(lines.distance(Point(x, y)) - d) < VIA_PAD / 2 for d in FENCE_ROWS)
+        ]
+        if lines is not None
+        else []
+    )
     if hand:
         L.fail(f"vias placed in code beside the line, where the structure's fence was asked for: {hand}")
     L.no_authored_copper(rd, "code routes on CPWG_50_FENCED were asked for")

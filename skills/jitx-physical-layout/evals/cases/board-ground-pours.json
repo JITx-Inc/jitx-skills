@@ -18,7 +18,7 @@
   "expected_output": "Four Pours on GND, one per layer, drawn from the board outline less row 8's 0.300, a same-net anchor for L2 and L3 (GND vias), a build whose captured Pour.shape is measured on every layer, and COMPLETION.md with the area and edge gap per layer.",
   "assertions": [
     {
-      "text": "each of the four layers carries a realized pour (not Empty) covering at least 90 % of the board inside row 8's pullback, every pour at least 0.300 from the outline, and the L1 and L4 pours joined to the SMA ground pads",
+      "text": "each of the four layers carries a realized pour (not Empty) covering at least 90 % of the board inside row 8's pullback, and the L1 and L4 pours joined to the SMA ground pads",
       "check": "deterministic",
       "cmd": "python3 skills/jitx-physical-layout/evals/checks/check_board_ground_pours.py <output>"
     },

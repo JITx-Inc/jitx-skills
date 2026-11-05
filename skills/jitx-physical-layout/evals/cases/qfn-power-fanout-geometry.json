@@ -18,12 +18,12 @@
   "expected_output": "Six fanouts, each a 0.25 route from the DVDDL pad to a RoutePoint just past the pad and a 0.40 route on to a ThVia on 1V2 outside the body; a build that reads each trace width and the via's place in the L3 pour; COMPLETION.md that marks the via and RoutePoint positions as placeholders for the interactive process.",
   "assertions": [
     {
-      "text": "every DVDDL pad carries routed copper no wider than 0.25 on the pad, its fanout carries a 0.40 trace to its own code-placed via outside the body inside the realized L3 1V2 pour, every route realized on layer 0, and no copper is drawn in code",
+      "text": "every DVDDL pad carries routed copper spanning no more than 0.25 across the pad (measured on the copper, so a drawn neck and a Route.Target taper both count), its fanout carries a 0.40 trace to its own code-placed via outside the body inside the realized L3 1V2 pour, every route realized on layer 0, and no copper is drawn in code",
       "check": "deterministic",
       "cmd": "python3 skills/jitx-physical-layout/evals/checks/check_qfn_power_fanout_geometry.py <output>"
     },
     {
-      "text": "COMPLETION.md marks the fanout via positions and any bend or neck points as placeholders the designer will move in the physical design view, and says that a control point placed in code cannot be moved there until it is removed from code",
+      "text": "COMPLETION.md leaves the fanout via positions to the designer and says so, and marks any bend or neck point placed in code as a placeholder; if it says anything about moving such a point it says only what is measured: the layout API that backs the view (rd.layout.update_control) refuses a code-placed control point; a drag was not tried",
       "check": "judge"
     },
     {

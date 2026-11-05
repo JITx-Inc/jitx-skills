@@ -16,10 +16,14 @@ each of the four pairs against the prompt:
   each turn, so neighbouring gaps alternate short and long, and each
   neighbouring two average to the pitch. Only the lower bound is scored;
 - rows 5 and -5: the deskew bumps, read as the arc radii one trace has and
-  the other does not, have exactly the prompt's radius (0.4 and 0.6 mm);
-- row -15: the bumps (four arcs each, on one trace) sit exactly 2.0 mm
-  apart, from the centre of a bump's last arc to the next bump's first, the
-  ``min_bump_spacing`` the prompt asks for;
+  the other does not, have the prompt's radius (0.4 and 0.6 mm) to three
+  decimals. Provenance: on this fixture 0.4 and 0.6 realized exactly, and
+  0.2 realized 0.275; what sets that floor is not established, so the
+  prompt asks only for the two radii that matched;
+- row -15: the bumps (four arcs each, on one trace) sit 2.0 mm apart, the
+  ``min_bump_spacing`` the prompt asks for, measured along the other
+  trace's centre line from the centre of a bump's last arc to the next
+  bump's first;
 - the issue report names no signal constraint: delay and skew are met;
 - no Copper or OverlappableCopper is drawn in code.
 
@@ -35,7 +39,8 @@ from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
-from shapely.geometry import LineString
+from jitx.shapes.primitive import Arc
+from shapely.geometry import LineString, Point
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -49,15 +54,16 @@ RADIUS = {5.0: 0.4, -5.0: 0.6}
 SPACING = 2.0
 
 
-def bump_arcs(traces: list[Any]) -> tuple[list[Any], list[float]]:
-    """Arcs of the one trace whose radii the other trace lacks, and those radii."""
+def bump_arcs(traces: list[Any]) -> tuple[list[Arc], list[float], int]:
+    """Arcs of the one trace whose radii the other trace lacks, those radii,
+    and the index of that trace (-1 when not exactly one trace has them)."""
     radii = [{round(a.radius, 3) for a in L.arcs(t)} for t in traces]
     own = [radii[0] - radii[1], radii[1] - radii[0]]
     bumped = [k for k in (0, 1) if own[k]]
     if len(bumped) != 1:
-        return [], []
+        return [], [], -1
     k = bumped[0]
-    return [a for a in L.arcs(traces[k]) if round(a.radius, 3) in own[k]], sorted(own[k])
+    return [a for a in L.arcs(traces[k]) if round(a.radius, 3) in own[k]], sorted(own[k]), k
 
 
 out = L.output_dir()
@@ -66,7 +72,7 @@ with L.built(out, "fixture_serpentine_four_sections", "SerpentineFourSectionsDes
     sections = [
         (p, r)
         for p, r in routes
-        if r.config is not None and (r.config.envelope_overhead or 0) > 0 and len(r.traces) == 2
+        if r.config is not None and (r.config.envelope_overhead or 0) > 0 and len(r.traces or []) == 2
     ]
     for y in ROWS:
         here = [(p, r) for p, r in sections if abs(L.route_geom(r).centroid.y - y) < 2.0]
@@ -76,12 +82,13 @@ with L.built(out, "fixture_serpentine_four_sections", "SerpentineFourSectionsDes
         path, sec = here[0]
         g = L.route_geom(sec)
         span = g.bounds[3] - g.bounds[1]
-        print(f"row {y}: {path}, envelope {sec.config.envelope_overhead}, copper spans {span:.3f} across its axis")
+        envelope = sec.config.envelope_overhead if sec.config is not None else None
+        print(f"row {y}: {path}, envelope {envelope}, copper spans {span:.3f} across its axis")
         if span > PAIR + ENVELOPE + 1e-3:
             L.fail(f"row {y}: section copper spans {span:.3f}, over {PAIR + ENVELOPE:.3f}")
         if span <= PAIR + 1e-3:
             L.fail(f"row {y}: section did not meander (spans {span:.3f})")
-        traces = list(sec.traces)
+        traces = list(sec.traces or [])
         if y == 15.0:
             for k, t in enumerate(traces):
                 hits = L.centreline(t).intersection(LineString([(-100.0, y), (100.0, y)]))
@@ -93,7 +100,7 @@ with L.built(out, "fixture_serpentine_four_sections", "SerpentineFourSectionsDes
                 if lo is None or lo < MIN_PITCH - 1e-3:
                     L.fail(f"row {y} trace {k}: meander pitch {lo}, under {MIN_PITCH}")
         else:
-            bumps, radii = bump_arcs(traces)
+            bumps, radii, k = bump_arcs(traces)
             print(f"row {y}: bump radii {radii}, {len(bumps)} bump arcs")
             if not bumps:
                 L.fail(f"row {y}: no deskew bumps on exactly one trace")
@@ -102,7 +109,11 @@ with L.built(out, "fixture_serpentine_four_sections", "SerpentineFourSectionsDes
                 L.fail(f"row {y}: bump radii {radii}, not {RADIUS[y]}")
             if y == -15.0:
                 groups = [bumps[i : i + 4] for i in range(0, len(bumps), 4)]
-                gaps = [round(abs(n[0].center[0] - p[-1].center[0]), 4) for p, n in pairwise(groups)]
+                axis = L.centreline(traces[1 - k])
+                gaps = [
+                    round(abs(axis.project(Point(n[0].center)) - axis.project(Point(p[-1].center))), 4)
+                    for p, n in pairwise(groups)
+                ]
                 print(f"row {y}: bump gaps {gaps}")
                 if len(bumps) % 4 or not gaps or any(abs(gp - SPACING) > 0.01 for gp in gaps):
                     L.fail(f"row {y}: bumps {gaps} apart, not {SPACING}")
