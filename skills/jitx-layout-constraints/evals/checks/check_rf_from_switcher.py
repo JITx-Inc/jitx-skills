@@ -6,7 +6,7 @@ Builds <output>/fixture_rf_from_switcher.py, captures it, and checks:
 
 - a two-condition clearance rule of at least the prompt's 2.5 exists with
   one condition naming a tag that sits on the feed (the RF_ANT net, the feed
-  route, the U.FL part or the series inductor) and the other a tag that sits
+  route, the U.FL circuit or its part, or the series inductor) and the other a tag that sits
   on the switch node (its net, its pour or the regulator circuit), so it
   relates the feed to the switcher rather than either one to everything;
 - the feed is still realized;
@@ -49,13 +49,26 @@ GND_GAP_MAX = 0.100 + 0.01 + 0.03
 
 
 def named_tags(expr: BoolExpr) -> set[type]:
-    """User tag types an expression names outside a negation."""
+    """User tag types every object the expression matches must carry one of.
+
+    An AND narrows, so it keeps what either side names. An OR names nothing
+    unless both sides do: ``RfFeed() | IsCopper`` matches all copper. A
+    negation, a builtin or AnyObject names nothing.
+    """
     if isinstance(expr, AtomExpr):
         atom = expr.atom
         return set() if isinstance(atom, BuiltinTag) else {type(atom)}
-    if isinstance(expr, (AndExpr, OrExpr)):
+    if isinstance(expr, AndExpr):
         return named_tags(expr.left) | named_tags(expr.right)
+    if isinstance(expr, OrExpr):
+        left, right = named_tags(expr.left), named_tags(expr.right)
+        return left | right if left and right else set()
     return set()
+
+
+def covers(named: set[type], assigned: set[type]) -> bool:
+    """A rule on a tag also matches its subclasses (jitx ``Tag`` docstring)."""
+    return any(issubclass(a, n) for a in assigned for n in named)
 
 
 def tags_on(root: Any, objs: list[Any]) -> set[type]:
@@ -88,7 +101,9 @@ with L.built(out, "fixture_rf_from_switcher", "RfFromSwitcherDesign") as rd:
 
     def relates(r: BinaryDesignConstraint) -> bool:
         a, b = named_tags(r.first), named_tags(r.second)
-        return bool((a & feed_tags and b & sw_tags) or (b & feed_tags and a & sw_tags))
+        return (covers(a, feed_tags) and covers(b, sw_tags)) or (
+            covers(b, feed_tags) and covers(a, sw_tags)
+        )
 
     pair_rules = [
         r
