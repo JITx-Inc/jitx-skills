@@ -1,29 +1,23 @@
-"""Fixture for the electrical-needs-from-context case: PSU-ISO-01, a 48 V input
-board with an isolated 3.3 V logic side.
+"""PSU-ISO-01: a 48 V input board with a 3.3 V output through U1, a Corrow
+Power CPI-4833 isolated DC/DC module.
 
-The two sides are joined only through U1, a fictional Corrow Power CPI-4833
-isolated DC/DC module (``corrow_cpi4833_excerpt.md``). Each side has its own
-ground. Parts are placeholders defined here, as the module and connectors are
-fictional: two-pad SMD connectors and a four-pad SMD module.
+Parts: J1 and J2 are two-pad SMD headers; U1 is a four-pad SMD module, input
+pads 1 and 2, output pads 3 and 4. All pads are on layer 0. Board:
+``LcStandard4`` and the 40 x 30 mm ``LcBoard``.
 
-Layout, on ``LcStandard4`` and the 40 x 30 mm ``LcBoard``, all pads on layer 0:
-
-- primary side (x < 0): J1 at (-15, 0), pad 1 on ``VIN48`` at (-15, 1.5), pad 2
-  on ``GND_P`` at (-15, -1.5); U1's input pads at (-5, 1.27) on ``VIN48`` and
-  (-5, -1.27) on ``GND_P``; a code route on layer 0 on ``VIN48`` from J1 pad 1
-  to U1's input pad, ``vin_route``; ``GND_P`` pours on all four layers over
-  x -19..-0.5, y -14..14 (``PRIMARY_BOX``), anchored by J1 pad 2, U1's input
-  return pad and two ``GND_P`` through vias at (-10, -8) and (-10, 8);
-- secondary side (x > 0): U1's output pads at (5, 1.27) on ``V3V3`` and
-  (5, -1.27) on ``GND_S``; J2 at (15, 0), pad 1 on ``V3V3`` at (15, 1.5), pad 2
-  on ``GND_S`` at (15, -1.5); a code route on layer 0 on ``V3V3`` from U1's
-  output pad to J2 pad 1, ``v3_route``; ``GND_S`` pours on all four layers over
-  x 0.5..19, y -14..14 (``SECONDARY_BOX``), anchored by J2 pad 2, U1's output
-  return pad and two ``GND_S`` through vias at (10, -8) and (10, 8).
-
-The two pour regions are drawn 1.0 apart under U1. Every pad of one side sits
-more than 4 mm from every object of the other side. The board carries no design
-rule. Rules are the runner's job.
+- J1 at (-15, 0): pad 1 on ``VIN48`` at (-15, 1.5), pad 2 on ``GND_P`` at
+  (-15, -1.5).
+- U1 at (0, 0): pad 1 on ``VIN48`` at (-5, 1.27), pad 2 on ``GND_P`` at
+  (-5, -1.27), pad 3 on ``V3V3`` at (5, 1.27), pad 4 on ``GND_S`` at
+  (5, -1.27).
+- J2 at (15, 0): pad 1 on ``V3V3`` at (15, 1.5), pad 2 on ``GND_S`` at
+  (15, -1.5).
+- Routes on layer 0: ``vin_route`` on ``VIN48`` from J1 pad 1 to U1 pad 1, and
+  ``v3_route`` on ``V3V3`` from U1 pad 3 to J2 pad 1.
+- ``GND_P`` pours on all four layers over x -19..-0.5, y -14..14
+  (``PRIMARY_BOX``), with ``GND_P`` through vias at (-10, -8) and (-10, 8).
+- ``GND_S`` pours on all four layers over x 0.5..19, y -14..14
+  (``SECONDARY_BOX``), with ``GND_S`` through vias at (10, -8) and (10, 8).
 """
 
 from jitx.circuit import Circuit, Route
@@ -84,8 +78,8 @@ class Cpi4833Landpattern(Landpattern):
 
 
 class Cpi4833(Component):
-    """Corrow Power CPI-4833 (fictional): isolated DC/DC module, 36 to 60 V in,
-    3.3 V out. Pad 1 +VIN, pad 2 -VIN, pad 3 +VOUT, pad 4 -VOUT."""
+    """Corrow Power CPI-4833 isolated DC/DC module, 36 to 60 V in, 3.3 V out.
+    Pad 1 +VIN, pad 2 -VIN, pad 3 +VOUT, pad 4 -VOUT."""
 
     reference_designator_prefix = "U"
     manufacturer = "Corrow Power"
