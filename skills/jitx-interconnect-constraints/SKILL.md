@@ -132,15 +132,7 @@ Reference planes name the return-path `Net` per routing layer: `with ReferencePl
 
 ## Tag-based routing structures
 
-For nets that share one structure and carry no timing, loss or skew limits, tag them and attach the structure as a design rule:
-
-```python
-from jitx.constraints import Tag, design_constraint  # class HighSpeedTag(Tag): pass
-HighSpeedTag().assign(self.clk_net)
-self.hs_rule = design_constraint(HighSpeedTag()).routing_structure(rs50, ref_net=self.GND)
-```
-
-Its reference planes come from `ref_net=`, `ref_layer_nets={layer: net}` or an active `ReferencePlanes`, not `ref_layers=` (`jitx-layout-constraints` `references/rule-reference.md`).
+For nets that share one structure and carry no timing, loss or skew limits, apply the structure by a `routing_structure` rule on the nets' tag: [`jitx-layout-constraints`, Routing structures by tag](../jitx-layout-constraints/SKILL.md#routing-structures-by-tag). Its reference planes come from `ref_net=` or `ref_layer_nets=`, not `ref_layers=`. If a rule and `.structure(...)` both give one net a structure, the rule wins with no issue, so use one or the other.
 
 ## Building Protocol Constraints (SignalConstraint)
 

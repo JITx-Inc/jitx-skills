@@ -73,7 +73,7 @@ Run `python scripts/check.py <ns>/ --build <module.path.DesignClass>` once from 
 |-------|--------|
 | Domain checklist | <name; N/N; M fixed; K N/A + reasons> |
 | General Gotcha Scrub | N/N |
-| Layout rules | <command; exit; witnessed/unwitnessed> |
+| Layout rules | <check command; exit code; each declared rule witnessed in captured copper, or named unwitnessed with the reason> |
 | SI measurements | <`ver-` task: `python -m <ns>.designs.check_si_<iface>` command; one quoted group per constraint with a timing, loss or skew target, carrying its Time / Loss / Skew measurement, intended ends, `met` or `NOT MET`, no unresolved text; each structure-only constraint named from its code / any other task: not applicable + reason> |
 | Physical realization | <`python scripts/check_realization.py <module.Design> [witness args]`; exit code; authored pours, stitch targets, board-wide pours / not applicable + reason> |
 | `ruff check` | <`ruff check` summary line; PASS, or FAIL fixed and re-run> |
@@ -364,7 +364,7 @@ work with a batch count on it.
 | Build warnings | <result> |
 | Grep gates, top-level enforcement | <exact `grep gates` summary line; dispositions> |
 | Passive defaults | <result; overrides> |
-| Default design rules | <four-rule result> |
+| Default design rules | <the board defaults declared on the `Design`, each value with its fab-sheet or prompt source, or "no defaults" with a reason> |
 | Board geometry | <result> |
 | Open from this phase | <list/none> |
 | Verdict | <advance/block + reason> |

@@ -110,7 +110,7 @@ from jitxlib.symbols.box import BoxSymbol
 
 
 class AntennaGroundTag(Tag):
-    """Marks the local RF ground island for the substrate-side fence-via rule."""
+    """Marks the local RF ground island for its fence-via rule."""
 
 
 class _AnchorPad(Pad):
@@ -200,8 +200,8 @@ class AntennaDesign(Design):
     board = AntennaBoard()
     substrate = JLC04161H_7628()
     circuit = AntennaMatching()
-    # The fence-via rule that consumes AntennaGroundTag is declared with the
-    # substrate; see jitx-substrate-modeler, "Fenced Pour Outlines".
+    # The fence-via rule that consumes AntennaGroundTag: see
+    # jitx-layout-constraints, "Fencing".
 ```
 
 > The original project file commented `route=False` as "so signal traces can't cross
@@ -214,11 +214,11 @@ ground-island exception. The replacement above uses disjoint geometry: the moat
 keepout surrounds but does not overlap `gnd_island`, the short pad anchors that
 island to GND, and `AntennaGroundTag` gives the fence-via rule a concrete `Pour`
 target. That rule, `design_constraint(AntennaGroundTag()).fence_via(<substrate via
-class>, ViaFencePattern(...))`, lives with the substrate because its via class and
-fence pattern do; this example owns only the tagged-pour geometry. See the
+class>, ViaFencePattern(...))`, and the check of its vias belong to
+[`jitx-layout-constraints`, Fencing](../../jitx-layout-constraints/SKILL.md#fencing);
+this example owns only the tagged-pour geometry. See the
 jitxexamples package's `jitxexamples.patterns.fenced_pour_outline` module. The realization command names
-`circuit.gnd_island` when a stitch rule also selects it; a fence-via project check
-queries the computed fence-via group separately. See the main skill's
+`circuit.gnd_island` when a stitch rule also selects it. See the main skill's
 [Pour realization semantics](../SKILL.md#pour-realization-semantics).
 
 ## Custom-pad soldermask / paste helpers

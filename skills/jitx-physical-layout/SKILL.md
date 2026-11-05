@@ -1,6 +1,6 @@
 ---
 name: jitx-physical-layout
-description: "Use when the user asks to author PCB physical layout from code: draw pours or copper, antennas, filters, net ties, custom shapes, board outlines, custom pads, soldermask or paste openings, thermal pads with vias, code-placed vias, fanout or escape tags, direct-connect or thermal-relief tags, control points, code-based routes, diff-pair fans/trunks, escape routing, or deskew, or to inspect or verify realized geometry from Python (jitx.query, RuntimeDesign capture, missing or Empty pours, missing stitch vias, route realization checks). Covers shapely geometry, Copper, OverlappableCopper, Pour realization semantics, pad features, PortAttachment, explicit placement, layout-intent tags, Route/control-point APIs, and the 4.3 reverse-flow geometry-verification workflow. Use jitx-layout-constraints to author pour and via-stitching rules, jitx-substrate-modeler for stackups, via definitions, routing structures, fence-via rules, and fenced pours, and jitx-circuit-builder for net wiring, typed ports, and passives."
+description: "Use when the user asks to author PCB physical layout from code: draw pours or copper, antennas, filters, net ties, custom shapes, board outlines, custom pads, soldermask or paste openings, thermal pads with vias, code-placed vias, fanout or escape tags, direct-connect or thermal-relief tags, control points, code-based routes, diff-pair fans/trunks, escape routing, or deskew, or to inspect or verify realized geometry from Python (jitx.query, RuntimeDesign capture, missing or Empty pours, missing stitch vias, route realization checks). Covers shapely geometry, Copper, OverlappableCopper, Pour realization semantics, pad features, PortAttachment, explicit placement, layout-intent tags, Route/control-point APIs, and the 4.3 reverse-flow geometry-verification workflow. Use jitx-layout-constraints to author pour, relief, via-stitching and via-fencing rules (fenced pours included) and to apply routing structures by tag, jitx-substrate-modeler for stackups, via definitions and routing structures, and jitx-circuit-builder for net wiring, typed ports, and passives."
 ---
 
 # JITX Physical Layout
@@ -27,9 +27,9 @@ geometry by **capturing and asserting the realized copper**
 | Tag layout objects (fanout, escape, direct-connect) for selection | **this skill** (rule *mechanics* → `jitx-layout-constraints`) |
 | Code-based routes & control points (escape lanes, deskew) | **this skill** (advanced — see reference) |
 | Diagnose whether pours or stitch vias materialized and inspect captured pour geometry | **this skill** |
-| Design rules: clearances, widths, net classes, escape rule ladders, after-build width/clearance checks | `jitx-layout-constraints` |
+| Design rules: clearances, widths, classes of nets by tag, escape rule ladders, stitching and fencing rules, fenced pour outlines, routing structures applied by tag, after-build width/clearance checks | `jitx-layout-constraints` |
 | Wire nets, typed ports, sub-circuits, passives | `jitx-circuit-builder` |
-| Define the stackup, vias, routing structures, fence-via rules, fenced pour outlines | `jitx-substrate-modeler` |
+| Define the stackup, vias, routing structures | `jitx-substrate-modeler` |
 | Author a component's package/landpattern from a datasheet | `jitx-component-modeler` |
 | SI constraints: timing, skew, insertion loss, impedance | `jitx-interconnect-constraints` |
 
@@ -271,19 +271,22 @@ the reader to the fabrication export to close the gap.
 
 **Reverse flow is the realization surface.** After `capture()`, the reverse-flow
 linker assigns the runtime's output back onto the objects the design authored:
-`LayoutOutput.computed_shape` onto the pour, and `ComputedStitchVia` /
-`ComputedFenceVia` (in `jitx._translate.reverse_flow.applied`, applied through
-registered transformers) onto the copper their rules produced. Read realization
-there.
+`LayoutOutput.computed_shape` onto the pour, and the vias stitch and fence rules
+generate into the captured design. Read realization there: `rd.query(Via)`
+returns the generated vias together with the code-placed ones (those are the
+vias `visit(rd.root, Via)` lists, so separate them by identity), and
+`rd.query(Copper)` returns a via's pad copper.
 
 Reverse flow carries the realized shape with its net and owner; an export carries
 features on a layer with neither, so only reverse flow answers whether a pour
 reached the rail it was drawn for.
 
-What it does not witness: trace-to-pour clearance, thermal relief spoke geometry,
-and sliver removal. Report those unwitnessed, one line each. The fabrication
-export is a handoff artifact for a fab, not a verification surface for an agent;
-do not open one to close a rule.
+The captured `Pour.shape` is the computed copper with its holes: the pullback
+from other-net copper, the relief voids and spokes around each pad and via, and
+none of the regions sliver removal dropped. Trace-to-pour clearance, thermal
+relief and sliver removal are measured on it. The fabrication export is a
+handoff artifact for a fab, not a verification surface for an agent; do not
+open one to close a rule.
 
 **OverlappableCopper is netless.** Its electrical connection comes from the **pads it
 overlaps**, not from the copper itself. A net-tie is the minimal case: the bridging
@@ -514,8 +517,8 @@ realization and verification rules.
 design. The exception: a local pour or keepout that must **track a placed
 sub-circuit** lives **inside that circuit** so it follows the circuit wherever it
 is placed. To ring an arbitrary shape with fence vias (antipads, RF cavities, BGA
-breakouts), see `jitx-substrate-modeler`,
-[Fenced Pour Outlines (Antipads, RF Cavities, BGA Breakouts)](../jitx-substrate-modeler/SKILL.md#fenced-pour-outlines-antipads-rf-cavities-bga-breakouts).
+breakouts), tag a pour with that outline and fence it by rule:
+[`jitx-layout-constraints`, Fencing](../jitx-layout-constraints/SKILL.md#fencing).
 
 ## Layout-intent tags (object selection)
 
@@ -635,6 +638,10 @@ them, `rd.nets.find(...)` on every net-bearing feature. The full loop, the
 for code-authored layout. Validate shapely outputs (non-empty
 `Polygon`/`MultiPolygon`) before they reach a fab feature. Sequence builds — don't
 parallelize against the same design.
+
+A `Pour` declared in a parent circuit and added to a child circuit's net has been
+seen not to be linked by capture. Declare a pour in the circuit that owns its net,
+and check its captured net before measuring it.
 
 For pours, keepouts, stitching, and board-edge spacing, copy and run the shipped
 checker. It submits and captures the zero-argument design target itself, checks
