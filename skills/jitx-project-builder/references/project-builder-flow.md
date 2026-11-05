@@ -101,7 +101,7 @@ Before decomposing into tasks, present the user with a data source plan for each
 Please confirm data sources or provide alternatives (datasheets, footprints, specs).
 ```
 
-**Channel evidence is required.** If the user has named a sourcing channel (LCSC/JLCPCB, Digi-Key/Mouser, internal PLM), the audit table must include channel-specific evidence for every named IC and connector before code is written. For LCSC/JLCPCB, what to save is in `jitx-jlcpcb`. With no channel named, ask for one with the fab house (`decomposition-guide.md` Step 0); do not propose one. See [Required-Sourcing Rule (named channel → channel-specific evidence)](parts-sourcing.md#required-sourcing-rule-named-channel--channel-specific-evidence) for the full ladder including non-LCSC channels.
+**Channel evidence is required.** If the user has named a sourcing channel (LCSC/JLCPCB, Digi-Key/Mouser, internal PLM), the audit table must include channel-specific evidence for every named IC and connector before code is written. For LCSC/JLCPCB, what to save is in `jitx-jlcpcb`. With no channel and no fab named, ask for the channel with the fab house (`decomposition-guide.md` Step 0) and do not propose one; with a user-named fab, the channel may follow from it as `assuming: X` in the assembly tier row. See [Required-Sourcing Rule (named channel → channel-specific evidence)](parts-sourcing.md#required-sourcing-rule-named-channel--channel-specific-evidence) for the full ladder including non-LCSC channels.
 
 **Rules:**
 - Always prefer user-provided data over automated lookups

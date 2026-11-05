@@ -25,7 +25,7 @@ pip install "jitx>=4.6,<4.7" jitxlib-standard jitxlib-parts ruff pyright
 jitx --version
 ```
 
-`jitx` brings the framework and CLI but no `jitxlib`: `jitxlib-standard` gives `jitxlib.landpatterns`, `.symbols`, `.protocols`, `.bundles`, `.via_structures` and `.physics`; `jitxlib-parts` the `Resistor`/`Capacitor`/`Inductor` queries; `jitxlib-jlcpcb`, only once the user chooses JLCPCB, its substrates and parts.
+`jitx` brings the framework and CLI but no `jitxlib`: `jitxlib-standard` gives `jitxlib.landpatterns`, `.symbols`, `.protocols`, `.bundles`, `.via_structures` and `.physics`; `jitxlib-parts` the `Resistor`/`Capacitor`/`Inductor` queries; `jitxlib-jlcpcb`, only once the user chooses JLCPCB (`jitx-jlcpcb`), its substrates and parts.
 
 If the assertion fails, recreate `.venv` with Python 3.12 or newer.
 

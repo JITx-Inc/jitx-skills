@@ -63,7 +63,7 @@ When the user has named a sourcing channel — LCSC / JLCPCB / "buy from Mouser"
 | **LCSC / JLCPCB** | Stock + lifecycle + datasheet URL + pinout for each LCSC C-number | What to save and where: `jitx-jlcpcb`. Cite it in the data source audit row. |
 | **Digi-Key / Mouser / Newark / other distributor** | Saved screenshot or text excerpt of stock + manufacturer/datasheet from the distributor page; user approves the evidence method | Manual save to `datasheets/sourcing/<mpn>-<distributor>.txt` or similar. |
 | **Internal PLM / user library** | Reference to the PLM record or library entry; user confirms the record is current | Cite the record ID or library file path in the data source audit row. |
-| **No channel named** | An open question, asked with the fab house (`decomposition-guide.md` Step 0); never assume or propose a channel | The component-choice rationale table is incomplete without a channel; flag in Phase 0. |
+| **No channel named** | With no fab named either, an open question asked with the fab house (`decomposition-guide.md` Step 0), never assumed or proposed. With a user-named fab, the channel may follow from it as `assuming: X` in the assembly tier row | The component-choice rationale table is incomplete without a channel or that assumption; flag in Phase 0. |
 
 The datasheet remains the higher authority for dimensions, pin labels, and pad assignments. A sourcing channel's pinout record is a useful cross-check but does not replace the datasheet's mechanical drawing and pinout table. When the two disagree, the datasheet wins and the conflict is documented in the task acceptance block under `Secondary references`.
 

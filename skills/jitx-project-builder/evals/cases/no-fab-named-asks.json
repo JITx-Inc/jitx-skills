@@ -11,7 +11,7 @@
     {
       "text": "the PLAN.md Requirements Lock does not fill the fab house or assembly tier row with JLCPCB or LCSC",
       "check": "deterministic",
-      "cmd": "! grep -Eiq '^\\| *(Fab house|Assembly cost)[^|]*\\|[^|]*(JLC|LCSC)' <output>/PLAN.md"
+      "cmd": "! grep -Eiq '^\\| *\\**(Fab house|Assembly cost)[^|]*\\|[^|]*(JLC|LCSC)' <output>/PLAN.md"
     },
     {
       "text": "ARCHITECTURE.md does not record JLCPCB as the fab house",
@@ -21,7 +21,7 @@
     {
       "text": "the PLAN.md fab house row reads open with its Open Questions id",
       "check": "deterministic",
-      "cmd": "grep -Eiq '^\\| *Fab house[^|]*\\|[^|]*open: *OQ-' <output>/PLAN.md"
+      "cmd": "grep -Eiq '^\\| *\\**Fab house[^|]*\\|[^|]*open: *OQ-' <output>/PLAN.md"
     },
     {
       "text": "the fabrication house is asked, as an open question with an owner and a resolution path, not assumed or filled in with a value the request never gave",
