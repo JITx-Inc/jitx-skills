@@ -88,7 +88,7 @@ Where no rule matches, copper comes out at the fab floor (measured on jitx 4.6: 
 | Default | Rule shape | Value from |
 |---|---|---|
 | Trace width | `design_constraint(IsTrace).trace_width(w)` | the fab sheet's standard (not minimum) width row, or the prompt |
-| Copper clearance | `design_constraint(IsCopper, IsCopper).clearance(c)` | the fab sheet's standard spacing row, or the prompt |
+| Copper clearance | `design_constraint(IsCopper, IsCopper).clearance(c)` | the fab sheet's standard spacing row, or the prompt, but no wider than the smallest coplanar gap on the board ([Classes of nets](#classes-of-nets)) |
 | Pad relief | `design_constraint(IsPad).thermal_relief(gap, spoke, n)` | the fab sheet, the assembler's guidance, or the prompt |
 
 Every width, clearance and gap in this skill's rules traces to a fab-sheet row, a value in the prompt, a cited datasheet or standard, or a derivation from a sourced value with its arithmetic on the line. A value with none of those is an open item that the check fails on until the user supplies it. No chart or formula of your choosing sets a width from a current: for "what width for a 3 A rail", ask for the user's width, or the copper weight, allowed temperature rise and sizing standard.
@@ -107,8 +107,10 @@ A class of nets is a tag assigned to nets: the power nets are the nets carrying 
 | High voltage, isolated | `design_constraint(HvTag(), AnyObject, priority=p).clearance(c)` | the standard the prompt names, cited |
 
 - Power is routed as traces under its tag's width; a pour on a rail needs its reason on the line that creates it. A power pad that changes layers needs vias sized and counted for its current from the prompt or the fab sheet; set `via_in_pad = True` on the via class only where the fab sheet allows via-in-pad.
-- Keep board-level clearances (copper default, trace-to-pour) and the structure's clearance at or below the smallest coplanar gap, usually the fab minimum: any clearance rule matching the line that is wider than the gap widens it (measured on jitx 4.6, priorities 0 to 3). A net tag reaches the net's pours, so the tag pair sets the gap.
-- A two-tag clearance keeps one class from another without moving ground: `(RFLineTag(), AnyObject)` also pushes the coplanar ground away. Worked pattern: `jitxexamples.patterns.layout_sensitive_net_clearance`.
+- Keep board-wide clearances (copper default, trace-to-pour) at or below the smallest coplanar gap on the board; each structure's clearance is its own line's gap. With no rule on the line's own tags, any clearance rule matching the line that is wider than the gap widens it (measured on jitx 4.6, priorities 0 to 3).
+- A net tag reaches the net's pours, so the tag pair sets the gap. At priority 2 the pair rule holds the gap against a wider rule lower on the ladder (a board rule at 0, an `AnyObject` keep-away at the default priority) and loses to a wider one above it (measured on jitx 4.6).
+- On a net with more than one coplanar gap, such as a necked escape, set the pair rule to the net's smallest gap. Each structure's clearance then sets its own section's gap, since the gap is the wider of the structure's clearance and the winning rule (measured on jitx 4.6).
+- A two-tag clearance keeps one class from another without moving ground: `(RFLineTag(), AnyObject)` also pushes the coplanar ground away, unless the line's pair rule to ground outranks it. Worked pattern: `jitxexamples.patterns.layout_sensitive_net_clearance`.
 
 ## Pours and relief
 
@@ -133,7 +135,7 @@ Pour drawing and realization belong to `jitx-physical-layout` ([Pour realization
 - Find the heavy layer's index by walking `current.substrate.stackup.conductors` (index 0 is the top) and reading each conductor's `thickness`; a layer the substrate does not model as heavy is a substrate task first. `OnLayer.internal()` matches every inner layer, so it is the wrong selector for one heavy layer.
 - `IsHole` matches via drills, so a hole rule wider than a via's pad pulls pours back from every other-net via.
 - A pour stops slightly beyond the rule (measured on jitx 4.6: the clearance plus 0.01 from traces and the board edge); compare pullback with the rule, not with an exact value.
-- A pour with no pad or via of its own net on its layer comes back `Empty`; stitch vias and fence vias do not anchor it.
+- A pour with no pad or via of its own net inside it comes back `Empty`; stitch vias and fence vias do not anchor it.
 
 ## Stitching
 
@@ -162,7 +164,7 @@ Explanation: [Fencing](https://docs.jitx.com/en/latest/essentials/physical_desig
 - A `fence_via` rule fences no route and raises no issue. Keyed on a net's tag, it fences that net's pours, the same vias as the tag on the pour. Route fences come only from `Layer.fence`.
 - `offset` is the spacing between rows and the default `initial_offset`. `Layer.fence` gives the vias the net of the structure's reference plane on that layer.
 - Row k of a route fence sits `w/2 + initial_offset + (k-1)·offset` from the centreline. Keep the first row out of the gap, `initial_offset - pad/2 >= clearance`; nothing checks it.
-- Row k's pad lands in the coplanar pour when `initial_offset + (k-1)·offset + pad/2 > C + 0.01`, where C is the larger of the structure's clearance and the largest clearance rule matching the line and its ground, whatever its tags.
+- Row k's pad lands in the coplanar pour when `initial_offset + (k-1)·offset + pad/2 > C + 0.01`, where C is the larger of the structure's clearance and the winning clearance rule for the line against its ground: with no rule on the line's own tags, the largest matching rule, whatever its tags; a pair rule at priority 2 beats a wider rule lower on the ladder ([Classes of nets](#classes-of-nets)).
 - The line cuts the coplanar pour in two, and each half needs its own same-net via: fence vias do not anchor a pour.
 - A pitch below the via pad is thinned; `min_pitch` and `max_pitch` bound the pitch.
 
@@ -180,7 +182,7 @@ The substrate defines structures; this skill applies them. Explanation: [Routing
 
 | Intent | Rule |
 |---|---|
-| Every route of a net, pair included | `design_constraint(RFLineTag(), priority=2).routing_structure(rs, ref_net=self.GND)`, the tag on the net |
+| Every route of a net, pair included | `design_constraint(SignalTag(), priority=2).routing_structure(rs, ref_net=self.GND)`, the tag on the net |
 | A neck on one segment | a tag on that segment's `Route` (keyed on a net tag `& IsTrace` it necks the whole net), `design_constraint(EscapeNeckTag(), priority=4).routing_structure(neck_rs, ref_net=self.GND)` |
 | Different reference per layer | `ref_layer_nets={0: self.GND, 1: self.PWR}` |
 
@@ -215,13 +217,13 @@ Build success proves nothing about rules. Submit, `rd.capture()`, then read the 
 |---|---|---|
 | Width | every shape of `route.traces[i].shapes` on each governed route | the trace count is nonzero, and every shape has a `.geometry.width` equal to the winning rule's; a `Polygon` with no width is a failure, never skipped |
 | Clearance, pour pullback | `Pour.shape` in board frame (the computed copper, holes included, or `Empty`) against trace and pad geometry | the shapely distance is at or above the rule |
-| Clearance, route to route | `route.traces[i].shapes` of both routes, in board frame | the shapely distance is at or above the rule |
+| Clearance, route to route | `route.traces[i].shapes` of both routes, in board frame ([Coordinate frames](../jitx-physical-layout/references/geometry-verification.md#coordinate-frames)) | the shapely distance is at or above the rule; on code routes whose points were placed from the rule's value, a pass can come from placement, not the rule (`jitxexamples.patterns.layout_diff_pair_escape`) |
 | Relief | the voids and spokes of `Pour.shape` around each pad and via the rule matches | gap and spoke count match the rule; a pad with full contact had no relief |
 | Stitch, fence | `rd.query(Via)`, less the vias `visit(rd.root, Via)` lists (the code-placed ones, matched by identity); each position is `(trace.transform * via.transform).translation` | `Pour.shape` is not `Empty`; every derived stitch site holds a generated via (a via in a left-out band is not a failure); fence count and positions match the derived pattern |
 | Routing structure | trace widths per segment, and `rd.issues(satisfied=True).text()` | each segment at its structure's width; no `Missing routing structure` |
 
 - Derive each expected value from the prompt or the fab sheet, with its arithmetic, and compare it with the rule object (`rule.trace_width_constraint.width`, `rule.clearance_constraint.clearance`, `rule.thermal_relief_constraint.gap_distance`) and with the capture; a value read from the rule alone checks a wrong rule against itself.
-- Capture does not show which rule won for an object (in the board view, select a route and press B: its Constraints panel does), or which rule generated a via.
+- Capture does not show which rule won for an object, or which rule generated a via. For a route's width, the board view does: select the route and press B, and its Constraints panel shows which width rule the route took.
 - Every declared rule has copper that witnesses it, or it is reported as unwitnessed. A check that prints no failures while a rule went unexercised has not passed.
 - `Copper` shapes placed from code reach the layout as written, whatever the rules say: check them against the rules after capture.
 - Before `rd.capture()`, in the submit path, `Pour.shape` is the drawn outline.

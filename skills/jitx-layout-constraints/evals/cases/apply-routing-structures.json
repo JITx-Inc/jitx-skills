@@ -18,7 +18,7 @@
   "expected_output": "A tag on the RF feed net with a routing_structure rule for CPWG_50, a tag on the feed_escape Route object with a higher-priority routing_structure rule for NECK_50, both with ref_net GND, and COMPLETION.md with each segment's measured width and pour gap and the issue report showing no missing routing structure.",
   "assertions": [
     {
-      "text": "the escape segment is realized at NECK_50's 0.12 mm with the pour 0.12 mm away (or at a larger clearance rule that matches the escape and the pour), the main segment at CPWG_50's 0.30 mm with the pour 0.20 mm away, and the issue report has no missing routing structure",
+      "text": "the escape segment is realized at NECK_50's 0.12 mm with the pour 0.12 mm away, the main segment at CPWG_50's 0.30 mm with the pour 0.20 mm away, and the issue report has no missing routing structure",
       "check": "deterministic",
       "cmd": "python3 skills/jitx-layout-constraints/evals/checks/check_apply_routing_structures.py <output>"
     },
