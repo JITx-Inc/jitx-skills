@@ -18,7 +18,7 @@ The API is in the package docstrings, read with `help()`: `jitxlib.jlcpcb` (subs
 
 ## Opt in
 
-Only after the user chose JLCPCB, add `"jitxlib-jlcpcb>=4,<5"` to `dependencies` in `pyproject.toml`, then install the project as the `jitx` skill's install step does, so the project's `jitx` pin holds:
+Only after the user chose JLCPCB, add `"jitxlib-jlcpcb>=4,<5"` to `dependencies` in `pyproject.toml`, then install the project so its `jitx` pin holds:
 
 ```bash
 pip install -e .
@@ -51,17 +51,17 @@ The `jitx` skill's parts gates still apply, and the user approves the final buil
 
 Import from `jitxlib.jlcpcb`; each class carries its stackup, fab rules and a tented, filled via for via-in-pad. Pick by layer count and the impedances the design's interfaces need, then read the structure's trace widths in the class source: a 50 ohm trace is 0.1176 mm on the 1080 build and 0.3244 mm on the 4-layer 7628 build, so a 50 ohm line into a fine-pitch pad favours 1080. The 6-layer class has no 90 ohm pair, so USB 2.0 on six layers has no predefined structure.
 
-A structure the class lacks, a non-FR-4 material, or a layer count outside the set (two layers included) means a custom substrate through `jitx-substrate-modeler`. Via set and fab rules: the classes in `jitxlib.jlcpcb.vias` and `jitxlib.jlcpcb.rules`.
+A structure the class lacks, a non-FR-4 material, or a layer count outside the set (two layers included) means a custom substrate through `jitx-substrate-modeler`. Vias and fab rules: `jitxlib.jlcpcb.vias`, `jitxlib.jlcpcb.rules`.
 
 ## Parts
 
-The assembly-library tier is the query attribute `library`: `basic`, `preferred`, `extended`, cheapest to assemble first. Prefer basic with `rank=Minimize("library")`, per query or on a design-level `ResistorQuery` or `CapacitorQuery` context. Filter with `library="basic"` only when the user asks for basic parts alone: the basic library is small, and a filter can find nothing. `jitxlib.jlcpcb.parts.library` states what each tier costs.
+The assembly-library tier is the query attribute `library`: `basic`, `preferred`, `extended`, cheapest to assemble first. Prefer basic with `rank=Minimize("library")`, per query or on a design-level `ResistorQuery` or `CapacitorQuery` context. Filter with `library="basic"` only when the user asks for basic parts alone: the basic library is small, and a filter can find nothing.
 
 A queried passive in a case the chip generator does not build (a tantalum or aluminum electrolytic) gets the catalogue footprint through `LCSCLandpattern`, attached by the provider with in-order ports. Name a chip case in the query to avoid it, or treat it as below.
 
 Every other assembled component names its part with `lcsc = LCSCPart("C...")`, a field of the component itself, never of a circuit or landpattern.
 
-Before writing code for a named C-number, save its channel evidence (stock, lifecycle, datasheet URL and pinout, from its catalogue page) to `datasheets/sourcing/<mpn>-lcsc.txt`, and cite it in the part's data source row: PLAN.md's Data Sources table, or the COMPLETION.md block below when there is no PLAN.md. The manufacturer's datasheet outranks it for pins and dimensions; record any disagreement.
+Before writing code for a named C-number, save its channel evidence (stock, lifecycle or `none stated`, datasheet URL and pinout, from its catalogue page) to `datasheets/sourcing/<mpn>-lcsc.txt`, and cite it in the part's data source row: PLAN.md's Data Sources table, or the COMPLETION.md block below when there is no PLAN.md. The manufacturer's datasheet outranks it for pins and dimensions; record any disagreement.
 
 ## Landpatterns
 
@@ -71,7 +71,7 @@ Generator first, as `jitx-component-modeler` orders it, then the manufacturer's 
 - in a component class you write, with `ports={...}` from the manufacturer's pinout, not left to pad order;
 - after checking it pad by pad against the manufacturer's drawing.
 
-For a polarized part, check the anode and cathode pads against the drawing: the in-order mapping assumes the catalogue draws the anode as pad 1. Read every warning the build logs for the footprint: dropped vias, skipped pads, and pads left unmapped.
+With no readable manufacturer drawing or pinout, the part is blocked until the user supplies one; catalogue data never checks itself. For a polarized part, check the anode and cathode pads against the drawing: the in-order mapping assumes the catalogue draws the anode as pad 1. Read every warning the build logs for the footprint: dropped vias, skipped pads, and pads left unmapped.
 
 ## The lock file
 
@@ -83,7 +83,7 @@ For a polarized part, check the anode and cathode pads against the drawing: the 
 jitx design export jlcpcb --output <packet-dir> <module.Design>
 ```
 
-`<module.Design>` is the build target `jitx find` prints. `--no-assembly` writes a bare-board packet (gerber archive and order sheet only) and is the way to give the user gerbers alone. Do not use the docstring's `jitx design export gerber --names jlcpcb`: it writes drills as Gerber, not the NC drill file JLCPCB expects, and skips the packet's macro-rotation fix. `--overwrite` allows a non-empty output directory.
+`<module.Design>` is the build target `jitx find` prints. `--no-assembly` writes a bare-board packet (gerber archive and order sheet only): use it for gerbers alone. Do not use the docstring's `jitx design export gerber --names jlcpcb`: it writes drills as Gerber, not the NC drill file JLCPCB expects, and skips the packet's macro-rotation fix. `--overwrite` allows a non-empty output directory.
 
 The export fails on any unplaced soldered component. The packet is orderable only when exported after the board is routed and the design rule check is clean: the gerbers are written at export. Routing is the user's step; report the check as clean, or not run with the reason. Until both hold, tell the user the packet is not yet orderable, what is missing, and that the export must run again afterwards.
 
