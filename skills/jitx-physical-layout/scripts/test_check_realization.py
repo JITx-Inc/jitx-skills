@@ -85,7 +85,7 @@ class StitchRealizationTests(unittest.TestCase):
         self.assertIn("selected-pour-targets=0", result.detail)
 
 
-MIN_FEATURE = 0.09  # a typical fab minimum copper width, in mm
+MIN_FEATURE = 0.09  # an assumed fab minimum copper width, in mm
 
 
 class KeepoutAndEdgeTests(unittest.TestCase):
