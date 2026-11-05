@@ -1,0 +1,26 @@
+{
+  "name": "stitch-via",
+  "prompt": "Stitch my tagged ground pour with the substrate's standard via on a 2 mm grid. Does it matter whether I pass the via class straight from the JLCPCB substrate, re-declare it on my own substrate class, or declare it at module scope? Build each and count the vias.",
+  "inputs": {
+    "substrate": "jitxlib.jlcpcb.JLC04161H_7628",
+    "reference": "evals/cases/reference/stitch-via/stitch_via_design.py",
+    "environment": "Commands run from the repository root with python3 resolving to the project interpreter that has jitx installed and a reachable runtime; the check script is run once per variant from a project that packages the reference module."
+  },
+  "expected_output": "Three designs differing only in how the via class is declared, plus a control with no rule, each built and captured; the check asserts the via count equals the grid count derived from the pour size, pitch, and inset for the three rule variants and zero for the control, and exits nonzero otherwise. NOTES.md records the commands and counts.",
+  "assertions": [
+    {
+      "text": "the reference module type-checks against the installed jitx package",
+      "check": "deterministic",
+      "cmd": "python3 -m pyright --pythonpath \"$(command -v python3)\" skills/jitx-layout-constraints/evals/cases/reference/stitch-via/*.py"
+    },
+    {
+      "text": "each rule variant produces the derived via count and the control produces zero",
+      "check": "deterministic",
+      "cmd": "for v in mixin direct module control; do python3 skills/jitx-layout-constraints/evals/cases/reference/stitch-via/check_stitch_via.py $v || exit 1; done"
+    },
+    {
+      "text": "the stitch rule is a one-condition rule with stitch_via on a tagged pour, and the answer about via-class declaration is stated as verified on the named build, not assumed",
+      "check": "judge"
+    }
+  ]
+}

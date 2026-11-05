@@ -6,179 +6,111 @@ package before reusing — JITX moves and APIs get renamed across releases.
 ## Table of Contents
 
 - [Soldermask-defined thermal pad (shapely CSG + attached vias)](#soldermask-defined-thermal-pad)
-- [OverlappableCopper antenna + local ground island](#overlappablecopper-antenna)
+- [OverlappableCopper antenna + local keepout and ground island](#overlappablecopper-antenna)
 - [Custom-pad soldermask / paste helpers](#custom-pad-soldermask--paste-helpers)
 
 ## Soldermask-defined thermal pad
 
 A cheap-fab alternative to filled via-in-pad: tented vias inside the chip's
 exposed-pad copper, with a thin soldermask "dam" only around each via so reflowed
-solder can't wick down the unfilled barrels. The mask/paste opening is computed with
-shapely CSG (`EP_rect − (perimeter frame ∪ linear webs ∪ circular via dams)`), and
-the vias are placed at the **same** coordinates the CSG used (so the dams land on
-the vias) and joined to the ground net by **net membership** — not
-`PortAttachment`, which is scoped to signal topologies.
+solder cannot wick down the unfilled barrels. The mask and paste opening is
+computed with shapely CSG: the exposed-pad rectangle minus a perimeter frame,
+linear webs, and circular via dams. The vias use the same coordinates as the
+CSG, so every via sits under a dam and every paste cell is enclosed by mask.
+
+Copy this skill's `scripts/thermal_via_stitch.py` into the project,
+then use it at the landpattern and circuit call sites. It raises `ValueError`
+when the exposed pad cannot hold the grid or the opening is not a polygon; a
+raise means change the grid, not skip the check. The substrate supplies
+the soldermask bridge, registration, and copper-edge values. The selected via
+class supplies its pad diameter.
 
 ```python
-from collections.abc import Iterable, Sequence
-import shapely
-import jitx
-from jitx import Container
-from jitx.shapes import Shape
-from jitx.shapes.shapely import ShapelyGeometry
-from jitx.via import Via, ViaType
-from jitxlib.landpatterns.pads import SMDPadConfig
+from jitx import Pad, current
+from jitx.inspect import visit
 
-# Module-scope via class. A custom via is justified here: JLCPCB charges nothing for
-# a *tented* unfilled via inside a pad, and the design-rule resolver does not walk
-# via classes inherited from a mixin — so it must be defined at module scope, not on
-# the substrate. (Normally, source vias from the substrate / JLCPCB library.)
-class ThermalStitchVia(Via):
-    name = "Soldermask-Defined Thermal Via"
-    start_layer = 0
-    stop_layer = -1
-    diameter = 0.45          # JLCPCB "Preferred Standard Via" pad
-    hole_diameter = 0.30
-    type = ViaType.MechanicalDrill
-    tented = True            # tented both sides → no solder wicking, no upcharge
+from my_project.thermal_via_stitch import (
+    StitchParams,
+    ThermalViaField,
+    grid_thermal_via_positions,
+    soldermask_defined_thermal_pad_config,
+)
+
+
+class ThermalStitchVia(current.design.substrate.StdViaPreferred):
+    """The substrate's preferred via, declared for use inside a pad.
+
+    The library class carries via_in_pad = False; a via inside an exposed pad
+    needs a class that says otherwise, declared here rather than by mutating
+    the library class. Confirm with the fab that tented, unfilled vias inside
+    a pad are accepted before using it.
+    """
+
     via_in_pad = True
 
+# Landpattern side. Read the exposed-pad shape back from the generated
+# landpattern, then replace its standard feature config with the CSG config.
+via_class = ThermalStitchVia
+params = StitchParams.from_substrate(current.design.substrate.constraints, via_class)
+# visit, not query: query opens the substrate context and needs a design root
+ep_pad = next(
+    (pad for _, pad in visit(landpattern, Pad) if pad in landpattern.thermal_pads),
+    None,
+)
+if ep_pad is None:
+    raise ValueError("landpattern has no thermal pad to stitch")
+min_x, min_y, max_x, max_y = ep_pad.shape.to_shapely().g.bounds
+ep_size = (max_x - min_x, max_y - min_y)  # jitx.query landpattern Pad bounds
+positions = grid_thermal_via_positions(
+    ep_size=ep_size,
+    via_grid=(4, 4),  # skill default: 4 columns by 4 rows.
+    edge_margin=params.edge_margin,
+    via_pad_diameter=params.via_pad_diameter,
+)
+config = soldermask_defined_thermal_pad_config(
+    ep_size=ep_size,
+    via_positions=positions,
+    via_pad_diameter=params.via_pad_diameter,
+    min_mask_bridge=params.min_mask_bridge,
+    mask_expansion=params.mask_expansion,
+    fillet_radius=params.fillet_radius,
+)
+landpattern.thermal_pad(shape=ep_pad.shape, config=config)
 
-def grid_thermal_via_positions(
-    *, ep_size: tuple[float, float], via_grid: tuple[int, int],
-    edge_margin: float = 0.3, via_pad_diameter: float = 0.45,
-) -> list[tuple[float, float]]:
-    """Evenly-spaced cols×rows via grid in the EP-local frame (origin = EP center),
-    inset so the outermost pad rim stays `edge_margin` from the EP edge."""
-    nx, ny = via_grid
-    ep_w, ep_h = ep_size
-    inset = edge_margin + via_pad_diameter / 2.0
-
-    def axis(extent: float, n: int) -> list[float]:
-        if n <= 0:
-            return []
-        avail = extent - 2.0 * inset
-        if avail < 0:
-            raise ValueError(f"EP extent {extent} too small for {n} vias")
-        if n == 1:
-            return [0.0]
-        step = avail / (n - 1)
-        return [-avail / 2.0 + k * step for k in range(n)]
-
-    xs, ys = axis(ep_w, nx), axis(ep_h, ny)
-    return [(x, y) for y in ys for x in xs]
-
-
-def soldermask_thermal_pad_opening(
-    *, ep_size: tuple[float, float], via_positions: Iterable[tuple[float, float]],
-    via_pad_diameter: float = 0.45, min_mask_bridge: float = 0.08,
-    fillet_radius: float = 0.05,
-) -> Shape:
-    """Paste/soldermask opening = EP rectangle minus (frame ∪ web stripes ∪ via dams).
-    `min_mask_bridge` (JLCPCB min soldermask bridge, 0.08 mm) is both the web width
-    and the radial mask margin around each via pad."""
-    ep_w, ep_h = ep_size
-    ep_rect = shapely.box(-ep_w / 2, -ep_h / 2, ep_w / 2, ep_h / 2)
-
-    positions = list(via_positions)
-    if not positions:
-        return ShapelyGeometry(ep_rect)
-
-    half_stripe = min_mask_bridge / 2.0
-    unique_xs = sorted({round(x, 6) for x, _ in positions})
-    unique_ys = sorted({round(y, 6) for _, y in positions})
-    parts: list[shapely.geometry.base.BaseGeometry] = []
-
-    # Perimeter frame ring (closes the ends of the web stripes).
-    inner_w, inner_h = ep_w - 2 * min_mask_bridge, ep_h - 2 * min_mask_bridge
-    if inner_w > 0 and inner_h > 0:
-        inner = shapely.box(-inner_w / 2, -inner_h / 2, inner_w / 2, inner_h / 2)
-        parts.append(ep_rect.difference(inner))
-    # Linear web stripes through each unique via X and Y.
-    for x in unique_xs:
-        parts.append(shapely.box(x - half_stripe, -ep_h / 2, x + half_stripe, ep_h / 2))
-    for y in unique_ys:
-        parts.append(shapely.box(-ep_w / 2, y - half_stripe, ep_w / 2, y + half_stripe))
-    # Circular dam over each via (pad + bridge ring on every side).
-    dam_radius = via_pad_diameter / 2.0 + min_mask_bridge
-    for x, y in positions:
-        parts.append(shapely.Point(x, y).buffer(dam_radius, resolution=24))
-
-    opening = ep_rect.difference(shapely.unary_union(parts))
-    if fillet_radius > 0:
-        # Morphological open: round sharp inside corners of the paste cells.
-        opening = opening.buffer(-fillet_radius, resolution=24).buffer(fillet_radius, resolution=24)
-    # Guard before handing to a fab feature — only non-empty Polygon/MultiPolygon serialize.
-    assert not opening.is_empty and opening.geom_type in ("Polygon", "MultiPolygon"), opening.geom_type
-    return ShapelyGeometry(opening)
-
-
-def soldermask_defined_thermal_pad_config(**kw) -> SMDPadConfig:
-    """Both paste and soldermask use the CSG opening shape."""
-    opening = soldermask_thermal_pad_opening(**kw)
-    return SMDPadConfig(soldermask=opening, paste=opening)   # each field takes a Shape
-
-
-class ThermalViaField(Container):
-    """Placed thermal vias as a composed member. A `Container` subclass is the
-    composition unit — its members are traversed by the structural walk. Do NOT
-    write this as a free function that mutates the circuit
-    (`def attach_thermal_vias(circuit, ...): circuit.xyz = ...` is an
-    anti-pattern — see the base `jitx` skill's Don'ts)."""
-
-    def __init__(
-        self, *, positions: Sequence[tuple[float, float]],
-        anchor: tuple[float, float] = (0.0, 0.0),
-        via_class: type[Via] = ThermalStitchVia,
-    ):
-        ax, ay = anchor
-        self.vias = [via_class().at(ax + dx, ay + dy) for dx, dy in positions]
-```
-
-Usage — component side builds the pad, circuit side places the chip at the same
-anchor, composes the via field as a member, and joins the vias to the ground net
-(thermal/ground vias are plain net membership — `Net` accepts `Via` members;
-`PortAttachment` is reserved for signal topologies):
-
-```python
-# In the landpattern definition:
-positions = grid_thermal_via_positions(ep_size=(3.45, 3.45), via_grid=(4, 4))
-config = soldermask_defined_thermal_pad_config(ep_size=(3.45, 3.45), via_positions=positions)
-landpattern.thermal_pad(shape=rectangle(3.45, 3.45), config=config)
-
-# In the circuit where the chip is placed — pin it at the origin so the thermal-via
-# field (anchored at (0, 0)) lines up with the exposed pad:
-self.amp = PowerAmp().at(0, 0)
-self.GND += self.amp.EP                     # the exposed pad is on ground
-self.thermal_vias = ThermalViaField(positions=positions, anchor=(0.0, 0.0))
+# Circuit side. Store the container structurally and use plain net membership.
+self.amp = PowerAmp().at(thermal_anchor)
+self.GND += self.amp.EP
+self.thermal_vias = ThermalViaField(
+    positions=positions,
+    via_class=via_class,
+    anchor=thermal_anchor,
+)
 for via in self.thermal_vias.vias:
-    self.GND += via                         # vias join the net — no PortAttachment
+    self.GND += via
 ```
 
 ## OverlappableCopper antenna
 
 A PCB inverted-F antenna. The structure is a small `Component` with two **anchor
-pads** (feed + short) that carry the nets — so the router has explicit points to land
-on — plus the radiating shape drawn as **netless `OverlappableCopper`** that overlaps
-those pads. A local ground island (keepout + higher-rank pour) lives **inside** the
-circuit so it tracks the antenna wherever it is placed.
+pads** (feed + short) that carry the nets, plus the radiating shape drawn as
+**netless `OverlappableCopper`** that overlaps those pads. A local keepout lives
+inside the circuit so it tracks the antenna wherever it is placed.
 
 ```python
 import jitx
-from jitx import OverlappableCopper, PadMapping, Pour, Tag
+from jitx import Board, Design, OverlappableCopper, PadMapping, Pour, Tag
 from jitx.circuit import Circuit
 from jitx.feature import KeepOut
 from jitx.landpattern import Landpattern, Pad
 from jitx.layerindex import LayerSet
 from jitx.net import Net, Port
 from jitx.shapes.composites import rectangle
+from jitxlib.jlcpcb import JLC04161H_7628
 from jitxlib.symbols.box import BoxSymbol
 
 
-# Define Tag subclasses at MODULE scope — never inside a method (subclassing a JITX
-# class in a function breaks instantiation tracking; see base skill conventions).
 class AntennaGroundTag(Tag):
-    """Marks the antenna's local GND pour for the substrate's fence-via rule."""
+    """Marks the local RF ground island for the substrate-side fence-via rule."""
 
 
 class _AnchorPad(Pad):
@@ -226,9 +158,8 @@ class AntennaMatching(Circuit):
         self.copper_feed_leg  = OverlappableCopper(rectangle(0.5, 10.0).at(3.25, 0.0), layer=0)
         self.copper_short_stub = OverlappableCopper(rectangle(0.5, 10.0).at(0.25, 0.0), layer=0)
 
-        # Local ground island that tracks the antenna. KeepOut clears the board's
-        # default pour/vias/traces from the antenna region; a higher-rank GND Pour of
-        # the same shape fills GND back on the radiator's layer.
+        # Local keepout that tracks the antenna. KeepOut clears the board's
+        # pours, automatic vias, and autorouted traces from the antenna region.
         # NOTE on flags (per the KeepOut API): route=True DISALLOWS autorouter traces,
         # via=True blocks auto-vias, pour=True keeps pours out. Set the flags to the
         # behavior you actually want — here we want no stray traces/vias/pours under
@@ -238,14 +169,39 @@ class AntennaMatching(Circuit):
             KeepOut(shape=island, layers=LayerSet(layer), pour=True, via=True, route=True)
             for layer in (0, 1, 2, -1)
         ]
-        self.gnd_pour = Pour(island, layer=0, rank=1)   # rank=1 overrides the keepout for GND
-        self.GND += self.gnd_pour
 
-        # Tag the pour so the substrate's fence-via rule selects it. This skill owns the
-        # tagged-pour GEOMETRY; the design_constraint(AntennaGroundTag()).fence_via(...)
-        # RULE that rings it with vias is declared in the substrate / top-level design —
-        # see jitx-substrate-modeler "Fenced Pour Outlines".
-        AntennaGroundTag().assign(self.gnd_pour)
+        # Correct local-ground-island pattern: a pour in the HOLE of a pour
+        # keepout ring, never under the keepout itself. This island surrounds the
+        # short anchor below the antenna region; the GND pad anchors its net on L1.
+        local_island = rectangle(3.0, 2.0).at(0.25, -4.8)
+        local_moat = (
+            local_island.to_shapely().buffer(0.8)
+            - local_island.to_shapely().buffer(0.2)
+        )
+        self.keepouts.append(
+            KeepOut(
+                shape=local_moat,
+                layers=LayerSet(0),
+                pour=True,
+                via=False,   # allow the fence-via rule to ring the island
+                route=False,
+            )
+        )
+        self.gnd_island = Pour(local_island, layer=0)
+        self.GND += self.gnd_island
+        AntennaGroundTag().assign(self.gnd_island)
+
+
+class AntennaBoard(Board):
+    shape = rectangle(50.0, 30.0)
+
+
+class AntennaDesign(Design):
+    board = AntennaBoard()
+    substrate = JLC04161H_7628()
+    circuit = AntennaMatching()
+    # The fence-via rule that consumes AntennaGroundTag is declared with the
+    # substrate; see jitx-substrate-modeler, "Fenced Pour Outlines".
 ```
 
 > The original project file commented `route=False` as "so signal traces can't cross
@@ -253,10 +209,17 @@ class AntennaMatching(Circuit):
 > `route=True` is what disallows autorouter traces. The example above uses the correct
 > flag. Always read the `route`/`via`/`pour` semantics from `jitx/feature.py`.
 
-`AntennaGroundTag` is defined at **module scope** above — subclassing a JITX class
-inside a method breaks instantiation tracking (see the base skill conventions). The
-fence-via *rule* that consumes the tag lives in `jitx-substrate-modeler`; this example
-owns only the tagged-pour geometry.
+`KeepOut(pour=True)` excludes pours at every rank. It does not provide a local
+ground-island exception. The replacement above uses disjoint geometry: the moat
+keepout surrounds but does not overlap `gnd_island`, the short pad anchors that
+island to GND, and `AntennaGroundTag` gives the fence-via rule a concrete `Pour`
+target. That rule, `design_constraint(AntennaGroundTag()).fence_via(<substrate via
+class>, ViaFencePattern(...))`, lives with the substrate because its via class and
+fence pattern do; this example owns only the tagged-pour geometry. See the
+jitxexamples package's `jitxexamples.patterns.fenced_pour_outline` module. The realization command names
+`circuit.gnd_island` when a stitch rule also selects it; a fence-via project check
+queries the computed fence-via group separately. See the main skill's
+[Pour realization semantics](../SKILL.md#pour-realization-semantics).
 
 ## Custom-pad soldermask / paste helpers
 

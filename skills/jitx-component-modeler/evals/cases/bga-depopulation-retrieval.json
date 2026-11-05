@@ -1,0 +1,24 @@
+{
+  "name": "bga-depopulation-retrieval",
+  "prompt": "I'm modeling a BGA whose ball grid has whole rows and columns removed. Before I write it, point me at a worked JITX component that leaves balls out of a BGA grid, and tell me how it says which positions have no ball and which positions it leaves out. Check the installed package rather than answering from memory, and name the module.",
+  "expected_output": "Names jitxexamples.components.memories.MT53E1G32D2FW_046_WT_B, explains that FW200Depopulation subclasses GridPlanner and decides each position in is_active, that FW200Landpattern (a BGA) applies it with grid_planner(), and that it leaves out columns 6 and 7 and rows L and M of the 22 x 12 grid.",
+  "assertions": [
+    {
+      "text": "the pointer the component guide gives resolves: the module imports and its depopulation class is a GridPlanner",
+      "check": "deterministic",
+      "cmd": "python3 -c \"from jitxlib.landpatterns.grid_planner import GridPlanner; import jitxexamples.components.memories.MT53E1G32D2FW_046_WT_B as m; assert issubclass(m.FW200Depopulation, GridPlanner)\""
+    },
+    {
+      "text": "the answer names jitxexamples.components.memories.MT53E1G32D2FW_046_WT_B as the worked component",
+      "check": "judge"
+    },
+    {
+      "text": "the answer says the depopulated positions come from a GridPlanner subclass (FW200Depopulation) deciding each position, applied to the BGA land pattern with grid_planner()",
+      "check": "judge"
+    },
+    {
+      "text": "the answer gives the positions that module leaves out: columns 6 and 7 and rows L and M of a 22 x 12 grid",
+      "check": "judge"
+    }
+  ]
+}

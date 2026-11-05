@@ -73,13 +73,23 @@ For local-path marketplaces, update the checkout instead of running `marketplace
 
 ### jitx
 
-Base workflow skill for JITX projects. Triggers on JITX-related tasks and provides environment setup, build commands, project structure guidance, and navigation to specialized skills.
+Base workflow skill for JITX projects: install, the jitx CLI and runtime, building designs, the board and schematic viewers, code quality checks, design introspection, and navigation to specialized skills.
 
 Example triggers:
 
 - "Build my JITX design"
 - "Set up JITX environment"
+- "List every port in my design from Python"
+
+### jitx-project-builder
+
+Turn board requirements into a complete, verified JITX design: tier classification, PLAN.md and ARCHITECTURE.md, phased sub-agent work with exit gates, and the Phase 3b design audit.
+
+Example triggers:
+
 - "Create a full JITX project"
+- "Design a PCB from these requirements"
+- "Resume the board project, what's left in the task graph?"
 
 ### jitx-component-modeler
 
@@ -93,7 +103,7 @@ Example triggers:
 
 ### jitx-circuit-builder
 
-Build JITX circuits with wiring, passives, power connections, application circuits, placement, and basic copper geometry.
+Build JITX circuits with wiring, typed ports, hierarchy, passives, power connections, application circuits, and placement.
 
 Example triggers:
 
@@ -103,7 +113,7 @@ Example triggers:
 
 ### jitx-substrate-modeler
 
-Model JITX substrates: stackups, materials, vias, routing structures, fabrication constraints, and design rules.
+Model JITX substrates: stackups, materials, vias, routing structures, fabrication constraints, and fenced pour outlines.
 
 Example triggers:
 
@@ -113,13 +123,23 @@ Example triggers:
 
 ### jitx-physical-layout
 
-Author PCB physical layout from code: copper, custom shapes, pad features, explicit placement, vias, code-based routes, and layout-intent tags.
+Author PCB physical layout from code: copper, pours, custom shapes, pad features, explicit placement, vias, code-based routes, and layout-intent tags.
 
 Example triggers:
 
 - "Draw an IFA antenna from code"
 - "Create a net tie between AGND and DGND"
 - "Route the BGA escape lanes from code"
+
+### jitx-layout-constraints
+
+Design rules for the layout: board-wide defaults, net classes with width and clearance rules, power routing width, decoupling placement, pour rules, tag-based fanout step-down into package pads, and after-build width and clearance checks.
+
+Example triggers:
+
+- "Keep the 12 V copper 0.3 mm from ground on the inner layer"
+- "The 0.5 mm power trace won't fit the QFN pad"
+- "Why isn't my clearance rule applying?"
 
 ### jitx-interconnect-constraints
 
@@ -153,7 +173,7 @@ Example triggers:
 
 ### jitx-mechanical
 
-Mechanical CAD interface for JITX designs: inspect/import DXF, EMN, IDF, IDX, and BDF data; export DXF; attach STEP models; export a full board STEP via the JITX UI (no CLI in py-jitx 4.2.x).
+Mechanical CAD interface for JITX designs: use `jitxlib-mechanical` to inspect/import DXF and IDF text (.emn/.idf/.idx/.bdf), and export captured designs with `jitx design export dxf`. Attach STEP models and export a full board STEP with `jitx design export legacy-step` or the JITX application UI.
 
 Example triggers:
 
@@ -176,16 +196,20 @@ jitx-skills/
 ├── skills/
 │   ├── jitx/
 │   │   ├── SKILL.md
-│   │   ├── agents/openai.yaml   # Codex UI metadata
+│   │   ├── references/
+│   │   └── scripts/                  # check.py, grep_gates.py, prune_lock.py
+│   ├── jitx-project-builder/
+│   │   ├── SKILL.md
 │   │   ├── references/
 │   │   │   ├── domain-checklists.md  # Checklist index
 │   │   │   ├── domains/              # Focused checklist files
 │   │   │   └── net-classes.md        # Cross-domain net taxonomy
-│   │   └── scripts/
+│   │   └── scripts/                  # plan_status.py
 │   ├── jitx-component-modeler/
 │   ├── jitx-circuit-builder/
 │   ├── jitx-substrate-modeler/
 │   ├── jitx-physical-layout/
+│   ├── jitx-layout-constraints/
 │   ├── jitx-interconnect-constraints/
 │   ├── jitx-pin-assignment/
 │   ├── jitx-code-review/
@@ -198,6 +222,7 @@ jitx-skills/
 ## Requirements
 
 - A JITX Python project with `pyproject.toml` containing a JITX dependency
+- JITX 4.6 (`jitx>=4.6,<4.7`) and the JITX 4.6 runtime, with `jitxlib-standard` 4.6, `jitxlib-parts` 2.x, `jitxexamples` 2.0.x and, for JLCPCB boards, `jitxlib-jlcpcb` 4.x. This release targets JITX 4.6 only. The previous release, 1.7.0, documents the JITX 4.2 API, and no release targets 4.4, so move a 4.4 project to 4.6 before using these skills. The released versions the skills were checked against are in the Supported versions table in `skills/jitx/SKILL.md`.
 - Python 3.12+
 - For datasheet processing: `pip install pymupdf`
 
@@ -245,6 +270,21 @@ Run the repo-local dual validation:
 python scripts/validate_dual_plugin.py .
 ```
 
+Check that every cross-reference between skill pages still resolves, and that no section is
+cited by a truncated name instead of a link:
+
+```bash
+python scripts/check_doc_links.py .
+```
+
+Run the unit tests. The project tests in `skills/jitx/scripts/test_prune_lock.py` build a
+scratch JITX project, so they need `JITX_PYTHON` set to a Python with jitx 4.6 and
+jitxlib-parts 2; without it they are skipped, and with one that cannot import jitx they fail:
+
+```bash
+JITX_PYTHON=/path/to/venv/bin/python python3 -m pytest -q
+```
+
 Run Codex manifest validation with the Codex plugin-creator validator:
 
 ```bash
@@ -262,5 +302,5 @@ claude plugin validate .
 Keep the shared instructions in `skills/<skill-name>/SKILL.md`. Use platform-specific metadata only where each runtime expects it:
 
 - Claude Code: `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`
-- Codex/GPT: `.codex-plugin/plugin.json`, `.agents/plugins/marketplace.json`, and `skills/<skill-name>/agents/openai.yaml`
+- Codex/GPT: `.codex-plugin/plugin.json` and `.agents/plugins/marketplace.json`
 - Shared skill content: `skills/<skill-name>/SKILL.md`, `references/`, `scripts/`, and `assets/`

@@ -1,145 +1,65 @@
 # Protocol Pin Flexibility Reference
 
-> **Important:** The tables below describe what a protocol *specification* permits in principle. Whether a specific IC actually supports a given swap depends entirely on the controller or PHY datasheet. **Always confirm with the user** what their particular parts support before coding any Provide options. Ask: "Does your controller datasheet confirm support for [byte swap / lane reversal / P/N inversion]?"
+The tables say what a protocol specification permits. Whether a part supports a swap is in its controller or PHY datasheet; confirm with the user before coding any Provide option: "Does your controller datasheet confirm support for [byte swap / lane reversal / P/N inversion]?"
 
 ## DiffPair P/N Polarity Swapping
 
-P/N inversion is only safe when both endpoints handle the inverted signal correctly. Many controllers have internal inversion logic, but this is **not universal** — check the datasheet.
+P/N inversion is safe only when both ends handle the inverted signal.
 
-| Protocol | P/N Swap Possible | Controller-Dependent? | Notes | Constraint Class |
-|----------|-------------------|----------------------|-------|------------------|
-| PCIe | Yes (spec allows) | Yes — controller must have RX polarity inversion | Per-lane; most modern PCIe PHYs support this | `DiffPairConstraint` |
-| SATA | No | — | Strict polarity per spec | `DiffPairConstraint` |
-| USB 2.0 | No | — | D+/D- polarity is protocol-critical | N/A |
-| USB 3.x | Yes (spec allows) | Yes — controller must support per-lane inversion | TX and RX independently | `DiffPairConstraint` |
-| DisplayPort | Yes (spec allows) | Yes — source must support lane polarity inversion | Per lane (ML0-ML3) | `DiffPairConstraint` |
-| Ethernet 100BASE-TX | No | — | TD+/TD- polarity fixed | `DiffPairConstraint` |
-| Ethernet 1000BASE-T | Partially | PHY-dependent (MDI/MDI-X auto-negotiation) | Software-managed, not pin assignment | `DiffPairConstraint` |
-| DDR4 DQS | No | — | DQS_t/DQS_c polarity is always fixed | `ConstrainDiffPair` |
-| DDR4 CK | No | — | CK_t/CK_c polarity is always fixed | `ConstrainDiffPair` |
-| LPDDR5 WCK | No | — | Strict polarity | `ConstrainDiffPair` |
-| LPDDR5 RDQS | No | — | Strict polarity | `ConstrainDiffPair` |
+| Protocol | P/N swap | Condition |
+|----------|----------|-----------|
+| PCIe | Spec allows | Controller must have RX polarity inversion; per lane |
+| USB 2.0 | No | D+/D- polarity is protocol-critical |
+| USB 3.x | Not covered | No cited source here for USB 3.x lane or polarity freedom: offer none unless the controller datasheet documents it, and cite it in the provider. |
+| DisplayPort | Spec allows | Source must support lane polarity inversion; per lane (ML0-ML3) |
+| Ethernet 100BASE-TX | No | TD+/TD- polarity fixed |
+| Ethernet 1000BASE-T | Partially | MDI/MDI-X auto-negotiation in the PHY: software, not pin assignment |
+| DDR4 DQS, DDR4 CK | No | DQS_t/DQS_c and CK_t/CK_c polarity always fixed |
+| LPDDR5 WCK, RDQS | No | Strict polarity |
 
-**Implementation pattern (only after confirming controller support):**
-```python
-@provide.one_of(TXLink)
-def provide_tx(self, link: TXLink):
-    return [
-        {link.tx.p: self.ic.TXP, link.tx.n: self.ic.TXN},  # Normal
-        {link.tx.p: self.ic.TXN, link.tx.n: self.ic.TXP},  # Swapped
-    ]
-```
+Worked pattern: `jitxexamples.patterns.pin_lane_polarity` (lane choice and P/N inversion, with an SI constraint that begins on the required pair).
 
 ## PCIe Lane Flexibility
 
-The PCIe specification permits lane reversal and polarity inversion, but **the controller must explicitly support these features**. Many PCIe switches and root complexes do; some endpoint devices do not. Check the controller datasheet for a "lane reversal" or "polarity inversion" feature description.
+The specification permits lane reversal and polarity inversion, but the controller must support each (look for "lane reversal" or "polarity inversion" in its datasheet); some endpoints do not.
 
-| Feature | Spec Allows | Controller-Dependent? | Provider Pattern | Constraint Pattern |
-|---------|-------------|----------------------|-----------------|-------------------|
-| Lane reversal | Yes | Yes — both endpoints must support | `Provide().one_of()` with reversed lane indices | `DiffPairConstraint` per lane |
-| P/N polarity swap | Yes | Yes — RX side must have polarity inversion | Nested `provide.one_of` per diff pair | `DiffPairConstraint` |
-| Width variants (x1/x2/x4/x8/x16) | Yes | Yes — controller must support the narrower width | Separate `Provide` per width | `DiffPairConstraint` per lane |
-| Lane-to-port remapping | Yes | Yes — requires lane reversal support | `one_of` with different `lane_offset` | `ConstrainReferenceDifference` for inter-lane skew |
+| Feature | Controller condition | Provider pattern |
+|---------|----------------------|------------------|
+| Lane reversal | Both endpoints support it | `one_of` with reversed lane indices |
+| P/N polarity swap | RX side has polarity inversion | Nested `provide.one_of` per diff pair |
+| Width variants (x1/x2/x4/x8/x16) | Controller supports the narrower width | Separate `Provide` per width |
+| Lane-to-port remapping | Requires lane reversal support | `one_of` with a different lane offset |
 
-### PCIe Constraint Parameters (from specification)
-
-| Generation | Intra-pair Skew | Inter-lane Skew | Diff Impedance | Max Loss |
-|------------|----------------|----------------|----------------|----------|
-| Gen 1 (2.5 GT/s) | 25 ps | 20 ns | 85 ohm | 12 dB |
-| Gen 2 (5.0 GT/s) | 15 ps | 8 ns | 85 ohm | 12 dB |
-| Gen 3 (8.0 GT/s) | 10 ps | 6 ns | 85 ohm | 12 dB |
-| Gen 4 (16.0 GT/s) | 5 ps | 4 ns | 85 ohm | 20 dB |
-| Gen 5 (32.0 GT/s) | 3 ps | 2 ns | 85 ohm | 28 dB |
-
-### PCIe Topology Chain Pattern
-```
-require(PCIeLink) -> lane[i].TX.p >> dst.lane[i].RX.p
-                  -> lane[i].TX.n >> dst.lane[i].RX.n
-                  -> DiffPairConstraint(skew, loss).constrain(TX, RX)
-                  -> ConstrainReferenceDifference(guide=lane[0], topologies=[lane[1:]])
-```
+No PCIe skew or loss numbers here: take them from the controller's or retimer's layout guide and cite it. Inter-lane skew uses one leg (`TX.p`) as the single-pin guide. Constraint shape: [Constraints on Pin-Assigned Ports](../SKILL.md#constraints-on-pin-assigned-ports).
 
 ## DDR4 Pin Flexibility
 
-DDR4 byte and bit swapping is **entirely controller-dependent**. The DDR4 JEDEC spec defines signal functions, but many controllers include internal crossbar logic that allows reordering data bits and byte lanes. The memory IC itself does not care about ordering — it responds to whatever arrives on its DQ/DQS pins.
+DDR4 byte and bit swapping is controller-dependent: the controller's crossbar decides what may move. Ask the user: "Does your controller support byte lane swapping? Bit swapping within a byte lane?" (its manual's 'DQ mapping' or 'byte lane remapping' section).
 
-**Before coding any DDR4 swaps, ask the user:** "Does your DDR4 controller support byte lane swapping? Bit swapping within a byte lane? Check the controller reference manual for a 'DQ mapping' or 'byte lane remapping' section."
+| Feature | Possible | Scope | Provider pattern |
+|---------|----------|-------|------------------|
+| Byte lane reorder | Controller-dependent | Channel | `one_of` over the allowed byte orders |
+| Bit swap in byte | Controller-dependent | Per byte lane | Per-slot bit bundle offered `all_of`, required `count=8` inside the byte `one_of` (SKILL.md, DDR Byte/Bit Swapping) |
+| DQS-to-byte association | Fixed: DQS0 always with byte 0 | Per byte | None |
+| Address/CMD, bank address | No | Global | Fixed wiring |
+| CK P/N | No | Per rank | Fixed wiring |
 
-| Feature | Possible | Controller-Dependent? | Scope | Provider Pattern | Constraint |
-|---------|----------|----------------------|-------|-----------------|------------|
-| Byte lane reorder | Yes | **Yes** — controller must have byte-swap logic | Channel | `Provide().one_of()` with byte permutations | `ConstrainReferenceDifference` per byte |
-| Bit swap in byte | Yes | **Yes** — controller must have bit-swap logic | Per byte lane | `Provide().one_of()` with bit permutations | `Constrain` per DQ |
-| DQS-to-byte assoc | Fixed | No — always DQS0 with byte 0 | Per byte | N/A | `ConstrainReferenceDifference` DQ-to-DQS |
-| Address/CMD bits | No | — | Global | Fixed wiring | `Constrain` timing |
-| CK P/N swap | No | — | Per rank | Fixed wiring | `ConstrainDiffPair` |
-| Bank address | No | — | Global | Fixed wiring | `Constrain` timing |
+`jitxexamples.protocols.memory.ddr4` applies cited point-to-point values, its docstring citing the source table for each; for another controller, use its layout guide.
 
-### DDR4 Constraint Parameters (typical, verify against controller/memory datasheets)
+## LPDDR4/4X on an AMD Versal DDRMC
 
-| Signal Group | Constraint Type | Typical Value |
-|-------------|-----------------|---------------|
-| DQ-to-DQS (read) | `ConstrainReferenceDifference` | +/- 25 ps |
-| DQ-to-DQS (write) | `ConstrainReferenceDifference` | +/- 25 ps |
-| CK intra-pair skew | `ConstrainDiffPair` | 5 ps |
-| CMD/ADDR-to-CK | `ConstrainReferenceDifference` | +/- 50 ps |
-| DQS diff impedance | `DifferentialRoutingStructure` | 100 ohm |
-| DQ single-ended | `RoutingStructure` | 50 ohm |
-
-### DDR4 Byte Swap Topology Chain Pattern
-```
-require(DDR4Data) -> byte_lane[bl].DQ[i] >> mem.DQ[offset+i]
-                  -> byte_lane[bl].DQS.p >> mem.DQS_P[bl]
-                  -> byte_lane[bl].DQS.n >> mem.DQS_N[bl]
-                  -> ConstrainReferenceDifference(guide=DQS_topo, topologies=DQ_topos)
-```
+AMD's PG313 pin rules for LPDDR4/4X allow two swaps: DQ bits within a byte, and a byte with the other byte of the same x16 channel, its DQS and DM going with it. Channel A never swaps with channel B, and every command, address, control, reset and clock pin is fixed. `jitxexamples.jumpstart_kits.js4_fpga_lpddr4x.pinout` holds the rules with their PG313 sections, and `js4_fpga_lpddr4x.fpga` offers them on a VP1002.
 
 ## LPDDR5 Pin Flexibility
 
-Like DDR4, LPDDR5 data bus flexibility is **controller-dependent**. The JEDEC spec defines the interface, but the controller's internal crossbar determines which swaps are possible. The memory device is agnostic to data ordering.
+Controller-dependent, as for DDR4; confirm which reorderings the controller supports. A controller may allow channel reorder (A and B interchangeable), byte lanes within a channel (WCK and RDQS stay with their byte lane) and any permutation of a byte's 8 DQ bits. CA bits and CS per rank are fixed mappings, and CK, WCK and RDQS polarity is always fixed.
 
-**Before coding LPDDR5 swaps, confirm with the user** which reorderings their controller supports.
-
-| Feature | Possible | Controller-Dependent? | Scope | Notes |
-|---------|----------|----------------------|-------|-------|
-| Channel reorder | Yes | **Yes** — controller must map channels flexibly | Device | Channels A/B may be interchangeable |
-| Byte lanes in channel | Yes | **Yes** — controller must support byte swap | Per channel | WCK/RDQS must stay with their byte lane |
-| Bits within byte | Yes | **Yes** — controller must support bit swap | Per byte lane | Any permutation of 8 DQ bits |
-| CA bits | No | — | Per channel | Fixed mapping |
-| CK/WCK/RDQS P/N | No | — | Strict | Polarity is always fixed |
-| CS per rank | No | — | Per channel | Fixed mapping |
-
-### LPDDR5 Constraint Parameters (typical, verify against datasheets)
-
-| Signal Group | Constraint Type | Typical Value |
-|-------------|-----------------|---------------|
-| DQ-to-WCK | `ConstrainReferenceDifference` | +/- 50 ps |
-| WCK intra-pair | `ConstrainDiffPair` | 5 ps |
-| RDQS intra-pair | `ConstrainDiffPair` | 5 ps |
-| CA-to-CK | `ConstrainReferenceDifference` | +/- 100 ps |
-| CK intra-pair | `ConstrainDiffPair` | 5 ps |
+No LPDDR5 numbers here: take them from the controller's layout guide and cite it.
 
 ## MCU Peripheral Muxing (I2C, SPI, UART)
 
-MCU peripheral pin muxing is the most straightforward case — the MCU datasheet's "alternate function" or "pin mux" table is the definitive source. These are always safe to model because the MCU's internal mux is fully documented.
+The MCU datasheet's alternate-function (pin-mux) table documents the mux fully; model from it.
 
-### I2C
-
-| Feature | Provider Pattern | Notes |
-|---------|-----------------|-------|
-| SDA/SCL mux | Hierarchical: `@provide.one_of(I2C_SDA)` + `@provide.one_of(I2C_SCL)` composed via `@provide(I2C)` | SDA and SCL can be independently muxed per the MCU's AF table |
-| Multiple I2C instances | Separate `@provide.one_of` per instance | I2C1 and I2C2 with different pin options |
-
-### SPI
-
-| Feature | Provider Pattern | Notes |
-|---------|-----------------|-------|
-| MOSI/MISO/SCK mux | `@provide.one_of(SPI)` | Read the MCU AF table for valid pin groups |
-| CS pin selection | `@provide(GPIO)` | Often any GPIO can serve as CS |
-| Clock polarity (CPOL/CPHA) | Not pin assignment | Set in firmware, not PCB |
-
-### UART
-
-| Feature | Provider Pattern | Notes |
-|---------|-----------------|-------|
-| TX/RX mux | `@provide.one_of(UART)` | Read the MCU AF table for valid pin pairs |
-| Flow control (RTS/CTS) | `@provide.one_of(UART_FC)` or `@provide(GPIO)` | Optional, often any GPIO |
+- I2C: SDA and SCL mux independently per the table, so compose `@provide(I2C)` from a `@provide.one_of` per signal; each instance (I2C1, I2C2) gets its own offer. Worked patterns: `jitxexamples.components.mcus.raspberry_pi_RP2040` (per-signal `one_of` pin lists from the datasheet's Table 279) and `jitxexamples.jumpstart_kits.js3_pin_assignment.mcu_muxing` (requires them; legal and illegal proofs).
+- SPI: `@provide.one_of(SPI)` over the table's valid pin groups. CS is often any GPIO (`@provide(GPIO)`). CPOL/CPHA are set in firmware, not pin assignment.
+- UART: `@provide.one_of(UART)` over the table's valid TX/RX pairs. RTS/CTS are optional: when the table fixes them, `@provide.one_of(UART(cts=True, rts=True))`; when any GPIO serves, `@provide(GPIO)`; when they mux independently, compose `@provide(UART(cts=True, rts=True))` from a per-signal `one_of` each, as I2C does (the RP2040 has the CTS/RTS ones).

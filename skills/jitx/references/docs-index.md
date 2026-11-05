@@ -14,6 +14,7 @@ Base URL: `https://docs.jitx.com/en/latest/`
 | Query design programmatically | `essentials/design/introspection.html` |
 | Build recursive circuits | `essentials/design/recursive_designs.html` |
 | Avoid common mistakes | `essentials/design/footguns.html` |
+| Choose passives, approved-parts CSV, parts database (Parts and Providers) | `essentials/design/parts.html` |
 | Place components (kinematic tree) | `essentials/physical_design/kinematic-tree.html` |
 | Route traces (autorouter) | `essentials/physical_design/autorouter.html` |
 | Add copper pours | `essentials/physical_design/pours.html` |
@@ -43,7 +44,7 @@ Core modules at `api/jitx.<module>.html`:
 | `via` | Via definitions |
 | `anchor` | Anchor points for placement |
 | `transform` | Geometric transformations |
-| `shapes` | Shape primitives (`shapes/primitive.html`, `shapes/composites.html`) |
+| `shapes` | Shape primitives (`api/jitx.shapes.primitive.html`, `api/jitx.shapes.composites.html`) |
 | `units` | Unit handling (mm, mil, etc.) |
 | `toleranced` | Toleranced values |
 | `inspect` | Design introspection utilities |
@@ -114,8 +115,7 @@ Base: `jitxlib/jitxlib.<module>.html`
 | JLCPCB stackups | `jitxlib.jlcpcb.html` | Pre-defined JLCPCB stackups |
 | JLCPCB rules | `jitxlib.jlcpcb.rules.html` | Manufacturing rules |
 | JLCPCB vias | `jitxlib.jlcpcb.vias.html` | Via definitions |
-| Parts query | `jitxlib.parts.query_api.html` | Parts database API |
-| Voltage divider | `jitxlib.voltage_divider.html` | Voltage divider solver |
+| Parts query | `jitxlib.parts.query.html` | Part queries and their keys |
 
 ## Example Components
 
@@ -124,7 +124,7 @@ Base: `jitxexamples/jitxexamples.components.<category>.html`
 | Category | Key Examples |
 |----------|--------------|
 | MCUs | `nordic_NRF52840_QIAA_R`, `raspberry_pi_RP2040` |
-| Power regulators | `texas_instruments_LM1117MP`, `AP2125K_2_8TRG1` |
+| Power regulators | `texas_instruments_LM1117LD`, `AP2125K_2_8TRG1` |
 | Switchmode power | `texas_instruments_TPS62933DRLR` |
 | Op-amps | `texas_instruments_OPA189`, `stmicroelectronics_TS971ILT` |
 | N-ch FETs | `BSS138`, `BSN20` |

@@ -1,0 +1,36 @@
+{
+  "name": "default-rules",
+  "prompt": "Put the four board defaults on the Design. Declare a tagged-net width rule only as a structural attribute of one child Circuit, then route the same tagged net through that child and a sibling Circuit. Build, capture, and use the copper widths to settle whether the child rule is board-wide or child-local.",
+  "inputs": {
+    "substrate": "jitxlib.jlcpcb.JLC04161H_7628",
+    "reference": "evals/cases/reference/default-rules/design.py",
+    "notes": "Default clearance and thermal gap values are read from FabricationConstraints fields on the substrate. Any fixed width and count in the design is labeled as a skill default on its line.",
+    "environment": "Commands run from the repository root with python3 resolving to the project interpreter that has jitx installed."
+  },
+  "expected_output": "A design module with four structural board defaults, a module-scope tag, two child circuits carrying one tagged net, and a priority 2 width rule stored only on one child. A check script submits and captures the design, verifies all routes, checks each realized width, and exits nonzero on failure. NOTES.md records the real commands, output, and the observed scope of the child rule.",
+  "assertions": [
+    {
+      "text": "the pure helper unit tests pass",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-layout-constraints/scripts/test_layout_checks.py"
+    },
+    {
+      "text": "the shipped helper and reference module type-check against the installed JITX package",
+      "check": "deterministic",
+      "cmd": "python3 -m pyright --pythonpath \"$(command -v python3)\" skills/jitx-layout-constraints/scripts/layout_checks.py skills/jitx-layout-constraints/evals/cases/reference/default-rules/design.py skills/jitx-layout-constraints/evals/cases/reference/default-rules/check.py"
+    },
+    {
+      "text": "the built and captured reference checks pass",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-layout-constraints/evals/cases/reference/default-rules/check.py"
+    },
+    {
+      "text": "every fixed width, clearance, and count in the reference design names its FabricationConstraints field or says skill default with the value on the same line",
+      "check": "judge"
+    },
+    {
+      "text": "NOTES.md records whether the child Circuit rule is board-wide or child-local, and the statement matches the captured widths inside and outside the child",
+      "check": "judge"
+    }
+  ]
+}

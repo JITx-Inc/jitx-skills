@@ -1,0 +1,23 @@
+# Eval contract for the base jitx skill.
+# The skill's own work is the environment, the CLI, builds and reading a design
+# back. Its answers are judged on whether they match what the installed CLI and
+# runtime do, and whether the check they give the user can fail when the design
+# is wrong.
+goal: |
+  An engineer asks how to set up, build, run or inspect a JITX design (a CI
+  build, a runtime that will not start, a question about what a build wrote or
+  whether a change landed) and gets back an answer they can act on in their own
+  project: commands, paths and code that the installed jitx CLI and runtime
+  actually have, and a check that proves the claim rather than asserting it.
+  Excellent = every command and file named exists in the release the user runs,
+  the proof offered is one that fails when the design is wrong, and a weaker
+  agent model following the skill gives the same answer.
+dimensions:
+  - "CLI_ACCURACY: are the commands, flags, paths and file names ones the installed jitx CLI and runtime actually have and produce?"
+  - "VERIFICATION: does the answer prove its claim with something that runs (a build, a `jitx.test.TestCase`, a `jitx design issues` report) and say what output shows success?"
+  - "INTROSPECTION_FIDELITY: when it reads the design back (build cache files, `jitx.inspect`, `RuntimeDesign`), does it read the structure as it is, per module and by object, rather than matching names in an assumed flat format?"
+  - "ACTIONABILITY: can the user act on it as written: concrete paths, commands and code that run in their project or CI, with no unresolved alternatives left for them to choose between?"
+hard_fails:
+  - "The answer tells the user to read or parse a file the build does not write, such as `netlist.json`."
+  - "The answer presents a CLI command or flag the installed jitx does not have as the way to do it."
+  - "The answer claims a connectivity change is confirmed by a check that cannot fail when the connection is wrong, such as grepping for a name or reading only the top module's nets."
