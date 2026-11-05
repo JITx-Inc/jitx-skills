@@ -88,7 +88,7 @@ Where no rule matches, copper comes out at the fab floor (measured on jitx 4.6: 
 | Default | Rule shape | Value from |
 |---|---|---|
 | Trace width | `design_constraint(IsTrace).trace_width(w)` | the fab sheet's standard (not minimum) width row, or the prompt |
-| Copper clearance | `design_constraint(IsCopper, IsCopper).clearance(c)` | the fab sheet's standard spacing row, or the prompt; no wider than the smallest coplanar gap on the board, so each gap comes from its pair rule. If the prompt's value is wider, raise the conflict with the user instead of replacing it ([Classes of nets](#classes-of-nets)) |
+| Copper clearance | `design_constraint(IsCopper, IsCopper).clearance(c)` | the fab sheet's standard spacing row, or the prompt; no wider than the smallest coplanar gap on the board, since a wider board rule widens the gap of a coplanar line with no pair rule ([Classes of nets](#classes-of-nets)). If the prompt's value is wider, write it and list it as an open item naming the gap it exceeds, rather than replacing it |
 | Pad relief | `design_constraint(IsPad).thermal_relief(gap, spoke, n)` | the fab sheet, the assembler's guidance, or the prompt |
 
 Every width, clearance and gap in this skill's rules traces to a fab-sheet row, a value in the prompt, a cited datasheet or standard, or a derivation from a sourced value with its arithmetic on the line. A value with none of those is an open item that the check fails on until the user supplies it. No chart or formula of your choosing sets a width from a current: for "what width for a 3 A rail", ask for the user's width, or the copper weight, allowed temperature rise and sizing standard.
@@ -118,7 +118,7 @@ Pour drawing and realization belong to `jitx-physical-layout` ([Pour realization
 
 | Intent | Rule shape |
 |---|---|
-| Trace-to-pour clearance | `design_constraint(IsTrace, IsPour, priority=1).clearance(c)`, below every class rule, so a class's clearance to pours wins; `c` at or below the smallest coplanar gap ([Classes of nets](#classes-of-nets)) |
+| Trace-to-pour clearance | `design_constraint(IsTrace, IsPour, priority=1).clearance(c)`, below every class rule, so a class's clearance to pours wins; `c` at or below the smallest coplanar gap, and a wider prompt value handled as in the copper clearance row ([Classes of nets](#classes-of-nets)) |
 | Relief for all of a net's pads and code-placed vias | `design_constraint(GroundTag(), priority=2).thermal_relief(gap, spoke, n)` |
 | Relief per pad size | tag the pads by measured size, one relief rule per class at priority 3, above the net's relief (`jitxexamples.patterns.layout_thermal_classes`) |
 | Direct connect | a `DirectConnectTag` on the pad, `thermal_relief(gap, pad_diagonal, 4)` a rung above every relief that matches the pad (priority 4) |
