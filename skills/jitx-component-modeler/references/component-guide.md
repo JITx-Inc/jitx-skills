@@ -54,7 +54,7 @@ QFP has no module; see the `QFP` docstring. Every dimension is a `Toleranced` fr
 
 ## KiCad import
 
-When no generator expresses the package and the vendor publishes a KiCad footprint, placing pads from the drawing is refused. Sources, in order: the user; the manufacturer's library; a third-party library (LCSC/EasyEDA, SnapEDA) only with the user's explicit approval, recorded under `Notes` and checked pad by pad against the manufacturer's drawing. An LCSC part's catalogue footprint built with `LCSCLandpattern` falls under the same rule (`jitx-jlcpcb`).
+When no generator expresses the package and the vendor publishes a KiCad footprint, placing pads from the drawing is refused. Sources, in order: the user; the manufacturer's library; a third-party library (LCSC/EasyEDA, SnapEDA) only with the user's explicit approval, recorded under `Notes` and checked pad by pad against the manufacturer's drawing. An LCSC part's catalogue footprint built with `LCSCLandpattern` follows `jitx-jlcpcb` instead, where the user's footprint choice at opt-in is the approval.
 
 Write each pad, hole, soldermask and paste opening from the `.kicad_mod` entries, citing the file and URL. KiCad's y axis points down: negate every y, or the part builds mirrored. Check rotated pads and pin 1 against the drawing. With no footprint anywhere, place pads from the drawing's recommended land pattern, cited per dimension, and record "no vendor KiCad footprint found" under `Notes`.
 

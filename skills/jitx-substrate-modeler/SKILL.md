@@ -7,7 +7,7 @@ description: "Use when the user asks to create a substrate, define a stackup, ad
 
 Write one Python file holding the substrate. API shapes, units and pitfalls are in the docstrings of `jitx.stackup`, `jitx.via`, `jitx.si`, `jitx.substrate`, `jitx.constraints`, `jitx.inspect`, `jitx.test` and `jitxlib.physics`, and in the JITX docs page [Substrate & Stackup](https://docs.jitx.com/en/latest/essentials/design/substrate.html) (its Vias section: layer indices count conductors only).
 
-`jitxlib.jlcpcb` (the separate `jitxlib-jlcpcb` distribution) is a reference implementation of substrates.
+`jitxexamples.substrates.generic_20layer` is a worked reference substrate.
 
 ## Route first
 

@@ -36,7 +36,7 @@ The user's approved list comes first, the catalogue behind it, and no `ideal`, s
 
 - An approved-list part reaches the BOM with no C-number, because the exporter reads only an `LCSCPart`, and the user matches it by hand in JLCPCB's BOM step. Tell the user which parts those are.
 - With no approved list of the user's own, cut `parts/approved-parts.csv` to the header row of the example CSV the `jitx` skill copies. The example parts carry no C-number, and first in the chain they would outrank the catalogue.
-- Use `"lcsc"` in place of `"jlcpcb"` only when the user asks for LCSC's source. It is faster and can filter a chip resistor's rated voltage, but it has no assembly-library tier (`jitxlib.jlcpcb.parts.jlcpcb`).
+- Use `"lcsc"` in place of `"jlcpcb"` only when the user asks for LCSC's source: it has no assembly-library tier.
 
 The `jitx` skill's parts gates still apply, and the user approves the final build's MPNs and C-numbers before anything is ordered.
 
@@ -54,7 +54,7 @@ A structure the class lacks, a non-FR-4 material, or a layer count outside the s
 
 ## Parts
 
-The assembly-library tier is the query attribute `library`: `basic`, `preferred`, `extended`, cheapest to assemble first. Prefer basic with `rank=Minimize("library")`, per query or on a design-level `ResistorQuery` or `CapacitorQuery` context. Filter with `library="basic"` only when the user asks for basic parts alone: the basic library is small, and a filter can find nothing.
+The assembly-library tier is the query attribute `library`: `basic`, `preferred`, `extended`, cheapest to assemble first. Prefer basic with `rank=Minimize("library")`, per query or on a design-level `ResistorQuery` or `CapacitorQuery` context. Filter with `library="basic"` only when the user asks for basic parts alone: the basic library is small.
 
 A queried passive in a case the chip generator does not build (a tantalum or aluminum electrolytic) gets the catalogue footprint through `LCSCLandpattern`, attached by the provider with in-order ports. Name a chip case in the query to avoid it, or treat it as below.
 
@@ -64,14 +64,9 @@ Before writing code for a named C-number, save its channel evidence (stock, life
 
 ## Landpatterns
 
-Generator first, as `jitx-component-modeler` orders it, then the manufacturer's KiCad footprint. `LCSCLandpattern` builds pads from third-party catalogue data. Use it only:
+With the package, the user opts into its catalogue footprints (`LCSCLandpattern`) or models their own components through `jitx-component-modeler`. Ask once if the request does not say; the answer, recorded in the Opt-in row, approves every catalogue footprint in the project. A generator still comes first where one expresses the package. With own models chosen, use no `LCSCLandpattern`: name a chip case for a queried passive, or model a class.
 
-- with the user's explicit approval for this project, recorded under the component's `Notes` for a component class you write, or in its data source row for a footprint a parts provider attached;
-- after checking it pad by pad against the manufacturer's drawing.
-
-In a component class you write, give `ports={...}` from the manufacturer's pinout, not pad order.
-
-With no readable manufacturer drawing or pinout, the part is blocked until the user supplies one; catalogue data never checks itself. A pad or hole differing from the drawing's recommended land pattern beyond its last printed digit rules out the footprint: name the pad and difference in your reply, and model the footprint as `jitx-component-modeler` orders, in a component class for a provider-attached one. For a polarized part, check the anode and cathode pads against the drawing: the in-order mapping assumes the catalogue draws the anode as pad 1. Read every warning the build logs for the footprint: dropped vias, skipped pads, and pads left unmapped.
+Catalogue pads are third-party data: check each footprint pad by pad against the manufacturer's drawing, and in a component class you write, give `ports={...}` from the manufacturer's pinout, not pad order. With no readable drawing or pinout, keep the footprint and name it in your reply as unchecked. A pad or hole differing from the drawing's recommended land pattern beyond its last printed digit rules out the footprint: name the pad and difference in your reply, and model the footprint as `jitx-component-modeler` orders, in a component class for a provider-attached one. For a polarized part, check the anode and cathode pads against the drawing: the in-order mapping assumes the catalogue draws the anode as pad 1. Read every warning the build logs for the footprint: dropped vias, skipped pads, and pads left unmapped.
 
 ## The lock file
 
@@ -100,11 +95,11 @@ Write this block in `COMPLETION.md`, each row with its evidence:
 
 ```
 ## JLCPCB check
-Opt-in: <where the user chose JLCPCB>; dependency and chain as written
+Opt-in: <where the user chose JLCPCB>; footprints: catalogue | own models; dependency and chain as written
 Substrate: <class> for <layers, impedances> | custom: <reason>
 Parts: tier <ranked | filtered: user asked>; <N> LCSCPart components; IDEAL- MPNs: none
 Sources: <C-number: datasheets/sourcing/<mpn>-lcsc.txt>
-Catalogue footprints: none | <part: approval text or its location, pads checked against <drawing>>; ruled out: none | <part, pad, difference>
+Catalogue footprints: none | <part: pads checked against <drawing> | unchecked: no readable drawing>; ruled out: none | <part, pad, difference>
 Packet: <file listing>; BOM rows without a C-number: none | <list>; orderable | not yet, re-export after: <routing, DRC>
 Approval: MPNs and C-numbers <approved by the user | awaiting the user>
 ```

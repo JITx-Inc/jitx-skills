@@ -429,8 +429,8 @@ plain net membership.
 
 ```python
 # Ground / thermal vias: structural list on self + net membership.
-# Source the via class from the substrate / JLCPCB library — do NOT redefine vias here:
-via_cls = substrate.signal_via[layer]          # or: from jitxlib.jlcpcb.vias import JLCPCBVias
+# Source the via class from the substrate; do NOT redefine vias here:
+via_cls = substrate.signal_via[layer]          # or a Via subclass the substrate module defines
 self.thermal_vias = [via_cls().at(x, y) for (x, y) in via_positions]   # structural: stored on self
 for via in self.thermal_vias:
     self.GND += via
@@ -457,7 +457,7 @@ self.attachments = [PortAttachment(self.serdes.TX.p, via_cls().at(x, y))]
 **Vias are defined in the substrate**, not here (see `jitx-substrate-modeler`). This
 skill *places* instances of them. Define a custom module-scope `Via`
 subclass only with a fab-verified reason — e.g. the tented-unfilled thermal via in
-the thermal-pad example, where JLCPCB charges nothing for tented vias inside a pad.
+the thermal-pad example, once the fab confirms tented, unfilled vias inside a pad.
 
 **Placement — place a direct descendant with `.at()`; use `Circuit.place()` sparingly.**
 

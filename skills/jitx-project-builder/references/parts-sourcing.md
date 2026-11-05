@@ -133,7 +133,7 @@ Dimensions from the datasheet mechanical drawing. No external footprint needed.
 Source the `.kicad_mod` from one of:
 - User's existing KiCad library
 - Manufacturer's KiCad library download
-- A distributor-hosted or third-party library footprint (LCSC/EasyEDA, SnapEDA and similar), which is third-party data under its own terms: use it as the land-pattern source only with the user's explicit approval for this project, record the approval under `Notes`, and check it pad by pad against the manufacturer's drawing. The same rule covers an LCSC part's catalogue footprint built with `LCSCLandpattern` (`jitx-jlcpcb`)
+- A distributor-hosted or third-party library footprint (LCSC/EasyEDA, SnapEDA and similar), which is third-party data under its own terms: use it as the land-pattern source only with the user's explicit approval for this project, record the approval under `Notes`, and check it pad by pad against the manufacturer's drawing. An LCSC part's catalogue footprint built with `LCSCLandpattern` follows `jitx-jlcpcb` instead, where the user's footprint choice at opt-in is the approval
 
 Then import it entry by entry, as `jitx-component-modeler` describes in [KiCad import](../../jitx-component-modeler/references/component-guide.md#kicad-import).
 
