@@ -29,6 +29,10 @@
     {
       "text": "the runner verifies the rule from the captured copper (the switch-node copper's measured distance from the feed and the feed's ground gap), rather than calling the rule verified by build success",
       "check": "judge"
+    },
+    {
+      "text": "COMPLETION.md gives, for each rule, the need it holds: what goes wrong on this board without it, in a sentence.",
+      "check": "judge"
     }
   ]
 }

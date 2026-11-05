@@ -21,6 +21,9 @@
 {"intent": "verify the built copper really used the tagged widths", "expected_skill": "jitx-layout-constraints"}
 {"intent": "one of my code routes built but has no realized traces", "expected_skill": "jitx-physical-layout", "ambiguous_with": ["jitx-layout-constraints"]}
 {"intent": "make an escape-width rule for the final segment into these BGA balls", "expected_skill": "jitx-layout-constraints", "ambiguous_with": ["jitx-physical-layout"]}
+{"intent": "keep the 48 V side isolated from the logic", "expected_skill": "jitx-layout-constraints"}
+{"intent": "what clearance does the mains input need on this board", "expected_skill": "jitx-layout-constraints"}
+{"intent": "set up the layout constraints from this requirements doc and the isolator datasheet", "expected_skill": "jitx-layout-constraints", "ambiguous_with": ["jitx-component-modeler"]}
 // Near-miss negatives: shared words, but a sibling owns the requested operation.
 {"intent": "set up decoupling placement and short routes for the MCU", "expected_skill": "jitx-circuit-builder", "ambiguous_with": ["jitx"]}
 {"intent": "Place and route the decoupling capacitors with escape-width and loop-inductance constraints.", "expected_skill": "jitx-circuit-builder", "ambiguous_with": ["jitx"]}

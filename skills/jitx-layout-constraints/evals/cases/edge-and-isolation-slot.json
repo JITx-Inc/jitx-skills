@@ -34,6 +34,10 @@
     {
       "text": "COMPLETION.md reports the pullback measured from the built pours, not build success alone",
       "check": "judge"
+    },
+    {
+      "text": "COMPLETION.md gives, for each rule, the need it holds: what goes wrong on this board without it, in a sentence.",
+      "check": "judge"
     }
   ]
 }

@@ -34,6 +34,10 @@
     {
       "text": "the runner reports the widths it measured on each segment after the build, rather than calling the rule verified by build success",
       "check": "judge"
+    },
+    {
+      "text": "COMPLETION.md gives, for each rule, the need it holds: what goes wrong on this board without it, in a sentence.",
+      "check": "judge"
     }
   ]
 }

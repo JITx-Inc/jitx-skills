@@ -23,8 +23,8 @@ A stitch grid cannot fill a band: the feed runs from (-12.81, 2.99) to
 (2.00, 3.51) (lc_radio_board.py), a slope whose sine is 0.52 / 14.82 =
 0.0351, so a grid row parallel to the board's x axis (sites sit on
 multiples of the pitch) stays inside a band of width b for b / 0.0351 mm:
-1.14 mm for fence-cpwg-two-rows' 0.04 band and 2.56 mm for
-vias-along-the-feed's 0.09 band, so 3 and 6 vias at most at the 0.500 fab
+1.14 mm for fence-cpwg-two-rows' 0.04 band and 2.28 mm for
+vias-along-the-feed's 0.08 band, so 3 and 5 vias at most at the 0.500 fab
 floor pitch, against the floor(14.82 / 1.0) - 1 = 13 a row needs.
 Measured on 2026-11-03 (jitx 4.6), splitting the vias by jitx's internal
 records in a scratch script:
@@ -32,7 +32,7 @@ records in a scratch script:
 - each feed case's solution with a ``stitch_via`` rule (square, pitch 1.0,
   inset 0.2) added on every ground pour: vias-along-the-feed gave 606 stitch
   and 28 fence vias, the nearest stitch via 0.964 from the trace edge, none
-  in its 0.45 to 0.50 row; fence-cpwg-two-rows gave 587 stitch and 61 fence
+  in its 0.46 to 0.50 row; fence-cpwg-two-rows gave 587 stitch and 61 fence
   vias, no stitch via within 1.6 of the trace edge. Both checks passed with
   the same rows as the fence vias alone;
 - vias-along-the-feed with a ``fence_via`` rule (offset -0.25) on the layer-0

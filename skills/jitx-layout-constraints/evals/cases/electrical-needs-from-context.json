@@ -1,0 +1,49 @@
+{
+  "name": "electrical-needs-from-context",
+  "prompt": "fixture_electrical_needs_from_context.py is PSU-ISO-01, our isolated supply board. Set up its layout constraints before it goes out to Pellingham. requirements.md says what the board is for.",
+  "inputs": {
+    "pyproject.toml": "evals/cases/fixtures/common/pyproject.toml",
+    "lc_substrate.py": "evals/cases/fixtures/common/lc_substrate.py",
+    "lc_fixture_util.py": "evals/cases/fixtures/common/lc_fixture_util.py",
+    "pellingham_lc_fab_sheet.md": "evals/cases/fixtures/common/pellingham_lc_fab_sheet.md",
+    "lc_radio_board.py": "evals/cases/fixtures/common/lc_radio_board.py",
+    "requirements.md": "evals/cases/fixtures/electrical-needs-from-context/requirements.md",
+    "corrow_cpi4833_excerpt.md": "evals/cases/fixtures/electrical-needs-from-context/corrow_cpi4833_excerpt.md",
+    "house_spacing_rules.md": "evals/cases/fixtures/electrical-needs-from-context/house_spacing_rules.md",
+    "fixture_electrical_needs_from_context.py": "evals/cases/fixtures/electrical-needs-from-context/fixture_electrical_needs_from_context.py"
+  },
+  "notes": "The fixture module is fixture_electrical_needs_from_context.py, Design ElectricalNeedsFromContextDesign. It imports box from lc_radio_board.py and defines its own placeholder parts: two SMD headers and U1, the fictional Corrow CPI-4833 isolated DC/DC module. No jitxexamples part and no parts query is used. The documents are the authority for the values: corrow_cpi4833_excerpt.md line 9.2 gives 2.0 between copper on the module's input side and its output side, on every layer; house_spacing_rules.md row S2 gives 0.6 on external layers and 0.4 on internal layers for conductors above 30 V; requirements.md item 1 puts VIN48 at 48 V nominal, 57 V maximum. Both values sit above the fab's row 4 floor of 0.100. Nothing given settles creepage or the end product's safety standard (line 9.3, requirements.md item 6), and a clearance rule cannot hold creepage. VIN48 copper is on layer 0 only (SMD pads and a layer-0 route), so row S2's internal value has no copper to apply to. Measured on the bare fixture (this suite's own run, 2026-11-05): the GND_P and GND_S pours 1.0 apart on all four layers; the VIN48 route 0.1107 and the VIN48 pads 0.1016 from the layer-0 GND_P pour; the VIN48 pads 1.5 (J1) and 1.54 (U1) from the GND_P pads; every primary pad and route 8.4 from every secondary pad and route, and 4.7 from the other side's layer-0 pour; no issue. This suite's own solution tags VIN48 and GND_P PrimarySide, V3V3 and GND_S SecondarySide, and VIN48 Above30V, with design_constraint(Above30V(), AnyObject, priority=5).clearance(0.6) and design_constraint(PrimarySide(), SecondarySide(), priority=6).clearance(2.0): the pours 3.02 apart on all four layers (each pour's edge moved to 2.01 from the other's drawn outline, x -1.51 and 1.51), the VIN48 route 0.605 from GND_P copper, no issue. The same solution without the barrier rule leaves the pours 1.0 apart and fails the check; pours redrawn 3.0 apart with no barrier rule fail it on the drawn shapes. The check measures the 48 V spacing on the VIN48 route only, because jitx 4.6 does not apply a net tag's clearance to the net's pads: with this suite's own solution, J1 pad 1 and U1 pad 1 stayed 0.1016 from the layer-0 GND_P pour (measured 2026-11-05), so a pad measurement would fail the correct rule. The same solution with Above30V on vin_route instead of the VIN48 net also gave the route 0.605 and the pads 0.1016, and passes the check; the judge assertion on the rule's tag is the guard. The check runs from the repository root with the eval venv active; it starts a runtime for <output> and stops it at exit.",
+  "runner_models": [
+    "sonnet"
+  ],
+  "runner_rationale": "Customers drive this skill with mixed-strength agents, so the eval runs the skill under a Sonnet-class runner; judges stay frontier-tier.",
+  "runner_artifacts": "The input files are the starting design and its documents. Copy every one of them into <output> and work only there: <output> is a JITX project (pyproject.toml) whose modules import each other by file name. Add tags and design rules, in the fixture module, fixture_electrical_needs_from_context.py, or in a module it imports, and keep its Design class name. Do not add, move or remove parts, nets, routes, vias or pours, and do not set Route.Config on a route; assigning a tag to an existing object is fine. Build the design and read the result back to show the rules applied. Write a completion summary to <output>/COMPLETION.md: each rule with the source of its numbers, what you checked after the build and what it showed, and anything left open. Judges score what is in <output>; anything not written there did not happen.",
+  "expected_output": "Tags on the two sides of U1 (VIN48 and GND_P; V3V3 and GND_S) and on the 48 V net; a two-condition clearance of 2.0 between the two sides at a protection rung, citing CPI-4833 line 9.2; a 0.6 clearance from the 48 V net to other nets, citing HS-2 row S2 and requirements.md item 1; open items for creepage across the barrier and for whatever the end product's safety standard will require (line 9.3, requirements.md item 6), with no number given for either; and COMPLETION.md with the measured copper gap across the barrier on every layer, the 48 V route's measured spacing, and a sentence per rule on what goes wrong on this board without it.",
+  "assertions": [
+    {
+      "text": "the design builds with both routes realized and every pour present and drawn as in the fixture; on every layer, primary-side copper (VIN48, GND_P) sits at least 2.0 mm from secondary-side copper (V3V3, GND_S); the 48 V route sits at least 0.6 mm from GND_P copper; and only tags and rules changed",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-layout-constraints/evals/checks/check_electrical_needs_from_context.py <output>"
+    },
+    {
+      "text": "the runner identifies two needs from the documents, the isolation barrier across U1 and the spacing of the 48 V input, and cites each value's source line: 2.0 mm from CPI-4833 line 9.2, and 0.6 mm from HS-2 row S2 with the 48 V nominal, 57 V maximum input from requirements.md item 1",
+      "check": "judge"
+    },
+    {
+      "text": "the barrier clearance is a rule between the two sides at a priority no other clearance rule matching either side's copper outranks, so a permissive rule cannot lower it",
+      "check": "judge"
+    },
+    {
+      "text": "the 48 V spacing rule is keyed on a tag on the VIN48 net (or on its pads and its route together), not on a tag on the route alone, which leaves the 48 V pads at the default spacing",
+      "check": "judge"
+    },
+    {
+      "text": "the runner invents no value: every clearance traces to the prompt, a line or row of a given document, or the fab sheet, and what the documents do not settle (creepage across the barrier, anything the end product's safety standard will add) is listed as open with no number",
+      "check": "judge"
+    },
+    {
+      "text": "COMPLETION.md gives, for each rule, the need it holds: what goes wrong on this board without it, in a sentence.",
+      "check": "judge"
+    }
+  ]
+}

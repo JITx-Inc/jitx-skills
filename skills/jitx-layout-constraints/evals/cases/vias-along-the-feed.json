@@ -9,7 +9,7 @@
     "lc_radio_board.py": "evals/cases/fixtures/common/lc_radio_board.py",
     "fixture_vias_along_the_feed.py": "evals/cases/fixtures/vias-along-the-feed/fixture_vias_along_the_feed.py"
   },
-  "notes": "The fixtures import jitxexamples parts from py-components origin/main 9c398d3 (the installed package in the eval venv); the build uses the lc-eval parts chain, the example catalogue then ideal parts, so no parts database is needed. The fixture module is fixture_vias_along_the_feed.py, Design ViasAlongTheFeedDesign. The substrate defines CPWG_50 (width 0.30, gap 0.20, layer 0) unfenced and unapplied. Pass is a structure fence (RoutingStructure.Layer.fence on the structure applied to the feed), not a fence_via rule (it fences no route) and not vias placed in code. Closest row: the via pad (0.500, fab row 11) edge at the coplanar gap, the structure's 0.20 clearance plus 0.01 (coplanar_gap(0.20) = 0.21, measured on jitx 4.6), so initial_offset (trace edge to via centre) = 0.21 + 0.25 = 0.46, the smallest offset checked_fence_pattern accepts; fab row 4's 0.100 space is smaller than the gap, so the gap governs. The check accepts an inner row from 0.45 to 0.50 (0.45 puts the pad edge at the structure's 0.20 clearance, 0.01 inside the measured gap). Measured on this suite's own solution (2026-11-03): 14 vias per side over the 14.821 run at 0.45, pour gap 0.21, no issue. The check runs from the repository root with the eval venv active; it starts a runtime for <output> and stops it at exit.",
+  "notes": "The fixtures import jitxexamples parts from py-components origin/main 9c398d3 (the installed package in the eval venv); the build uses the lc-eval parts chain, the example catalogue then ideal parts, so no parts database is needed. The fixture module is fixture_vias_along_the_feed.py, Design ViasAlongTheFeedDesign. The substrate defines CPWG_50 (width 0.30, gap 0.20, layer 0) unfenced and unapplied. Pass is a structure fence (RoutingStructure.Layer.fence on the structure applied to the feed), not a fence_via rule (it fences no route) and not vias placed in code. Closest row: the via pad (0.500, fab row 11) edge at the coplanar gap, the structure's 0.20 clearance plus 0.01 (coplanar_gap(0.20) = 0.21, measured on jitx 4.6), so initial_offset (trace edge to via centre) = 0.21 + 0.25 = 0.46, the smallest offset checked_fence_pattern accepts; fab row 4's 0.100 space is smaller than the gap, so the gap governs. The check accepts an inner row from 0.46 to 0.50 and fails a generated via pad edge closer than 0.205 to the trace edge, half the 0.01 offset step inside the 0.21 gap (a 0.45 row puts the pad edge at the structure's 0.20 clearance, 0.01 inside the measured gap). Measured on this suite's own solution (2026-11-05): 14 vias per side over the 14.821 run at 0.46, nearest via pad edge 0.211 from the trace edge, pour gap 0.21, no issue. The same solution at 0.45 puts the nearest pad edge at 0.201 and fails the check. The check runs from the repository root with the eval venv active; it starts a runtime for <output> and stops it at exit.",
   "runner_models": [
     "sonnet"
   ],
@@ -27,11 +27,15 @@
       "check": "judge"
     },
     {
-      "text": "the runner derives the closest offset from the 0.20 gap and the via pad from fab row 11 (and the fab space row), with the arithmetic shown, and says initial_offset runs from the trace edge to the via centre",
+      "text": "the runner derives the closest offset, 0.46, from the 0.21 gap and the via pad from fab row 11 (and the fab space row), with the arithmetic shown, and says initial_offset runs from the trace edge to the via centre",
       "check": "judge"
     },
     {
       "text": "COMPLETION.md reports the measured via count per side against the count derived from the run length and pitch, not build success alone",
+      "check": "judge"
+    },
+    {
+      "text": "COMPLETION.md gives, for each rule, the need it holds: what goes wrong on this board without it, in a sentence.",
       "check": "judge"
     }
   ]
