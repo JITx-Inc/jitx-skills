@@ -17,14 +17,9 @@ checks:
   from every piece of ``GND_P`` copper on that layer. The 0.6 is row S2 of the
   fixture's ``house_spacing_rules.md`` (conductors above 30 V, external
   layers), and ``requirements.md`` puts the input at 48 V nominal, 57 V
-  maximum. The route is the only ``VIN48`` copper this item measures. The
-  ``VIN48`` pads are not measured because jitx 4.6 does not apply a net
-  tag's clearance to the net's pads: with the case's reference solution
-  (the 0.6 rule keyed on a tag on the ``VIN48`` net), J1 pad 1 and U1 pad 1
-  stayed 0.1016 from the layer-0 ``GND_P`` pour, measured 2026-11-05, so a
-  pad measurement would fail the correct rule. A rule keyed on a tag on the
-  route alone also passes this item; the case's judge assertion that the
-  rule is keyed on the net is the guard.
+  maximum. The route is the only ``VIN48`` copper this item
+  measures. A rule keyed on a tag on the route alone also passes it; the
+  case's judge assertion that the rule is keyed on the net is the guard.
 
 A via the runtime generates (a stitch or fence via from a rule the runner
 adds) is not classified by side: ``rd.query(Via)`` does not say which net a
