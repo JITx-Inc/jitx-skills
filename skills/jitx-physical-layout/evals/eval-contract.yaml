@@ -1,18 +1,23 @@
 goal: |
-  The skill guides an agent to author JITX copper geometry and prove what the
-  runtime realized. Excellent output preserves structural ownership and design
-  context, distinguishes authored outlines from captured runtime geometry, and
-  halts on missing, empty, misplaced, or fabrication-invalid copper even when the
-  build reports status: ok.
+  Given a substrate, components and circuits, the skill guides an agent to emit
+  a fixed layout from code, show it realized, and say why each piece of
+  geometry is there. Excellent output writes routes, control points, vias,
+  pours, keepouts and authored copper with the JITX construct that owns each
+  one, reads the result back from the captured design instead of trusting the
+  build status, leaves the control points a designer will move to the
+  interactive process and says which they are, gives the electrical or
+  fabrication need behind each piece, and names the source of every number.
 dimensions:
-  - "GEOMETRY_AUTHORING: Does the design use supported JITX and shapely primitives, valid polygonal shapes, correct local frames, structural ownership, and the appropriate Pour, Copper, or OverlappableCopper construct?"
-  - "REALIZATION_PRECONDITIONS: Does the workflow require a real design context, production-equivalent substrate and rules, and explicit or stored placement before it interprets captured geometry?"
-  - "POUR_AND_STITCH_REALIZATION: Does verification detect Empty pours, missing layer anchors, non-Pour stitch targets, zero realized stitch vias, and inset containment failures instead of trusting rule reachability or build status?"
-  - "CAPTURE_INTERPRETATION: Does the workflow treat capture as an in-place runtime mutation, guard Empty before to_shapely, compose coordinate frames correctly, and choose a surface that can witness the property under test?"
-  - "FABRICATION_GEOMETRY: Does the final check verify copper-to-edge pullback, keepout voiding, thermal connection, bounds and net membership against the reverse-flow surface, which carries realized geometry together with the net and owning instance, and does it name what that surface cannot witness instead of leaving the gap implied or reaching for the fabrication export to close it?"
+  - "GEOMETRY_AUTHORING: Does the layout use the construct that owns each piece: a code Route (with RoutePoint, PairPoint or PairInsertion control points, a Route.Sketch for a side, a Route.Config for width, spacing or a length-matching envelope) for a connection, a routing structure or tag rule for widths, gaps and fences, a Via placed in code only where no rule expresses it, a Pour or KeepOut for plane geometry, and Copper or OverlappableCopper only for shapes no route can make?"
+  - "REALIZATION: After the build, does the agent read the captured design back (trace widths and layers, route status, pour geometry, generated vias, the issue report) and check it against the request, and does it stop and say so when a route, pour or via did not realize?"
+  - "HANDOFF: Does the agent separate control points fixed by the geometry (an exit on a pad axis, a split at a ball-field edge) from ones a designer will move, leave the movable ones to the interactive process or mark them as provisional, and say what goes with a control point when it is deleted from code?"
+  - "WHY: For each piece of layout the request asked for, does the completion say what it is for on this board: what goes wrong without it?"
+  - "PROVENANCE: Does every width, gap, length, envelope and via count trace to a named source: the substrate's structure, the fab sheet's row, the prompt, or a measurement, with the places where a structure overrides a fab floor called out?"
 hard_fails:
   - "The workflow accepts status: ok as proof even though a required route, pour, or stitch-via field has no realized geometry."
   - "A required pour returns Empty(), or a required stitch-via rule returns zero vias, and the task is still reported complete."
   - "A higher Pour.rank is presented as overriding KeepOut(pour=True)."
-  - "A board-wide pour uses the board profile unchanged and nothing establishes the minimum copper-to-edge spacing against the realized geometry."
-  - "Assertions read Pour.layer or Pour.shape from an Instantiable constructed outside a design context as if those attributes were the constructor values."
+  - "A route passes through, or copper is placed in, a region the request says to avoid."
+  - "Fence or stitch vias are placed by hand where the request asked for a routing structure's fence or a stitching rule."
+  - "Copper is drawn by hand (Copper, OverlappableCopper or a zigzag of control points) where the request asked for a Route or a configured length-matching section."
+  - "A route that did not realize, or realized blocked, is reported as done."
