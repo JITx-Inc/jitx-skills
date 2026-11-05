@@ -18,7 +18,7 @@
   "expected_output": "A tag on the RF feed net and CPWG_50's layer-0 values with a one-row RoutingStructure.Layer.fence(LcStandard4.ThVia, ViaFencePattern(pitch=1.0, initial_offset=0.46, num_rows=1, offset=any), reference_layer=0), applied by a routing_structure rule on the tag (or Constrain(...).structure), the 0.46 derived from the coplanar gap and the via pad, and COMPLETION.md with the measured rows and counts.",
   "assertions": [
     {
-      "text": "the feed is realized at CPWG_50's width with the layer-0 pour at its gap on both sides, and the built design has a row of generated vias on each side 0.45 to 0.50 mm from the trace edge at the 1 mm pitch along the straight run, with no generated via pad in the gap and no via placed in code",
+      "text": "the feed is realized at CPWG_50's width with the layer-0 pour at its gap on both sides, and the built design has a row of generated vias on each side 0.46 to 0.50 mm from the trace edge at the 1 mm pitch along the straight run, with no generated via pad in the gap and no via placed in code",
       "check": "deterministic",
       "cmd": "python3 skills/jitx-layout-constraints/evals/checks/check_vias_along_the_feed.py <output>"
     },

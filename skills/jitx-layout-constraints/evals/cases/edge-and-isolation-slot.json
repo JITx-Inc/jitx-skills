@@ -24,7 +24,7 @@
       "cmd": "python3 skills/jitx-layout-constraints/evals/checks/check_edge_and_isolation_slot.py <output>"
     },
     {
-      "text": "the slot clearance uses IsHole, not IsBoardEdge, and the runner says the IsHole rule also applies to every via drill and plated hole on the board",
+      "text": "the slot clearance uses IsHole, not IsBoardEdge, and the runner says the IsHole rule also applies to every via drill, and either measures a plated hole or says plated holes are untested",
       "check": "judge"
     },
     {

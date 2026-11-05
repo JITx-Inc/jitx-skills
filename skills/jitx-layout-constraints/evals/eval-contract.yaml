@@ -52,6 +52,6 @@ hard_fails:
   - "A stitch or fence pitch the fab sheet forbids (below the via pad or below drill plus the hole-to-hole row), passed as done."
   - "A width or clearance value with no fab-sheet row, no prompt value, no line of a given document and no shown derivation at the point of use (an invented number)."
   - "A clearance value for isolation or voltage with no source in the prompt, the given documents, or a rule the design already carries."
-  - "An IPC current-carrying chart, formula, or coefficient presented as the basis for a trace width."
+  - "An IPC current-carrying chart, formula, or coefficient presented as the basis for a trace width, unless the prompt or a given document names it."
   - "A route-width check passes with zero realized traces, skips a realized Polygon because it has no width field (measured on jitx 4.6: a width request wider than the end pads came back as a Polygon), or accepts an escape width equal to or wider than any pad selected by the rule."
   - "The rule set presented as done without an after-build reading of the realized copper when a runtime is available; an unavailable runtime must be declared as an open item, never silently skipped."

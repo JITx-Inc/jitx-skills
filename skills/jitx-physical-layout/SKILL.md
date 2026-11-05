@@ -246,8 +246,8 @@ reading predicts 9 up to `inset=2.0`; the pad-edge reading predicts the drop at
 pad-edge reading. Sites sit on multiples of the pitch from the board origin, not from
 the pour, so the expected count is the origin-lattice points inside the computed pour,
 in board frame, shrunk by `inset + pad_diameter / 2`, less the sites the other
-conditions in `jitx-layout-constraints`
-[Stitching](../jitx-layout-constraints/SKILL.md#stitching) drop.
+conditions in the `expected_stitch_sites` docstring (`jitx-layout-constraints`
+[Stitching](../jitx-layout-constraints/SKILL.md#stitching)) drop.
 
 The achieved inset is measurable from a capture: realized via centres, the pour
 boundary and the via pad diameter are all available, so compute the margin and

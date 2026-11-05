@@ -5,7 +5,7 @@ description: "Use when the user asks for design rules on a placed and routed des
 
 # JITX Layout Constraints
 
-This skill adds the constraints that make a layout perform electrically. JITX routes to the rules it is given: a board that builds clean can still arc across an isolation gap, overheat a power trace or couple a switch node into a receiver. Tags mark the copper, `design_constraint` rules keyed on them say what it must hold, and a read of the captured design shows each rule held. Explanation: [Layout Constraints](https://docs.jitx.com/en/latest/essentials/physical_design/layout-constraints.html).
+This skill adds the constraints that make a layout perform electrically. JITX routes to the rules it is given: a board that builds clean can still arc across an isolation gap, overheat a power trace or couple a switch node into a receiver. Explanation: [Layout Constraints](https://docs.jitx.com/en/latest/essentials/physical_design/layout-constraints.html).
 
 ## Environment
 
@@ -20,15 +20,15 @@ Before writing a rule, read the schematic, the prompt and every document given (
 | Fab floor | copper under the fab's minimums is not built as drawn | the substrate holds it; board defaults at 0 sit at or above it |
 | Current | a narrow trace drops voltage and heats | a class width on the net's tag |
 | Working voltage | conductors too close at voltage arc or track | a clearance from the voltage class's tag to `AnyObject` at a protection rung |
-| Isolation | a barrier part is only as good as the copper spacing across it | a clearance between the two domains' tags at a protection rung |
+| Isolation | a barrier part is only as good as the copper spacing across it | a clearance between the two domains' tags, each on every net of its domain, grounds included, at a protection rung |
 | Impedance | a line off its impedance reflects and loses signal | a routing structure on the net's tag |
 | Return path | return current follows the nearest reference; a gap in it radiates | stitching, fencing, a coplanar ground |
 | Coupling | a noisy net beside a sensitive one couples into it | a clearance between the two classes' tags |
 | Assembly | a pad tied solid into a plane sinks heat and solders poorly; a relieved one carries less current | relief per pad class, direct connect where current needs it |
 
-Every value traces to the prompt, a fab-sheet row by number, a datasheet or standard quoted from a document you were given, or a derivation with its arithmetic shown; for a function's value, the call, its inputs, the dataclass fields it returns (`BgaEscape.channel_clearance`, `Escape.centreline_clearance`, `Escape.pad_gap`) and the relation its docstring checks, with the numbers. Where nothing given settles a value (a 48 V or mains net with no spacing stated, an isolation rating with no barrier distance), name what would (the isolating part's datasheet, IPC-2221B's conductor spacing table, the product's safety standard such as IEC 62368-1, 61010-1 or 60601-1) and list an open item: never pick a number. No chart or formula of your choosing sets a width from a current: ask for the width, or the copper weight, temperature rise and sizing standard. A clearance rule holds distance across a layer's surface, copper to copper, hole or edge; distance through insulation between layers is an open item. A slot that lengthens a creepage path is a `Cutout` or a hole in the board outline (`jitx-physical-layout`), held from copper by an `IsHole` rule.
+Every value traces to the prompt, a rule the design already carries, a fab-sheet row by number, a datasheet or standard quoted from a document you were given, or a derivation with its arithmetic shown; for a function's value, the call, its inputs, the dataclass fields it returns (`BgaEscape.channel_clearance`, `Escape.centreline_clearance`, `Escape.pad_gap`) and the relation its docstring checks, with the numbers. Where nothing given settles a value (a 48 V or mains net with no spacing stated, an isolation rating with no barrier distance), name what would (the isolating part's datasheet, IPC-2221B's conductor spacing table, the product's safety standard such as IEC 62368-1, 61010-1 or 60601-1) and list an open item: never pick a number. No chart or formula of your choosing sets a width from a current: ask for the width, or the copper weight, temperature rise and sizing standard. A clearance rule holds distance across a layer's surface (copper to copper, hole or edge), so where a source gives clearance and creepage, it takes the larger; distance through insulation between layers is an open item. A slot that lengthens a creepage path is a `Cutout` or a hole in the board outline (`jitx-physical-layout`), held from copper by an `IsHole` rule.
 
-In the completion, give each rule one line on what fails on this board without it, not what the rule does: a fab-floor default keeps the copper buildable; a class rule prevents an arc, a short, a hot trace, a reflection or a cold joint.
+In the completion, give each rule one line on what fails on this board without it (an arc, a short, a hot trace, a reflection, a cold joint, copper at the fab's bare limit), not what the rule does.
 
 ## The rule system
 
@@ -56,13 +56,13 @@ Higher `priority=` wins; at equal priority the more specific condition wins, obj
 
 ### Where rules live, what a tag reaches
 
-Rules are found by walking the design tree: one at module scope, or built and dropped, does not exist. Board-wide rules go in the `Design`'s `self.rules = [...]`; a circuit's rules still apply board-wide. Stay at or above the substrate's `FabricationConstraints` (`current.substrate.constraints`, from `jitx-substrate-modeler`).
+Rules are found by walking the design tree: one at module scope, or built and dropped, does not exist. Board-wide rules go in the `Design`'s `self.rules = [...]`; a circuit's rules still apply board-wide.
 
 A tag on a `Net` reaches its traces, pours, pads and code-placed vias; on a `Pad`, `Landpattern` or `Component`, those pads; on a `Route`, its segments; on a `Pour` or `Via`, that object. `TopologyNet`, `Copper`, `Circuit` and `ControlPoint` also take tags; anything else, or a tag assigned outside a design context, warns and does nothing.
 
 ## Defaults and classes
 
-Unruled copper comes out at the fab floor (measured on jitx 4.6), and a pad no relief rule matches joins its pour solid. Write `design_constraint(IsTrace).trace_width(w)`, `design_constraint(IsCopper, IsCopper).clearance(c)` and `design_constraint(IsPad).thermal_relief(...)` (`layout_default_rules`).
+Unruled copper comes out at the fab floor (measured on jitx 4.6), and a pad no relief rule matches joins its pour solid. Write only the defaults the board needs above the floor, each with its margin's source: `design_constraint(IsTrace).trace_width(w)`, `design_constraint(IsCopper, IsCopper).clearance(c)`, `design_constraint(IsPad).thermal_relief(...)`, which leaves no pad solid (`layout_default_rules`).
 
 A class is a tag on its nets with its rules written once: `PowerTag()` width and `(PowerTag(), AnyObject)` clearance at 2; a subclass (`HighCurrentTag(PowerTag)`) takes its own width at 3. A Kelvin sense line shares the power net, so its `SenseTag` goes on the sense `Route`s, its width at 3. A class-to-class clearance, `(RFLineTag(), NoisyTag())` or `(PrimaryTag(), SecondaryTag())`, keeps one class from another and leaves each one's own ground alone (`layout_sensitive_net_clearance`).
 
@@ -75,15 +75,15 @@ The coplanar cap: a board-wide clearance wider than a coplanar line's gap widens
 | Trace to pour | `(IsTrace, IsPour)` clearance at 1 |
 | A net's pads and vias | the net tag's `thermal_relief` at 2 |
 | Some pads | a tag on the pads, landpattern or component, relief at 3 (`layout_thermal_classes`) |
-| Direct connect | no relief rule matching the pad; or `DirectConnectTag` on the pad, `thermal_relief(gap, pad_diagonal, 4)` at 4 |
-| Sliver removal | `pour_feature_size(min_width)` on a pour tag; a narrower coplanar strip goes whole |
+| Direct connect | no relief rule matching the pad; or `DirectConnectTag` on the pad, `thermal_relief(gap, pad_diagonal, 4)` at 4; measure the join |
+| Sliver removal | `pour_feature_size(min_width)` on a pour tag |
 | Edge; slots, cutouts, drills | `(IsBoardEdge, AnyObject)`; `(IsHole, AnyObject)`, at protection rungs (`layout_edge_and_cutout`) |
 
 - `IsHole` matches via drills: a hole rule wider than a via's pad pulls pours back from every other-net via. A plated through-hole pad's drill is untested (`layout_edge_and_cutout`): measure it or list it open.
 - A pour stops the clearance plus 0.01 from traces and the board edge (measured on jitx 4.6).
 - A pour with no pad or via of its own net inside comes back `Empty`; stitch and fence vias do not anchor it.
 
-A heavy copper layer needs wider traces and gaps (`layout_heavy_copper_layer`). Cite the stackup row whose copper makes it heavy; `heavy_layer_index(current.substrate)` finds it, `OnLayer(i)` selects it, `OnLayer.internal()` matches every inner layer. A floor at 1 loses, unreported, to every rule at 2 or above, so `heavy_layer_rules(layer, min_width, min_clearance, trace_to_pour, class_rules, exclude=...)` returns the floors plus a copy at 3, at the floor, of each rule passed whose value is below it: every `trace_width` and two-condition `clearance` at 2 or 3 whose first condition is one tag (write other shapes by hand; `exclude` narrows width copies only). An escape, protection or pad-side rule above the copies on that layer meets the floor itself, or is an open item.
+A heavy copper layer needs wider traces and gaps (`layout_heavy_copper_layer`). Cite the stackup row whose copper makes it heavy; `heavy_layer_index(current.substrate)` finds it, `OnLayer(i)` selects it, `OnLayer.internal()` matches every inner layer. A floor at 1 loses, unreported, to every rule at 2 or above, so `heavy_layer_rules(layer, min_width, min_clearance, trace_to_pour, class_rules, exclude=...)` returns the floors plus a copy at 3, at the floor, of each rule passed whose value is below it: every `trace_width` and two-condition `clearance` at 2 or 3 whose first condition is one tag (write other shapes by hand; `exclude` narrows width copies only). An escape, protection or pad-side rule at 3 or above on that layer meets the floor itself, or is an open item.
 
 ## Stitching
 
@@ -105,7 +105,7 @@ A via fence keeps fields in and gives a line's ground a short return.
 - A `fence_via` rule fences no route, unreported.
 - Grounded coplanar: board clearances under the cap, the gap set by `design_constraint(RFLineTag(), GroundTag(), priority=2).clearance(c_s)` at the structure's clearance; with several coplanar structures on a net, at the smallest one's. The gap is `coplanar_gap(structure_clearance, winning_rule_clearance)`; a keep-away from the line to `AnyObject` above 2, wider than the gap, pushes the ground out. Measure the realized gap.
 - Row k sits `initial_offset + (k-1)·offset` out; an unset `initial_offset` takes `offset`. JITX puts fence pads inside the gap unreported: `checked_fence_pattern(pattern, via, pour_gap)` refuses that.
-- A coplanar pour needs a same-net via in each region the line separates.
+- A fence pitch below `min_stitch_pitch` thins unreported, and `straight_run_fence_sites` refuses nothing: check the pitch.
 - Count with `fence_count_range` per outline row and `straight_run_fence_sites` per side per row of a straight run, and assert that count, not that vias exist; identify fence vias by position on the derived row, not a distance band.
 
 ## Routing structures by tag
@@ -114,18 +114,19 @@ The substrate defines structures; rules apply them (`layout_routing_structure_by
 
 ## Fanout
 
-When a class width does not fit its pads, keep the class rule and give the last segment its own `Route` and escape tag, width at 4, meeting the trunk at a `RoutePoint` (`layout_qfn_escape`, `layout_bga_escape`, `layout_diff_pair_escape`). Walk every pad the class reaches: one needs an escape when the width does not fit it or cannot keep the net's clearance to the pads it passes; where pads sit closer than the class clearance, say which, by how much, and what the escape relaxes. The escape clearance `s_e` is the net's governing clearance, or a lower one at or above `min_copper_copper_space` stated as relaxed for the escape only, with its reason; where the governing clearance leaves only the fab-minimum width, lower `s_e` to widen the escape, and say so. Never type the width: `layout_qfn_escape.derive_escape` or `layout_bga_escape.derive_escape(..., escape_clearance=s_e)` returns it, or `escape_width(pad_width, c, s_e, fab)` for other geometry; one tag over several pads takes the smallest. A floor-valued clearance to `AnyObject` at 4 loosens every escape's surroundings.
+When a class width does not fit its pads, keep the class rule and give the last segment its own `Route` and escape tag, width at 4, meeting the trunk at a `RoutePoint` (`layout_qfn_escape`, `layout_bga_escape`, `layout_diff_pair_escape`). Walk every pad the class reaches: one needs an escape when the width does not fit it or cannot keep the net's clearance to the pads it passes; where pads sit closer than the class clearance, say which, by how much, and what the escape relaxes. The escape clearance `s_e` is the net's governing clearance, or a lower one at or above `min_copper_copper_space` stated as relaxed for the escape only, with its reason; where the governing clearance leaves only the fab-minimum width, lower `s_e` to widen the escape, and say so. Never type the width: `layout_qfn_escape.derive_escape` or `layout_bga_escape.derive_escape(..., escape_clearance=s_e)` returns it, or `escape_width(pad_width, c, s_e, fab)` for other geometry; one tag over several pads takes the smallest. If it raises, no legal escape fits: list it open. A floor-valued clearance to `AnyObject` at 4 loosens every escape's surroundings.
 
 ## Verification
 
-A rule that builds is not a rule that applied. Build, `rd.capture()`, and read the captured copper ([geometry verification](../jitx-physical-layout/references/geometry-verification.md)): widths, distances between the copper each clearance relates, relief voids and spokes, generated vias against expected sites and counts, `rd.issues(satisfied=True)`.
+A rule that builds is not a rule that applied. Build, `rd.capture()`, and read the captured copper ([geometry verification](../jitx-physical-layout/references/geometry-verification.md)): widths, distances between the copper each clearance relates (pads included), relief voids and spokes, generated vias against expected sites and counts, `rd.issues(satisfied=True)`.
 
 - Derive expected values from the prompt, documents or geometry, never from the rule.
 - A route can realize as a widthless `Polygon`, or with no traces (a width override under a rule it already matches can do this): a width check fails on either, never skips it.
 - Every rule has witnessing copper or is reported unwitnessed. `Copper` placed from code ignores the rules: check it.
+- Capture does not show which rule won; the board view does (select the route, press B).
 - The check exits nonzero on failure; `status: ok` is not proof.
-- A rule that did not apply is usually unreachable, out-ranked (a heavy layer's floor too), the wrong arity, aimed at the wrong target, below a `min_copper_*` floor, or keyed on a tag not on the `Pour`; an `Empty` pour still gets stitch vias.
+- A rule that did not apply is usually unreachable, out-ranked (a heavy layer's floor too), the wrong arity, aimed at the wrong target, below a `min_copper_*` floor, or keyed on a tag not on the `Pour`.
 
 ## Completion
 
-Tags and rules are structural objects on `self`, never keyed by an assembled string (`jitx-code-review`). The completion block (`jitx-project-builder` `references/completion-blocks.md`) lists each rule with its value's source and the need it holds, the checks with command and exit code, and open items. API: the docstrings of `jitx.constraints` and `jitx.si`.
+Tags and rules are structural objects on `self`, never keyed by an assembled string (`jitx-code-review`). The completion block (`jitx-project-builder` `references/completion-blocks.md`) lists each rule with its value's source and the need it holds, the checks with command and exit code, and open items.
