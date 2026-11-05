@@ -34,7 +34,7 @@ chain = ["csv:parts/approved-parts.csv", "jlcpcb"]
 
 The user's approved list comes first, the catalogue behind it, and no `ideal`, so a passive the catalogue cannot supply fails the build rather than becoming an unorderable `IDEAL-` stand-in. Take that passive to the user, change its value, case or tier only with their sign-off, and never put `ideal` back. In an existing chain, keep its entries in order and put `"jlcpcb"` where `"ideal"` was.
 
-- An approved-list part reaches the BOM with no C-number, because the exporter reads only an `LCSCPart`, and the user matches it by hand in JLCPCB's BOM step. Tell the user which parts those are.
+- An approved-list part reaches the BOM with no C-number (the exporter reads only an `LCSCPart`) for the user to match by hand in JLCPCB's BOM step; name those parts to the user.
 - With no approved list of the user's own, cut `parts/approved-parts.csv` to the header row of the example CSV the `jitx` skill copies. The example parts carry no C-number, and first in the chain they would outrank the catalogue.
 - Use `"lcsc"` in place of `"jlcpcb"` when the user asks for LCSC's source or a resistor query filters rated voltage, which `"jlcpcb"` cannot match. `"lcsc"` lacks assembly tiers.
 
@@ -64,13 +64,13 @@ Before writing code for a named C-number, save its channel evidence (stock, life
 
 ## Landpatterns
 
-With the package, the user opts into its catalogue footprints (`LCSCLandpattern`) or models their own components through `jitx-component-modeler`. Ask once unless the request says; the answer, recorded in PLAN.md and the Opt-in row, approves every catalogue footprint in the project. A class you write still uses a generator where one expresses the package. With own models chosen, use no `LCSCLandpattern`: model a class for a queried electrolytic, or change its case with the user's sign-off.
+With the package, the user opts into its catalogue footprints (`LCSCLandpattern`) or models their own components through `jitx-component-modeler`. Ask once unless the request says; the answer, recorded in the Opt-in row and in PLAN.md when there is one, approves every catalogue footprint in the project. A class you write still uses a generator where one expresses the package. With own models chosen, use no `LCSCLandpattern`: model a class for a queried passive the chip generator does not build, or change its case with the user's sign-off.
 
-Catalogue pads are third-party data: check each footprint pad by pad against the manufacturer's drawing, and in a component class you write, give `ports={...}` from the manufacturer's pinout, not pad order. With no readable pinout, the part waits for the user to supply one. With no readable drawing, keep the footprint and list it unchecked for the user's approval. A pad or hole differing from the drawing's recommended land pattern beyond its last printed digit rules out the footprint: name the pad and difference in your reply, and model the footprint as `jitx-component-modeler` orders, in a component class for a provider-attached one. For a polarized part, check the anode and cathode pads against the drawing: the in-order mapping assumes the catalogue draws the anode as pad 1. Read every warning the build logs for the footprint: dropped vias, skipped pads, and pads left unmapped.
+Catalogue pads are third-party data: check each footprint pad by pad against the manufacturer's drawing, and in a component class you write, give `ports={...}` from the manufacturer's pinout, not pad order. A class you write with no readable pinout is blocked: leave the part out until the user supplies one. With no readable drawing, keep the footprint and list it unchecked for the user's approval. A pad or hole differing from the drawing's recommended land pattern beyond its last printed digit rules out the footprint: name the pad and difference in your reply, and model the footprint as `jitx-component-modeler` orders, in a component class for a provider-attached one. For a polarized part, check the anode and cathode pads against the drawing: the in-order mapping assumes the catalogue draws the anode as pad 1. Read the build's footprint warnings: dropped vias, skipped pads, unmapped pads.
 
 ## The lock file
 
-`lcsc.lock.json` at the project root records, by C-number, each catalogue footprint and each measured placement orientation. Commit it: it is a project file, not a cache. The first build and export need network access to jlcpcb.com, wmsc.lcsc.com and easyeda.com; later runs read the lock. Correct a wrong orientation by editing that part's entry, which outranks `LCSCPart(orientation=...)`; delete one entry to fetch that part again.
+`lcsc.lock.json` records, by C-number, each catalogue footprint and each measured placement orientation. Commit it; it is not a cache. The first build and export need network access to jlcpcb.com, wmsc.lcsc.com and easyeda.com; later runs read the lock. Correct a wrong orientation by editing that part's entry, which outranks `LCSCPart(orientation=...)`; delete one entry to fetch that part again.
 
 ## Export
 
@@ -78,7 +78,7 @@ Catalogue pads are third-party data: check each footprint pad by pad against the
 jitx design export jlcpcb --output <packet-dir> <module.Design>
 ```
 
-`<module.Design>` is the build target `jitx find` prints. `--no-assembly` writes a bare-board packet (gerber archive and order sheet only): use it for gerbers alone. Do not use the docstring's `jitx design export gerber --names jlcpcb`: it writes drills as Gerber, not the NC drill file JLCPCB expects, and skips the packet's macro-rotation fix. `--overwrite` allows a non-empty directory.
+`<module.Design>` is the build target `jitx find` prints. `--no-assembly` writes a bare-board packet (gerber archive and order sheet) for gerbers alone. Do not use the docstring's `jitx design export gerber --names jlcpcb`: its drills are not the NC drill file JLCPCB expects. `--overwrite` allows a non-empty directory.
 
 The export fails on any unplaced soldered component. The packet is orderable only when exported after the board is routed and the design rule check is clean: the gerbers are written at export. Routing is the user's step; report the check as clean, or not run with the reason. Until both hold, tell the user the packet is not yet orderable, what is missing, and that the export must run again afterwards.
 
@@ -99,7 +99,7 @@ Opt-in: <where the user chose JLCPCB>; footprints: catalogue | own models; depen
 Substrate: <class> for <layers, impedances> | custom: <reason>
 Parts: tier <ranked | filtered: user asked>; <N> LCSCPart components; IDEAL- MPNs: none
 Sources: <C-number: datasheets/sourcing/<mpn>-lcsc.txt>
-Catalogue footprints: none | <part: pads checked against <drawing> | unchecked: no readable drawing>; ruled out: none | <part, pad, difference>
-Packet: <file listing>; BOM rows without a C-number: none | <list>; orderable | not yet, re-export after: <routing, DRC>
+Catalogue footprints: none | <part: pads checked against <drawing> | unchecked: no readable drawing>; blocked: none | <part: no readable pinout>; ruled out: none | <part, pad, difference>
+Packet: <file listing>; BOM rows without a C-number: none | <list>; orderable | not yet, re-export after: <routing, DRC, blocked parts>
 Approval: MPNs, C-numbers and unchecked footprints <approved by the user | awaiting the user>
 ```
