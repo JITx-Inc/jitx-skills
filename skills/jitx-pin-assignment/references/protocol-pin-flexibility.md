@@ -48,7 +48,7 @@ DDR4 byte and bit swapping is controller-dependent: the controller's crossbar de
 
 ## LPDDR4/4X on an AMD Versal DDRMC
 
-AMD's PG313 pin rules for LPDDR4/4X allow two swaps: DQ bits within a byte, and a byte with the other byte of the same x16 channel, its DQS and DM going with it. Channel A never swaps with channel B, and every command, address, control, reset and clock pin is fixed. `jitxexamples.jumpstart_kits.js4_fpga_lpddr4x.pinout` holds the rules with their PG313 sections, and `js4_fpga_lpddr4x.fpga` offers them on a VP1002.
+AMD's PG313 pin rules for LPDDR4/4X allow two swaps: DQ bits within a byte, and a byte with the other byte of the same x16 channel, its DQS and DM going with it. Channel A never swaps with channel B, and every command, address, control, reset and clock pin is fixed. `jitxexamples.jumpstart_kits.vp1002_lpddr4x.pinout` holds one layout under those rules with its PG313 sources, and `vp1002_lpddr4x.circuit` offers it on a VP1002.
 
 ## LPDDR5 Pin Flexibility
 

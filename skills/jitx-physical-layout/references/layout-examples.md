@@ -199,7 +199,7 @@ class AntennaBoard(Board):
 
 class AntennaDesign(Design):
     board = AntennaBoard()
-    substrate = JLC04161H_7628()
+    substrate = JLC04161H_7628()  # example substrate; a design uses its own
     circuit = AntennaMatching()
     # The fence-via rule that consumes AntennaGroundTag: see
     # jitx-layout-constraints, "Fencing".
@@ -226,8 +226,8 @@ jitxexamples package's `jitxexamples.patterns.fenced_pour_outline` module. The r
 
 Custom `Pad` subclasses emit no default mask/paste. These helpers add them, preserving
 a `Circle` exactly (so a round pad doesn't become a 16-gon) and expanding everything
-else as a shapely polygon. Mask expansion defaults to JLCPCB's
-`solder_mask_registration` (0.05 mm); paste matches the copper exactly.
+else as a shapely polygon. Mask expansion defaults to the example substrate's
+`solder_mask_registration` (0.05 mm); use your substrate's. Paste matches the copper exactly.
 
 ```python
 from jitx.feature import Paste, Soldermask

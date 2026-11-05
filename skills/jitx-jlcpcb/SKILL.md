@@ -1,0 +1,105 @@
+---
+name: jitx-jlcpcb
+description: "Use when the user has chosen JLCPCB or LCSC as fab, assembler or parts source: a board to be made or assembled at JLCPCB, an LCSC C-number (C2874116), JLCPCB basic, preferred or extended parts, an LCSC or EasyEDA catalogue footprint, lcsc.lock.json, or a JLCPCB order packet (gerbers, BOM, CPL, order sheet); also when a user asked which fab to use for an example or demo board picks JLCPCB. Covers jitxlib-jlcpcb: its predefined substrates, the JLCPCB and LCSC parts providers, LCSCPart, LCSCLandpattern, the lock file and the jlcpcb export. Opt-in: JLCPCB is one fab option and never a default, so a board with no fab named goes to jitx-project-builder, which asks. Not for a custom stackup from a fab's report (jitx-substrate-modeler), passive queries with no JLCPCB channel (jitx-circuit-builder), or KiCad or drawing-based footprints (jitx-component-modeler)."
+---
+
+# JITX JLCPCB
+
+`jitxlib-jlcpcb` covers one fab end to end. JITX ships no default fab, and this skill never chooses JLCPCB for a user: it starts once the user has.
+
+The API is in the package docstrings, read with `help()`: `jitxlib.jlcpcb` (substrates, export and lock file usage), `jitxlib.jlcpcb.parts`, `jitxlib.jlcpcb.parts.library` and `jitxlib.jlcpcb.landpattern`.
+
+## Route first
+
+- Environment, runtime, builds and the parts gates: the base `jitx` skill.
+- A whole board from requirements: `jitx-project-builder`. Once the user picks JLCPCB, its substrate, parts and release work come here.
+- Component code, generators and KiCad footprint import: `jitx-component-modeler`. Wiring and placement: `jitx-circuit-builder`.
+
+## Opt in
+
+Only after the user chose JLCPCB, add `"jitxlib-jlcpcb>=4,<5"` to `dependencies` in `pyproject.toml`, then install the project so its `jitx` pin holds:
+
+```bash
+pip install -e .
+```
+
+In your reply, say what installing changes: the package publishes a parts chain, so a project that names none resolves its passives through JLCPCB's catalogue, while a project that names a chain keeps it. If another installed package publishes a chain, resolution is a hard error until the project names one.
+
+Name the chain:
+
+```toml
+[tool.jitx.parts]
+chain = ["csv:parts/approved-parts.csv", "jlcpcb"]
+```
+
+The user's approved list comes first, the catalogue behind it, and no `ideal`, so a passive the catalogue cannot supply fails the build rather than becoming an unorderable `IDEAL-` stand-in. Take that passive to the user, change its value, case or tier only with their sign-off, and never put `ideal` back. In an existing chain, keep its entries in order and put `"jlcpcb"` where `"ideal"` was.
+
+- An approved-list part reaches the BOM with no C-number (the exporter reads only an `LCSCPart`) for the user to match by hand in JLCPCB's BOM step; name those parts to the user.
+- With no approved list of the user's own, cut `parts/approved-parts.csv` to the header row of the example CSV the `jitx` skill copies. The example parts carry no C-number, and first in the chain they would outrank the catalogue.
+- Use `"lcsc"` in place of `"jlcpcb"` when the user asks for LCSC's source or a resistor query filters rated voltage, which `"jlcpcb"` cannot match. `"lcsc"` lacks assembly tiers.
+
+The `jitx` skill's parts gates still apply, and the user approves the final build's MPNs and C-numbers before anything is ordered.
+
+## Substrate
+
+| Class | Copper layers | Prepreg | Routing structures | On layers | Vias |
+|---|---|---|---|---|---|
+| `JLC04161H_1080` | 4 | 1080 | `RS_50`, `DRS_90`, `DRS_100` | outer only | 3 standard |
+| `JLC04161H_7628` | 4 | 7628 | `RS_50`, `DRS_90`, `DRS_100` | outer only | 3 standard |
+| `JLC06161H_7628` | 6 | 7628 | `RS_50`, `DRS_100` | outer and the first inner layer each side | 9: standard plus extra-cost multilayer |
+
+Import from `jitxlib.jlcpcb`; each class carries its stackup, fab rules and a tented, filled via for via-in-pad. Pick by layer count and the impedances the design's interfaces need, then read the structure's trace widths in the class source.
+
+A structure the class lacks, a non-FR-4 material, or a layer count outside the set (two layers included) means a custom substrate through `jitx-substrate-modeler`. Vias and fab rules: `jitxlib.jlcpcb.vias`, `jitxlib.jlcpcb.rules`.
+
+## Parts
+
+The assembly-library tier is the query attribute `library`: `basic`, `preferred`, `extended`, cheapest to assemble first. Prefer basic with `rank=Minimize("library")`, per query or on a design-level `ResistorQuery` or `CapacitorQuery` context. Filter with `library="basic"` only when the user asks for basic parts alone: the basic library is small.
+
+A queried passive in a case the chip generator does not build (a tantalum or aluminum electrolytic) gets the catalogue footprint through `LCSCLandpattern`, attached by the provider with in-order ports. Name a chip case in the query to avoid it, or treat it as below.
+
+Every other assembled component names its part with `lcsc = LCSCPart("C...")`, a field of the component itself, never of a circuit or landpattern.
+
+Before writing code for a named C-number, save its channel evidence (stock, lifecycle or `none stated`, datasheet URL and pinout, from its catalogue page) to `datasheets/sourcing/<mpn>-lcsc.txt`, and cite it in the part's data source row: PLAN.md's Data Sources table, or the COMPLETION.md block below when there is no PLAN.md. The manufacturer's datasheet outranks it for pins; record any disagreement.
+
+## Landpatterns
+
+With the package, the user opts into its catalogue footprints (`LCSCLandpattern`) or models their own components through `jitx-component-modeler`. Ask once unless the request says; a yes, recorded in the Opt-in row and in PLAN.md when there is one, accepts the catalogue as the project's footprint source. A class you write still uses a generator where one expresses the package. With own models chosen, use no `LCSCLandpattern`: model a class for a queried passive the chip generator does not build, or change its case with the user's sign-off.
+
+Once accepted, take each catalogue footprint as published: do not check its pads against the manufacturer's drawing. The pin mapping is still yours: in a component class you write, give `ports={...}` from the manufacturer's pinout, not pad order, and leave out a part with no readable pinout until the user supplies one. A polarized passive whose catalogue footprint the provider attaches maps its ports in pad order, assuming the catalogue's pad 1 is the anode: name each such part to the user and ask them to confirm its polarity in the placement preview. Read the build's footprint warnings (dropped vias, skipped pads, unmapped pads) and name each part and pad to the user; an unmapped pad on a port the circuit uses blocks the part like a missing pinout.
+
+## The lock file
+
+`lcsc.lock.json` records, by C-number, each catalogue footprint and each measured placement orientation. Commit it; it is not a cache. The first build and export need network access to jlcpcb.com, wmsc.lcsc.com and easyeda.com; later runs read the lock. Correct a wrong orientation by editing that part's entry, which outranks `LCSCPart(orientation=...)`; delete one entry to fetch that part again.
+
+## Export
+
+```bash
+jitx design export jlcpcb --output <packet-dir> <module.Design>
+```
+
+`<module.Design>` is the build target `jitx find` prints. `--no-assembly` writes a bare-board packet (gerber archive and order sheet) for gerbers alone. Do not use the docstring's `jitx design export gerber --names jlcpcb`: its drills are not the NC drill file JLCPCB expects. `--overwrite` allows a non-empty directory.
+
+The export fails on any unplaced soldered component. The packet is orderable only when exported after the board is routed and the design rule check is clean: the gerbers are written at export. Routing is the user's step; report the check as clean, or not run with the reason. Until both hold, tell the user the packet is not yet orderable, what is missing, and that the export must run again afterwards.
+
+Done means:
+
+- the build passes, `jitx design export parts-check <module.Design> --fail all` passes, and no MPN read from the design starts with `IDEAL-`;
+- the packet holds `<stem>-gerber.zip` and `<stem>-order.md`, and for an assembled order `<stem>-bom.csv` and `<stem>-cpl.csv`;
+- for an assembled order, every BOM row's `JLCPCB Part #` is a C-number, or each row without one is named to the user;
+- the order sheet's layer count and thickness match the substrate.
+
+Report the packet listing to the user, with the order sheet's "Footprints taken from landpattern class names" and "Placed with no orientation correction" lists. Ask them to check rotations in JLCPCB's Confirm Parts Placement preview and to confirm the surface finish. Never upload or order.
+
+Write this block in `COMPLETION.md`, each row with its evidence:
+
+```
+## JLCPCB check
+Opt-in: <where the user chose JLCPCB>; footprints: catalogue | own models; dependency and chain as written
+Substrate: <class> for <layers, impedances> | custom: <reason>
+Parts: tier <ranked | filtered: user asked>; <N> LCSCPart components; IDEAL- MPNs: none
+Sources: <C-number: datasheets/sourcing/<mpn>-lcsc.txt>
+Catalogue footprints: none | <parts>; polarized in pad order: none | <parts>; footprint warnings: none | <part: warning>; blocked: none | <part: reason>
+Packet: <file listing>; BOM rows without a C-number: none | <list>; orderable | not yet, re-export after: <routing, DRC, blocked parts>
+Approval: MPNs and C-numbers <approved by the user | awaiting the user>
+```

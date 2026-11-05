@@ -11,7 +11,7 @@
 // Near-miss negatives — shared vocabulary, different owner.
 {"intent": "build me a board with an STM32, a USB-C connector, an IMU on SPI and a microSD socket", "expected_skill": "jitx-project-builder", "ambiguous_with": ["jitx"]}
 {"intent": "design a PCB from these requirements", "expected_skill": "jitx-project-builder", "ambiguous_with": ["jitx"]}
-{"intent": "I need a complete JITX project from scratch, 4-layer JLCPCB", "expected_skill": "jitx-project-builder", "ambiguous_with": ["jitx"]}
+{"intent": "I need a complete JITX project from scratch, 4-layer JLCPCB", "expected_skill": "jitx-project-builder", "ambiguous_with": ["jitx", "jitx-jlcpcb"]}
 {"intent": "what workflow tier is this, single task or complete board?", "expected_skill": "jitx-project-builder", "ambiguous_with": ["jitx"]}
 {"intent": "write PLAN.md and ARCHITECTURE.md for this design before we start coding", "expected_skill": "jitx-project-builder", "ambiguous_with": ["jitx"]}
 {"intent": "the plan doc for this board is enormous, trim it to what the sub-agents actually need", "expected_skill": "jitx-project-builder", "ambiguous_with": ["jitx"]}
@@ -23,7 +23,7 @@
 {"intent": "model this substrate from the fab house's stackup report", "expected_skill": "jitx-substrate-modeler", "ambiguous_with": ["jitx"]}
 {"intent": "wire up the decoupling caps", "expected_skill": "jitx-circuit-builder", "ambiguous_with": ["jitx"]}
 {"intent": "connect the regulator output to the MCU power pins", "expected_skill": "jitx-circuit-builder", "ambiguous_with": ["jitx"]}
-{"intent": "draw the antenna copper and place the fence vias in code", "expected_skill": "jitx-physical-layout", "ambiguous_with": ["jitx", "jitx-substrate-modeler"]}
+{"intent": "draw the antenna copper and place the fence vias in code", "expected_skill": "jitx-physical-layout", "ambiguous_with": ["jitx", "jitx-layout-constraints"]}
 {"intent": "escape route the BGA and place the fanout vias", "expected_skill": "jitx-physical-layout", "ambiguous_with": ["jitx"]}
 {"intent": "add length matching and skew constraints to the DDR byte lanes", "expected_skill": "jitx-interconnect-constraints", "ambiguous_with": ["jitx"]}
 {"intent": "constrain the USB pair to 90 ohms over a reference plane", "expected_skill": "jitx-interconnect-constraints", "ambiguous_with": ["jitx", "jitx-substrate-modeler"]}
@@ -35,5 +35,5 @@
 // Outside the bundle entirely.
 {"intent": "write a KiCad plugin that exports netlists", "expected_skill": null}
 {"intent": "explain how a buck converter works", "expected_skill": null}
-{"intent": "order these parts from LCSC for me", "expected_skill": null}
+{"intent": "order these parts from LCSC for me", "expected_skill": null, "ambiguous_with": ["jitx-jlcpcb"]}
 {"intent": "Check cache/netlist.json to confirm U4.EN moved from the old rail to the new enable net.", "expected_skill": "jitx"}

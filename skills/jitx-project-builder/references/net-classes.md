@@ -8,7 +8,8 @@ needs its own rule, record "no classes of nets" with a one-line reason.
 
 The rule shapes, the rung each class takes on the priority ladder, and where
 each value comes from are owned by the `jitx-layout-constraints` skill
-([Classes of nets](../../jitx-layout-constraints/SKILL.md#classes-of-nets)).
+([Defaults and classes](../../jitx-layout-constraints/SKILL.md#defaults-and-classes),
+[Start from what the board needs](../../jitx-layout-constraints/SKILL.md#start-from-what-the-board-needs)).
 Invoke that skill to write the table during Phase 3.
 
 The Phase 3 to 3b transition confirms the table exists if the design has any
