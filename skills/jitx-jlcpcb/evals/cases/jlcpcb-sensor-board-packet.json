@@ -86,7 +86,7 @@
       "check": "judge"
     },
     {
-      "text": "the runner reports the packet as orderable only if it was exported after the board was routed and DRC was clean (DRC reported as clean, or as not run with the reason); otherwise it says the packet is not yet orderable, what remains for the user, and that the export must run again after routing",
+      "text": "the runner reports the packet as orderable only if it was exported after the board was routed and DRC was clean, and it reports DRC as clean or as not run with the reason; otherwise it says the packet is not yet orderable, what remains for the user, and that the export must run again after routing",
       "check": "judge"
     },
     {

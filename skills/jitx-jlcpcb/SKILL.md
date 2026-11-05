@@ -49,7 +49,7 @@ The `jitx` skill's parts gates still apply, and the user approves the final buil
 | `JLC04161H_7628` | 4 | 7628 | `RS_50`, `DRS_90`, `DRS_100` | outer only | 3 standard |
 | `JLC06161H_7628` | 6 | 7628 | `RS_50`, `DRS_100` | outer and the first inner layer each side | 9: standard plus extra-cost multilayer |
 
-Import from `jitxlib.jlcpcb`; each class carries its stackup, fab rules and a tented, filled via for via-in-pad. Pick by layer count and the impedances the design's interfaces need, then read the structure's trace widths in the class source: a 50 ohm trace is 0.1176 mm on the 1080 build and 0.3244 mm on the 4-layer 7628 build, so fine-pitch parts favour 1080. The 6-layer class has no 90 ohm pair, so USB 2.0 on six layers has no predefined structure.
+Import from `jitxlib.jlcpcb`; each class carries its stackup, fab rules and a tented, filled via for via-in-pad. Pick by layer count and the impedances the design's interfaces need, then read the structure's trace widths in the class source: a 50 ohm trace is 0.1176 mm on the 1080 build and 0.3244 mm on the 4-layer 7628 build, so a 50 ohm line into a fine-pitch pad favours 1080. The 6-layer class has no 90 ohm pair, so USB 2.0 on six layers has no predefined structure.
 
 A structure the class lacks, a non-FR-4 material, or a layer count outside the set (two layers included) means a custom substrate through `jitx-substrate-modeler`. Via set and fab rules: the classes in `jitxlib.jlcpcb.vias` and `jitxlib.jlcpcb.rules`.
 
