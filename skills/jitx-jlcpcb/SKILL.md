@@ -5,7 +5,7 @@ description: "Use when the user has chosen JLCPCB or LCSC as fab, assembler or p
 
 # JITX JLCPCB
 
-`jitxlib-jlcpcb` covers one fab end to end: substrates, catalogue parts and footprints, and the order packet. JITX ships no default fab, and this skill never chooses JLCPCB for a user: it starts once the user has.
+`jitxlib-jlcpcb` covers one fab end to end. JITX ships no default fab, and this skill never chooses JLCPCB for a user: it starts once the user has.
 
 The API is in the package docstrings, read with `help()`: `jitxlib.jlcpcb` (substrates, export and lock file usage), `jitxlib.jlcpcb.parts`, `jitxlib.jlcpcb.parts.library` and `jitxlib.jlcpcb.landpattern`.
 
@@ -36,7 +36,7 @@ The user's approved list comes first, the catalogue behind it, and no `ideal`, s
 
 - An approved-list part reaches the BOM with no C-number, because the exporter reads only an `LCSCPart`, and the user matches it by hand in JLCPCB's BOM step. Tell the user which parts those are.
 - With no approved list of the user's own, cut `parts/approved-parts.csv` to the header row of the example CSV the `jitx` skill copies. The example parts carry no C-number, and first in the chain they would outrank the catalogue.
-- Use `"lcsc"` in place of `"jlcpcb"` only when the user asks for LCSC's source: it has no assembly-library tier.
+- Use `"lcsc"` in place of `"jlcpcb"` when the user asks for LCSC's source or a resistor query filters rated voltage, which `"jlcpcb"` cannot match. `"lcsc"` lacks assembly tiers.
 
 The `jitx` skill's parts gates still apply, and the user approves the final build's MPNs and C-numbers before anything is ordered.
 
@@ -48,7 +48,7 @@ The `jitx` skill's parts gates still apply, and the user approves the final buil
 | `JLC04161H_7628` | 4 | 7628 | `RS_50`, `DRS_90`, `DRS_100` | outer only | 3 standard |
 | `JLC06161H_7628` | 6 | 7628 | `RS_50`, `DRS_100` | outer and the first inner layer each side | 9: standard plus extra-cost multilayer |
 
-Import from `jitxlib.jlcpcb`; each class carries its stackup, fab rules and a tented, filled via for via-in-pad. Pick by layer count and the impedances the design's interfaces need, then read the structure's trace widths in the class source: a 50 ohm trace is 0.1176 mm on the 1080 build and 0.3244 mm on the 4-layer 7628 build.
+Import from `jitxlib.jlcpcb`; each class carries its stackup, fab rules and a tented, filled via for via-in-pad. Pick by layer count and the impedances the design's interfaces need, then read the structure's trace widths in the class source.
 
 A structure the class lacks, a non-FR-4 material, or a layer count outside the set (two layers included) means a custom substrate through `jitx-substrate-modeler`. Vias and fab rules: `jitxlib.jlcpcb.vias`, `jitxlib.jlcpcb.rules`.
 
@@ -64,9 +64,9 @@ Before writing code for a named C-number, save its channel evidence (stock, life
 
 ## Landpatterns
 
-With the package, the user opts into its catalogue footprints (`LCSCLandpattern`) or models their own components through `jitx-component-modeler`. Ask once if the request does not say; the answer, recorded in the Opt-in row, approves every catalogue footprint in the project. A generator still comes first where one expresses the package. With own models chosen, use no `LCSCLandpattern`: name a chip case for a queried passive, or model a class.
+With the package, the user opts into its catalogue footprints (`LCSCLandpattern`) or models their own components through `jitx-component-modeler`. Ask once unless the request says; the answer, recorded in PLAN.md and the Opt-in row, approves every catalogue footprint in the project. A class you write still uses a generator where one expresses the package. With own models chosen, use no `LCSCLandpattern`: model a class for a queried electrolytic, or change its case with the user's sign-off.
 
-Catalogue pads are third-party data: check each footprint pad by pad against the manufacturer's drawing, and in a component class you write, give `ports={...}` from the manufacturer's pinout, not pad order. With no readable drawing or pinout, keep the footprint and name it in your reply as unchecked. A pad or hole differing from the drawing's recommended land pattern beyond its last printed digit rules out the footprint: name the pad and difference in your reply, and model the footprint as `jitx-component-modeler` orders, in a component class for a provider-attached one. For a polarized part, check the anode and cathode pads against the drawing: the in-order mapping assumes the catalogue draws the anode as pad 1. Read every warning the build logs for the footprint: dropped vias, skipped pads, and pads left unmapped.
+Catalogue pads are third-party data: check each footprint pad by pad against the manufacturer's drawing, and in a component class you write, give `ports={...}` from the manufacturer's pinout, not pad order. With no readable pinout, the part waits for the user to supply one. With no readable drawing, keep the footprint and list it unchecked for the user's approval. A pad or hole differing from the drawing's recommended land pattern beyond its last printed digit rules out the footprint: name the pad and difference in your reply, and model the footprint as `jitx-component-modeler` orders, in a component class for a provider-attached one. For a polarized part, check the anode and cathode pads against the drawing: the in-order mapping assumes the catalogue draws the anode as pad 1. Read every warning the build logs for the footprint: dropped vias, skipped pads, and pads left unmapped.
 
 ## The lock file
 
@@ -78,7 +78,7 @@ Catalogue pads are third-party data: check each footprint pad by pad against the
 jitx design export jlcpcb --output <packet-dir> <module.Design>
 ```
 
-`<module.Design>` is the build target `jitx find` prints. `--no-assembly` writes a bare-board packet (gerber archive and order sheet only): use it for gerbers alone. Do not use the docstring's `jitx design export gerber --names jlcpcb`: it writes drills as Gerber, not the NC drill file JLCPCB expects, and skips the packet's macro-rotation fix. `--overwrite` allows a non-empty output directory.
+`<module.Design>` is the build target `jitx find` prints. `--no-assembly` writes a bare-board packet (gerber archive and order sheet only): use it for gerbers alone. Do not use the docstring's `jitx design export gerber --names jlcpcb`: it writes drills as Gerber, not the NC drill file JLCPCB expects, and skips the packet's macro-rotation fix. `--overwrite` allows a non-empty directory.
 
 The export fails on any unplaced soldered component. The packet is orderable only when exported after the board is routed and the design rule check is clean: the gerbers are written at export. Routing is the user's step; report the check as clean, or not run with the reason. Until both hold, tell the user the packet is not yet orderable, what is missing, and that the export must run again afterwards.
 
@@ -101,5 +101,5 @@ Parts: tier <ranked | filtered: user asked>; <N> LCSCPart components; IDEAL- MPN
 Sources: <C-number: datasheets/sourcing/<mpn>-lcsc.txt>
 Catalogue footprints: none | <part: pads checked against <drawing> | unchecked: no readable drawing>; ruled out: none | <part, pad, difference>
 Packet: <file listing>; BOM rows without a C-number: none | <list>; orderable | not yet, re-export after: <routing, DRC>
-Approval: MPNs and C-numbers <approved by the user | awaiting the user>
+Approval: MPNs, C-numbers and unchecked footprints <approved by the user | awaiting the user>
 ```

@@ -141,7 +141,7 @@ The agent selects parts based on engineering requirements first. Data for each c
 **Data sources (in priority order):**
 1. **User-provided** — datasheets, KiCad footprints, or specs the user supplies directly
 2. **JITX generators** — standard packages (QFN, SOIC, BGA, SOT, SON, QFP) with dimensions from datasheets
-3. **KiCad footprints**: for packages no generator expresses, a user-provided or manufacturer `.kicad_mod`. A distributor or third-party library footprint needs the user's per-project approval (`references/parts-sourcing.md`).
+3. **KiCad footprints**: for packages no generator expresses, a user-provided or manufacturer `.kicad_mod`. A third-party footprint needs the user's per-project approval (`references/parts-sourcing.md`; LCSC: `jitx-jlcpcb`).
 
 For non-standard packages (connectors, RF modules): `jitx-component-modeler` reads the `.kicad_mod` and writes each entry into the component. **NEVER hand-craft pad positions** for a purchasable part. Standard packages use built-in JITX generators. All symbols use `BoxSymbol`. Exception: mechanical / vendor-defined footprints (Tag-Connect, pogo-pin fixtures, castellations, fiducials) where no purchasable component exists — see `references/parts-sourcing.md` "Mechanical / Vendor-Defined Footprints".
 
