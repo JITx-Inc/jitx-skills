@@ -26,8 +26,9 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -36,11 +37,28 @@ from shapely.geometry import Point
 from shapely.geometry.base import BaseGeometry
 
 from jitx.circuit import Route
-from jitx.constraints import DesignConstraint
+from jitx.constraints import (
+    AndExpr,
+    AtomExpr,
+    BinaryDesignConstraint,
+    BoolExpr,
+    BuiltinTag,
+    DesignConstraint,
+    IsCopper,
+    IsPour,
+    IsTrace,
+    NotExpr,
+    OnLayer,
+    OrExpr,
+    Tag,
+    Tags,
+    TrueExpr,
+)
 from jitx.copper import Pour
 from jitx.design import Design
 from jitx.inspect import visit
 from jitx.landpattern import Pad, PadShape
+from jitx.net import Net
 from jitx.run.runtime import Runtime
 from jitx.shapes import Shape
 from jitx.shapes.primitive import Empty
@@ -306,12 +324,22 @@ def check_unedited(out: Path, module: str, cls: str) -> None:
 
 
 @contextmanager
-def built(out: Path, module: str, cls: str, wait: float = 60.0) -> Iterator[Any]:
+def built(
+    out: Path,
+    module: str,
+    cls: str,
+    wait: float = 60.0,
+    before_capture: Callable[[Any], None] | None = None,
+) -> Iterator[Any]:
     """Check the output against the fixture as shipped (``check_unedited``),
     then submit and capture the design; yields the RuntimeDesign.
 
     The stored design state is removed first: a headless submit after a
     design change otherwise aborts at "stabilization" (measured on jitx 4.6).
+
+    ``before_capture`` runs on the submitted design before ``capture``. Read
+    tags there (``copper_facts``): in this suite's run (2026-11-05), the tags
+    on a net read with ``Tags.get`` were present before capture and gone after.
     """
     check_unedited(out, module, cls)
     design = load_design(out, module, cls)
@@ -321,6 +349,8 @@ def built(out: Path, module: str, cls: str, wait: float = 60.0) -> Iterator[Any]
     with runtime_for(out):
         with Runtime(project=out) as r:
             rd = r.submit(design)
+            if before_capture is not None:
+                before_capture(rd)
             rd.capture(wait=wait)
             yield rd
 
@@ -422,6 +452,91 @@ def generated_vias(rd: Any) -> list[tuple[float, float]]:
 
 def rules(rd_or_design: Any) -> list[DesignConstraint]:
     return [c for _, c in visit(rd_or_design, DesignConstraint)]
+
+
+@dataclass(frozen=True)
+class CopperFacts:
+    """One piece of copper as a rule condition sees it: its object type
+    tags, its layer, and the user tags that reach it."""
+
+    kinds: frozenset[BuiltinTag]
+    layer: int
+    tags: tuple[Tag, ...]
+
+
+TRACE = frozenset({IsCopper, IsTrace})
+POUR = frozenset({IsCopper, IsPour})
+
+
+def _net_group(net: Net, nets: list[Net]) -> list[Net]:
+    """``net`` and every net joined to it through a ``Net`` in a
+    ``connected`` list, either way round. Nets joined only through a shared
+    port are not followed."""
+    group = [net]
+    grew = True
+    while grew:
+        grew = False
+        for n in nets:
+            if any(n is g for g in group):
+                continue
+            inner = [x for x in n.connected if isinstance(x, Net)]
+            if any(x is g for x in inner for g in group) or any(
+                x is n for g in group for x in g.connected
+            ):
+                group.append(n)
+                grew = True
+    return group
+
+
+def copper_facts(rd: Any, kinds: frozenset[BuiltinTag], layer: int, *carriers: Any) -> CopperFacts:
+    """The facts for one piece of copper. ``carriers`` are the objects whose
+    tags reach it: the copper object itself, its net (a net's tags are read
+    from every net joined to it, ``_net_group``) and the circuits that hold
+    it. Call it before capture (``built``'s ``before_capture``)."""
+    nets = [n for _, n in visit(rd.root, Net)]
+    found: list[Tag] = []
+    for o in carriers:
+        for holder in _net_group(o, nets) if isinstance(o, Net) else [o]:
+            t = Tags.get(holder)
+            if t is not None:
+                found.extend(t.tags)
+    return CopperFacts(kinds, layer, tuple(found))
+
+
+def _holds(expr: BoolExpr, on: CopperFacts, layers: int) -> bool:
+    if isinstance(expr, TrueExpr):
+        return True
+    if isinstance(expr, NotExpr):
+        return not _holds(expr.expr, on, layers)
+    if isinstance(expr, AndExpr):
+        return _holds(expr.left, on, layers) and _holds(expr.right, on, layers)
+    if isinstance(expr, OrExpr):
+        return _holds(expr.left, on, layers) or _holds(expr.right, on, layers)
+    if not isinstance(expr, AtomExpr):
+        raise TypeError(f"unknown condition {expr!r}")
+    atom = expr.atom
+    if isinstance(atom, BuiltinTag):
+        return atom in on.kinds
+    if isinstance(atom, OnLayer):
+        return atom.index % layers == on.layer % layers
+    return any(isinstance(t, type(atom)) for t in on.tags)
+
+
+def matching_clearances(rd: Any, a: CopperFacts, b: CopperFacts) -> list[BinaryDesignConstraint]:
+    """Every clearance rule in the design whose two conditions match ``a``
+    and ``b``, in either order. Conditions are evaluated on the facts alone
+    (object type, layer, user tags with their subclasses); which of the
+    matching rules the runtime picks is not modelled."""
+    layers = len(rd.root.substrate.stackup.conductors)
+    out = []
+    for r in rules(rd.root):
+        if not isinstance(r, BinaryDesignConstraint) or r.clearance_constraint is None:
+            continue
+        if (_holds(r.first, a, layers) and _holds(r.second, b, layers)) or (
+            _holds(r.first, b, layers) and _holds(r.second, a, layers)
+        ):
+            out.append(r)
+    return out
 
 
 def gap(a: BaseGeometry, b: BaseGeometry) -> float:
