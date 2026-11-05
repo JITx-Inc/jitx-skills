@@ -26,9 +26,9 @@ Before writing a rule, read the schematic, the prompt and every document given (
 | Coupling | a noisy net beside a sensitive one couples into it | a clearance between the two classes' tags |
 | Assembly | a pad tied solid into a plane sinks heat and solders poorly; a relieved one carries less current | relief per pad class, direct connect where current needs it |
 
-Every value traces to the prompt, a rule the design already carries, a fab-sheet row by number, a datasheet or standard quoted from a document you were given, or a derivation with its arithmetic shown; for a function's value, the call, its inputs, the dataclass fields it returns (`BgaEscape.channel_clearance`, `Escape.centreline_clearance`, `Escape.pad_gap`) and the relation its docstring checks, with the numbers. Where nothing given settles a value (a 48 V or mains net with no spacing stated, an isolation rating with no barrier distance), name what would (the isolating part's datasheet, IPC-2221B's conductor spacing table, the product's safety standard such as IEC 62368-1, 61010-1 or 60601-1) and list an open item: never pick a number. No chart or formula of your choosing sets a width from a current: ask for the width, or the copper weight, temperature rise and sizing standard. A clearance rule holds distance across a layer's surface (copper to copper, hole or edge), so where a source gives clearance and creepage, it takes the larger; distance through insulation between layers is an open item. A slot that lengthens a creepage path is a `Cutout` or a hole in the board outline (`jitx-physical-layout`), held from copper by an `IsHole` rule.
+Every value traces to the prompt, a rule the design already carries, a fab-sheet row by number, a datasheet or standard quoted from a document you were given, or a derivation with its arithmetic shown; for a function's value, the call, its inputs, the dataclass fields it returns (`BgaEscape.channel_clearance`, `Escape.centreline_clearance`, `Escape.pad_gap`) and the relation its docstring checks, with the numbers. Where nothing given settles a value (a 48 V or mains net with no spacing stated, an isolation rating with no barrier distance), name what would (the isolating part's datasheet, IPC-2221B's conductor spacing table, the product's safety standard such as IEC 62368-1, 61010-1 or 60601-1) and list an open item: never pick a number. No chart or formula of your choosing sets a width from a current: ask for the width, or the copper weight, temperature rise and sizing standard. A clearance rule holds distance across a layer's surface (copper to copper, hole or edge), so for copper on one surface with no slot between, where a source gives clearance and creepage, it takes the larger; distance through insulation between layers is an open item. A slot that lengthens a creepage path is a `Cutout` or a hole in the board outline (`jitx-physical-layout`), held from copper by an `IsHole` rule.
 
-In the completion, give each rule one line on what fails on this board without it (an arc, a short, a hot trace, a reflection, a cold joint, copper at the fab's bare limit), not what the rule does.
+In the completion, give each rule one line on what fails on this board without it (an arc, a short, a hot trace, a reflection, a cold joint, a trace that etches open at the fab's limit), not what the rule does.
 
 ## The rule system
 
@@ -40,7 +40,7 @@ A two-condition rule takes only `.clearance(mm)`; the rest (`.trace_width`, `.th
 
 ### Priority
 
-Higher `priority=` wins; at equal priority the more specific condition wins, object type tags first, so a `PowerTag()` width at 0 loses to the `IsTrace` default at 0. The loser is not applied at all, and nothing reports it. Use one ladder, in a comment beside the rules:
+Higher `priority=` wins; at equal priority the more specific condition wins, object type tags first, so a `PowerTag()` width at 0 loses to the `IsTrace` default at 0. The loser is not applied at all, and nothing reports it. One ladder, commented beside the rules:
 
 | Priority | Rules |
 |---|---|
@@ -62,7 +62,7 @@ A tag on a `Net` reaches its traces, pours, pads and code-placed vias; on a `Pad
 
 ## Defaults and classes
 
-Unruled copper comes out at the fab floor (measured on jitx 4.6), and a pad no relief rule matches joins its pour solid. Write only the defaults the board needs above the floor, each with its margin's source: `design_constraint(IsTrace).trace_width(w)`, `design_constraint(IsCopper, IsCopper).clearance(c)`, `design_constraint(IsPad).thermal_relief(...)`, which leaves no pad solid (`layout_default_rules`).
+Unruled copper comes out at the fab floor, and a pad no relief rule matches joins its pour solid. Write only the defaults the board needs above the floor, each with its margin's source: `design_constraint(IsTrace).trace_width(w)`, `design_constraint(IsCopper, IsCopper).clearance(c)`, `design_constraint(IsPad).thermal_relief(...)`, which matches every pad, so only a higher-priority direct connect joins one solid (`layout_default_rules`).
 
 A class is a tag on its nets with its rules written once: `PowerTag()` width and `(PowerTag(), AnyObject)` clearance at 2; a subclass (`HighCurrentTag(PowerTag)`) takes its own width at 3. A Kelvin sense line shares the power net, so its `SenseTag` goes on the sense `Route`s, its width at 3. A class-to-class clearance, `(RFLineTag(), NoisyTag())` or `(PrimaryTag(), SecondaryTag())`, keeps one class from another and leaves each one's own ground alone (`layout_sensitive_net_clearance`).
 
@@ -75,15 +75,14 @@ The coplanar cap: a board-wide clearance wider than a coplanar line's gap widens
 | Trace to pour | `(IsTrace, IsPour)` clearance at 1 |
 | A net's pads and vias | the net tag's `thermal_relief` at 2 |
 | Some pads | a tag on the pads, landpattern or component, relief at 3 (`layout_thermal_classes`) |
-| Direct connect | no relief rule matching the pad; or `DirectConnectTag` on the pad, `thermal_relief(gap, pad_diagonal, 4)` at 4; measure the join |
+| Direct connect | no relief rule matching the pad; or `DirectConnectTag` on the pad, `thermal_relief(gap, pad_diagonal, 4)` at 4; measure the join, and give a pad that voids no relief rule |
 | Sliver removal | `pour_feature_size(min_width)` on a pour tag |
 | Edge; slots, cutouts, drills | `(IsBoardEdge, AnyObject)`; `(IsHole, AnyObject)`, at protection rungs (`layout_edge_and_cutout`) |
 
 - `IsHole` matches via drills: a hole rule wider than a via's pad pulls pours back from every other-net via. A plated through-hole pad's drill is untested (`layout_edge_and_cutout`): measure it or list it open.
-- A pour stops the clearance plus 0.01 from traces and the board edge (measured on jitx 4.6).
 - A pour with no pad or via of its own net inside comes back `Empty`; stitch and fence vias do not anchor it.
 
-A heavy copper layer needs wider traces and gaps (`layout_heavy_copper_layer`). Cite the stackup row whose copper makes it heavy; `heavy_layer_index(current.substrate)` finds it, `OnLayer(i)` selects it, `OnLayer.internal()` matches every inner layer. A floor at 1 loses, unreported, to every rule at 2 or above, so `heavy_layer_rules(layer, min_width, min_clearance, trace_to_pour, class_rules, exclude=...)` returns the floors plus a copy at 3, at the floor, of each rule passed whose value is below it: every `trace_width` and two-condition `clearance` at 2 or 3 whose first condition is one tag (write other shapes by hand; `exclude` narrows width copies only). An escape, protection or pad-side rule at 3 or above on that layer meets the floor itself, or is an open item.
+A heavy copper layer needs wider traces and gaps (`layout_heavy_copper_layer`). Cite the stackup row whose copper makes it heavy; `heavy_layer_index(current.substrate)` finds it, `OnLayer(i)` selects it, `OnLayer.internal()` matches every inner layer. A floor at 1 loses, unreported, to every rule at 2 or above, so `heavy_layer_rules(layer, min_width, min_clearance, trace_to_pour, class_rules, exclude=...)` returns the floors plus a copy at 3, at the floor, of each rule passed whose value is below it: every `trace_width` and two-condition `clearance` at 2 or 3 whose first condition is one tag. An escape, protection or pad-side rule at 3 or above on that layer meets the floor itself, or is an open item.
 
 ## Stitching
 
@@ -105,16 +104,17 @@ A via fence keeps fields in and gives a line's ground a short return.
 - A `fence_via` rule fences no route, unreported.
 - Grounded coplanar: board clearances under the cap, the gap set by `design_constraint(RFLineTag(), GroundTag(), priority=2).clearance(c_s)` at the structure's clearance; with several coplanar structures on a net, at the smallest one's. The gap is `coplanar_gap(structure_clearance, winning_rule_clearance)`; a keep-away from the line to `AnyObject` above 2, wider than the gap, pushes the ground out. Measure the realized gap.
 - Row k sits `initial_offset + (k-1)·offset` out; an unset `initial_offset` takes `offset`. JITX puts fence pads inside the gap unreported: `checked_fence_pattern(pattern, via, pour_gap)` refuses that.
-- A fence pitch below `min_stitch_pitch` thins unreported, and `straight_run_fence_sites` refuses nothing: check the pitch.
+- A coplanar pour needs a same-net via in each region the line separates; an unanchored region vanishes unreported.
+- A fence pitch below one via pad thins unreported, and below `min_stitch_pitch` the fab cannot drill it: check the pitch.
 - Count with `fence_count_range` per outline row and `straight_run_fence_sites` per side per row of a straight run, and assert that count, not that vias exist; identify fence vias by position on the derived row, not a distance band.
 
 ## Routing structures by tag
 
-The substrate defines structures; rules apply them (`layout_routing_structure_by_tag`): `design_constraint(SignalTag(), priority=2).routing_structure(rs, ref_net=self.GND)` with the tag on the net, or a tag on one segment's `Route` at 4. A rule beats a `Constrain(...).structure(...)` on the same net, unreported: use one. Build a `RoutingStructure` in the circuit's `__init__` or on the substrate; at module level the rule raises `TypeError: 'Instantiable' object is not iterable`.
+The substrate defines structures; rules apply them (`layout_routing_structure_by_tag`): `design_constraint(SignalTag(), priority=2).routing_structure(rs, ref_net=self.GND)` with the tag on the net, or a tag on one segment's `Route` at 4. A rule beats a `Constrain(...).structure(...)` on the same net, unreported: use one.
 
 ## Fanout
 
-When a class width does not fit its pads, keep the class rule and give the last segment its own `Route` and escape tag, width at 4, meeting the trunk at a `RoutePoint` (`layout_qfn_escape`, `layout_bga_escape`, `layout_diff_pair_escape`). Walk every pad the class reaches: one needs an escape when the width does not fit it or cannot keep the net's clearance to the pads it passes; where pads sit closer than the class clearance, say which, by how much, and what the escape relaxes. The escape clearance `s_e` is the net's governing clearance, or a lower one at or above `min_copper_copper_space` stated as relaxed for the escape only, with its reason; where the governing clearance leaves only the fab-minimum width, lower `s_e` to widen the escape, and say so. Never type the width: `layout_qfn_escape.derive_escape` or `layout_bga_escape.derive_escape(..., escape_clearance=s_e)` returns it, or `escape_width(pad_width, c, s_e, fab)` for other geometry; one tag over several pads takes the smallest. If it raises, no legal escape fits: list it open. A floor-valued clearance to `AnyObject` at 4 loosens every escape's surroundings.
+When a class width does not fit its pads, keep the class rule and give the last segment its own `Route` and escape tag, width at 4, meeting the trunk at a `RoutePoint` (`layout_qfn_escape`, `layout_bga_escape`, `layout_diff_pair_escape`). Walk every pad the class reaches: one needs an escape when the width does not fit it or cannot keep the net's clearance to the pads it passes; where pads sit closer than the class clearance, say which, by how much, and what the escape relaxes. The escape clearance `s_e` is the net's governing clearance, or a lower one at or above `min_copper_copper_space` stated as relaxed for the escape only, with its reason; where the governing clearance leaves only the fab-minimum width, lower `s_e` to widen the escape, and say so. Never type the width: `layout_qfn_escape.derive_escape` or `layout_bga_escape.derive_escape(..., escape_clearance=s_e)` returns it, or `escape_width(pad_width, c, s_e, fab)` for other geometry; one tag over several pads takes the smallest. If it raises with `s_e` at `min_copper_copper_space`, no legal escape fits: list it open. A floor-valued clearance to `AnyObject` at 4 loosens every escape's surroundings.
 
 ## Verification
 
