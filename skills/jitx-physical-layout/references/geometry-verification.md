@@ -150,12 +150,18 @@ every test you write against a simple part. Don't special-case it — always com
 accounts for bottom-side mirroring — don't hand-roll that. Either transform may be
 `None` when the frame couldn't be determined; guard before composing.
 
-Two realized-geometry frames that will also bite you:
+Realized-geometry frames that will also bite you:
 
 - **`Route.Trace.shapes` are already DESIGN-GLOBAL** (verified against export
   output) — do not re-apply the query transform to them.
 - **`ControlPoint.traces` shapes are LOCAL to the control point** — apply the
   query `trace.transform` (it correctly composes nested-circuit placements).
+- **A generated via** (stitch or fence) comes from `rd.query(Via)` after capture;
+  leave out the code-placed ones, which `visit(rd.root, Via)` lists, by identity.
+  Its board position is `(trace.transform * via.transform).translation`.
+- **A captured pour's `shape`** is local to the pour's container: for each
+  `trace, pour` from `visit(rd.root, Pour)`, `trace.transform * pour.shape` is the
+  computed copper in board frame (skip the transform when the shape is `Empty`).
 
 ## Net resolution
 
@@ -196,11 +202,11 @@ shapely geometry is its `.g`) — bounds, area, distance, intersection checks al
 work from there. Authoring in the other direction (shapely → jitx features) is
 covered in the main skill page ([Custom shapes with shapely (general)](../SKILL.md#custom-shapes-with-shapely-general)).
 
-Two traps that produce confident wrong numbers: query-returned pad and via
-copper is in the source's local frame (compose `trace.transform`, see
-"Coordinate frames"; without it every distance reads 0.0000). A computed pour
-converts with its holes: `PolygonSet.to_shapely()` keeps each polygon's holes,
-so measure against it directly.
+One trap produces confident wrong numbers: query-returned pad and via copper
+is in the source's local frame (compose `trace.transform`, see "Coordinate
+frames"; without it every distance reads 0.0000). A computed pour converts with
+its holes: `PolygonSet.to_shapely()` keeps each polygon's holes, so measure
+against it directly.
 `capture()` also overwrites an authored `Pour.shape` in place with reverse-flow
 runtime output. An authored `rectangle(20, 20)` was observed as a `MultiPolygon`
 of area `399.9976` after capture, so `rd.query(Pour)` is not a preserved authored

@@ -277,7 +277,7 @@ A single sub-agent assembles the top-level design. The orchestrator reviews its 
    not reach its acceptance verdict.
 9. Define board shape, mounting holes, and any keepout zones.
 10. **Set passive query defaults on the Design class** to match the design's manufacturing path and circuit role (see [Passive query defaults — match manufacturing and circuit role](#passive-query-defaults--match-manufacturing-and-circuit-role)). Without them, each passive takes the first approved row that matches its value, whatever its case.
-11. **Set default design rules on the Design class:** trace width, copper clearance, thermal relief, and wider traces for tagged power/ground rails. See [Default design rules (set on the Design class)](#default-design-rules-set-on-the-design-class). These are the production-friendly defaults every board should have; without them, the router uses the substrate's `FabricationConstraints` minimums, which are usually too narrow for power.
+11. **Set default design rules on the Design class:** the board defaults the design needs and the rules on each class of nets' tag, each value with its source. See [Default design rules (set on the Design class)](#default-design-rules-set-on-the-design-class). Where no rule matches, copper comes out at the substrate's `FabricationConstraints` floor.
 12. Build and verify `status: ok`.
 
 ### Passive query defaults — match manufacturing and circuit role
@@ -332,15 +332,16 @@ A `with CapacitorQuery(...)` block replaces the design default for every capacit
 
 ### Default design rules (set on the Design class)
 
-Every Design declares four canonical rules on `self.rules` (default trace
-width, copper-to-copper clearance, thermal relief on pads, wider power and
-ground traces) so the router and DRC have production-friendly defaults above
-the fab floor. The rule shapes, the priority ladder, calibration to the
-substrate's floors, and the non-default net classes that go in the same list
-at `priority >= 2` are owned by the `jitx-layout-constraints` skill
-("Board-wide defaults" and "Net classes: tag, derive, express").
-Invoke it for Phase 3 assembly; the Phase 3 gate checks that the four rules
-are present.
+The Design's `self.rules` carries the board defaults the design needs and the
+rules on each class of nets' tag, each value with its fab-sheet, prompt or
+cited source. Where no rule matches, copper comes out at the fab floor, so the
+defaults are how a board gets widths and clearances above it. The rule shapes,
+the priority ladder and the floors are owned by the `jitx-layout-constraints`
+skill ([Board defaults](../../jitx-layout-constraints/SKILL.md#board-defaults)
+and [Classes of nets](../../jitx-layout-constraints/SKILL.md#classes-of-nets)).
+Invoke it for Phase 3 assembly. The Phase 3 gate checks that every value has
+its source, or that the acceptance block records "no board defaults" or "no
+classes of nets" with a reason.
 
 ### Plain nets carry SI constraints (CRITICAL)
 
@@ -467,7 +468,7 @@ These checks are cheap, and any extra signal during code review is worth turning
 - [ ] `ReferencePlanes(...)` context wraps all constraint applications
 - [ ] Board geometry defined (shape, mounting holes, pours)
 - [ ] Passive query defaults (`CapacitorQuery`, `ResistorQuery`, `InductorQuery`) set in the Design class body to match the design's manufacturing path and circuit role, filtering only on columns the approved-parts list has, with per-circuit overrides documented for any specialty parts (HV, RF, bulk, precision, hand-build). The gate is the resolved parts, not the source: check the resolved package of each passive against the declared assembly capability, because a design with no query at all also builds clean.
-- [ ] **Default design rules set on Design class**: the four canonical rules are present on `self.rules`, values calibrated to the substrate's fab floors (see [Default design rules (set on the Design class)](#default-design-rules-set-on-the-design-class) and the `jitx-layout-constraints` skill)
+- [ ] **Default design rules set on Design class**: the board defaults and the classes of nets on `self.rules`, each value with its source and at or above the substrate's fab floors, or "no board defaults" or "no classes of nets" with a reason (see [Default design rules (set on the Design class)](#default-design-rules-set-on-the-design-class) and the `jitx-layout-constraints` skill)
 - [ ] The `grep gates` summary line reports 0 hard-fail hits; review-required hits are dispositioned
 
 **Emit the `Gate: Phase 3 → Phase 3b` block** from `references/completion-blocks.md` before advancing.

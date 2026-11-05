@@ -364,7 +364,7 @@ work with a batch count on it.
 | Build warnings | <result> |
 | Grep gates, top-level enforcement | <exact `grep gates` summary line; dispositions> |
 | Passive defaults | <result; overrides> |
-| Default design rules | <the board defaults declared on the `Design`, each value with its fab-sheet or prompt source, or "no defaults" with a reason> |
+| Default design rules | <the board defaults and the classes of nets declared on the `Design`, each value with its fab-sheet, prompt or cited source, or "no board defaults" or "no classes of nets" with a reason> |
 | Board geometry | <result> |
 | Open from this phase | <list/none> |
 | Verdict | <advance/block + reason> |

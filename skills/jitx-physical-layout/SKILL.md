@@ -236,15 +236,17 @@ region with this rule, the circuit creates a `Pour` from the landpattern thermal
 pad's shape, joins it to the net, and tags that pour. A pad-specific explicit via
 field remains a separate physical-layout pattern.
 
-**`SquareViaStitchGrid.inset` is measured to the via pad edge on the 4.4 runtime, not
-to the via centre as the docstring says.** The docstring reads "Minimum distance from
+**`SquareViaStitchGrid.inset` is measured to the via pad edge, not to the via centre
+as the docstring says.** The docstring reads "Minimum distance from
 the stitched region's boundary to the outermost via centers". A discriminating probe
-on jitx 4.4.0 (8 mm square pour, `pitch=2.0`, `StdViaPreferred` pad 0.45 mm) gave 9
+on jitx 4.4 (8 mm square pour, `pitch=2.0`, `StdViaPreferred` pad 0.45 mm) gave 9
 stitch vias at `inset=1.5` and `1.75` and 1 via at `1.8`, `1.9` and `2.1`. The centre
 reading predicts 9 up to `inset=2.0`; the pad-edge reading predicts the drop at
 `2.0 - 0.225 = 1.775`; a hole-edge reading would drop at `1.85`. Plan with the
-pad-edge count, `2 * floor((size / 2 - inset - pad_diameter / 2) / pitch) + 1` per
-axis, and treat the docstring as a library defect until it changes.
+pad-edge reading. Sites sit on multiples of the pitch from the board origin, not from
+the pour, so the expected count is the origin-lattice points inside the computed pour,
+in board frame, shrunk by `inset + pad_diameter / 2` (`jitx-layout-constraints`
+[Stitching](../jitx-layout-constraints/SKILL.md#stitching)).
 
 The achieved inset is measurable from a capture: realized via centres, the pour
 boundary and the via pad diameter are all available, so compute the margin and
