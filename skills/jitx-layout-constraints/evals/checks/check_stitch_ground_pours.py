@@ -53,7 +53,7 @@ with L.built(out, "fixture_stitch_ground_pours", "StitchGroundPoursDesign") as r
             L.fail(f"pitch {pitch} exceeds lambda/20 at 2.4 GHz, er 4.2 ({MAX_PITCH:.3f})")
         if pitch < MIN_PITCH - 1e-9:
             L.fail(f"pitch {pitch} is under the fab drill-to-drill floor {MIN_PITCH:.3f} (rows 12, 15)")
-        need = SC.required_sites(geoms, pads, pitch, inset, pad_r, PAD_SPACE, placed, MIN_PITCH)
+        need = SC.required_sites(geoms, pads, pitch, inset, pad_r, PAD_SPACE, placed, 2 * pad_r + PAD_SPACE)
         missing = [s for s in need if (round(s[0], 3), round(s[1], 3)) not in got]
         print(f"derived sites {len(need)}, realized on them {len(need) - len(missing)}")
         if not need:

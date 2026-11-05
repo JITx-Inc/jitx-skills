@@ -7,7 +7,7 @@ antenna feed against values worked out from the prompt, the substrate and the
 fab sheet:
 
 - the feed is realized at CPWG_50's width, 0.30, with the layer-0 pour at its
-  0.20 gap plus the runtime's 0.01 (spike S9), within [0.20, 0.23];
+  0.20 gap plus the runtime's 0.01, within [0.20, 0.23];
 - the layer-0 pour is present on both sides of the feed;
 - the vias are generated, not placed in code: the design still places
   exactly the fixture's six GND anchors. The generated vias are read with
@@ -18,8 +18,8 @@ fab sheet:
   most at the 0.500 fab floor pitch, against the 13 the row needs
   (fence_common);
 - if both row bands are empty, the failure names the likely cause: a
-  fence_via rule fences no route (S4), a route fence comes from
-  RoutingStructure.Layer.fence (S9);
+  fence_via rule fences no route, a route fence comes from
+  RoutingStructure.Layer.fence;
 - on each side, the innermost fence row sits as close as the prompt allows:
   the via pad edge at the 0.20 gap, so the centre 0.20 + 0.500 / 2 = 0.45 from
   the trace edge (fab row 11 via pad; fab row 4's 0.100 space is smaller than

@@ -3,8 +3,7 @@
 Usage: check_thermal_by_pad_class.py <output-dir>
 
 Builds <output>/fixture_thermal_by_pad_class.py, captures it, and measures how
-the layer-0 GND pour meets each GND pad (lc_check.relief, the spike's S2
-measure: the void gap, and the width of each copper spoke crossing a ring just
+the layer-0 GND pour meets each GND pad (lc_check.relief: the void gap, and the width of each copper spoke crossing a ring just
 outside the pad). The expected values are the prompt's:
 
 - each 10 uF input capacitor's ground pad: 0.25 gap, four 0.30 spokes;

@@ -8,12 +8,12 @@ the two feed segments against the substrate's structures (lc_substrate.py):
 - ``feed_escape`` (connector pad to the via): NECK_50, width 0.12, the layer-0
   pour 0.12 away;
 - ``feed`` (via to the inductor): CPWG_50, width 0.30, the pour 0.20 away;
-- the issue report has no "Missing routing structure" line (spike S10: with a
-  structure applied by rule the line goes away).
+- the issue report has no "Missing routing structure" line (with a
+  structure applied by rule the line goes away, measured on jitx 4.6).
 
-Spike S10: a priority-1 structure rule on a tag on the escape Route object
+Measured on jitx 4.6: a priority-1 structure rule on a tag on the escape Route object
 gives that segment its own structure and leaves the rest at the net's. Pour
-gaps were measured at the structure clearance plus 0.01 (S9), so each gap
+gaps were measured at the structure clearance plus 0.01, so each gap
 must lie in [value, value + 0.03].
 """
 

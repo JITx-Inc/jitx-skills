@@ -1,602 +1,247 @@
 ---
 name: jitx-layout-constraints
-description: "Use when the user asks to set default trace width or clearance, write design rules, set net-to-net, trace-to-pour, trace-to-hole, or per-layer clearance, size power trace width by net class or current, keep one net's copper away from another, tag nets into classes with their own width and spacing, place and route decoupling capacitors, set pour rules (inner or outer layer, heavy copper, sliver removal, thermal relief, direct connect), express pour stitching as a rule, step a wide power trace down to fit a QFN, BGA, or passive pad (fanout or escape width), verify widths and clearances after build, or find out why a design rule did not apply. Covers Tag, design_constraint, UnaryDesignConstraint, BinaryDesignConstraint, builtin tags, OnLayer, AnyObject, priority, all rule effects, FabricationConstraints floors, the Bogatin power and decoupling habits, and after-build checks. Fab minimums, stackups, vias, and routing-structure definitions belong to jitx-substrate-modeler ('set fabrication rules' means the fab floor; design rules above the floor live here). Drawing copper, diagnosing realized pours or stitch vias, control-point mechanics, and the geometry-verification loop belong to jitx-physical-layout. Topology and timing constraints belong to jitx-interconnect-constraints."
+description: "Use when the user asks for design rules on a placed and routed design: default trace width, clearance and thermal relief; net classes by tag (power, ground, RF, switch node, sense) with their own width and spacing; net-to-net, trace-to-pour, hole, board-edge, per-layer and heavy-copper clearance; pour rules (thermal relief, direct connect, sliver removal); via stitching as a rule; via fencing of a pour outline, an antipad or a grounded coplanar line; applying routing structures to nets and escapes by tag; escape width to fit a QFN, BGA or fine-pitch pad; checking after build that a rule applied, or why it did not. Fab minimums, stackups, vias and routing-structure definitions belong to jitx-substrate-modeler ('set fabrication rules' means the fab floor); drawing copper and pours, code-placed vias and realized-pour diagnosis to jitx-physical-layout; decoupling and net wiring to jitx-circuit-builder; topology and timing to jitx-interconnect-constraints."
 ---
 
 # JITX Layout Constraints
 
-Turn a board's physical requirements into the rule set the router and DRC
-obey: board-wide defaults, one tag per net class with its width and clearance
-rules, the step-down ladder where a class rule cannot reach a package pad, the
-pour and decoupling rules, and the checks that read the built design back.
+Rules for a design that already has its parts, circuits, placement, routes and pours: tags that say what an object is, `design_constraint` rules keyed on those tags, and the reads after capture that show each rule applied. The explanation and figures are on the Essentials page [Layout Constraints](https://docs.jitx.com/en/latest/essentials/physical_design/layout-constraints.html); this skill is the working reference.
 
-A rule that builds is not a rule that applied. The engine picks the highest
-priority matching rule per object, silently; the only evidence is the copper
-after capture. Every section below ends in something you can measure.
-
-## Scope, what this skill owns vs neighbors
-
-| You want to... | Skill |
-|---|---|
-| Board-wide default trace width, clearance, thermal relief | this skill |
-| Net classes: a tag per class with width and clearance rules | this skill |
-| Net-to-net, trace-to-pour, trace-to-hole, per-layer clearance | this skill |
-| Power routing width, sense lines, pad-to-via rules | this skill |
-| Pour rules: inner vs outer, heavy copper, sliver removal, stitching, direct connect | this skill |
-| Step a class width down to fit a QFN, BGA, or passive pad (escape rules) | this skill (route and control-point mechanics: `jitx-physical-layout`) |
-| Decoupling capacitor placement and routing as a module | this skill |
-| Verify widths, clearances, and route realization after build | this skill (the capture loop itself: `jitx-physical-layout`) |
-| Why a rule did not fire | this skill |
-| Fab minimums (`FabricationConstraints`), stackup, via definitions, routing structures, fenced pour outlines | `jitx-substrate-modeler` |
-| Draw copper, custom shapes, pad features, place vias and components, `Route` and control points | `jitx-physical-layout` |
-| SI constraints: timing, skew, insertion loss, diff pairs | `jitx-interconnect-constraints` |
-| Wire nets, typed ports, sub-circuits, passives | `jitx-circuit-builder` |
-| Component landpatterns (including the pad geometry escape rules read) | `jitx-component-modeler` |
+A rule that builds is not a rule that applied. Headless capture does not report which rule won for an object, so the evidence is the captured copper. In the board view, select a route and press B to open its Constraints panel.
 
 ## Environment
 
-Environment setup is the base `jitx` skill's job; invoke it first — it owns the
-supported version line, and this skill does not restate it. This page is written
-against and verified on the `jitx.constraints` module as shipped in 4.4.0. Before
-writing rules on an unfamiliar install, open the installed
-`jitx/constraints.py` and confirm the class and method names in
-`references/rule-reference.md` still exist. Verify every import with `pyright`
-against the installed package.
+Environment setup is handled by the base `jitx` skill. Ensure it has been invoked first.
+
+The worked patterns this skill points at are modules in the `jitxexamples` package. Install it into the project venv once with `pip install --no-deps --upgrade jitxexamples` (`--no-deps` keeps its pins off the project's `jitx`); it is not a project dependency. If importing a pointed-at module raises `ModuleNotFoundError`, the installed `jitxexamples` predates these patterns: say so, and work from the rules here.
 
 ## The rule system
 
-### Vocabulary
-
-A rule is a condition (or two) plus an effect, with a priority.
-
 ```python
 from jitx.constraints import (
-    AnyObject, BinaryDesignConstraint, IsCopper, IsPad, IsPour, IsTrace,
-    OnLayer, Tag, Tags, UnaryDesignConstraint, design_constraint,
+    AnyObject, IsBoardEdge, IsCopper, IsHole, IsPad, IsPour, IsTrace, IsVia,
+    OnLayer, SquareViaStitchGrid, Tag, Tags, ViaFencePattern, design_constraint,
 )
 ```
 
-Conditions:
+`design_constraint(c)` returns a one-condition rule and `design_constraint(c1, c2)` a two-condition rule; conditions are positional, `priority=` and `name=` are keywords. Explanation: [Tags say what an object is](https://docs.jitx.com/en/latest/essentials/physical_design/layout-constraints.html#tags-say-what-an-object-is) and [Design Constraints](https://docs.jitx.com/en/latest/essentials/physical_design/design-constraints.html).
 
-- A `Tag` subclass you declare at module scope. Tags form a hierarchy by
-  class inheritance: a rule on `PowerTag` also matches every `PowerTag`
-  subclass. Which objects can carry a tag and how to assign one is
-  `jitx-physical-layout`'s
-  [Layout-intent tags (object selection)](../jitx-physical-layout/SKILL.md#layout-intent-tags-object-selection).
-- The nine builtin tags: `IsCopper`, `IsTrace`, `IsPour`, `IsVia`, `IsPad`,
-  `IsBoardEdge`, `IsThroughHole`, `IsNeckdown`, `IsHole`. Conditions only;
-  `assign()` on a builtin raises `TypeError`. `IsNeckdown` matches copper the
-  engine has classified as a neckdown region; nothing in code creates one.
-- `OnLayer(index)`, with `OnLayer.external()` for layers 0 and -1 and
-  `OnLayer.internal()` for everything else. Not re-exported from top-level
-  `jitx`; import it from `jitx.constraints`.
-- `AnyObject`, which matches everything and is the usual second condition of
-  a binary rule.
-- Expressions: `&`, `|`, `~`, and `Tag.any(...)` / `Tag.all(...)`.
+### Conditions
 
-Effects, and the arity rule that trips everyone: a one-condition rule
-(`UnaryDesignConstraint`) may chain any effect except clearance; a
-two-condition rule (`BinaryDesignConstraint`) has exactly one effect,
-`.clearance(mm)`. `design_constraint(c1)` and `design_constraint(c1, c2)` are
-a factory returning the right class; the conditions are positional-only.
+| Condition | Matches |
+|---|---|
+| `MyTag()`, a `Tag` subclass declared at module scope | what the tag reaches ([What a tag reaches](#what-a-tag-reaches)); a rule on a base tag also matches its subclasses |
+| `IsTrace`, `IsPour`, `IsVia`, `IsPad`, `IsCopper`, `IsThroughHole`, `IsNeckdown` | objects of that type; builtins are conditions only, and `Tags(IsTrace)` raises `TypeError` |
+| `IsHole` | a hole in the board outline, a `Cutout`, and every via drill |
+| `IsBoardEdge` | the outer edge of the board outline only |
+| `OnLayer(i)`, `OnLayer.external()`, `OnLayer.internal()` | layer `i` (0 top, -1 bottom); layers 0 and -1; every inner layer |
+| `AnyObject` | everything; the usual second condition of a clearance |
+| `a & b`, `a \| b`, `~a`, `Tag.any(...)`, `Tag.all(...)` | combinations |
 
-| Effect | Rule shape | Signature |
-|---|---|---|
-| Trace width | unary | `.trace_width(width)` |
-| Clearance | binary only | `.clearance(clearance)` |
-| Via stitching | unary | `.stitch_via(ViaClass, SquareViaStitchGrid(pitch=, inset=))` or `TriangularViaStitchGrid` |
-| Via fencing | unary | `.fence_via(ViaClass, ViaFencePattern(...))` |
-| Thermal relief | unary | `.thermal_relief(gap_distance, spoke_width, num_spokes)` |
-| Pour sliver removal | unary | `.pour_feature_size(min_width)` |
-| Serpentine parameters | unary | `.serpentine_params(min_radius=, min_pitch=)` |
-| Coupled-pair parameters | unary | `.coupled_pair_params(...)` (`skew_tolerance` is a distance) |
-| Routing structure | unary | `.routing_structure(rs, ref_net=)` or `ref_layer_nets={layer: net}` |
+### Effects
 
-That is the whole surface: eight unary effects and one binary effect. There
-is no per-route width, no neckdown effect, no pour-isolation effect, and no
-"direct connect" effect; those intents are expressed with the rules above
-(see Pours and Fanout). Full signatures with source citations:
-`references/rule-reference.md`.
+A two-condition rule takes only `.clearance(mm)`. A one-condition rule takes any other effect: `.trace_width(width)`, `.thermal_relief(gap_distance, spoke_width, num_spokes)`, `.pour_feature_size(min_width)`, `.stitch_via(ViaClass, SquareViaStitchGrid(pitch=, inset=))` (or `TriangularViaStitchGrid`), `.fence_via(ViaClass, ViaFencePattern(pitch=, offset=, ...))`, `.routing_structure(rs, ref_net=net)` (or `ref_layer_nets={layer: net}`), `.serpentine_params(...)`, `.coupled_pair_params(...)`.
 
-### What rules act on
-
-Width rules set the width of every trace they match, including code-authored
-`Route`s (verified: escape segments realize at their rule's width on the same
-net as a wider trunk). Clearance rules and the fab floors act on copper the
-router places and on pour voiding; they do not move a code-authored route.
-Two tagged routes authored 0.100 mm apart under a 0.25 mm rule realized at
-0.1001 mm, and authored 0.020 mm apart they realized below the 0.09 mm fab
-floor, both with `status: ok` (`references/rule-reference.md`, "Verified
-behaviors"). A code-authored escape must therefore be placed with its
-clearance already satisfied, and checked after capture; the rule documents
-the intent for the router and DRC, it does not repair authored geometry. A
-rule declared on a child circuit applies board-wide (verified), so put it
-where its objects live for readability, not for scope.
+There is no neckdown effect, no pour-isolation effect (`Pour(isolate=)` is deprecated) and no direct-connect effect; [Pours and relief](#pours-and-relief) and [Fanout](#fanout) express those intents.
 
 ### Priority
 
-Higher `priority=` wins when more than one rule matches an object. The
-default rules below sit at priority 0, so every override needs `priority=1`
-or more, and a rule that must beat another override needs a higher number
-still. Equal priority between two matching rules is not defined in the
-Python source; do not rely on it. Give each override a distinct priority and
-write the ladder down in a comment where the rules are declared.
+A higher `priority=` wins, and priority is applied before specificity. At equal priority the more specific condition wins ([Always use object type tags!](https://docs.jitx.com/en/latest/essentials/physical_design/design-constraints.html#always-use-object-type-tags)): `design_constraint(PowerTag()).trace_width(...)` at 0 loses to an `IsTrace` default at 0. Give every override its own rung from one ladder, and write the ladder in a comment where the rules are declared:
 
-Rung order matters as much as distinctness. A rule that is general across a
-layer (a heavy-copper spacing for every copper on layer 2) belongs one rung
-above the defaults and below the class rules, or it silently overrides every
-class clearance that lands on that layer; a class rule scoped to a layer (the
-12 V rail's clearance on layer 2) sits above its own class rule. A working
-ladder: 0 defaults, 1 power and ground width and any layer-wide rule, 2 net
-classes, 3 layer-scoped class overrides, 4 escape rules.
+| Priority | Rules |
+|---|---|
+| 0 | board defaults (`IsTrace`, `IsCopper`, `IsPad`) |
+| 1 | layer-wide rules, such as a heavy layer's floors (`IsTrace & OnLayer(i)`, `IsCopper & OnLayer(i)`); the trace-to-pour clearance, below every class rule so a class's clearance to pours wins, and its `& OnLayer(i)` form on a layer with a floor |
+| 2 | rules on your own tags: on nets, on pads, on pours |
+| 3 | a rule that must beat a rung-2 rule on the same copper: a high-current or sense width, a tag rule narrowed to one layer (`PowerTag() & OnLayer(1)`), relief per pad class, a rung-2 class rule's heavy-layer copy |
+| 4 | escape segments; a direct connect |
+| 5 or above | protecting clearances (a keep-away, a creepage gap, edge and hole rules): a distinct rung per protection, the larger clearance higher, because at one rung specificity decides and need not pick the larger |
 
-An override below a rule the object already matches can realize zero traces
-while the build still reports `status: ok`. This is not a harmless losing
-rule. Before the task reaches the Verification completion gate, the check
-script enumerates the expected routes for every override, passes them to
-`check_routes`, and fails if any expected route has no realized traces. Width
-comparisons run only after that count passes, so an empty result cannot satisfy
-them vacuously.
+A protection goes above every permissive rule that can match the same copper, because the losing rule is not applied at all. Raise the protection, and narrow the permissive rule to the copper it is for: `(IsTrace & EscapeTag(), IsPad & PartPadTag())`, not `(EscapeTag(), AnyObject)`. A two-condition rule matches in either order, so an exclusion (`~SomeTag()`) must hold on either side, and excluding a whole tag withdraws the permissive rule everywhere ([Priority is a ladder](https://docs.jitx.com/en/latest/essentials/physical_design/design-constraints.html#priority-is-a-ladder-so-put-what-must-win-at-the-top)).
+
+For example, `(HvTag(), AnyObject)` and `(IsBoardEdge, AnyObject)` both match high-voltage copper by the edge.
+
+A width override under a rule the object already matches can leave the route with zero traces and a clean build, so count traces before comparing widths.
 
 ### Where rules live
 
-Rules are collected by walking the design tree for `DesignConstraint`
-objects. Any structural attribute reachable from the `Design` counts; a
-module-level rule, or one built in a function and dropped, does not exist.
-Convention:
+- Rules are collected by walking the design tree for `DesignConstraint` objects. A rule at module scope, or built in a function and dropped, does not exist.
+- Board-wide rules go on the `Design` in `__init__` (`self.rules = [...]`; a list is walked). Rules about one circuit's objects go on that circuit, beside its `Tags(...).assign(...)` calls; they still apply board-wide.
+- Fab floors are the substrate's `FabricationConstraints`; read them as `current.substrate.constraints.min_copper_copper_space` and stay at or above them. Defining them is `jitx-substrate-modeler`'s.
 
-- Board-wide rules go on the `Design`, in `__init__`, as `self.rules = [...]`
-  (the name is a convention, not a framework field; a list is fine because the
-  structural walk enters lists).
-- Rules about objects one circuit owns (its escape routes, its decoupling
-  puddle, its fence pour) go on that circuit as attributes, next to the
-  `Tags(...).assign(...)` calls that mark the objects.
-- Tag classes are declared at module scope. A `Tag` subclass inside a
-  function or method breaks instantiation tracking.
+## What a tag reaches
 
-### Fab floors vs design rules
+| Tag on | Reaches |
+|---|---|
+| a `Net` | the net's traces, pours, pads and code-placed vias; a clearance or relief rule on a net tag acts on its pads and vias too |
+| a `Pad`, `Landpattern` or `Component` | those pads: the way to pick out some of a net's pads |
+| a `Route` | that route's segments only (an escape) |
+| a `Pour` | that pour (stitching, fencing, sliver removal) |
+| a `Via` | that via |
 
-The substrate's `FabricationConstraints` has four fields the engine enforces
-on generated copper and that take precedence over any rule:
-`min_copper_width`, `min_copper_copper_space`, `min_copper_hole_space`,
-`min_copper_edge_space`. The other fifteen fields (annular ring, drill,
-soldermask bridge and registration, silkscreen, and so on) are documentation
-that your code can read. A design rule tighter than the floor is what you
-normally write; a rule looser than the floor is overridden by the floor and
-never takes effect. Read the floors from the substrate rather than retyping
-them:
+Assign tags only to `Net`, `TopologyNet`, `Copper`, `Pour`, `Route`, `Component`, `Circuit`, `Landpattern`, `Pad`, `Via` or `ControlPoint`, inside a design context (a circuit, component, landpattern or the design). Anything else warns `tag will have no effect` (`OverlappableCopper` is a feature, not copper), and an assignment outside a design context warns and does nothing.
 
-```python
-from jitx import current
-fab = current.design.substrate.constraints
-floor_space = fab.min_copper_copper_space
-```
+## Board defaults
 
-### Sharp edges (verified on real boards)
+Where no rule matches, copper comes out at the fab floor (measured on jitx 4.6: an unruled route at the sample substrate's 0.127 mm `min_copper_width`), and a pad no relief rule matches joins its pour solid. Defaults lift the board off those two outcomes; write only the ones the board needs. Explanation: [Defaults above the fab floor](https://docs.jitx.com/en/latest/essentials/physical_design/layout-constraints.html#defaults-above-the-fab-floor). Worked pattern: `jitxexamples.patterns.layout_default_rules`.
 
-- A binary clearance between two tags must out-rank the board's default
-  `IsCopper x IsCopper` (or `AnyObject x AnyObject`) clearance: pass
-  `priority=1` or higher.
-- A same-tag binary clearance is safe for differential pairs: a coupled span
-  is one trace object whose internal gap is the structure's `pair_spacing`,
-  so `design_constraint(HsTag(), HsTag(), priority=1).clearance(0.5)` only
-  separates different pairs. Reported from a shipped board, not reproduced as
-  a reference case here; treat it as pending and verify the pair gap after
-  capture before relying on it.
-- A `RoutingStructure` declared at module level is not part of the design
-  tree and cannot be applied by a rule; build it as a substrate attribute or
-  inside the consuming circuit.
-- `.routing_structure()` takes `ref_net=` or `ref_layer_nets=` (not
-  `reference_*`); passing both raises `ValueError`, passing neither requires
-  an active `jitx.si.ReferencePlanes` context.
-- Flat tag proliferation is a smell: a row of sibling tags that differ only
-  by name, each with a rule that restates the others, wants one base tag with
-  the shared rule and subtags only where behavior differs.
+| Default | Rule shape | Value from |
+|---|---|---|
+| Trace width | `design_constraint(IsTrace).trace_width(w)` | the fab sheet's standard (not minimum) width row, or the prompt |
+| Copper clearance | `design_constraint(IsCopper, IsCopper).clearance(c)` | the fab sheet's standard spacing row, or the prompt |
+| Pad relief | `design_constraint(IsPad).thermal_relief(gap, spoke, n)` | the fab sheet, the assembler's guidance, or the prompt |
 
-## Board-wide defaults
+Every width, clearance and gap in this skill's rules traces to a fab-sheet row, a value in the prompt, a cited datasheet or standard, or a derivation from a sourced value with its arithmetic on the line. A value with none of those is an open item that the check fails on until the user supplies it. No current-carrying chart or formula sets a trace width.
 
-Every `Design` declares four rules so the router and DRC have
-production-friendly defaults above the fab floor. Without them the router
-uses the fab minimums, which are too narrow for power and put no thermal
-relief on pads.
+## Classes of nets
 
-```python
-from jitx import Circuit, Net
-from jitx.constraints import (
-    BinaryDesignConstraint, IsCopper, IsPad, IsTrace, Tag, UnaryDesignConstraint,
-)
-from jitxlib.symbols.net_symbols import GroundSymbol, PowerSymbol
+A class of nets is a tag assigned to nets: the power nets are the nets carrying `PowerTag`, and the class's rules are written once against the tag. Below, `p` is a protection rung ([Priority](#priority)).
 
+| Nets | Rule shape | Number from |
+|---|---|---|
+| Power | `design_constraint(PowerTag(), priority=2).trace_width(w)` | the prompt or the fab sheet |
+| High current | `class HighCurrentTag(PowerTag)`, its width at priority 3 | the prompt |
+| RF, impedance controlled | a `routing_structure` rule ([Routing structures by tag](#routing-structures-by-tag)) | the substrate's structure |
+| Switch node, noisy | `design_constraint(RFLineTag(), NoisyTag(), priority=p).clearance(c)` | the prompt or an EMI budget |
+| Kelvin sense | a `SenseTag` on the sense `Route`s, its width a rung above power, a clearance to `PowerTag` at `p` | the prompt or the part's datasheet |
+| High voltage, isolated | `design_constraint(HvTag(), AnyObject, priority=p).clearance(c)` | the standard the prompt names, cited |
 
-class PowerTag(Tag):
-    """Power rails. Subclass per tier or per rail when widths differ."""
+- Power is routed as traces under its tag's width; a pour on a rail needs its reason on the line that creates it. A power pad that changes layers needs vias sized and counted for its current from the prompt or the fab sheet; set `via_in_pad = True` on the via class only where the fab sheet allows via-in-pad.
+- A two-tag clearance keeps one class from another without moving ground: `(RFLineTag(), AnyObject)` also pushes the coplanar ground away. Worked pattern: `jitxexamples.patterns.layout_sensitive_net_clearance`.
 
+## Pours and relief
 
-class GroundTag(Tag):
-    """Ground nets."""
+Pour drawing and realization belong to `jitx-physical-layout` ([Pour realization semantics](../jitx-physical-layout/SKILL.md#pour-realization-semantics)); the rules that act on pours are here. Explanation: [Thermal relief](https://docs.jitx.com/en/latest/essentials/physical_design/layout-constraints.html#thermal-relief), [Heavy copper on one layer](https://docs.jitx.com/en/latest/essentials/physical_design/layout-constraints.html#heavy-copper-on-one-layer), [Board edge and cutouts](https://docs.jitx.com/en/latest/essentials/physical_design/layout-constraints.html#board-edge-and-cutouts).
 
+| Intent | Rule shape |
+|---|---|
+| Trace-to-pour clearance | `design_constraint(IsTrace, IsPour, priority=1).clearance(c)`, below every class rule, so a class's clearance to pours wins |
+| Relief for all of a net's pads and code-placed vias | `design_constraint(GroundTag(), priority=2).thermal_relief(gap, spoke, n)` |
+| Relief per pad size | tag the pads by measured size, one relief rule per class at priority 3, above the net's relief (`jitxexamples.patterns.layout_thermal_classes`) |
+| Direct connect | a `DirectConnectTag` on the pad, `thermal_relief(gap, pad_diagonal, 4)` a rung above every relief that matches the pad (priority 4) |
+| Sliver removal | `design_constraint(MyPourTag()).pour_feature_size(min_width)`; it judges a pour region's full width, so a coplanar ground strip narrower than `min_width` goes whole |
+| Heavy copper on one layer | the layer's floors at priority 1, `design_constraint(IsTrace & OnLayer(i), priority=1).trace_width(w)` and `design_constraint(IsCopper & OnLayer(i), AnyObject, priority=1).clearance(c)`, plus the copies below |
+| Board edge | `design_constraint(IsBoardEdge, AnyObject, priority=p).clearance(c)` |
+| Slots, cutouts, drills | `design_constraint(IsHole, AnyObject, priority=p).clearance(c)` (`jitxexamples.patterns.layout_edge_and_cutout`) |
 
-class TopCircuit(Circuit):
-    def __init__(self):
-        self.GND = Net(name="GND", symbol=GroundSymbol())
-        self.VBUS = Net(name="VBUS", symbol=PowerSymbol())
-        GroundTag().assign(self.GND)
-        PowerTag().assign(self.VBUS)
+- A floor at 1 loses to every rule at 2 or above that matches the layer's copper, with nothing reported. Hold it this way:
+  - The trace-to-pour rule gets its own form on that layer at rung 1, `design_constraint(IsTrace & OnLayer(i), IsPour, priority=1).clearance(c_l)`, with `c_l` the larger of its value and the floor. It beats both `(IsTrace, IsPour)` and the floor at that rung.
+  - Each rung-2 class rule whose width or clearance is below the floor, and which can match that layer's copper, gets a copy narrowed with `& OnLayer(i)` at 3, at the floor or the class's own larger value for that layer. A copy that can match sense routes excludes them, since `SenseTag` is a route tag and not a `PowerTag` subclass: `design_constraint(PowerTag() & ~SenseTag() & OnLayer(i), priority=3).trace_width(w_floor)`.
+  - A rung-3 rule below the floor (a high-current or sense width) is raised on that layer by its own `& OnLayer(i)` form at the floor, on rung 3. A subclass's rule at 3, such as `HighCurrentTag()`, beats its base class's copy there.
+  - An escape or a protection that can match that layer's copper must be at or above the floor; one below it is an open item for the user.
+- Find the heavy layer's index by walking `current.substrate.stackup.conductors` (index 0 is the top) and reading each conductor's `thickness`; a layer the substrate does not model as heavy is a substrate task first. `OnLayer.internal()` matches every inner layer, so it is the wrong selector for one heavy layer.
+- `IsHole` matches via drills, so a hole rule wider than a via's pad pulls pours back from every other-net via.
+- A pour stops slightly beyond the rule (measured on jitx 4.6: the clearance plus 0.01 from traces and the board edge); compare pullback with the rule, not with an exact value.
+- A pour with no pad or via of its own net on its layer comes back `Empty`; stitch vias and fence vias do not anchor it.
 
+## Stitching
 
-class Design(...):
-    substrate = ...
-    board = ...
-    circuit = TopCircuit()
+`design_constraint(StitchedPourTag()).stitch_via(ViaClass, SquareViaStitchGrid(pitch=p, inset=s))`, the tag on the `Pour`. The vias take the pour's net. Explanation: [Stitching a pour](https://docs.jitx.com/en/latest/essentials/physical_design/layout-constraints.html#stitching-a-pour). Worked pattern: `jitxexamples.patterns.layout_stitched_pour`.
 
-    def __init__(self):
-        # Priority ladder: 0 defaults, 1 power/ground width and layer-wide
-        # rules, 2 class rules, 3 layer-scoped class overrides, 4 escape rules.
-        # Written here so the next reader sees the whole ladder.
-        self.rules = [
-            # Default trace width for any trace not otherwise tagged.
-            UnaryDesignConstraint(IsTrace).trace_width(0.125),  # skill default: JLC04161H-class, above the 0.09 floor
-            # Default copper-to-copper clearance: traces, pours, pads.
-            BinaryDesignConstraint(IsCopper, IsCopper).clearance(0.125),  # skill default: JLC04161H-class
-            # Thermal relief on pads: gap, spoke width, spoke count.
-            UnaryDesignConstraint(IsPad).thermal_relief(0.125, 0.2, 4),  # skill default: gap = default clearance, 0.2 mm spokes, 4 spokes
-            # Power and ground get wider traces; priority=1 beats IsTrace.
-            UnaryDesignConstraint(PowerTag() | GroundTag(), priority=1).trace_width(0.4),  # skill default: between the Bogatin 0.15 and 0.5 tiers
-        ]
-```
+- Sites sit on multiples of the pitch from the board origin, not from the pour, so moving the pour changes which sites fit.
+- `inset` runs from the via pad's edge to the computed pour boundary, after pullback from other-net copper: a site is kept when its centre is at least `inset + pad/2` inside `Pour.shape`. A site that fails is dropped, never moved or shrunk, and the count falls with no issue.
+- A pitch below the via pad thins the grid to a checkerboard, so a smaller pitch can give fewer vias. Nothing checks pitch against the fab's spacing: refuse `pitch < pad` and `pitch < drill + min_hole_to_hole` before you write the rule.
+- A fence on the same pour displaces the stitch sites near it, whatever the priorities (measured on jitx 4.6: an inward fence 0.6 in removed the stitch ring 1.0 in); leave those sites out of the derived set.
 
-The 0.125 mm width and clearance and the 0.4 mm power width are typical
-JLC04161H-class defaults (JLCPCB's 1 oz floor is 0.09 mm). Calibrate to the
-actual substrate's floors and label the source of each number on its line.
-`IsTrace`, `IsCopper`, and `IsPad` match every trace, copper, and pad, so
-these four rules cover the board without tagging every net. Non-default
-classes get higher-priority rules in the same list (next section).
+Required sites before you check, with the pitch at or above the pad: the origin-lattice points that pass each condition below, from what was measured on jitx 4.6. Every required site holds a generated via, matched by position; a generated via in a left-out band is neither required nor a failure.
 
-The complete-board workflow's Phase 3 gate checks that these four rules are
-present on the `Design`; see `jitx-project-builder`'s `references/completion-blocks.md`.
+- The via pad, grown by `inset`, lies inside every pour the rule stitches, as measured with every layer's pour stitched (each captured `Pour.shape` in board frame, `trace.transform * pour.shape` from `visit(rd.root, Pour)`; [Coordinate frames](../jitx-physical-layout/references/geometry-verification.md#coordinate-frames)).
+- Sites over pads were dropped on every layer. Where a site near a pad starts to drop was not measured, so leave out sites whose via pad comes within `min_copper_copper_space` of a pad.
+- Sites 0.5 or closer to a code-placed via were dropped, with 0.5 via pads; the threshold between that and the next lattice site was not measured, so leave out sites within the stitch via's pad plus `min_copper_copper_space` of a code-placed via.
 
-## Net classes: tag, derive, express
+## Fencing
 
-Some nets need non-default physical rules. The class catalog is per design:
-enumerate the classes that apply, derive each class's width and clearance
-from a stated source, and express each as a tag plus rules. If no net needs a
-non-default rule, record "no non-default net classes" with a one-line reason.
+Explanation: [Fencing](https://docs.jitx.com/en/latest/essentials/physical_design/layout-constraints.html#fencing) and [A grounded coplanar line](https://docs.jitx.com/en/latest/essentials/physical_design/layout-constraints.html#a-grounded-coplanar-line).
 
-| Net class | Why it matters | Width source | Clearance source | Rule shape |
-|---|---|---|---|---|
-| Power rail (tiered) | I x R drop, heating | Bogatin tier (Routed power below) or fab current table | default | `UnaryDesignConstraint(RailTag(), priority=1).trace_width(w)` |
-| High current (over 3 A) | heating, connector limits | Bogatin 100 mil tier or fab table | default or wider to ground | width rule plus `BinaryDesignConstraint(HiCurrentTag(), GroundTag(), priority=2).clearance(c)` |
-| Switch node (buck, boost) | dV/dt, EMI | as its rail | pour pulled back: value from EMI budget, labeled | `BinaryDesignConstraint(SwTag(), IsPour, priority=2).clearance(c)` |
-| RF / antenna feed | impedance, return path | routing structure | structure's clearance | `design_constraint(RFTag()).routing_structure(rs, ref_net=gnd)` |
-| High-speed differential | impedance, skew | differential structure | structure's clearance; pair-to-pair via same-tag binary rule | `jitx-interconnect-constraints` for timing; structure via tag rule |
-| Sensitive analog | coupling | default | wider to digital and power, value labeled | `BinaryDesignConstraint(AnalogTag(), DigitalTag(), priority=2).clearance(c)` |
-| High voltage / mains | creepage | default | creepage per the applicable standard, cited | binary clearance to `AnyObject`, layer scoped if needed |
-| Kelvin sense | accuracy | default (narrow) | wider to the power path it measures | `BinaryDesignConstraint(SenseTag(), PowerTag(), priority=2).clearance(c)` |
-| Gate drive | ringing | as its driver datasheet | default | width rule, placement handled in the circuit |
-| Isolated domain | galvanic isolation | default | barrier clearance, cited | binary clearance to `AnyObject`; keepout for the barrier |
+| Target | How | `initial_offset` measured from | Worked pattern |
+|---|---|---|---|
+| A pour outline: antipad, RF cavity, BGA breakout ring | `design_constraint(FencedPourTag()).fence_via(ViaClass, ViaFencePattern(...))`, tag on the `Pour` | the pour's drawn outline (`input_shape_only` defaults to true); positive outward, negative inward | `jitxexamples.patterns.fenced_pour_outline` |
+| A routed line | a fenced copy of the substrate's structure, built in the circuit's `__init__`: the same layer values (the structure's width, clearance, velocity, loss) plus `.fence(ViaClass, ViaFencePattern(...), reference_layer=i)`, applied by a `routing_structure` rule; never edit the substrate file | the trace edge to the first row's via centres; must be positive | `jitxexamples.patterns.layout_cpwg_two_row_fence` |
 
-Extend the table as a design demands. Each row's numbers need a source on
-the line where they appear in code: a `FabricationConstraints` field, a
-datasheet or standard named with its revision or date and the page, table,
-or figure the number comes from, the Bogatin tier, or `skill default` with
-the value.
+- A `fence_via` rule keyed on a route's tag or a net's tag places no vias and raises no issue. Route fences come only from `Layer.fence`.
+- `offset` is the spacing between rows and the default `initial_offset`. `Layer.fence` gives the vias the net of the structure's reference plane on that layer.
+- Row k of a route fence sits `w/2 + initial_offset + (k-1)·offset` from the centreline. Keep the first row out of the gap, `initial_offset - pad/2 >= clearance`; nothing checks it.
+- Row k's pad lands in the coplanar pour when `initial_offset + (k-1)·offset + pad/2 > C + 0.01`, where C is the larger of the structure's clearance and a clearance rule on the line's tag.
+- The line cuts the coplanar pour in two, and each half needs its own same-net via: fence vias do not anchor a pour.
+- A pitch below the via pad is thinned; `min_pitch` and `max_pitch` bound the pitch.
 
-When no source exists for a clearance (a keep-away for a sensitive net, a
-switch-node pullback, a sense-to-power gap), do not write an assumption. Two
-legal moves: derive it from a value that has a source and label the
-derivation on the line (`2 * DEFAULT_CLEARANCE  # skill default: twice the
-board default`), or leave it as an open item that the check script fails
-loudly on until the user supplies the number. The label must contain the
-words `skill default` (or name the fab field or the citation); `derived`,
-`assumed`, or `my assumption` on its own is not a source, and a multiplier
-with no label is an invented number even when the base value is sourced. An
-assumption dressed as a constant passes every check and ships.
+Expected counts before you check, with `L` the length of the outline offset by `initial_offset`, or of a straight run:
 
-Tag hierarchy does the bookkeeping: `class RailTag(PowerTag)` picks up the
-power width rule automatically, and a `Rail12VTag(RailTag)` with its own
-`priority=2` width rule overrides it where that rail differs.
+- Outward offset of a square outline: `floor(L / pitch)`. The offset keeps each corner square, with one via on its diagonal.
+- Inward offsets and curves: the measured spacing changes to close the ring, so accept from `floor(L / pitch) - 1` to `ceil(L / pitch)`.
+- Route fence: `L / pitch` sites per side per row along a straight run. The round ends are partly filled, and a site beside an end pad can drop; check the straight run by count and position, and the ends by position only.
 
-## Routed power
+A generated fence via is identified by position against the derived pattern (on the offset outline or row, at the pitch), or by building the design so only one rule generates vias in that region. A distance band does not separate a fence from a stitch grid.
 
-Basis: Eric Bogatin, "Seven Habits of Successful 2-Layer Board Designers",
-Signal Integrity Journal, 2019. The habits are engineering defaults for 1 oz
-copper, not a current-capacity model, and this skill does not use IPC
-current-carrying charts or formulas at all.
+## Routing structures by tag
 
-- Width tiers (Bogatin, 1 oz): 6 mil (0.15 mm) signal traces carry 1 A DC
-  with no measurable temperature rise; 20 mil (0.5 mm) power traces carry
-  3 A; 100 mil (2.5 mm) carries 10 A. Express them as `PowerTag` subtags
-  (`PowerTag` at 0.5 mm, `HighCurrentTag(PowerTag)` at 2.5 mm with a higher
-  priority) and label each width `Bogatin 2019 tier`. Adjust only when the
-  fab's capability table or a measured temperature rise says otherwise, and
-  say which.
-- Route power as traces by default, not as copper fill (Bogatin's habit 7: a
-  routed trace keeps the current path explicit and its width visible; a fill
-  hides both). A `Pour` on a rail net is a net member and its connectivity is
-  checkable in JITX, so this is a legibility and current-path decision, not a
-  tool limit. The one exception is the local power puddle under a decoupling
-  bank (Decoupling below); a wider power pour needs its reason (a datasheet or
-  a current requirement) on the line that creates it.
-- Pad-to-via: a power pad that changes layers needs vias sized and counted
-  for the tier (one via per tier step is the default; label it). Set
-  `via_in_pad = True` on the via class only when the fab's via-in-pad row
-  allows it, and read the fab's `min_annular_ring`.
-- Sense (Kelvin) lines ride a power net but are not power: tag the sense
-  route segments with their own `SenseTag` (the net itself is the power net,
-  so those routes carry both tags), give the sense width rule a rung above
-  the power width, and add a binary clearance to the power path they measure
-  so the router keeps them off the current path.
+The substrate defines structures; this skill applies them. Explanation: [Routing structures by tag](https://docs.jitx.com/en/latest/essentials/physical_design/layout-constraints.html#routing-structures-by-tag). Worked pattern: `jitxexamples.patterns.layout_routing_structure_by_tag`.
 
-Detail and worked derivations: `references/power-and-pours.md`.
+| Intent | Rule |
+|---|---|
+| Every route of a net, pair included | `design_constraint(SignalTag(), priority=2).routing_structure(rs, ref_net=self.GND)`, the tag on the net |
+| A neck on one segment | a tag on that segment's `Route` (keyed on a net tag `& IsTrace` it necks the whole net), `design_constraint(EscapeNeckTag(), priority=4).routing_structure(neck_rs, ref_net=self.GND)` |
+| Different reference per layer | `ref_layer_nets={0: self.GND, 1: self.PWR}` |
 
-## Pours
+- The rule applies the structure to code routes and satisfies a `Constrain`'s need for one: no `Missing routing structure` issue.
+- If a `Constrain(...).structure(...)` and a rule both give one net a structure, the rule wins with no issue. Use one or the other.
+- `.routing_structure()` takes `ref_net=` or `ref_layer_nets=` (not `reference_*`); passing both raises `ValueError`, and passing neither requires an active `jitx.si.ReferencePlanes` context.
+- A `RoutingStructure` declared at module level is not part of the design tree and cannot be applied by a rule (`TypeError: 'Instantiable' object is not iterable`); build it as a substrate attribute or inside the consuming circuit.
 
-This section owns pour rules. Pour materialization, empty output, stitch-via
-realization, edge pullback, and captured-shape semantics are owned by
-[Pour realization semantics](../jitx-physical-layout/SKILL.md#pour-realization-semantics).
+Timing, loss and skew on the same nets: `jitx-interconnect-constraints`.
 
-- Ground gets one board-wide pour on its own return layer (Bogatin: a
-  continuous return under every signal). Do not rely on a top-side copper
-  fill for ground, and do not fill between signal traces to reduce
-  crosstalk; it does not reliably help and can hurt.
-- Power is not poured (Routed power above), except a local puddle inside a
-  decoupling bank's circuit, built from the pads it serves.
-- Clearance to pours is a binary rule with `IsPour` on one side:
-  `BinaryDesignConstraint(IsTrace, IsPour, priority=1).clearance(c)`,
-  `BinaryDesignConstraint(IsPour, IsHole, priority=1).clearance(c)` (or
-  `IsThroughHole`). Layer-scope with `OnLayer(n)`.
-- Heavy copper on an inner layer raises the fab's minimum spacing (etch
-  factor). Find the layers by walking the stackup's `Conductor.thickness`,
-  then write a per-index rule with the fab's heavy-copper spacing row:
-  `BinaryDesignConstraint(IsCopper & OnLayer(2), IsCopper, priority=1).clearance(c)`.
-  `OnLayer.internal()` matches every inner layer, so it is the wrong selector
-  for one heavy layer. Walk the substrate instance inside the design
-  (`current.design.substrate.stackup.conductors`); the same attribute read
-  off the substrate class hangs in a lazy proxy. The walk only finds what the
-  substrate models: the
-  predefined JLCPCB substrates carry 1 oz outer and half-ounce inner copper,
-  so a quoted 2 oz layer that is not in the stackup is a substrate task first
-  (`jitx-substrate-modeler`, from the fab's report), and until then the
-  heavy-copper rule is an open item, not a guess at a layer index.
-- An inner-layer pour with no via or pad on its net reaching that layer is
-  orphan copper, and the engine drops it silently; give inner pours an anchor,
-  a placed via or a pad on the net on that layer. A stitch rule does not create
-  the anchor: solver-emitted stitch vias leave the pour `Empty()` (see
-  [Pour realization semantics](../jitx-physical-layout/SKILL.md#pour-realization-semantics)).
-- Sliver removal: `design_constraint(IsPour).pour_feature_size(min_width)`.
-- Stitching a pour: `design_constraint(GndPourTag()).stitch_via(ViaClass,
-  SquareViaStitchGrid(pitch=, inset=))`; the via class may be reached
-  through the substrate's mixin, re-declared on the substrate, or declared at
-  module scope (verified). The target and inset realization semantics are in
-  [Pour realization semantics](../jitx-physical-layout/SKILL.md#pour-realization-semantics).
-  For an exposed thermal pad, the explicit via field with its mask dams is
-  `jitx-physical-layout`'s `thermal_via_stitch.py` (its [Pad features (soldermask / paste / thermal pad)](../jitx-physical-layout/SKILL.md#pad-features-soldermask--paste--thermal-pad) section);
-  this skill owns only the rules that act on that pad.
-- Thermal relief is the `IsPad` default above. A solid connection for a
-  high-current pad (direct connect) has no dedicated effect; the verified
-  pattern is a higher-priority `thermal_relief` on the tagged pads with
-  the fab floor as the gap and a spoke width equal to the pad diameter, which
-  collapses the relief into solid copper. A higher-priority rule with no
-  effect does not suppress the default. Test and numbers:
-  `references/power-and-pours.md`, section 8.
-- `Pour(..., isolate=)` is deprecated; express pour clearance with the
-  binary rules above.
+## Fanout
 
-## Fanout: stepping a class rule down to a pad
+When a class width does not fit the pads it reaches, the class rule stays and the last segment becomes its own `Route` with an escape tag and a higher rung. Explanation: [Fanout from fine-pitch parts](https://docs.jitx.com/en/latest/essentials/physical_design/layout-constraints.html#fanout-from-fine-pitch-parts). Worked patterns: `jitxexamples.patterns.layout_qfn_escape`, `jitxexamples.patterns.layout_bga_escape`, `jitxexamples.patterns.layout_diff_pair_escape`.
 
-A 0.5 mm power trace does not fit a 0.25 mm QFN pad at 0.5 mm pitch. The
-class rule stays; a specific escape rule takes over for the last segment.
-Compute first, for every pad a tagged class width reaches (walk the tagged
-nets' pad mappings, do not hand-pick the pads you noticed): if the class
-width fits the pad and keeps the fab floor to the neighboring pads, there is
-no step-down and no escape rule (a 0.5 mm trace into a 0.6 mm pad at 0.95 mm
-pitch is such a case); where it does not fit, emit the escape pair or raise,
-so a ground pin on a 0.5 mm ground width cannot sit silently in a 0.25 mm pad.
-Neckdown is not used for this: `RoutingStructure.NeckDown` parameters take
-effect only through the UI, and a specific tag carries the intent in a way a
-reader and a rule can see.
-
-The ladder, always with tags. Every escape subtag gets both rules, a width
-and a two-condition clearance, and every transition from class width to
-escape width is a `RoutePoint`, including one that sits next to a via or a
-layer change. The escape rules live on the circuit that owns the route, not
-in the Design's list.
-
-```python
-from jitx import RoutePoint
-from jitx.circuit import Route
-from jitx.constraints import AnyObject, Tag, Tags, design_constraint
-
-
-class EscapeTag(Tag):
-    """Base for escape segments; shared rules go here."""
-
-
-class QfnEscapeTag(EscapeTag):
-    """Escape into a 0.5 mm pitch QFN pad."""
-
-
-# In the circuit that owns the source j1, the QFN u1, and the escape route.
-# w_escape and c_escape are computed from the QFN landpattern and the fab
-# floor (references/fanout.md), never typed in.
-rp = RoutePoint(layer=0).at(x_transition, y_transition)
-self.v5 += rp.port                                # net the control point, or the build fails
-trunk = Route(self.j1.VOUT, rp, layer=0)          # class-width trunk ends here
-esc = Route(rp, self.u1.VIN, layer=0)             # escape segment into the pad;
-                                                  # intermediate sketch points are
-                                                  # dropped on 4.4.0-rc.9, so a turn
-                                                  # needs another RoutePoint
-self.escape = [rp, trunk, esc]                    # store each object once: a list OR
-                                                  # named attributes, never both
-Tags(QfnEscapeTag()).assign(esc)
-
-# Escape rules out-rank every class rule and override (rung 4 in the ladder):
-self.qfn_escape_width = design_constraint(QfnEscapeTag(), priority=4).trace_width(w_escape)
-self.qfn_escape_space = design_constraint(QfnEscapeTag(), AnyObject, priority=4).clearance(c_escape)
-```
-
-A single-ended `RoutePoint` must be a member of the net (`rp.port`) or the
-build fails with an opaque key error; a `Route` stored both as a named
-attribute and in a list fails translation with `Child object Route
-encountered multiple times`; prefer a pad-to-point trunk, since a
-via-to-`RoutePoint` trunk has been seen to realize alone and not inside a
-full design. `w_escape` and `c_escape` are derived, not typed: read the
-landpattern's pad geometry with `jitx.query` and subtract the fab floor.
-The escape width is strictly less than the narrowest pad selected by its rule.
-The derivation rounds that measured pad width to a fixed precision and
-subtracts one quantum unconditionally; equality with any selected pad is a
-failure because it can silently change a centered trace into polygon copper.
-`c_escape` starts from the board default clearance and only tightens where
-the pad geometry cannot hold the default, never below the floor; a rule at
-the escape rung against `AnyObject` set to the floor would loosen the default
-around every escape. That clearance acts on router copper and pour voiding
-near the segment, not on the authored segment itself (What rules act on). The governing gap
-differs by package family (QFN: the gap between adjacent pads in a row; BGA:
-the diagonal channel between balls and the row depth; two-terminal passive:
-the pad-to-pad gap and courtyard). Derivations, the QFN worked example, and
-BGA channel planning: `references/fanout.md`. `Route`, `RoutePoint`, and the
-control-point binding rules: `jitx-physical-layout`
-`references/control-points.md`, which also owns the rule for where the tag
-goes on single-ended versus differential routes.
-
-## Decoupling
-
-Basis: Bogatin's habits 5 and 7. Loop inductance between the IC's power and
-return pins and the capacitor matters more than how many capacitors there
-are or their values.
-
-- Fewest, largest MLCCs in the smallest package, rated at least 2x the rail
-  (22 uF is typical). One per group of pins it serves, not a
-  10 uF / 1 uF / 0.1 uF stack per pin ("there is no problem this solves").
-  Where a datasheet specifies decoupling, the datasheet wins.
-- Place each capacitor as close to its power pin as the package allows,
-  with a via at each capacitor pad to the return layer, and connect with
-  short, wide segments or a local power puddle.
-- As code: a `DecouplingBank(Circuit)` that owns the IC, the capacitors,
-  their vias, the puddle on the rail, and the tagged escape routes to the IC
-  pads, so the whole block shares one frame. Give the bank an explicit
-  position; `at(floating=True)` is for interactive placement in the UI, and
-  a floating circuit with no stored placement is parked off the board
-  headlessly, where every route fails to realize while the build says ok. Each capacitor carries a hint naming the IC
-  pads it serves (finer than the net), which the solver in
-  `scripts/decoupling_solver.py` turns into placements and via positions by
-  minimizing loop area. Module, solver usage, and the recorded loop areas:
-  `references/decoupling.md`.
+- Walk every pad a tagged class width reaches through the tagged nets, not the pads you noticed. A pad needs an escape when the class width does not fit it, or when a trace at that width cannot keep the net's clearance to the pads it passes.
+- The escape tag goes on the escape `Route`, and the trunk and escape meet at a `RoutePoint` that is a member of the net. Route and control-point mechanics: `jitx-physical-layout`.
+- Escape rules sit at priority 4: `design_constraint(QfnEscapeTag(), priority=4).trace_width(w_escape)`, plus a two-condition clearance only where the pad geometry cannot hold the net's.
+- Choose the escape clearance `s_e` first: the clearance that governs the net (the board default, or its class's), or a lower escape clearance at or above `min_copper_copper_space`.
+- On a heavy layer the escape must meet the layer's floors ([Pours and relief](#pours-and-relief)).
+- Then derive `w_escape` from the placed pads read with `jitx.query`; never type it. It is:
+  - strictly below the narrowest pad the escape rule selects;
+  - at most `2·(c - s_e)`, where `c` is the smallest distance from the escape's centreline (pad centre to transition) to any other pad. On a QFN the escape leaves along the pad's long axis, so `c` is half the pad width plus the gap to the adjacent pad, and the pad bound decides wherever that gap is at or above `s_e`. On a BGA, `c` is half the channel between the balls the escape runs past: at 1.0 pitch with 0.5 balls the channel is 0.5 and `c` 0.25, so the escape is at most 0.3 at `s_e` 0.1 and 0.26 at `s_e` 0.12;
+  - at or above `min_copper_width`, rounded down to a grid you state.
+- A floor-valued clearance against `AnyObject` at the escape rung loosens the board default around every escape.
+- `RoutingStructure.NeckDown` is not the escape mechanism; a tag on the `Route` is.
 
 ## Verification
 
-Build success proves nothing about rules. After every build, capture the
-design and read it back (the loop, `query` semantics, and coordinate frames
-are in `jitx-physical-layout` `references/geometry-verification.md`). The
-constraint-specific checks, packaged in `scripts/layout_checks.py`:
+Build success proves nothing about rules. Submit, `rd.capture()`, then read the captured tree (the loop, frames and `query` semantics: `jitx-physical-layout` [`references/geometry-verification.md`](../jitx-physical-layout/references/geometry-verification.md)). Explanation: [Checking that a rule applied](https://docs.jitx.com/en/latest/essentials/physical_design/layout-constraints.html#checking-that-a-rule-applied).
 
-- Width by net and layer, and per route: every realized trace shape
-  (`route.traces[i].shapes[j].geometry`, an `ArcPolyline` or `Polyline` whose
-  `.width` is the trace width) on a tagged net has the width its winning rule
-  asked for, equal within a
-  labeled tolerance; wider fails as well as narrower, since wider means a
-  different rule won. A net that carries a class trunk and a narrower escape
-  on the same layer is checked per route (`check_route_width`), not per net.
-- Clearance between two nets: the minimum shapely distance between their
-  copper on a layer is at or above the binary rule.
-- Route realization: the project check explicitly lists the routes governed by
-  each override and passes that list to `check_routes`, then requires
-  `route.traces` to be non-empty for every escape route authored. A silently
-  unrealized route is the common failure, including the case where an override
-  sits below another matching priority rung.
-- Primitive shape: a realized escape must expose a polyline width. A `Polygon`
-  with no width field is a failed width realization, not a missing attribute to
-  skip and not evidence that the route is absent.
+| Rule | Read after capture | Pass |
+|---|---|---|
+| Width | every shape of `route.traces[i].shapes` on each governed route | the trace count is nonzero, and every shape has a `.geometry.width` equal to the winning rule's; a `Polygon` with no width is a failure, never skipped |
+| Clearance, pour pullback | `Pour.shape` in board frame (the computed copper, holes included, or `Empty`) against trace and pad geometry | the shapely distance is at or above the rule |
+| Relief | the voids and spokes of `Pour.shape` around each pad and via the rule matches | gap and spoke count match the rule; a pad with full contact had no relief |
+| Stitch, fence | `rd.query(Via)`, less the vias `visit(rd.root, Via)` lists (the code-placed ones, matched by identity); each position is `(trace.transform * via.transform).translation` | every derived stitch site holds a generated via (a via in a left-out band is not a failure); fence count and positions match the derived pattern |
+| Routing structure | trace widths per segment, and `rd.issues(satisfied=True).text()` | each segment at its structure's width; no `Missing routing structure` |
 
-Capture limits and traps (runtime-mutated pours, transform composition, sketch
-points, floating circuits) are owned by `jitx-physical-layout`
-`references/geometry-verification.md` and its
-[Pour realization semantics](../jitx-physical-layout/SKILL.md#pour-realization-semantics).
-The consequence for rules: trace-to-pour clearance, thermal relief and sliver
-removal are not measurable from `rd.query`. Report those rules as not
-verified from capture, one line each, and do not use the fabrication export to
-close them (rule and reason: `jitx-physical-layout`, "Pour realization
-semantics").
-
-A measured width below the winning rule is a failure, never a note: a route
-that realizes at the via pad diameter because it runs via to via has not met
-its rule (route pad to point, or use a via whose pad matches the width). A
-rule with no copper to witness it is not verified; the check output must
-count those separately and never print zero failures while any declared rule
-went unexercised.
-
-Checks read the rules, they do not restate them: pass each rule object's own
-value to the check (`rule_width(rule)` and `rule_clearance(rule)` in
-`scripts/layout_checks.py` read the effect the rule carries), never a literal
-typed beside the rule list, and end with `rule_coverage(rules, witnessed)`,
-which fails for every declared rule no check named. A hand-typed table of expected values is a
-parallel model that drifts the first time a rule is added (see the base
-skill's `references/architectural-patterns.md`).
-
-`layout_checks.py` is a library; the project's check script is the gate. It
-ends with `raise SystemExit(run_checks([...]))`, which exits 1 on any failed
-check and on an empty check list, and the completion block records that
-script's command and exit code. A rule set is done when that script exits 0
-on the built design, or when the missing runtime is named as an open item in
-the completion block. Never report a rule as applied from `status: ok`.
+- Read each expected value from the rule object (`rule.trace_width_constraint.width`, `rule.clearance_constraint.clearance`, `rule.thermal_relief_constraint.gap_distance`), not from a constant typed beside the rule list.
+- Every declared rule has copper that witnesses it, or it is reported as unwitnessed. A check that prints no failures while a rule went unexercised has not passed.
+- `Copper` shapes placed from code reach the layout as written, whatever the rules say: check them against the rules after capture.
+- Before `rd.capture()`, in the submit path, `Pour.shape` is the drawn outline.
+- The project's check script exits nonzero on any failure; the completion block records its command and exit code. Never report a rule as applied from `status: ok`.
 
 ## Why a rule did not fire
 
 Check in this order:
 
-1. Not reachable: the rule is a module-level object or a local variable, not
-   a structural attribute under the `Design`.
-2. Out-ranked: a binary clearance at priority 0 loses to the default
-   `IsCopper x IsCopper` rule. A route-width override below an already
-   matching rule can emit zero traces rather than merely lose. Raise the
-   priority, then let the Verification gate refuse completion unless the
-   expected trace count is nonzero and the measured widths match.
-3. Wrong arity: `.clearance()` on a one-condition rule, or any other effect
-   on a two-condition rule.
-4. Builtin assigned: `IsTrace.assign(obj)` raises `TypeError`; builtins are
-   conditions, and `IsTrace` is an enum member, not a class to instantiate.
-5. Tag class declared inside a function: instantiation tracking breaks.
-6. Routing structure at module level: an `Instantiable` proxy a rule cannot
-   apply.
-7. Below the floor: a rule looser than a `FabricationConstraints` minimum is
-   overridden by the floor.
-8. Via class not found: `stitch_via` and `fence_via` take the via class
-   object. A class reached through the substrate's mixin, one
-   re-declared as a substrate attribute, and one at module scope all
-   generate vias (verified in `evals/cases/reference/stitch-via/`). If vias are
-   missing, check the tag assignment and the rule's reachability before
-   suspecting the via class.
-9. The object is not taggable: `OverlappableCopper` cannot carry a tag.
-10. The object is a code-authored `Route`: clearance rules and fab floors do
-    not move authored geometry (What rules act on, above). Measure it after
-    capture with the project's check script built on
-    `scripts/layout_checks.py`; its non-zero exit is a failed task, and the
-    completion block is not written until it exits 0 or the unmeasurable
-    rules are named as open items.
-11. Stitch-target type or materialization: diagnose it with the owning
-    [Pour realization semantics](../jitx-physical-layout/SKILL.md#pour-realization-semantics)
-    and its executable realization check.
-
-Behaviors settled by a built design are recorded, with the design that
-settled them, in `references/rule-reference.md`, "Verified behaviors"; a row
-marked pending has not been run and must not be relied on.
+1. Not reachable ([Where rules live](#where-rules-live)).
+2. Out-ranked ([Priority](#priority)), a heavy layer's floor included.
+3. Wrong arity ([Effects](#effects)), or a builtin passed to `Tags(...)`.
+4. Wrong target: `fence_via` on a route or net tag ([Fencing](#fencing)), or a module-level `RoutingStructure`.
+5. Below a `FabricationConstraints` `min_copper_*` floor.
+6. No generated vias: the tag is not on the `Pour`, the pour is `Empty`, or no site passes ([Stitching](#stitching)).
+7. Not taggable, or assigned outside a design context ([What a tag reaches](#what-a-tag-reaches)).
+8. `Copper` placed from code, which no rule reshapes.
+9. Pour or stitch realization: `jitx-physical-layout` [Pour realization semantics](../jitx-physical-layout/SKILL.md#pour-realization-semantics).
 
 ## Anti-string-hacking and completion
 
-Construct tags and rules as structural objects on `self`; batch parameters in
-a `@dataclass(frozen=True)` or a plain list; key nothing by an assembled
-string. See the base `jitx` skill's `references/architectural-patterns.md`
-and run `jitx-code-review` as the self-critique pass.
+Construct tags and rules as structural objects on `self`; batch parameters in a `@dataclass(frozen=True)` or a list; key nothing by an assembled string (base skill `references/architectural-patterns.md`; self-critique with `jitx-code-review`).
 
-The task acceptance block (`jitx-project-builder`, `references/completion-blocks.md`)
-fields this skill fills: the four default rules present on the `Design`; the
-net-class table or the explicit "no non-default net classes" line; the
-after-build width, clearance, and realization checks with their commands and
-results; open items for anything a missing runtime left unverified.
+The task acceptance block (`jitx-project-builder` `references/completion-blocks.md`) takes from this skill: the board defaults and the classes of nets with each value's source, or "no board defaults" or "no classes of nets" with a reason; the after-build checks with their command and exit code; open items for anything unwitnessed.
 
-## API reference
-
-`references/rule-reference.md` (conditions, effects, signatures with source
-citations, verified behaviors), `references/power-and-pours.md`,
-`references/fanout.md`, `references/decoupling.md`, and the JITX
-documentation at https://docs.jitx.com.
+API: the docstrings of `jitx.constraints` and `jitx.si`.

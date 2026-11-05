@@ -4,16 +4,15 @@ Each check builds the runner's edited fixture in ``<output>`` with a runtime it
 starts for that directory and stops at exit, captures the design, measures the
 realized copper, prints what it measured, and exits nonzero on a failure.
 
-The measurement surfaces are the ones the 2026-11-03 layout-constraints spike
-(jitx 4.6.0, runtime 4.6.0) read headlessly:
+The measurement surfaces, read headlessly (measured on jitx 4.6):
 
 - ``Pour.shape`` after ``rd.capture()`` holds the computed pour copper, holes
-  included (spike S1);
-- ``Route.traces[*].shapes`` holds the realized trace shapes (S8: a trace may
+  included;
+- ``Route.traces[*].shapes`` holds the realized trace shapes (a trace may
   come back as a ``Polygon`` with no width);
 - ``rd.query(Via)`` returns the generated vias (stitch vias from a
-  ``stitch_via`` rule, S3; ring vias from a ``fence_via`` rule on a pour, S4;
-  route-fence vias from ``RoutingStructure.Layer.fence``, S9) together with
+  ``stitch_via`` rule; ring vias from a ``fence_via`` rule on a pour;
+  route-fence vias from ``RoutingStructure.Layer.fence``) together with
   the vias the design places in code, which ``generated_vias`` leaves out.
   The query does not say which rule generated a via.
 """
@@ -124,7 +123,7 @@ def runtime_for(out: Path) -> Iterator[None]:
 # flag are left out, so two entries that differ only there match; no
 # substrate structure in this suite has geometry, so any entry fails today.
 # A fence, reference layers and the name are left out too, so a fenced copy
-# of a substrate structure has the substrate structure's signature. jitx 4.6.0 has no public
+# of a substrate structure has the substrate structure's signature. jitx 4.6 has no public
 # accessor for a layer's geometry; ``visit`` reaches the private ``_AddGeom``
 # entries, as the translator does, and an upgrade that renames the class
 # stops the script with an import error ("could not run"), not a pass.
@@ -273,7 +272,7 @@ def check_structures(applied: list[dict[str, Any]], defined: list[dict[str, Any]
 def check_unedited(out: Path, module: str, cls: str) -> None:
     """Fail when the runner changed what the contract says to leave alone.
 
-    Spike S5: a ``Route.Config`` overrides design rules, so a width set on a
+    Measured on jitx 4.6: a ``Route.Config`` overrides design rules, so a width set on a
     route passes every width check without a rule. No fixture sets one. The
     route, via and pour counts must match the fixture as shipped. Neither the
     ``jitx.si.Constraint`` count (timing and loss) nor the count of
@@ -312,7 +311,7 @@ def built(out: Path, module: str, cls: str, wait: float = 60.0) -> Iterator[Any]
     then submit and capture the design; yields the RuntimeDesign.
 
     The stored design state is removed first: a headless submit after a
-    design change otherwise aborts at "stabilization" (spike observation 6).
+    design change otherwise aborts at "stabilization" (measured on jitx 4.6).
     """
     check_unedited(out, module, cls)
     design = load_design(out, module, cls)
@@ -330,7 +329,7 @@ def built(out: Path, module: str, cls: str, wait: float = 60.0) -> Iterator[Any]
 
 
 def geom(shape: Any) -> BaseGeometry:
-    """Shapely geometry of a jitx shape, holes kept (4.6.0 keeps PolygonSet holes)."""
+    """Shapely geometry of a jitx shape, holes kept (PolygonSet holes are kept)."""
     if isinstance(shape, Empty) or isinstance(getattr(shape, "geometry", None), Empty):
         return shapely.Polygon()
     return shape.to_shapely().g
@@ -358,7 +357,7 @@ def route_geom(route: Route) -> BaseGeometry:
 
 def trace_widths(route: Route) -> list[float | None]:
     """Width of every realized trace shape; None for a shape with no width
-    (a ``Polygon``, spike S8), which a width check must not skip silently."""
+    (a ``Polygon``), which a width check must not skip silently."""
     ws: list[float | None] = []
     for tr in route.traces or []:
         for s in tr.shapes:
@@ -430,7 +429,7 @@ def gap(a: BaseGeometry, b: BaseGeometry) -> float:
 
 
 def relief(pour_g: BaseGeometry, pad_g: BaseGeometry, probe: float = 0.02) -> dict[str, Any]:
-    """How a pour meets a pad (the spike's ``relief`` measure).
+    """How a pour meets a pad (the void gap and spoke widths).
 
     voids: empty pieces of a 2 mm ring around the pad that touch the pad.
     gap_max: the largest distance from the pad to a void's outline.
@@ -461,7 +460,7 @@ def relief(pour_g: BaseGeometry, pad_g: BaseGeometry, probe: float = 0.02) -> di
 
 def grid_sites(bounds: tuple[float, float, float, float], pitch: float) -> list[tuple[float, float]]:
     """Square-grid sites at multiples of ``pitch`` from (0, 0) inside ``bounds``
-    (spike S3: stitch sites sit on the absolute grid, not the pour's)."""
+    (stitch sites sit on the absolute grid, not the pour's)."""
     x0, y0, x1, y1 = bounds
     xs = [i * pitch for i in range(math.ceil(x0 / pitch - 1e-9), math.floor(x1 / pitch + 1e-9) + 1)]
     ys = [j * pitch for j in range(math.ceil(y0 / pitch - 1e-9), math.floor(y1 / pitch + 1e-9) + 1)]

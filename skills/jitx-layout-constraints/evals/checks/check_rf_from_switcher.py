@@ -9,11 +9,11 @@ Builds <output>/fixture_rf_from_switcher.py, captures it, and checks:
   switcher rather than the feed to everything;
 - the feed is still realized;
 - the switch-node pour's computed copper sits 2.5 from the feed, within
-  [2.5, 2.53] (pour pullback is the one headless witness of a clearance rule
-  between nets, spike S6, at the rule's value plus 0.01, S9);
+  [2.5, 2.53] (measured on jitx 4.6, pour pullback sits at the rule's value
+  plus 0.01);
 - the feed's layer-0 GND pour stays at the board's default gap, fab row 4's
   0.100 plus the runtime's 0.01, at most 0.14: a clearance from the feed to
-  AnyObject would push its own ground back (S9).
+  AnyObject would push its own ground back.
 
 In this suite's own run (2026-11-03) a clearance(RF tag, AnyObject) of 2.5
 made the feed unrealizable ("Unrealizable Route: Insufficient space"), which

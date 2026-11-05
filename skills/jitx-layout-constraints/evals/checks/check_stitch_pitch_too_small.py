@@ -5,7 +5,7 @@ Usage: check_stitch_pitch_too_small.py <output-dir>
 The prompt asks for 0.4 mm and, if the fab cannot build it, the closest pitch
 it can. The fab floor is drill 0.250 (row 12) plus hole-to-hole 0.250 (row 15)
 = 0.500 mm centre to centre, so 0.4 cannot be built; at 0.4 the runtime thins
-the grid silently and places no via short of the floor (spike S3: pitch 0.4
+the grid silently and places no via short of the floor (measured on jitx 4.6: pitch 0.4
 under a 0.45 pad kept 231 of 650 sites, a checkerboard, with no issue).
 
 Builds <output>/fixture_stitch_pitch_too_small.py, captures it, and checks:
@@ -13,7 +13,7 @@ Builds <output>/fixture_stitch_pitch_too_small.py, captures it, and checks:
 - every rule's pitch is at or above the 0.500 floor and no more than 0.650
   ("closest": the floor plus the 0.100 copper space of row 4, plus margin);
 - every rule's inset is the prompt's 0.5 (the via pad edge 0.5 in from the
-  pour edge; spike S3 measured inset from the via pad edge to the computed
+  pour edge; the inset is measured from the via pad edge to the computed
   pour boundary);
 - the ground pours on all four layers came back with copper;
 - every grid site a rule with the prompt's inset must fill
@@ -63,7 +63,7 @@ with L.built(out, "fixture_stitch_pitch_too_small", "StitchPitchTooSmallDesign")
             L.fail(f"pitch {pitch} is under the fab drill-to-drill floor {MIN_PITCH:.3f} (rows 12, 15)")
         if abs(inset - PROMPT_INSET) > 1e-6:
             L.fail(f"inset {inset}, the prompt fixes {PROMPT_INSET}")
-        need = SC.required_sites(geoms, pads, pitch, PROMPT_INSET, pad_r, PAD_SPACE, placed, MIN_PITCH)
+        need = SC.required_sites(geoms, pads, pitch, PROMPT_INSET, pad_r, PAD_SPACE, placed, 2 * pad_r + PAD_SPACE)
         missing = [s for s in need if (round(s[0], 3), round(s[1], 3)) not in got]
         print(f"derived sites {len(need)}, realized on them {len(need) - len(missing)}")
         if not need:

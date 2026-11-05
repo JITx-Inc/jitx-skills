@@ -12,11 +12,11 @@ measures the two switch-node segments:
 - ``sw_trunk`` (via to the inductor): every trace shape 0.6 wide, the
   prompt's switch-node class width;
 - the layer-0 GND pour sits 0.25 from the trunk, the fixture's
-  ``SwTag`` class clearance, within [0.25, 0.28] (spike S9: pour pullback at the
-  winning clearance plus 0.01).
+  ``SwTag`` class clearance, within [0.25, 0.28] (measured on jitx 4.6: pour pullback
+  at the winning clearance plus 0.01).
 
 The escape rule must reach the escape only: a rule on the switch-node net or
-on ``SwTag & IsTrace`` narrows the trunk too (spike S10's control case) and
+on ``SwTag & IsTrace`` narrows the trunk too (measured on jitx 4.6) and
 fails the second item. With the fixture as given, the escape comes back as a
 Polygon with no width (this suite's own run, 2026-11-03), which fails the
 first.

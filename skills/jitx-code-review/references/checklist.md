@@ -149,7 +149,7 @@ Patterns where the substrate / routing-structure / framework API is being misuse
 
 **Severity:** WARNING (architecture smell; functional code). NOTE when it's only two tags.
 
-**Rule source:** `jitx-layout-constraints`, [Sharp edges (verified on real boards)](../../jitx-layout-constraints/SKILL.md#sharp-edges-verified-on-real-boards), the flat-tag-proliferation bullet.
+**Rule source:** `jitx-layout-constraints`, [Classes of nets](../../jitx-layout-constraints/SKILL.md#classes-of-nets), the flat-tag-proliferation bullet.
 
 ## Code-craft patterns
 

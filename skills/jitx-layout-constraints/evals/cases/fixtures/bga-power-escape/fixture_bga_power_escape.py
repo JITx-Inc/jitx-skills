@@ -11,8 +11,8 @@ Layout, on ``LcStandard4`` and the 40 x 30 mm ``LcBoard``:
   column in from the left edge, between the edge column's balls at
   (1.402, 6.0) and (1.402, 5.0), both GND;
 - two VCORE through vias, 0.8 across so the 0.5 class fits (fab row 11's
-  0.500 is a minimum; spike S8: a trace wider than its via pads came back as
-  a Polygon with no width), at
+  0.500 is a minimum; measured on jitx 4.6, a trace wider than its via pads
+  came back as a Polygon with no width), at
   (-1, 5.5) just outside the package body and at (-12, 5.5);
 - ``vcore_escape``, a code route on layer 0 from the VCORE ball to the first
   via, and ``vcore_trunk``, a code route on layer 0 from that via to the

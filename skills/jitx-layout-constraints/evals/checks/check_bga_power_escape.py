@@ -17,7 +17,7 @@ VCORE segments:
 
 With the fixture as given the escape is not realized ("Unable to find path for
 requested route", this suite's own run, 2026-11-03). A rule on the VCORE net
-or on ``VcoreTag & IsTrace`` narrows the trunk too (spike S10's control case)
+or on ``VcoreTag & IsTrace`` narrows the trunk too (measured on jitx 4.6)
 and fails the third item.
 """
 

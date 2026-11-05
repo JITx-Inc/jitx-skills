@@ -55,7 +55,7 @@ class KeepOutWitness:
 
 @dataclass(frozen=True)
 class StitchTargetWitness:
-    """One explicitly named stitch target and its solver-emitted via centers."""
+    """One explicitly named stitch target and the generated via centers on its net."""
 
     label: str
     target_type: str
@@ -102,7 +102,7 @@ def check_pours(pours: tuple[PourWitness, ...]) -> list[CheckResult]:
 def check_stitch_targets(
     targets: tuple[StitchTargetWitness, ...], stitch_rule_count: int
 ) -> list[CheckResult]:
-    """Require every selected Pour stitch target to contain a computed stitch via."""
+    """Require every selected Pour stitch target to contain a generated via."""
 
     if stitch_rule_count and not targets:
         return [
@@ -483,8 +483,8 @@ def _capture_checks(
     import jitx
     from jitx.copper import Pour
     from jitx.feature import KeepOut
-    from jitx._translate.reverse_flow.applied import ComputedStitchVia
     from jitx.transform import IDENTITY
+    from jitx.via import Via
 
     design = _load_design(design_target)
     with jitx.runtime as runtime:
@@ -531,7 +531,19 @@ def _capture_checks(
         pour_samples.append(sample)
         samples_by_id[id(pour)] = sample
 
-    stitch_groups = [group for _, group in rd.query(ComputedStitchVia)]
+    # Generated vias are the ``rd.query(Via)`` results that are not code-placed
+    # vias (those ``visit`` lists, matched by identity); ``rd.nets.find`` gives
+    # each one's net. The query does not say which rule made a via, so a pour
+    # fence or a route fence on the pour's net is counted with the stitch vias.
+    placed_via_ids = {id(via) for _, via in _unique_visits(rd.root, Via)}
+    generated_vias: list[tuple[object | None, tuple[float, float]]] = []
+    for via_trace, via in rd.query(Via):
+        if id(via) in placed_via_ids:
+            continue
+        if via_trace.transform is None or via.transform is None:
+            raise ValueError(f"unresolved frame for a generated via at {via_trace.path}")
+        x, y = (via_trace.transform * via.transform).translation
+        generated_vias.append((rd.nets.find(via), (float(x), float(y))))
     stitch_samples: list[StitchTargetWitness] = []
     for label, target in stitch_targets:
         if not isinstance(target, Pour):
@@ -543,11 +555,11 @@ def _capture_checks(
         if sample is None:
             raise ValueError(f"stitch target {label!r} is not an authored Pour")
         target_net = rd.nets.find(target)
-        points: list[tuple[float, float]] = []
-        for group in stitch_groups:
-            group_net = rd.nets.find(group.net) if group.net is not None else None
-            if target_net is not None and group_net is target_net:
-                points.extend(tuple(via.position) for via in group.vias)
+        points = [
+            point
+            for via_net, point in generated_vias
+            if target_net is not None and via_net is target_net
+        ]
         stitch_samples.append(StitchTargetWitness(label, "Pour", sample, tuple(points)))
 
     keepout_samples: list[KeepOutWitness] = []

@@ -6,8 +6,8 @@ Builds <output>/fixture_permissive_rule_outranks_protection.py, captures it,
 and checks:
 
 - the layer-0 GND pour sits the fixture's 0.6 keep-away plus the runtime's
-  0.01 (spike S9: a net-tag clearance to AnyObject sets the pour gap at the
-  rule's value plus 0.01) from the VIN route, within [0.60, 0.63];
+  0.01 (measured on jitx 4.6: a clearance to AnyObject sets the pour gap at
+  the rule's value plus 0.01) from the VIN route, within [0.60, 0.63];
 - the VIN route is still realized at its 0.5 width;
 - a 0.1 clearance rule is still in the design: the escape spacing the TPS62933
   pads need was kept, not deleted to make room for the keep-away.
