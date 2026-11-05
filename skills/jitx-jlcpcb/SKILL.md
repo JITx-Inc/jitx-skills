@@ -7,7 +7,7 @@ description: "Use when the user has chosen JLCPCB or LCSC as fab, assembler or p
 
 `jitxlib-jlcpcb` covers one fab end to end, from supply chain to release: substrates, catalogue parts and footprints, and the order packet. JITX ships no default fab, and this skill never chooses JLCPCB for a user: it starts once the user has.
 
-The API is in the package docstrings, read with `help()`: `jitxlib.jlcpcb` (substrates, export and lock file usage), `jitxlib.jlcpcb.parts`, `jitxlib.jlcpcb.parts.library` and `jitxlib.jlcpcb.landpattern`. This skill holds the order of work, what to check and what to ask.
+The API is in the package docstrings, read with `help()`: `jitxlib.jlcpcb` (substrates, export and lock file usage), `jitxlib.jlcpcb.parts`, `jitxlib.jlcpcb.parts.library` and `jitxlib.jlcpcb.landpattern`.
 
 ## Route first
 
@@ -49,7 +49,7 @@ The `jitx` skill's parts gates still apply, and the user approves the final buil
 | `JLC04161H_7628` | 4 | 7628 | `RS_50`, `DRS_90`, `DRS_100` | outer only | 3 standard |
 | `JLC06161H_7628` | 6 | 7628 | `RS_50`, `DRS_100` | outer and the first inner layer each side | 9: standard plus extra-cost multilayer |
 
-Import from `jitxlib.jlcpcb`; each class carries its stackup, fab rules and a tented, filled via for via-in-pad. Pick by layer count and the impedances the design's interfaces need, then read the chosen structure's trace widths in the class source: on the 1080 build a 50 ohm trace is 0.1176 mm, on the 4-layer 7628 build 0.3244 mm, so a 50 ohm line into a fine-pitch pad points to the 1080 build. The 6-layer class has no 90 ohm pair, so USB 2.0 on six layers has no predefined structure.
+Import from `jitxlib.jlcpcb`; each class carries its stackup, fab rules and a tented, filled via for via-in-pad. Pick by layer count and the impedances the design's interfaces need, then read the structure's trace widths in the class source: a 50 ohm trace is 0.1176 mm on the 1080 build and 0.3244 mm on the 4-layer 7628 build, so fine-pitch parts favour 1080. The 6-layer class has no 90 ohm pair, so USB 2.0 on six layers has no predefined structure.
 
 A structure the class lacks, a non-FR-4 material, or a layer count outside the set (two layers included) means a custom substrate through `jitx-substrate-modeler`. Via set and fab rules: the classes in `jitxlib.jlcpcb.vias` and `jitxlib.jlcpcb.rules`.
 
@@ -59,7 +59,7 @@ The assembly-library tier is the query attribute `library`: `basic`, `preferred`
 
 A queried passive in a case the chip generator does not build (a tantalum or aluminum electrolytic) gets the catalogue footprint through `LCSCLandpattern`, attached by the provider with in-order ports. Name a chip case in the query to avoid it, or treat it as below.
 
-Every other assembled component names its part with `lcsc = LCSCPart("C...")`, a field of the component itself, never of a circuit or landpattern. A component without one reaches the BOM unmatched.
+Every other assembled component names its part with `lcsc = LCSCPart("C...")`, a field of the component itself, never of a circuit or landpattern.
 
 Before writing code for a named C-number, save its channel evidence (stock, lifecycle, datasheet URL and pinout, from its catalogue page) to `datasheets/sourcing/<mpn>-lcsc.txt`, and cite it in the part's data source row: PLAN.md's Data Sources table, or the COMPLETION.md block below when there is no PLAN.md. The manufacturer's datasheet outranks it for pins and dimensions; record any disagreement.
 
@@ -83,9 +83,9 @@ For a polarized part, check the anode and cathode pads against the drawing: the 
 jitx design export jlcpcb --output <packet-dir> <module.Design>
 ```
 
-`<module.Design>` is the build target `jitx find` prints. `--no-assembly` writes a bare-board packet (gerber archive and order sheet only) and is the way to give the user gerbers alone. Do not use the docstring's `jitx design export gerber --names jlcpcb`: it skips the NC drill file and the macro-rotation fix the packet applies. `--overwrite` allows a non-empty output directory.
+`<module.Design>` is the build target `jitx find` prints. `--no-assembly` writes a bare-board packet (gerber archive and order sheet only) and is the way to give the user gerbers alone. Do not use the docstring's `jitx design export gerber --names jlcpcb`: it writes drills as Gerber, not the NC drill file JLCPCB expects, and skips the packet's macro-rotation fix. `--overwrite` allows a non-empty output directory.
 
-The packet is orderable only once every soldered component is placed, the board is routed, and the design rule check is clean. Routing is the user's step; report the design rule check as clean, or not run with the reason. Until all three hold, report the packet as not yet orderable and say what is missing.
+The export fails on any unplaced soldered component. The packet is orderable only when exported after the board is routed and the design rule check is clean: the gerbers are written at export. Routing is the user's step; report the check as clean, or not run with the reason. Until both hold, tell the user the packet is not yet orderable, what is missing, and that the export must run again afterwards.
 
 Done means:
 
@@ -94,7 +94,7 @@ Done means:
 - for an assembled order, every BOM row's `JLCPCB Part #` is a C-number, or each row without one is named to the user;
 - the order sheet's layer count and thickness match the substrate.
 
-Report the packet listing and the order sheet's attention lists to the user. Ask them to check rotations in JLCPCB's Confirm Parts Placement preview and to confirm the surface finish, which the sheet marks preliminary. Never upload or order.
+Report the packet listing to the user, with the order sheet's "Footprints taken from landpattern class names" and "Placed with no orientation correction" lists. Ask them to check rotations in JLCPCB's Confirm Parts Placement preview and to confirm the surface finish, which the sheet marks preliminary. Never upload or order.
 
 Write this block in `COMPLETION.md`, each row with its evidence:
 
@@ -103,7 +103,8 @@ Write this block in `COMPLETION.md`, each row with its evidence:
 Opt-in: <where the user chose JLCPCB>; dependency and chain as written
 Substrate: <class> for <layers, impedances> | custom: <reason>
 Parts: tier <ranked | filtered: user asked>; <N> LCSCPart components; IDEAL- MPNs: none
-Catalogue footprints: none | <part: approval in Notes or data source row, pads checked against <drawing>>
-Packet: <file listing>; BOM rows without a C-number: none | <list>; orderable | not yet: <placement, routing or DRC>
+Sources: <C-number: datasheets/sourcing/<mpn>-lcsc.txt>
+Catalogue footprints: none | <part: approval text or its location, pads checked against <drawing>>
+Packet: <file listing>; BOM rows without a C-number: none | <list>; orderable | not yet, re-export after: <routing, DRC>
 Approval: MPNs and C-numbers <approved by the user | awaiting the user>
 ```
