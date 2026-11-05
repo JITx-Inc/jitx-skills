@@ -60,13 +60,13 @@ A queried passive in a case the chip generator does not build (a tantalum or alu
 
 Every other assembled component names its part with `lcsc = LCSCPart("C...")`, a field of the component itself, never of a circuit or landpattern.
 
-Before writing code for a named C-number, save its channel evidence (stock, lifecycle or `none stated`, datasheet URL and pinout, from its catalogue page) to `datasheets/sourcing/<mpn>-lcsc.txt`, and cite it in the part's data source row: PLAN.md's Data Sources table, or the COMPLETION.md block below when there is no PLAN.md. The manufacturer's datasheet outranks it for pins and dimensions; record any disagreement.
+Before writing code for a named C-number, save its channel evidence (stock, lifecycle or `none stated`, datasheet URL and pinout, from its catalogue page) to `datasheets/sourcing/<mpn>-lcsc.txt`, and cite it in the part's data source row: PLAN.md's Data Sources table, or the COMPLETION.md block below when there is no PLAN.md. The manufacturer's datasheet outranks it for pins; record any disagreement.
 
 ## Landpatterns
 
-With the package, the user opts into its catalogue footprints (`LCSCLandpattern`) or models their own components through `jitx-component-modeler`. Ask once unless the request says; the answer, recorded in the Opt-in row and in PLAN.md when there is one, approves every catalogue footprint in the project. A class you write still uses a generator where one expresses the package. With own models chosen, use no `LCSCLandpattern`: model a class for a queried passive the chip generator does not build, or change its case with the user's sign-off.
+With the package, the user opts into its catalogue footprints (`LCSCLandpattern`) or models their own components through `jitx-component-modeler`. Ask once unless the request says; a yes, recorded in the Opt-in row and in PLAN.md when there is one, accepts the catalogue as the project's footprint source. A class you write still uses a generator where one expresses the package. With own models chosen, use no `LCSCLandpattern`: model a class for a queried passive the chip generator does not build, or change its case with the user's sign-off.
 
-Catalogue pads are third-party data: check each footprint pad by pad against the manufacturer's drawing, and in a component class you write, give `ports={...}` from the manufacturer's pinout, not pad order. A class you write with no readable pinout is blocked: leave the part out until the user supplies one. With no readable drawing, keep the footprint and list it unchecked for the user's approval. A pad or hole differing from the drawing's recommended land pattern beyond its last printed digit rules out the footprint: name the pad and difference in your reply, and model the footprint as `jitx-component-modeler` orders, in a component class for a provider-attached one. For a polarized part, check the anode and cathode pads against the drawing: the in-order mapping assumes the catalogue draws the anode as pad 1. Read the build's footprint warnings: dropped vias, skipped pads, unmapped pads.
+Once accepted, take each catalogue footprint as published: do not check its pads against the manufacturer's drawing. The pin mapping is still yours: in a component class you write, give `ports={...}` from the manufacturer's pinout, not pad order, and leave out a part with no readable pinout until the user supplies one. A polarized passive whose catalogue footprint the provider attaches maps its ports in pad order, assuming the catalogue's pad 1 is the anode: name each such part to the user and ask them to confirm its polarity in the placement preview. Read the build's footprint warnings (dropped vias, skipped pads, unmapped pads) and name each part and pad to the user; an unmapped pad on a port the circuit uses blocks the part like a missing pinout.
 
 ## The lock file
 
@@ -99,7 +99,7 @@ Opt-in: <where the user chose JLCPCB>; footprints: catalogue | own models; depen
 Substrate: <class> for <layers, impedances> | custom: <reason>
 Parts: tier <ranked | filtered: user asked>; <N> LCSCPart components; IDEAL- MPNs: none
 Sources: <C-number: datasheets/sourcing/<mpn>-lcsc.txt>
-Catalogue footprints: none | <part: pads checked against <drawing> | unchecked: no readable drawing>; blocked: none | <part: no readable pinout>; ruled out: none | <part, pad, difference>
+Catalogue footprints: none | <parts>; polarized in pad order: none | <parts>; footprint warnings: none | <part: warning>; blocked: none | <part: reason>
 Packet: <file listing>; BOM rows without a C-number: none | <list>; orderable | not yet, re-export after: <routing, DRC, blocked parts>
-Approval: MPNs, C-numbers and unchecked footprints <approved by the user | awaiting the user>
+Approval: MPNs and C-numbers <approved by the user | awaiting the user>
 ```
