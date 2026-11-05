@@ -237,7 +237,7 @@ Check in this order:
 2. Out-ranked ([Priority](#priority)), a heavy layer's floor included.
 3. Wrong arity ([Effects](#effects)), or a builtin passed to `Tags(...)`.
 4. Wrong target: a `fence_via` rule on a route's or net's tag meant to fence a route, since it fences only pours ([Fencing](#fencing)); or a module-level `RoutingStructure`.
-5. Below a `FabricationConstraints` `min_copper_*` floor.
+5. Below a `FabricationConstraints` `min_copper_*` floor (not for a `routing_structure` rule: a structure's width and pair gap override the floor).
 6. No generated vias: the tag is not on the `Pour`, or no site passes ([Stitching](#stitching)). Generated vias do not prove the pour exists: an `Empty` pour still gets its stitch vias, with no issue, so read its `Pour.shape`.
 7. Not taggable, or assigned outside a design context ([What a tag reaches](#what-a-tag-reaches)).
 8. `Copper` placed from code, which no rule reshapes.
