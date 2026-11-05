@@ -24,7 +24,7 @@ Only after the user chose JLCPCB, add `"jitxlib-jlcpcb>=4,<5"` to `dependencies`
 pip install -e .
 ```
 
-Tell the user what installing changes: the package publishes a parts chain, so a project that names none resolves its passives through JLCPCB's catalogue, while a project that names a chain keeps it. If another installed package also publishes a chain, resolution is a hard error until the project names one.
+In your reply, say what installing changes: the package publishes a parts chain, so a project that names none resolves its passives through JLCPCB's catalogue, while a project that names a chain keeps it. If another installed package publishes a chain, resolution is a hard error until the project names one.
 
 Name the chain:
 
@@ -49,7 +49,7 @@ The `jitx` skill's parts gates still apply, and the user approves the final buil
 | `JLC04161H_7628` | 4 | 7628 | `RS_50`, `DRS_90`, `DRS_100` | outer only | 3 standard |
 | `JLC06161H_7628` | 6 | 7628 | `RS_50`, `DRS_100` | outer and the first inner layer each side | 9: standard plus extra-cost multilayer |
 
-Import from `jitxlib.jlcpcb`; each class carries its stackup, fab rules and a tented, filled via for via-in-pad. Pick by layer count and the impedances the design's interfaces need, then read the structure's trace widths in the class source: a 50 ohm trace is 0.1176 mm on the 1080 build and 0.3244 mm on the 4-layer 7628 build, so a 50 ohm line into a fine-pitch pad favours 1080. The 6-layer class has no 90 ohm pair, so USB 2.0 on six layers has no predefined structure.
+Import from `jitxlib.jlcpcb`; each class carries its stackup, fab rules and a tented, filled via for via-in-pad. Pick by layer count and the impedances the design's interfaces need, then read the structure's trace widths in the class source: a 50 ohm trace is 0.1176 mm on the 1080 build and 0.3244 mm on the 4-layer 7628 build. The 6-layer class has no 90 ohm pair, so USB 2.0 on six layers has no predefined structure.
 
 A structure the class lacks, a non-FR-4 material, or a layer count outside the set (two layers included) means a custom substrate through `jitx-substrate-modeler`. Vias and fab rules: `jitxlib.jlcpcb.vias`, `jitxlib.jlcpcb.rules`.
 
@@ -72,7 +72,7 @@ Generator first, as `jitx-component-modeler` orders it, then the manufacturer's 
 
 In a component class you write, give `ports={...}` from the manufacturer's pinout, not pad order.
 
-With no readable manufacturer drawing or pinout, the part is blocked until the user supplies one; catalogue data never checks itself. For a polarized part, check the anode and cathode pads against the drawing: the in-order mapping assumes the catalogue draws the anode as pad 1. Read every warning the build logs for the footprint: dropped vias, skipped pads, and pads left unmapped.
+With no readable manufacturer drawing or pinout, the part is blocked until the user supplies one; catalogue data never checks itself. A pad or hole differing from the drawing rules it out; tell the user. For a polarized part, check the anode and cathode pads against the drawing: the in-order mapping assumes the catalogue draws the anode as pad 1. Read every warning the build logs for the footprint: dropped vias, skipped pads, and pads left unmapped.
 
 ## The lock file
 
