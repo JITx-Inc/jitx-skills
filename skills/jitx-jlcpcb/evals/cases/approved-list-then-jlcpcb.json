@@ -1,0 +1,58 @@
+{
+  "name": "approved-list-then-jlcpcb",
+  "prompt": "This prototype spin of the sensor node goes to JLCPCB for assembly, so switch the project over to their parts. Our approved parts list still has to win over anything from the catalogue.",
+  "inputs": {
+    "files": {
+      "pyproject.toml": "[project]\nname = \"sensor-node\"\nversion = \"0.1.0\"\nrequires-python = \">=3.12\"\ndependencies = [\n    \"jitx>=4.6,<4.7\",\n    \"jitxlib-standard>=4.6,<5\",\n    \"jitxlib-parts>=2,<3\",\n]\n\n[tool.jitx.parts]\nchain = [\"csv:parts/approved-parts.csv\", \"ideal\"]\n",
+      "parts/approved-parts.csv": "category,mpn,manufacturer,resistance,capacitance,case,mounting,tolerance,rated_voltage_dc,type,temperature_coefficient_code,datasheet\nresistor,RC0402FR-0710KL,Yageo,10000,,0402,smd,0.01,50,thick_film,,https://yageogroup.com/content/datasheet/asset/file/PYU-RC_GROUP_51_ROHS_L\nresistor,RC0402FR-074K7L,Yageo,4700,,0402,smd,0.01,50,thick_film,,https://yageogroup.com/content/datasheet/asset/file/PYU-RC_GROUP_51_ROHS_L\ncapacitor,CL05B104KO5NNNC,Samsung Electro-Mechanics,,0.0000001,0402,smd,0.1,16,ceramic,X7R,https://product.samsungsem.com/mlcc/CL05B104KO5NNN.do\ncapacitor,CL05A105KA5NQNC,Samsung Electro-Mechanics,,0.000001,0402,smd,0.1,25,ceramic,X5R,https://product.samsungsem.com/mlcc/CL05A105KA5NQN.do\n"
+    },
+    "notes": "An existing project with a team approved list in front of `ideal`. The harness writes each entry of `files` into <output> at its path before the runner starts, and the runner works in <output>. The CSV rows are copied from the example passives list jitxexamples ships, so every MPN in it is a real orderable part. The project has no design yet, so nothing is built; the case measures the opt-in edit and what the runner tells the user. The approved list wins by staying first in the chain and staying unchanged, and the runner should warn that a part it supplies reaches the JLCPCB BOM with no C-number, because the exporter reads only an LCSCPart.",
+    "environment": "A Python 3.12 virtual environment holding jitx 4.6.x, jitxlib-standard, jitxlib-parts and jitxlib-jlcpcb 4.x. No runtime is needed.",
+    "offline": true
+  },
+  "reference": {
+    "notes": "No committed reference solution. The expected chain is the skill's stated rule: the existing entries in order, with jlcpcb where ideal was."
+  },
+  "runner_models": [
+    "sonnet"
+  ],
+  "runner_rationale": "Same rationale as the sensor-board case: a Sonnet-class runner, frontier-tier judges. This case probes whether a weaker model keeps the team's list first and drops `ideal`, rather than appending the catalogue after `ideal` (where it would never be reached) or replacing the chain with the package's own.",
+  "runner_isolation": "Start the runner in <output> with the skill loaded and nothing else. Reading the installed jitxlib-parts and jitxlib-jlcpcb docstrings is expected.",
+  "runner_artifacts": "The runner MUST write a short completion summary to <output>/COMPLETION.md saying what it changed and what it told the user. Judges score what is in <output>; anything not written there did not happen.",
+  "runner_build": "No design exists, so do not ask the runner to build. Tell it not to create a design.",
+  "expected_output": "pyproject.toml with jitxlib-jlcpcb added to dependencies beside the existing ones and the chain csv:parts/approved-parts.csv then jlcpcb, with no ideal; the approved list byte-for-byte unchanged; and a summary telling the user what installing the package changes and that approved-list parts reach the JLCPCB BOM without a C-number.",
+  "assertions": [
+    {
+      "text": "the chain keeps the approved list first, puts jlcpcb second, and drops ideal",
+      "check": "deterministic",
+      "cmd": "python3 -c \"import re,sys,tomllib;d=tomllib.load(open(sys.argv[1]+'/pyproject.toml','rb'));c=d.get('tool',{}).get('jitx',{}).get('parts',{}).get('chain',[]);sys.exit(0 if c[:2]==['csv:parts/approved-parts.csv','jlcpcb'] and 'ideal' not in c else 'chain '+str(c))\" <output>"
+    },
+    {
+      "text": "jitxlib-jlcpcb is in dependencies and the existing dependencies are kept",
+      "check": "deterministic",
+      "cmd": "python3 -c \"import re,sys,tomllib;d=tomllib.load(open(sys.argv[1]+'/pyproject.toml','rb'));deps=d.get('project',{}).get('dependencies',[]);need=('jitx','jitxlib-standard','jitxlib-parts','jitxlib-jlcpcb');names=[re.split(r'[<>=!~ ;\\[]',x.strip(),maxsplit=1)[0].replace('_','-').lower() for x in deps];sys.exit(0 if all(n in names for n in need) else 'dependencies '+str(deps))\" <output>"
+    },
+    {
+      "text": "the approved list is unchanged",
+      "check": "deterministic",
+      "cmd": "python3 -c \"import json,sys;from pathlib import Path;want=json.load(open(sys.argv[1]))['inputs']['files']['parts/approved-parts.csv'];got=(Path(sys.argv[2])/'parts/approved-parts.csv').read_text(encoding='utf-8');sys.exit(0 if got==want else 'the approved list was changed')\" skills/jitx-jlcpcb/evals/cases/approved-list-then-jlcpcb.json <output>"
+    },
+    {
+      "text": "the completion summary was written to <output>/COMPLETION.md",
+      "check": "deterministic",
+      "cmd": "test -s <output>/COMPLETION.md"
+    },
+    {
+      "text": "the runner told the user what installing jitxlib-jlcpcb changes: it publishes a parts chain that a project naming none resolves through, and this project's named chain keeps control",
+      "check": "judge"
+    },
+    {
+      "text": "the runner told the user that a part the approved list supplies reaches the JLCPCB BOM with no C-number and is matched by hand at upload",
+      "check": "judge"
+    },
+    {
+      "text": "the runner did not choose a fab, substrate or parts for the user beyond the switch asked for, and did not create a design",
+      "check": "judge"
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+// Routing fixtures for jitx-jlcpcb: should-trigger / should-not-trigger phrasings.
+// Positives are asks from a user who has already chosen JLCPCB or LCSC, several of
+// which never name the skill or the package: a C-number, the assembly-library tiers,
+// the packet files, the lock file. Negatives are near-misses that share fab, parts or
+// footprint vocabulary but name no JLCPCB channel, so they belong to a sibling skill.
+// The skill is opt-in, so a board with no fab named is a negative here.
+{"intent": "get this board assembled at JLC", "expected_skill": "jitx-jlcpcb"}
+{"intent": "use C2874116 for the humidity sensor", "expected_skill": "jitx-jlcpcb"}
+{"intent": "only basic parts please, I don't want the setup fees for extended parts", "expected_skill": "jitx-jlcpcb"}
+{"intent": "make the gerbers JLCPCB wants", "expected_skill": "jitx-jlcpcb"}
+{"intent": "which JLCPCB stackup fits a 4-layer board with a 90 ohm USB pair?", "expected_skill": "jitx-jlcpcb"}
+{"intent": "generate the BOM and CPL files for JLCPCB assembly", "expected_skill": "jitx-jlcpcb"}
+{"intent": "use the LCSC footprint for this connector, no generator covers it", "expected_skill": "jitx-jlcpcb"}
+{"intent": "U3 shows up rotated in JLCPCB's placement preview, fix the orientation", "expected_skill": "jitx-jlcpcb"}
+{"intent": "what is lcsc.lock.json and should I commit it?", "expected_skill": "jitx-jlcpcb"}
+{"intent": "resolve the passives through LCSC's API instead of JLCPCB's", "expected_skill": "jitx-jlcpcb"}
+{"intent": "I'm on the free tier and want my demo board made at JLCPCB", "expected_skill": "jitx-jlcpcb"}
+{"intent": "for this example board let's go with JLCPCB as the fab", "expected_skill": "jitx-jlcpcb"}
+{"intent": "put the JLCPCB catalogue behind our approved parts list", "expected_skill": "jitx-jlcpcb"}
+// Negatives: fab, parts or footprint vocabulary with no JLCPCB channel named.
+{"intent": "design me a 4-layer sensor board from these requirements", "expected_skill": "jitx-project-builder"}
+{"intent": "model the substrate from our fab's 8-layer stackup PDF, Isola 370HR", "expected_skill": "jitx-substrate-modeler"}
+{"intent": "find a 10k 0402 1% resistor from Digi-Key for the divider", "expected_skill": "jitx-circuit-builder"}
+{"intent": "import the KiCad footprint for this USB-C receptacle", "expected_skill": "jitx-component-modeler"}
+{"intent": "model the SHT40 from the Sensirion datasheet, it's a 4-pin DFN", "expected_skill": "jitx-component-modeler"}
+{"intent": "export a STEP of the whole board for the enclosure design", "expected_skill": "jitx-mechanical"}
+{"intent": "set the default trace width and clearance for the whole board", "expected_skill": "jitx-layout-constraints"}
+{"intent": "export ODB++ for our fab", "expected_skill": "jitx"}
+{"intent": "wire the I2C pull-ups using parts from our approved list", "expected_skill": "jitx-circuit-builder"}

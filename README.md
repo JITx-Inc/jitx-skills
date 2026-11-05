@@ -117,7 +117,7 @@ Model JITX substrates: stackups, materials, vias, routing structures, fabricatio
 
 Example triggers:
 
-- "Create a 4-layer JLCPCB substrate"
+- "Model a substrate from our fab's stackup report"
 - "Define a 14-layer RF stackup with via fencing"
 - "Set up 100-ohm differential routing structure"
 
@@ -181,6 +181,16 @@ Example triggers:
 - "Export my board to DXF for the ME team"
 - "Attach a STEP model to this connector"
 
+### jitx-jlcpcb
+
+The JLCPCB option, opt-in for a user who has chosen JLCPCB as fab and assembler: its predefined substrates, parts resolved to LCSC C-numbers with the basic, preferred and extended tiers, catalogue footprints, the `lcsc.lock.json` file, and the order packet (gerbers, BOM, pick-and-place, order sheet), all through `jitxlib-jlcpcb`. JITX names no default fab; a board with no fab named goes to jitx-project-builder, which asks.
+
+Example triggers:
+
+- "Create a 4-layer JLCPCB substrate"
+- "Use only JLCPCB basic parts for the passives"
+- "Make the JLCPCB order packet for this board"
+
 ## Project Structure
 
 ```text
@@ -213,7 +223,8 @@ jitx-skills/
 │   ├── jitx-interconnect-constraints/
 │   ├── jitx-pin-assignment/
 │   ├── jitx-code-review/
-│   └── jitx-mechanical/
+│   ├── jitx-mechanical/
+│   └── jitx-jlcpcb/
 ├── scripts/
 │   └── validate_dual_plugin.py
 └── sample-project.md
