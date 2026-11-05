@@ -210,7 +210,10 @@ class CaptureAdapterTests(unittest.TestCase):
             frozenset({2, 3}),
         )
 
-    def test_capture_inventory_reaches_every_required_check(self) -> None:
+    def _capture(self, with_generated_via: bool) -> tuple[list[CheckResult], bool]:
+        """Run _capture_checks on a faked capture with one code-placed via inside
+        the stitched pour, on its net, and optionally one generated via."""
+
         class FakePour:
             pass
 
@@ -251,7 +254,7 @@ class CaptureAdapterTests(unittest.TestCase):
         generated_via = FakeVia()
         generated_via.transform = FakeTransform((2.0, 2.0))
         placed_via = FakeVia()
-        placed_via.transform = FakeTransform((0.5, 0.5))
+        placed_via.transform = FakeTransform((5.0, 5.0))
         via_trace = SimpleNamespace(path="circuit", transform=FakeTransform((0.0, 0.0)))
         root = SimpleNamespace(
             circuit=SimpleNamespace(ground=pour_object),
@@ -263,7 +266,7 @@ class CaptureAdapterTests(unittest.TestCase):
 
         class FakeNets:
             def find(self, target: object) -> object | None:
-                if target is pour_object or target is generated_via:
+                if target is pour_object or target is generated_via or target is placed_via:
                     return runtime_net
                 return None
 
@@ -282,7 +285,9 @@ class CaptureAdapterTests(unittest.TestCase):
 
             def query(self, target: type):
                 self.queried = target
-                return [(via_trace, generated_via), (via_trace, placed_via)]
+                if with_generated_via:
+                    return [(via_trace, generated_via), (via_trace, placed_via)]
+                return [(via_trace, placed_via)]
 
         rd = FakeRuntimeDesign()
 
@@ -352,8 +357,11 @@ class CaptureAdapterTests(unittest.TestCase):
                 ("circuit.ground",),
                 ("circuit.ground",),
             )
+        return checks, rd.capture_called
 
-        self.assertTrue(rd.capture_called)
+    def test_capture_inventory_reaches_every_required_check(self) -> None:
+        checks, capture_called = self._capture(with_generated_via=True)
+        self.assertTrue(capture_called)
         self.assertEqual(
             {result.name for result in checks},
             {
@@ -368,6 +376,17 @@ class CaptureAdapterTests(unittest.TestCase):
             "what the caller wants proved, and copper-edge-spacing proves it.",
         )
         self.assertTrue(all(result.passed for result in checks))
+
+    def test_code_placed_via_does_not_witness_stitching(self) -> None:
+        # The stitch witness counts generated vias only (check_stitch_targets'
+        # contract), and code-placed vias are the ones visit lists, matched by
+        # identity. A code-placed via on the pour's net inside the pour, with
+        # no generated via, must leave the stitch check failing.
+        checks, _ = self._capture(with_generated_via=False)
+        stitch = [result for result in checks if result.name == "stitch-realization"]
+        self.assertEqual(len(stitch), 1)
+        self.assertFalse(stitch[0].passed)
+        self.assertEqual(stitch[0].measured, 0)
 
 
 class CommandContractTests(unittest.TestCase):
