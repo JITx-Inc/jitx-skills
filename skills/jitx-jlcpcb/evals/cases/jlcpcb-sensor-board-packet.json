@@ -66,7 +66,7 @@
       "check": "judge"
     },
     {
-      "text": "every LCSCLandpattern in the design has the user's approval recorded, under the component's Notes for a component class the runner wrote or, for a footprint the parts provider attached, in the part's PLAN.md data-source row or COMPLETION.md's catalogue-footprints row; a runner-written class gives a ports= map from the manufacturer's pinout; every catalogue footprint has a recorded pad-by-pad check against the manufacturer's drawing; and any polarized part on a catalogue footprint has its anode and cathode pads checked; no catalogue footprint stays in the design with a pad or hole the runner's own check found outside the drawing's tolerance, and any such difference is reported to the user",
+      "text": "every LCSCLandpattern in the design has the user's approval recorded, under the component's Notes for a component class the runner wrote or, for a footprint the parts provider attached, in the part's PLAN.md data-source row or COMPLETION.md's catalogue-footprints row; a runner-written class gives a ports= map from the manufacturer's pinout; every catalogue footprint has a recorded pad-by-pad check against the manufacturer's drawing; and any polarized part on a catalogue footprint has its anode and cathode pads checked; no catalogue footprint stays in the design with a pad or hole differing from the manufacturer's recommended land pattern beyond its last printed digit (the judge compares the lock file's pads against the drawing, whatever the runner recorded), and any such difference is reported to the user",
       "check": "judge"
     },
     {

@@ -48,7 +48,7 @@ The `jitx` skill's parts gates still apply, and the user approves the final buil
 | `JLC04161H_7628` | 4 | 7628 | `RS_50`, `DRS_90`, `DRS_100` | outer only | 3 standard |
 | `JLC06161H_7628` | 6 | 7628 | `RS_50`, `DRS_100` | outer and the first inner layer each side | 9: standard plus extra-cost multilayer |
 
-Import from `jitxlib.jlcpcb`; each class carries its stackup, fab rules and a tented, filled via for via-in-pad. Pick by layer count and the impedances the design's interfaces need, then read the structure's trace widths in the class source: a 50 ohm trace is 0.1176 mm on the 1080 build and 0.3244 mm on the 4-layer 7628 build. The 6-layer class has no 90 ohm pair, so USB 2.0 on six layers has no predefined structure.
+Import from `jitxlib.jlcpcb`; each class carries its stackup, fab rules and a tented, filled via for via-in-pad. Pick by layer count and the impedances the design's interfaces need, then read the structure's trace widths in the class source: a 50 ohm trace is 0.1176 mm on the 1080 build and 0.3244 mm on the 4-layer 7628 build.
 
 A structure the class lacks, a non-FR-4 material, or a layer count outside the set (two layers included) means a custom substrate through `jitx-substrate-modeler`. Vias and fab rules: `jitxlib.jlcpcb.vias`, `jitxlib.jlcpcb.rules`.
 
@@ -71,7 +71,7 @@ Generator first, as `jitx-component-modeler` orders it, then the manufacturer's 
 
 In a component class you write, give `ports={...}` from the manufacturer's pinout, not pad order.
 
-With no readable manufacturer drawing or pinout, the part is blocked until the user supplies one; catalogue data never checks itself. A pad or hole outside the drawing's tolerance rules out the footprint: name the pad and difference in your reply and use the next source `jitx-component-modeler` orders. For a polarized part, check the anode and cathode pads against the drawing: the in-order mapping assumes the catalogue draws the anode as pad 1. Read every warning the build logs for the footprint: dropped vias, skipped pads, and pads left unmapped.
+With no readable manufacturer drawing or pinout, the part is blocked until the user supplies one; catalogue data never checks itself. A pad or hole differing from the drawing's recommended land pattern beyond its last printed digit rules out the footprint: name the pad and difference in your reply, and model the footprint as `jitx-component-modeler` orders, in a component class for a provider-attached one. For a polarized part, check the anode and cathode pads against the drawing: the in-order mapping assumes the catalogue draws the anode as pad 1. Read every warning the build logs for the footprint: dropped vias, skipped pads, and pads left unmapped.
 
 ## The lock file
 
@@ -104,7 +104,7 @@ Opt-in: <where the user chose JLCPCB>; dependency and chain as written
 Substrate: <class> for <layers, impedances> | custom: <reason>
 Parts: tier <ranked | filtered: user asked>; <N> LCSCPart components; IDEAL- MPNs: none
 Sources: <C-number: datasheets/sourcing/<mpn>-lcsc.txt>
-Catalogue footprints: none | <part: approval text or its location, pads checked against <drawing>> | ruled out: <part, pad, difference>
+Catalogue footprints: none | <part: approval text or its location, pads checked against <drawing>>; ruled out: none | <part, pad, difference>
 Packet: <file listing>; BOM rows without a C-number: none | <list>; orderable | not yet, re-export after: <routing, DRC>
 Approval: MPNs and C-numbers <approved by the user | awaiting the user>
 ```
