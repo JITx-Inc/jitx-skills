@@ -1,0 +1,41 @@
+{
+  "name": "hex-bga-escape",
+  "prompt": "fixture_hex_bga_escape.py has two differential pairs leaving a hex-grid BGA for two pair chips 12 mm below it. Route both on L1. The full DIFF_100 pair does not fit between the ball pads, so the pairs take the narrow DIFF_100_FIELD inside the ball field and DIFF_100 everywhere else; the nets themselves stay on DIFF_100. Keep the ground vias in the balls.",
+  "inputs": {
+    "pyproject.toml": "evals/cases/fixtures/common/pyproject.toml",
+    "cl_substrate.py": "evals/cases/fixtures/common/cl_substrate.py",
+    "cl_parts.py": "evals/cases/fixtures/common/cl_parts.py",
+    "pellingham_cl_fab_sheet.md": "evals/cases/fixtures/common/pellingham_cl_fab_sheet.md",
+    "fixture_hex_bga_escape.py": "evals/cases/fixtures/hex-bga-escape/fixture_hex_bga_escape.py"
+  },
+  "notes": "The fixtures import jitxexamples parts from py-components e6bf1cb (the installed package in the eval venv, 2.0.1.dev74+ge6bf1cbc2) and import no jitxexamples.patterns module; the fictional parts in cl_parts.py need no parts database. The fixture module is fixture_hex_bga_escape.py, Design HexBgaEscapeDesign. The BGA uses the HexBGA land pattern from jitxexamples.demos.si_bga_optimization.generic_bga at 1.2 mm pitch: columns 1.039 mm apart, 0.539 mm between ball pads. DIFF_100 needs 2 x 0.15 + 0.20 + 2 x 0.25 = 1.0 mm there and does not fit; DIFF_100_FIELD needs 2 x 0.08 + 0.10 + 2 x 0.05 = 0.36 mm and does. Spike C8, the tag split: a PairPoint below the field splits each coupled route; the routes from the balls to that point (the uncoupled legs to a PairInsertion and the coupled neck after it) carry a tag whose routing_structure rule applies DIFF_100_FIELD, and the nets carry a tag whose rule applies DIFF_100. The neck's rule needs a priority above every rule that matches the net: with the net's rule at priority 2 and the neck's at 1, the neck rule loses and the routes through the field are not made ('Unable to find path for requested route'), and 4 over 2 holds (wave lane XB). The number is not scored, only that the neck's rule outranks the net's. DIFF_100_FIELD's 0.08 width, 0.10 gap and 0.05 clearance sit below the fab sheet's rows 3 and 4 (0.100); a routing structure takes precedence over the fabrication minimums and raises no issue, so the runner has to say so. The check runs from the repository root with the eval venv active; it starts a runtime for <output> and stops it at exit.",
+  "runner_models": [
+    "sonnet"
+  ],
+  "runner_rationale": "Customers drive this skill with mixed-strength agents, so the eval runs the skill under a Sonnet-class runner; judges stay frontier-tier.",
+  "runner_artifacts": "The input files are the starting design. Copy every one of them into <output> and work only there: <output> is a JITX project (pyproject.toml) whose modules import each other by file name. Write the layout in the fixture module, fixture_hex_bga_escape.py, or in a module it imports, and keep its Design class name, HexBgaEscapeDesign. Do not move or remove the fixture's parts, nets or ground vias, and do not change the substrate or its structures. Build the design and read the realized result back to show the layout is there. Write a completion summary to <output>/COMPLETION.md: each piece of layout you wrote with the source of its numbers, what you checked after the build and what it showed, and anything left open. Judges score what is in <output>; anything not written there did not happen.",
+  "expected_output": "Per pair, legs from the two balls to a PairInsertion in the channel below them, a coupled neck to a PairPoint just below the field, those routes tagged with a DIFF_100_FIELD routing_structure rule that outranks whatever gives the nets DIFF_100 (a net rule or Constrain(...).structure(...)), then the full pair to an insertion above the chip and legs to its pads; a build with every route made; COMPLETION.md with widths and gaps read back in and below the field.",
+  "assertions": [
+    {
+      "text": "every route is made on L1; inside the ball field traces are 0.08 wide and pairs 0.10 apart, below it 0.15 and 0.20; each pair has a coupled section in each, and the 0.08 copper reaches no more than 2.345 below the field; every ground ball keeps its via; no copper is drawn in code",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-physical-layout/evals/checks/check_hex_bga_escape.py <output>"
+    },
+    {
+      "text": "the narrow structure is applied by a tag on the routes inside the field, with a rule that outranks whatever gives the net its full structure, a net rule or Constrain(...).structure(...), and the nets keep DIFF_100; not the narrow structure on the whole net",
+      "check": "judge"
+    },
+    {
+      "text": "COMPLETION.md says that DIFF_100_FIELD's width, gap and clearance sit below the fab sheet's 0.100 floors (rows 3 and 4) and that the build raises no issue for it, so the fabricator has to accept it",
+      "check": "judge"
+    },
+    {
+      "text": "the runner says which control points are fixed by the ball geometry (the insertion below the balls, the split point at the field edge) and which are a designer's choice to place interactively (the chip-side insertion and any bend)",
+      "check": "judge"
+    },
+    {
+      "text": "COMPLETION.md gives, for each piece of layout the prompt asked for, the electrical or fabrication need it holds: what goes wrong on this board without it, in a sentence.",
+      "check": "judge"
+    }
+  ]
+}

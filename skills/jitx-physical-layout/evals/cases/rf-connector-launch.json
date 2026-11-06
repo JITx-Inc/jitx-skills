@@ -1,0 +1,41 @@
+{
+  "name": "rf-connector-launch",
+  "prompt": "fixture_rf_connector_launch.py has two Würth SMA end-launch jacks on opposite edges, offset 20 mm from each other across the board. Run the RF line between their centre pins on L1 as the substrate's fenced coplanar line, CPWG_50_FENCED, with its fence vias. Each launch has to leave its centre pad straight along the pad's axis for 2.0 mm past the pad's inner end before the line turns. Pour GND on L2 under the board, and cut it out under each centre pad: the pad's outline grown by 0.5 mm on every side, with no L2 copper in it.",
+  "inputs": {
+    "pyproject.toml": "evals/cases/fixtures/common/pyproject.toml",
+    "cl_substrate.py": "evals/cases/fixtures/common/cl_substrate.py",
+    "cl_parts.py": "evals/cases/fixtures/common/cl_parts.py",
+    "pellingham_cl_fab_sheet.md": "evals/cases/fixtures/common/pellingham_cl_fab_sheet.md",
+    "fixture_rf_connector_launch.py": "evals/cases/fixtures/rf-connector-launch/fixture_rf_connector_launch.py"
+  },
+  "notes": "The fixtures import jitxexamples parts from py-components e6bf1cb (the installed package in the eval venv, 2.0.1.dev74+ge6bf1cbc2) and import no jitxexamples.patterns module; the fictional parts in cl_parts.py need no parts database. The fixture module is fixture_rf_connector_launch.py, Design RfConnectorLaunchDesign. Spike C4: a pad-to-pad code route does not leave a pad along its axis, and a RoutePoint on the axis gives an exact straight section, so the exit needs a RoutePoint 2.0 mm past each pad's inner end (x = -26.03 and 26.03). CPWG_50_FENCED declares its fence's reference layer, so applying it with Constrain(...).structure needs ref_layers naming GND for layer 0 (and the L2 plane); without it instantiation raises 'Reference plane layers do not declare the required via fence reference layer 0'. The cutout can be a hole in the L2 Pour's shape or a pour KeepOut on layer 1; the check reads the realized pour, so either passes. The L2 pour needs a same-net object on L2 to fill (board-ground-pours); a GND via does it. Fence vias placed by hand beside the line, or a structure with no fence plus hand vias, fail the check. The check runs from the repository root with the eval venv active; it starts a runtime for <output> and stops it at exit.",
+  "runner_models": [
+    "sonnet"
+  ],
+  "runner_rationale": "Customers drive this skill with mixed-strength agents, so the eval runs the skill under a Sonnet-class runner; judges stay frontier-tier.",
+  "runner_artifacts": "The input files are the starting design. Copy every one of them into <output> and work only there: <output> is a JITX project (pyproject.toml) whose modules import each other by file name. Write the layout in the fixture module, fixture_rf_connector_launch.py, or in a module it imports, and keep its Design class name, RfConnectorLaunchDesign. Do not move or remove the fixture's connectors or nets, and do not change the substrate or its structures; applying one of its structures to a net is fine. Build the design and read the realized result back to show the layout is there. Write a completion summary to <output>/COMPLETION.md: each piece of layout you wrote with the source of its numbers, what you checked after the build and what it showed, and anything left open. Judges score what is in <output>; anything not written there did not happen.",
+  "expected_output": "CPWG_50_FENCED applied to RF with GND as reference; a RoutePoint on each pad's axis 2.0 mm past its inner end, a route from each pad to its point and one between the points; an anchored L2 GND pour with a void under each centre pad grown by 0.5 mm; COMPLETION.md with the exits, cutouts and fence rows read back.",
+  "assertions": [
+    {
+      "text": "the line is routed on L1 at 0.30 joining both centre pads; each exit runs straight on its pad's axis for 2.0 mm; the realized L2 pour has a void over each centre pad grown by 0.5 mm with pour around it; the runtime's fence stands in two rows; no via placed in code stands on either fence row and no copper is drawn in code",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-physical-layout/evals/checks/check_rf_connector_launch.py <output>"
+    },
+    {
+      "text": "the runner places the exit RoutePoints from the connector's pad geometry and the stated length, and says why a plain pad-to-pad route is not enough",
+      "check": "judge"
+    },
+    {
+      "text": "COMPLETION.md reports the exit straightness, the cutout and the fence rows as read back from the captured design, not as written",
+      "check": "judge"
+    },
+    {
+      "text": "the runner does not present the 0.5 mm cutout or the 2.0 mm exit as validated RF performance; both are the prompt's numbers",
+      "check": "judge"
+    },
+    {
+      "text": "COMPLETION.md gives, for each piece of layout the prompt asked for, the electrical or fabrication need it holds: what goes wrong on this board without it, in a sentence.",
+      "check": "judge"
+    }
+  ]
+}

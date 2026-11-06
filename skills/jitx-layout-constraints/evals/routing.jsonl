@@ -44,3 +44,4 @@
 // Outside this skill bundle.
 {"intent": "calculate the resistor values for an analog filter", "expected_skill": null}
 {"intent": "write a KiCad action plugin for interactive length tuning", "expected_skill": null}
+{"intent": "Write the tag rule that applies the narrow pair structure to the escape routes at a higher priority than the net's structure.", "expected_skill": "jitx-layout-constraints", "ambiguous_with": ["jitx-physical-layout"]}
