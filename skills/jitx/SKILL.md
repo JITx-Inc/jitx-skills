@@ -1,6 +1,6 @@
 ---
 name: jitx
-description: "Base skill for JITX Python PCB design: install, the jitx CLI, auth and the runtime, building designs, the viewers, exports, code quality (ruff, pyright, type annotations, check.py and grep gates), and design introspection (jitx.inspect, jitx.query, runtime submit). Use to set up JITX, start the runtime, build or find a design, open the viewer, fix a build or environment error, run ruff, pyright or static checks, or find things in a design from Python. Route a whole board from requirements to jitx-project-builder, code self-review to jitx-code-review, component modeling to jitx-component-modeler, wiring and passives to jitx-circuit-builder, stackups to jitx-substrate-modeler, layout geometry and realized-geometry checks to jitx-physical-layout, design rules, stitching, fencing and routing structures by tag to jitx-layout-constraints, SI constraints to jitx-interconnect-constraints, pin flexibility to jitx-pin-assignment, mechanical CAD to jitx-mechanical, and JLCPCB fab, parts and order packet to jitx-jlcpcb."
+description: "Base skill for JITX Python PCB design: install, the jitx CLI, auth and the runtime, building designs, the viewers, exports, code quality (ruff, pyright, type annotations, check.py and grep gates), and design introspection (jitx.inspect, jitx.query, runtime submit). Use to set up JITX, start the runtime, build or find a design, open the viewer, fix a build or environment error, run ruff, pyright or static checks, or find things in a design from Python. Route a whole board from requirements to jitx-project-builder, code self-review to jitx-code-review, component modeling to jitx-component-modeler, wiring and passives to jitx-circuit-builder, stackups to jitx-substrate-modeler, layout in code and realized-geometry checks to jitx-code-layout, design rules, stitching, fencing and routing structures by tag to jitx-layout-constraints, SI constraints to jitx-interconnect-constraints, pin flexibility to jitx-pin-assignment, mechanical CAD to jitx-mechanical, and JLCPCB fab, parts and order packet to jitx-jlcpcb."
 ---
 
 # JITX
@@ -101,7 +101,7 @@ jitx runtime status | grep -q reachable || jitx runtime start --background
 - **Parameterized designs.** `jitx find` lists a `Design` whose `__init__` takes required arguments, but building it fails with `Design is parameterized but no parameters were provided`. Add a thin module-scope subclass with concrete values and build that.
 - **Rebuild prompts.** Some rebuilds ask `[Y/n]` before deleting stale instances; headless, the build ends `EOF when reading a line`. The answer is the user's: end your build, tell them what it printed, and rebuild once they answer in the JITX UI or their own terminal. Pipe `yes |` only when the user says to; PowerShell has no verified equivalent.
 - **Stalled build.** Run long builds with `PYTHONUNBUFFERED=1`. If a build shows no output and little CPU for a minute, check `jitx runtime status` in every other open JITX project, `pgrep -fl interactive-client` for accumulated clients, and what `jitx runtime cleanup` reports. Ask before stopping anything.
-- **`status: ok` is not routed copper.** Realization is silent: verify geometry from Python (Introspection, `jitx-physical-layout`).
+- **`status: ok` is not routed copper.** Realization is silent: verify geometry from Python (Introspection, `jitx-code-layout`).
 - **Exports.** The `legacy-*` plugins are fab and CAD handoffs, not verification. Other packages (such as `jitxlib-ansys`) add plugins.
 
 ### Build safety: don't parallelize same-design work
@@ -162,7 +162,7 @@ class Find(TestCase):
 
 - **`visit`** yields each structural match with its `Trace` (`path`, `transform`). `extract` is `visit` without the trace. `decompose` stops at direct children, traversing lists and dicts.
 - **`jitx.query.query`** takes keyword-only `through`, `opaque`, `refs` and `filter` and converts objects through registered transformers, such as `Pad -> Copper`, `Via -> Copper`, `Via -> Cutout` and `Route -> Copper`; a `Pour` is already `Copper`. Results are in the source's local frame: compose `trace.transform`.
-- **What the runtime knows:** `with jitx.runtime as r: rd = r.submit(MyDesign)` gives `rd.root`, `rd.query(...)`, `rd.nets.find(element)` (the `Net` the runtime assigned, or `None`) and `rd.layers`. Realized routes and pours need `r.capture(...)`. Capture semantics, verification loop: `jitx-physical-layout` `references/geometry-verification.md`.
+- **What the runtime knows:** `with jitx.runtime as r: rd = r.submit(MyDesign)` gives `rd.root`, `rd.query(...)`, `rd.nets.find(element)` (the `Net` the runtime assigned, or `None`) and `rd.layers`. Realized routes and pours need `r.capture(...)`. Capture semantics, verification loop: `jitx-code-layout` "Verification".
 
 ## Sub-skills
 
@@ -174,7 +174,7 @@ Invoke it before writing that code.
 | A component from a datasheet, part number, pin file or footprint | `jitx-component-modeler` |
 | Wiring, nets, typed ports and bundles, hierarchy, placement, passives | `jitx-circuit-builder` |
 | Stackup, materials, vias, routing structures, fab rules | `jitx-substrate-modeler` |
-| Pours, copper, shapes, pad features, code-placed vias and routes, realized-geometry checks | `jitx-physical-layout` |
+| Pours, copper, shapes, code placement, code-placed vias and routes, realized-geometry checks | `jitx-code-layout` |
 | Design rules, clearances, classes of nets by tag, power widths, pour and relief rules, stitching and fencing, routing structures applied by tag, fanout step-down | `jitx-layout-constraints` |
 | Topology, SI constraints, diff pairs, protocol constraints | `jitx-interconnect-constraints` |
 | provide/require, pin muxing, lane and polarity swapping | `jitx-pin-assignment` |

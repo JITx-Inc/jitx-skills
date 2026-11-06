@@ -78,9 +78,11 @@ The rule is the base skill's [Build safety](../jitx/SKILL.md#build-safety-dont-p
 ### Grep Gate Enforcement
 
 Copy `scripts/grep_gates.py` and `scripts/check.py` from the base `jitx` skill into the
-project's `scripts/` directory. Copy
-`jitx-physical-layout/scripts/check_realization.py` to
-`<project>/scripts/check_realization.py`; it is owned and tested by its skill.
+project's `scripts/` directory. A design with pours, stitching or code-placed
+copper gets a realization check you write per `jitx-code-layout`
+"Verification", at `<ns>/designs/check_layout_<name>.py`: it submits the
+design, captures it, asserts each authored pour, stitch target and code route
+from the capture, and exits nonzero on a miss.
 SI constraints need no copied script. Each design whose SI constraints are
 checked gets a report script under `<ns>/`, at `<ns>/designs/check_si_<name>.py`:
 the Python check in `jitx-interconnect-constraints` "Verification" (its body

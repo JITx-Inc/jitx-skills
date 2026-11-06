@@ -75,7 +75,7 @@ Run `python scripts/check.py <ns>/ --build <module.path.DesignClass>` once from 
 | General Gotcha Scrub | N/N |
 | Layout rules | <check command; exit code; each declared rule witnessed in captured copper, or named unwitnessed with the reason> |
 | SI measurements | <`ver-` task: `python -m <ns>.designs.check_si_<iface>` command; one quoted group per constraint with a timing, loss or skew target, carrying its Time / Loss / Skew measurement, intended ends, `met` or `NOT MET`, no unresolved text; each structure-only constraint named from its code / any other task: not applicable + reason> |
-| Physical realization | <`python scripts/check_realization.py <module.Design> [witness args]`; exit code; authored pours, stitch targets, board-wide pours / not applicable + reason> |
+| Physical realization | <`python -m <ns>.designs.check_layout_<name>` command; exit code; authored pours, stitch targets, board-wide pours / not applicable + reason> |
 | `ruff check` | <`ruff check` summary line; PASS, or FAIL fixed and re-run> |
 | `ruff format` | <`ruff format` summary line; PASS, or reformatted and re-run> |
 | `pyright` | <`pyright` summary line; PASS, or FAIL fixed and re-run; ERROR needs a reason> |
@@ -488,7 +488,7 @@ For each item: pass | fail with details | not run (with reason)
 | SI constraints | all satisfied | <compliance from the routed assembly's own groups (`group.satisfied`; the measurement is binding evidence, not the verdict), or list of failures with disposition; verification-design values are proof-route numbers and do not stand in; a constraint whose path has no route reads `not measured: unrouted; see SI constraint binding` and gets the `SI compliance pending routing` Deferred item> |
 | SI constraint binding | measured / not applicable | <each verification design: exact `python -m <ns>.designs.check_si_<iface>` command and one quoted group per constraint with a timing, loss or skew target, with its measurement (structure-only: named from code); assembly: command and each SI group dispositioned / concrete reason no SI constraint is expected> |
 | Placement overlap | none | <or list> |
-| Physical realization | exit 0 | <exact `check_realization.py` command; authored pour names; stitch targets; board-wide pours> |
+| Physical realization | exit 0 | <exact `python -m <ns>.designs.check_layout_<name>` command; authored pour names; stitch targets; board-wide pours> |
 
 If any row is `not run`, give the reason. Common reasons:
 
