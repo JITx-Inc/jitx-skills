@@ -10,15 +10,21 @@ worked from them:
   ``WilkinsonTree``, and each holding exactly one ``OverlappableCopper`` body
   on L1; no other ``Copper`` or ``OverlappableCopper`` in the design (a
   meander drawn by hand, or a body drawn in the tree, fails here);
-- arm length: an opening by 0.12 mm (more than half the 0.17 ``ARM_71``
-  width, less than half the 0.30 line) removes the arm copper from each
-  body. Cut 0.1 mm back from the wide copper, so the two arms part where
-  they meet at the junction, it leaves two pieces; each one's area over
-  0.17, plus the 0.2 cut from its two ends, is its length, a quarter
+- arm length: an arm's length is its centre line between the 0.30 copper
+  it leaves and the 0.30 copper it reaches, which it meets square on (the
+  prompt). An opening by 0.12 mm with square corners (more than half the
+  0.17 ``ARM_71`` width, less than half the 0.30 line) removes the arm
+  copper from each body; cut 0.1 mm back from the wide copper, so arms that
+  meet at the junction part, it leaves two pieces. Each one's area over
+  0.17, plus what the same reading drops from a straight arm of known
+  length between two square joins (0.2), is its length, a quarter
   wavelength at 2.45 GHz on ``ARM_71``'s 1.6e11 mm/s:
   1.6e11 / 2.45e9 / 4 = 16.327 mm, within 0.5 mm;
 - coincident keepout: an L1 GND pour realizes, covers none of any body
-  (under 0.001 mm2), and comes within 0.5 mm of each; an L1 pour
+  (under 0.001 mm2), and its nearest copper stands 0.20 to 0.23 mm off
+  each body: the prompt's keepout on the body's outline grown by 0.20, the
+  clearance ``ARM_71`` and ``CPWG_50_FENCED`` declare, with up to 0.03
+  more, and 0.001 allowed under for the pour's polygon edges; an L1 pour
   ``KeepOut`` covers each body;
 - region fence: around each body, at least 8 generated vias within 2.0 mm of
   its outline that stand more than 2.0 mm from every route's centre line, so
@@ -40,10 +46,14 @@ worked from them:
   input jack has exactly one route with ``Route.Config(envelope_overhead=E)``,
   0 < E <= 3.0, at most three routes, and every other route in it straight
   (its copper's minimum rotated rectangle no wider than the trace and 0.02)
-  and no more than 4.0 mm long. A zigzag of control points fails here. The input feed's routes are straight. The issue report
-  carries no ``UnmetTime``, ``UnmetTimeDiff`` or ``UnsquiggledRoute``, and
-  the satisfied report shows three skew lines, the fixture's constraint
-  resolved through the cells.
+  and no more than 4.0 mm long; a zigzag of control points fails here. The
+  input feed's routes are straight. In the issue report with satisfied
+  groups included, which carries every measurement whether met or not:
+  three skew measurements (``UnmetTimeDiff``, outputs 1 to 3 against
+  output 0, the fixture's constraint resolved through the cells), each
+  within the prompt's 1.0 ps; no signal measurement unmet; no
+  ``UnsquiggledRoute`` or ``UnrealizedRoute``; and the unmet report names
+  no "signal constraint" and no "Unable to find path".
 """
 
 import math
@@ -60,6 +70,7 @@ import cl_check as L  # noqa: E402
 
 from jitx.feature import OverlappableCopper  # noqa: E402
 from jitx.inspect import visit  # noqa: E402
+from jitx.issue import SignalIntegrityIssue, UnmetTimeDiff, UnrealizedRoute, UnsquiggledRoute  # noqa: E402
 
 WIDTH = 0.30
 ARM = 0.17
@@ -73,6 +84,35 @@ MAX_ENVELOPE = 3.0
 EXIT_MAX = 4.0
 FENCE_MIN = 8
 FENCE_ROWS = (WIDTH / 2 + 0.6, WIDTH / 2 + 1.2)
+POUR_GAP = (0.199, 0.23)
+SKEW = 1.0e-12
+
+
+def arm_pieces(g: BaseGeometry) -> list[BaseGeometry]:
+    """The arm copper of a body: what an opening by OPEN removes, less the
+    copper within TRIM of what it keeps, in pieces over 0.3 mm2. The
+    opening keeps square corners (mitre joins): a round one reaches into an
+    arm where it meets wide copper, by an amount that turns on the corner's
+    exact vertices."""
+    opened = g.buffer(-OPEN, join_style="mitre").buffer(OPEN, join_style="mitre")
+    thin = g.difference(opened.buffer(TRIM))
+    return [p for p in getattr(thin, "geoms", [thin]) if p.area > 0.3]
+
+
+def end_allowance() -> float:
+    """Arm length the reading drops at its two ends, worked on a straight
+    ARM-wide arm of known length meeting WIDTH copper square on at both
+    ends: the known length less the area reading."""
+    known = 5.0
+    g = shapely.union_all(
+        [
+            shapely.box(-2.0, -WIDTH / 2, 0.0, WIDTH / 2),
+            shapely.box(0.0, -ARM / 2, known, ARM / 2),
+            shapely.box(known, -WIDTH / 2, known + 2.0, WIDTH / 2),
+        ]
+    )
+    (piece,) = arm_pieces(g)
+    return known - piece.area / ARM
 
 
 def straight(geom: BaseGeometry) -> tuple[bool, float]:
@@ -132,15 +172,14 @@ with L.built(out, "fixture_wilkinson_tree", "WilkinsonTreeDesign", wait=120.0) a
             L.fail(f"{cp}: expected one OverlappableCopper body on L1, found {len(mine)} drawn ({kinds})")
     body_geoms = [g for _, _, g, _ in bodies]
 
+    allowance = end_allowance()
+    print(f"arm end allowance {allowance:.4f} mm (a straight arm meeting the wide copper square on)")
     for owner, path, g, _ in bodies:
-        # Arm copper is what an opening by OPEN removes. Where the two arms
-        # meet the input stub they touch, so the arm copper within TRIM of
-        # the wide copper is cut off, and each arm, which meets wide copper
-        # at both ends, gets 2 * TRIM back.
-        opened = g.buffer(-OPEN).buffer(OPEN)
-        thin = g.difference(opened.buffer(TRIM))
-        arms = [p for p in getattr(thin, "geoms", [thin]) if p.area > 0.3]
-        lengths = sorted(round(p.area / ARM + 2 * TRIM, 3) for p in arms)
+        # Each arm's length is its centre line between the wide copper it
+        # leaves and the wide copper it reaches (the prompt), read as its
+        # area over ARM plus what the reading drops at two square ends.
+        arms = arm_pieces(g)
+        lengths = sorted(round(p.area / ARM + allowance, 3) for p in arms)
         print(f"{owner}: arm pieces {lengths} mm (quarter wave {QUARTER:.3f})")
         if len(arms) != 2:
             L.fail(f"{owner}: {len(arms)} pieces of {ARM}-wide arm copper, not two")
@@ -160,8 +199,8 @@ with L.built(out, "fixture_wilkinson_tree", "WilkinsonTreeDesign", wait=120.0) a
         print(f"{owner}: L1 pour over the body {over:.4f} mm2, {near} from it; body outside pour keepouts {bare:.4f} mm2")
         if over > 1e-3:
             L.fail(f"{owner}: L1 pour covers {over:.4f} mm2 of the body")
-        if near is not None and near > 0.5:
-            L.fail(f"{owner}: L1 pour stands {near} off the body, not around it")
+        if near is not None and not POUR_GAP[0] <= near <= POUR_GAP[1]:
+            L.fail(f"{owner}: L1 pour stands {near:.3f} off the body, not 0.20 to {POUR_GAP[1]}")
         if bare > 1e-3:
             L.fail(f"{owner}: no pour KeepOut over {bare:.4f} mm2 of the body")
 
@@ -254,12 +293,22 @@ with L.built(out, "fixture_wilkinson_tree", "WilkinsonTreeDesign", wait=120.0) a
             if len(members) > 3:
                 L.fail(f"{name}: {len(members)} routes, more than the exit, section and entry")
 
-    bad = L.issue_kinds(L.issues_text(rd), "UnmetTime", "UnsquiggledRoute", "Unable to find path")
+    # The report with satisfied groups carries every measurement, met or
+    # not; each measurement says whether it is met.
+    report = rd.issues(satisfied=True, wait=15.0)
+    print("report complete:", report.complete)
+    bad = L.issue_kinds(L.issues_text(rd), "signal constraint", "Unable to find path")
+    bad += [i.text for i in report.of(UnsquiggledRoute) + report.of(UnrealizedRoute)]
+    bad += [i.text for i in report.of(SignalIntegrityIssue) if not i.satisfied]
     if bad:
         L.fail(f"issues: {bad}")
-    sat = rd.issues(satisfied=True, wait=15.0).text()
-    skews = [ln.strip() for ln in sat.splitlines() if "Skew" in ln]
-    print("timing:", skews)
+    skews = report.of(UnmetTimeDiff)
+    for d in skews:
+        worst = max(abs(v) for v in d.measured_range) if d.measured_range else None
+        shown = f"{worst * 1e12:.3f} ps" if worst is not None else "none"
+        print(f"skew {shown}, satisfied {d.satisfied}: {d.text}")
+        if worst is None or worst > SKEW * (1 + 1e-9):
+            L.fail(f"skew {shown} over the prompt's {SKEW * 1e12:.1f} ps: {d.text}")
     if len(skews) != 3:
-        L.fail(f"{len(skews)} skew lines in the issue report, not the constraint's three")
+        L.fail(f"{len(skews)} skew measurements, not the constraint's three (outputs 1 to 3 against output 0)")
 L.finish()
