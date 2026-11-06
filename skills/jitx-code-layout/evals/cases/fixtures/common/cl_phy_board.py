@@ -20,7 +20,6 @@ from jitx.circuit import Circuit
 from jitx.copper import Pour
 from jitx.net import Net
 from jitx.shapes.composites import rectangle
-from jitx.transform import Transform
 
 from jitxexamples.components.ethernet_phys.microchip_KSZ9031RNX import KSZ9031RNX
 
@@ -31,8 +30,7 @@ EDGE = ClFabConstraints.min_copper_edge_space
 
 class PhyBoard(Circuit):
     def __init__(self) -> None:
-        self.phy = KSZ9031RNX()
-        self.place(self.phy, Transform((0.0, 0.0), 0))
+        self.phy = KSZ9031RNX().at(0.0, 0.0)
 
         self.GND = Net([self.phy.P_GND, self.phy.VSS], name="GND")
         self.V1V2 = Net([*self.phy.DVDDL, *self.phy.AVDDL, self.phy.AVDDL_PLL], name="1V2")

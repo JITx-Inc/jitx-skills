@@ -16,15 +16,20 @@ each of the four pairs against the prompt:
   each turn, so neighbouring gaps alternate short and long, and each
   neighbouring two average to the pitch. Only the lower bound is scored;
 - rows 5 and -5: the deskew bumps, read as the arc radii one trace has and
-  the other does not, have the prompt's radius (0.4 and 0.6 mm) to three
-  decimals. Provenance: on this fixture 0.4 and 0.6 realized exactly, and
-  0.2 realized 0.275, the radius the bumps take on a row with no radius
-  rule; what sets that floor is not established, so the prompt asks only
-  for the two radii that matched;
+  the other does not, are at least the prompt's radius (0.4 and 0.6 mm):
+  ``deskew_bump_radius`` is a lower bound on the router's own radius (its
+  docstring), so a radius above the asked one is the router's choice, not
+  the runner's. The largest bump radius on row 5 must stay below the
+  smallest on row -5, so the two rows still show two different settings.
+  Provenance: on this fixture 0.4 and 0.6 realized exactly, and 0.2 realized
+  0.275, the radius the bumps take on a row with no radius rule; what sets
+  that floor is not established, so the prompt asks only for radii above it;
 - row -15: the bumps (four arcs each, on one trace) sit 2.0 mm apart, the
   ``min_bump_spacing`` the prompt asks for, measured along the other
   trace's centre line from the centre of a bump's last arc to the next
-  bump's first;
+  bump's first. Scored as the gap itself, to 0.01: the py-jitx docstring on
+  docs/code-route-fields (994e28d) calls it the gap between neighbouring
+  bumps, though the 4.6.0 docstring says minimum distance;
 - the issue report names no signal constraint: delay and skew are met;
 - no Copper or OverlappableCopper is drawn in code.
 
@@ -70,6 +75,7 @@ def bump_arcs(traces: list[Any]) -> tuple[list[Arc], list[float], int]:
 out = L.output_dir()
 with L.built(out, "fixture_serpentine_four_sections", "SerpentineFourSectionsDesign") as rd:
     routes = L.realized_routes(rd, layer=0)
+    bump_radii: dict[float, list[float]] = {}
     sections = [
         wr
         for wr in routes
@@ -106,8 +112,10 @@ with L.built(out, "fixture_serpentine_four_sections", "SerpentineFourSectionsDes
             if not bumps:
                 L.fail(f"row {y}: no deskew bumps on exactly one trace")
                 continue
-            if y in RADIUS and radii != [RADIUS[y]]:
-                L.fail(f"row {y}: bump radii {radii}, not {RADIUS[y]}")
+            if y in RADIUS:
+                bump_radii[y] = radii
+                if min(radii) < RADIUS[y] - 1e-3:
+                    L.fail(f"row {y}: bump radii {radii}, under {RADIUS[y]}")
             if y == -15.0:
                 groups = [bumps[i : i + 4] for i in range(0, len(bumps), 4)]
                 axis = L.centreline(traces[1 - k])
@@ -118,6 +126,8 @@ with L.built(out, "fixture_serpentine_four_sections", "SerpentineFourSectionsDes
                 print(f"row {y}: bump gaps {gaps}")
                 if len(bumps) % 4 or not gaps or any(abs(gp - SPACING) > 0.01 for gp in gaps):
                     L.fail(f"row {y}: bumps {gaps} apart, not {SPACING}")
+    if len(bump_radii) == 2 and max(bump_radii[5.0]) >= min(bump_radii[-5.0]) - 1e-3:
+        L.fail(f"rows 5 and -5: bump radii {bump_radii[5.0]} and {bump_radii[-5.0]} do not show two settings")
     text = L.issues_text(rd, wait=40)
     bad = L.issue_kinds(text, "signal constraint", "UnmetTime", "UnsquiggledRoute")
     print("issues:", text.strip().splitlines()[:4])
