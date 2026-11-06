@@ -20,7 +20,7 @@
     {
       "text": "the RF line is realized on layer 0 as code routes, every trace 0.30 wide (MS_50), its copper joining both SMA centre pads, with no copper drawn in code",
       "check": "deterministic",
-      "cmd": "python3 skills/jitx-physical-layout/evals/checks/check_route_one_layer.py <output>"
+      "cmd": "python3 skills/jitx-code-layout/evals/checks/check_route_one_layer.py <output>"
     },
     {
       "text": "the runner takes the width from MS_50 and says how it is applied (the structure on the net, or a Route.Config with the structure named as the source), not a number typed without a source",

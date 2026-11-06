@@ -19,7 +19,7 @@
     {
       "text": "every route is made on L1; inside the ball field traces are 0.08 wide and pairs 0.10 apart, below it 0.15 and 0.20; each pair has a coupled section in each, and the 0.08 copper reaches no more than 2.345 below the field; every ground ball keeps its via; no copper is drawn in code",
       "check": "deterministic",
-      "cmd": "python3 skills/jitx-physical-layout/evals/checks/check_hex_bga_escape.py <output>"
+      "cmd": "python3 skills/jitx-code-layout/evals/checks/check_hex_bga_escape.py <output>"
     },
     {
       "text": "the narrow structure is applied by a tag on the routes inside the field, with a rule that outranks whatever gives the net its full structure, a net rule or Constrain(...).structure(...), and the nets keep DIFF_100; not the narrow structure on the whole net",

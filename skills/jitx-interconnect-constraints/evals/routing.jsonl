@@ -31,4 +31,4 @@
 {"intent":"define the 50 ohm microstrip RoutingStructure for this substrate","expected_skill":"jitx-substrate-modeler","ambiguous_with":["jitx-interconnect-constraints"]}
 {"intent":"calculate and add a 100 ohm DifferentialRoutingStructure to the stackup","expected_skill":"jitx-substrate-modeler","ambiguous_with":["jitx-interconnect-constraints"]}
 {"intent":"enter the fabrication minimums and via definitions for this board house","expected_skill":"jitx-substrate-modeler","ambiguous_with":["jitx-interconnect-constraints"]}
-{"intent": "Hold DATA to 300 ps pad to pad and keep the pair's skew within 1 ps.", "expected_skill": "jitx-interconnect-constraints", "ambiguous_with": ["jitx-physical-layout"]}
+{"intent": "Hold DATA to 300 ps pad to pad and keep the pair's skew within 1 ps.", "expected_skill": "jitx-interconnect-constraints", "ambiguous_with": ["jitx-code-layout"]}
