@@ -22,7 +22,7 @@
       "check": "judge"
     },
     {
-      "text": "the runner does not present control points hard-coded in Python as final; where it hard-codes any, it says they are placeholders. Any claim about moving them says only what is measured or ruled: refused by the layout API that backs the view (rd.layout.update_control), and a drag was not tried; a via placed in code cannot be dragged relative to anything else placed in its circuit; it moves only when a floating circuit containing it is moved, while a via made through the interactive layout (still under development) can be dragged (Duncan's ruling). For vias this assertion asks only that they are left to the designer and that the runner says so",
+      "text": "the runner does not present control points hard-coded in Python as final; where it hard-codes any, it says they are placeholders. Any claim about moving them says only what is measured or ruled: refused by the layout API that backs the view (rd.layout.update_control), and a drag was not tried; a via placed in code cannot be dragged relative to anything else placed in its circuit; it moves only when a floating circuit containing it is moved, while a via made through the interactive layout (still under development) can be dragged (Duncan's ruling); a designer would take over a placeholder via by deleting it and its routes from code and re-creating them in the interactive layout, a path not yet tried. For vias this assertion asks only that they are left to the designer and that the runner says so",
       "check": "judge"
     },
     {

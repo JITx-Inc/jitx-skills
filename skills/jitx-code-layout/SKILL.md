@@ -54,13 +54,13 @@ A `Route.Target` that differs from the trace width tapers the whole route it is 
 
 ## Narrowing a route
 
-Where the full structure does not fit (a BGA ball field, a fine-pitch pad row), split the route at a `RoutePoint` or `PairPoint` and tag the narrow route. The tag's `routing_structure` rule must outrank the net's: at 4, over a priority-2 net rule. Below it, the net's rule wins, unreported. Split just outside the field or row, so the full section clears the last pads. Worked patterns: `jitxexamples.patterns.hex_bga_escape`, `jitxexamples.patterns.layout_routing_structure_by_tag`.
+Where the full structure does not fit (a BGA ball field, a fine-pitch pad row), split the route at a `RoutePoint` or `PairPoint` and tag the narrow route. The tag's `routing_structure` rule must outrank the net's: at 4, over a priority-2 net rule. Below the net's priority, its rule wins, unreported. Split just outside the field or row, so the full section clears the last pads. Worked patterns: `jitxexamples.patterns.hex_bga_escape`, `jitxexamples.patterns.layout_routing_structure_by_tag`.
 
 An impedance lookup (`substrate.differential_routing_structure(100 * ohm)`, or a protocol constraint given no `structure`) returns a structure whose `impedance` fits; two structures sharing an `impedance` make the result depend on declaration order. Give a narrow structure an `impedance` no lookup window admits (`hex_bga_escape` gives its neck 0 ohm).
 
 ## Length matching
 
-Matched length is a timing constraint (`jitx-interconnect-constraints`), never a meander drawn in code. A section with `Route.Config(envelope_overhead=w)` may meander within `w` beyond its own copper, half each side, until the route meets its timing constraint; zero, or no `Config`, turns matching off. Worked patterns: `jitxexamples.patterns.serpentine_sections`, `jitxexamples.patterns.wilkinson_tree`.
+Matched length is a timing constraint (`jitx-interconnect-constraints`), never a meander drawn in code. A section with `Route.Config(envelope_overhead=w)` may meander within `w` beyond its own copper, half each side, until the route meets its timing constraint; zero turns matching off, as does no `Config` without a board-view envelope. Worked patterns: `jitxexamples.patterns.serpentine_sections`, `jitxexamples.patterns.wilkinson_tree`.
 
 - End a matched section on `RoutePoint`s or `PairPoint`s, which resize to fit the envelope. A small pad leaves no room (`UnsquiggledRoute`); a matched coupled section between two `PairInsertion`s does not route.
 - Size each envelope for the delay its section adds: too little room leaves the route short, reported only as unmet time (`UnmetTime`, `UnmetTimeDiff`) with routing "Satisfied": widen the envelope, or put the delay in another section. The router stops at the low edge of the timing window.
@@ -80,7 +80,7 @@ Matched length is a timing constraint (`jitx-interconnect-constraints`), never a
 - A pour keeps copper only where its net has a pad or via with copper on that layer inside it; otherwise it comes back `Empty()` with `status: ok`, and stitch or fence vias do not hold it. Anchor each layer's pour, for example with one through via on the net. Worked pattern: `jitxexamples.patterns.board_ground_pours`.
 - A pour larger than the board is pulled back by `min_copper_edge_space` or a larger `IsBoardEdge` rule (`jitx-layout-constraints`).
 - `KeepOut(pour=True)` removes pour copper at every rank; `rank` only orders competing pours. `KeepOut(via=True)` blocks generated vias, not code-placed ones. A pour does not avoid `OverlappableCopper`: add a coincident `KeepOut(pour=True)`.
-- Declare a pour in the circuit that owns its net. Capture may leave one declared in a parent and added to a child's net off that net, and a fence-tagged child pour joined to a parent's net fails at submit ("Key N does not exist in table").
+- Declare a pour in the circuit that owns its net. One declared in a parent on a child's net can be captured off that net, and a fence-tagged child pour joined to a parent's net fails at submit ("Key N does not exist in table").
 - `OverlappableCopper` connects only through the pads it overlaps; for the router to count two same-net pads joined by it, declare a [`VirtualConnection`](https://docs.jitx.com/en/latest/essentials/physical_design/creating-layouts-from-code.html#virtual-connections) (`jitx.virtual`); on a constrained path give it a `PinModel` with the leg's electrical delay, not one from its drawn length.
 - Shapes: `jitx.shapes.composites` first; `ShapelyGeometry(g)` wraps shapely, `.to_shapely()` converts back. Use only a non-empty `Polygon` or `MultiPolygon`. `.at(scale=(1, -1))` does not mirror: transform the geometry.
 
@@ -130,7 +130,7 @@ When a route, pour or via did not realize, report it as not done with that evide
 - `rd.layout.update_control` refuses a control point placed in code (`RoutePoint`, `PairPoint`, `PairInsertion`).
 - A point made with `rd.layout.route_point` moves with `update_control` and keeps the move across rebuilds.
 - `rd.layout.modify(route, turns=...)` is refused while the route's sketch is set in code.
-- A via placed in code cannot be dragged relative to anything else placed in its circuit; it moves only when a floating circuit containing it is moved. A via made through the interactive layout can be dragged. A designer takes over a placeholder via by deleting it and its routes from code and re-creating them in the interactive layout, which is under development.
+- A via placed in code cannot be dragged relative to anything else placed in its circuit; it moves only when a floating circuit containing it is moved. A via made through the interactive layout can be dragged. A designer would take over a placeholder via by deleting it and its routes from code and re-creating them in the interactive layout; untested.
 - A width set with `modify` lasts until code sets that `Route.Config` field.
 
 Dragging a control point, turn or width in the board view is untested: never report one as working unless you did it.

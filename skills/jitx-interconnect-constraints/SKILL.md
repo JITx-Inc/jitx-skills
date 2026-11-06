@@ -52,7 +52,7 @@ self.cst = Constrain(Topology(self.drv.o, self.rcv.i)).timing(500e-12).insertion
 
 Worked pattern: `jitxexamples.patterns.si_point_to_point`. `.timing(high=..., low=...)` sets a window; `Constrain([topo_a, topo_b])` takes several paths.
 
-A timing constraint alone draws no meander: the router adds length only inside a code route section given `Route.Config(envelope_overhead=...)`, and a path left shorter than its window reports `UnmetTime` ([`jitx-code-layout`, length matching](../jitx-code-layout/SKILL.md#length-matching)).
+A timing constraint alone draws no meander: length is added only inside an envelope (`Route.Config(envelope_overhead=...)` on a code route section, or one set in the board view), and a path left short reports `UnmetTime` ([`jitx-code-layout`, length matching](../jitx-code-layout/SKILL.md#length-matching)).
 
 Cover every timed path with one routing structure, on its own constraint or, in a daisy chain, the longest path's. Without one the measurement is not the structure's, and `Missing routing structure on Path: ...` is a defect to fix. `Constrain.structure()` takes only a single-ended `RoutingStructure`; differential work uses `ConstrainDiffPair` or `DiffPairConstraint`.
 

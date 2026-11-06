@@ -17,8 +17,8 @@ each of the four pairs against the prompt:
   neighbouring two average to the pitch. Only the lower bound is scored;
 - rows 5 and -5: the deskew bumps, read as the arc radii one trace has and
   the other does not, are at least the prompt's radius (0.4 and 0.6 mm):
-  ``deskew_bump_radius`` is a lower bound on the router's own radius (its
-  docstring), so a radius above the asked one is the router's choice, not
+  ``deskew_bump_radius`` is a lower bound on the router's own radius (on
+  this fixture 0.2 realized 0.275), so a radius above the asked one is the router's choice, not
   the runner's. The largest bump radius on row 5 must stay below the
   smallest on row -5, so the two rows still show two different settings.
   Provenance: on this fixture 0.4 and 0.6 realized exactly, and 0.2 realized
@@ -27,9 +27,8 @@ each of the four pairs against the prompt:
 - row -15: the bumps (four arcs each, on one trace) sit 2.0 mm apart, the
   ``min_bump_spacing`` the prompt asks for, measured along the other
   trace's centre line from the centre of a bump's last arc to the next
-  bump's first. Scored as the gap itself, to 0.01: the py-jitx docstring on
-  docs/code-route-fields (994e28d) calls it the gap between neighbouring
-  bumps, though the 4.6.0 docstring says minimum distance;
+  bump's first. Scored as the gap itself, to 0.01: on this fixture 2.0 realizes a
+  2.0 gap, though the 4.6.0 docstring says minimum distance;
 - the issue report names no signal constraint: delay and skew are met;
 - no Copper or OverlappableCopper is drawn in code.
 
