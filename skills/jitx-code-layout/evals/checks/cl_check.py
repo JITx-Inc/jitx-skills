@@ -38,7 +38,7 @@ from shapely.geometry.base import BaseGeometry
 from jitx.circuit import Route
 from jitx.copper import Copper, Pour
 from jitx.design import Design
-from jitx.feature import OverlappableCopper
+from jitx.feature import KeepOut, OverlappableCopper
 from jitx.inspect import visit
 from jitx.landpattern import Pad, PadShape
 from jitx.run.runtime import Runtime
@@ -263,6 +263,33 @@ def authored_copper(rd: Any) -> list[tuple[str, BaseGeometry, int]]:
             s = trace.transform * s
         out.append((str(trace.path), geom(s), int(c.layer)))
     return out
+
+
+def on_layer(layers: Any, layer: int, count: int = 4) -> bool:
+    """True when a ``LayerSet`` covers ``layer`` of a ``count``-layer board;
+    negative indices count from the bottom."""
+    for lo, hi in layers.ranges:
+        lo, hi = lo % count, hi % count
+        if lo <= layer <= hi:
+            return True
+    return False
+
+
+def keepouts(rd: Any, layer: int, flag: str) -> list[BaseGeometry]:
+    """Board geometry of every ``KeepOut`` on ``layer`` with ``flag``
+    (``"route"``, ``"pour"`` or ``"via"``) set."""
+    out = []
+    for trace, k in visit(rd.root, KeepOut):
+        if not getattr(k, flag) or not on_layer(k.layers, layer):
+            continue
+        s = k.shape if trace.transform is None else trace.transform * k.shape
+        out.append(geom(s))
+    return out
+
+
+def route_keepouts(rd: Any, layer: int) -> list[BaseGeometry]:
+    """Board geometry of every route ``KeepOut`` on ``layer``."""
+    return keepouts(rd, layer, "route")
 
 
 def gap(a: BaseGeometry, b: BaseGeometry) -> float:
