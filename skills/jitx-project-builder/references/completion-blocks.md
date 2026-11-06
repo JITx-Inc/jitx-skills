@@ -157,8 +157,8 @@ The orchestrator (or user) then appends the acceptance decision:
   verification design's values are proof-route numbers, not the board's.
 
   The physical row carries the command, exit 0, and the witness names. A
-  missing row, a verification design that does not pass, a blocking text, exit
-  1, exit 2, or a claimed pass without named witnesses blocks acceptance.
+  missing row, a verification design that does not pass, a blocking text, a
+  nonzero exit, or a claimed pass without named witnesses blocks acceptance.
   `not applicable` names the concrete reason no SI constraint or authored
   physical witness exists; it is not a substitute for an unavailable command.
 - **JITX code review (self) is required for complete-board tier.** A complete-board task acceptance block with `JITX code review (self): not run` defaults to `block`. Bulk dispositions on findings ("all accepted, framework code") without per-line rationale fail review. See `jitx-code-review/SKILL.md`.
@@ -538,8 +538,8 @@ Rules:
   Deferred item `SI compliance pending routing: rerun python -m
   <ns>.designs.check_si_main after routing`, shown to the user with the
   verdict. Without that item the verdict is `not-yet`.
-- The Physical realization row is blocking. Absence, `not run`, exit 1, or exit
-  2 makes the verdict `not-yet`; a clean build does not substitute for it.
+- The Physical realization row is blocking. Absence, `not run`, or a nonzero
+  exit makes the verdict `not-yet`; a clean build does not substitute for it.
 - A `not run` row also requires fallback artifacts: if the JITX UI isn't available, name the build-output files used to substitute for it. Conventional fallbacks:
     - **Schematic / Issues List → `build log`** (cite path; flag any errors/warnings)
     - **Board placement / overlap → `<design-folder>/design-info/stable.design`** (machine-readable; can be inspected for overlap)
