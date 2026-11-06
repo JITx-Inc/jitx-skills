@@ -48,7 +48,7 @@ See [Interactive edits](#interactive-edits). Keep width, structure, net and laye
 
 ### Route.Config and Route.Target
 
-`Route.Config` overrides the rules for one route, and the view cannot change the fields it sets; a class of routes takes a tag rule. `trace_space` is also the pour's pullback. Leave its `pour` unset: fill around a route with a `Pour` on the net.
+`Route.Config` overrides the rules for one route, and the view cannot change the fields it sets; a class of routes takes a tag rule. `trace_space` is also the pour's pullback. Leave `Route.Config.pour` unset: fill around a route with a `Pour`.
 
 A `Route.Target` that differs from the trace width tapers the whole route it is on: `Route.Target.rectangle` realizes as one polygon widening linearly to the target's extent across the trace, with no drawn trace width. To taper only at the pad, split at a `RoutePoint` and put the target on the short last route (`code_route_basics`). A taper suits widening into a wider pad but cannot hold a width over one: for copper narrower than the pad, split at a `RoutePoint` at least half the wide width past the pad edge and give the short route its own width.
 
