@@ -20,7 +20,7 @@ First sort every control point, via and turn:
 | Fixed by geometry or a stated number | a connector exit on the pad axis, the split at a ball-field edge, thermal vias in a pad | code |
 | A designer's choice | fanout via positions, escape bends, sketch turns | the interactive layout, or code in a function named and documented as designer-placed (`designer_placed_fanout_points` in `qfn_thermal_and_power_fanout`) |
 
-What the layout API allows for each: [Interactive edits](#interactive-edits). Keep width, structure, net and layer in code even where positions go to the designer, and name the routes that end on each designer-owned point: they go with it.
+See [Interactive edits](#interactive-edits). Keep width, structure, net and layer in code even where positions go to the designer, and name the routes that end on each designer-owned point: they go with it.
 
 ## Placement and vias
 
@@ -48,7 +48,7 @@ What the layout API allows for each: [Interactive edits](#interactive-edits). Ke
 
 ### Route.Config and Route.Target
 
-`Route.Config` overrides the rules for one route, and the view cannot change the fields it sets (meanings: its docstring); a class of routes takes a tag rule. `trace_space` is also the pour's pullback.
+`Route.Config` overrides the rules for one route, and the view cannot change the fields it sets; a class of routes takes a tag rule. `trace_space` is also the pour's pullback.
 
 A `Route.Target` that differs from the trace width tapers the whole route it is on: `Route.Target.rectangle` realizes as one polygon widening linearly to the target's extent across the trace, with no drawn trace width. To taper only at the pad, split at a `RoutePoint` and put the target on the short last route (`code_route_basics`). A taper suits widening into a wider pad but cannot hold a width over one: for copper narrower than the pad, split at a `RoutePoint` at least half the wide width past the pad edge (a route ends in a round cap) and give the short route its own width.
 
@@ -130,7 +130,7 @@ When a route, pour or via did not realize, report it as not done with that evide
 - `rd.layout.update_control` refuses a control point placed in code (`RoutePoint`, `PairPoint`, `PairInsertion`).
 - A point made with `rd.layout.route_point` moves with `update_control` and keeps the move across rebuilds.
 - `rd.layout.modify(route, turns=...)` is refused while the route's sketch is set in code.
-- A via placed in code moves only with its circuit, and only when that circuit floats. A via made through the interactive layout can be dragged. A designer takes over a placeholder via by deleting it and its routes from code and re-creating them in the interactive layout, which is under development.
+- A via placed in code cannot be dragged relative to anything else placed in its circuit; it moves only when a floating circuit containing it is moved. A via made through the interactive layout can be dragged. A designer takes over a placeholder via by deleting it and its routes from code and re-creating them in the interactive layout, which is under development.
 - A width set with `modify` lasts until code sets that `Route.Config` field.
 
 Dragging a control point, turn or width in the board view is untested: never report one as working unless you did it.
