@@ -22,12 +22,15 @@ part's docstring) against the prompt and the land pattern:
   placed in code. Every route whose endpoint is that via (the via or its
   port), and every other route whose copper lies in that piece and does
   not touch the pad, has every realized trace drawn 0.40 wide (the
-  prompt's run width, within 0.001). So the whole run off the pad is
-  0.40, and a neck built from two 0.25 routes fails, the second one
-  lying off the pad. A neck ending close to the via is not reached here:
-  the runtime refuses a 0.40 run whose RoutePoint is within about 0.45 of
-  the via centre ("Overlapping target shapes"). Copper with no drawn
-  width, such as a ``Route.Target`` taper, fails;
+  prompt's run width, within 0.001). A route whose round end reaches
+  back over the pad (its start less than half its width past the edge)
+  touches the pad and is not width-checked here, so a neck built from two
+  0.25 routes fails when its split point lies 0.125 or more past the
+  edge, and a narrower run route that starts that close to the pad is
+  left to the judge. A neck's copper never touches the via disc: with the
+  0.50 ThVia the runtime refuses a 0.40 run whose RoutePoint is within
+  about 0.45 of the via centre ("Overlapping target shapes"). Copper with
+  no drawn width, such as a ``Route.Target`` taper, fails;
 - that via stands outside the package body (7.00 square, the part's BODY)
   and its centre lies inside the realized L3 1V2 pour, so it joins the
   plane; each pin has its own via, six in all;
