@@ -17,7 +17,6 @@ or rule.
 
 from jitx.circuit import Circuit
 from jitx.net import Net
-from jitx.transform import Transform
 
 from jitxexamples.components.connectors.wurth_elektronik_60312202114514 import (
     Wurth60312202114514,
@@ -28,10 +27,8 @@ from cl_parts import ClDesign
 
 class LaunchPair(Circuit):
     def __init__(self) -> None:
-        self.j1 = Wurth60312202114514()
-        self.j2 = Wurth60312202114514()
-        self.place(self.j1, Transform((-30.0, -10.0), 0))
-        self.place(self.j2, Transform((30.0, 10.0), 180))
+        self.j1 = Wurth60312202114514().at(-30.0, -10.0)
+        self.j2 = Wurth60312202114514().at(30.0, 10.0, rotate=180)
         self.RF = Net([self.j1.sig, self.j2.sig], name="RF")
         self.GND = Net([self.j1.gnd, self.j2.gnd], name="GND")
 

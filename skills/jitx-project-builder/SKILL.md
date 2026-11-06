@@ -79,7 +79,7 @@ The rule is the base skill's [Build safety](../jitx/SKILL.md#build-safety-dont-p
 
 Copy `scripts/grep_gates.py` and `scripts/check.py` from the base `jitx` skill into the
 project's `scripts/` directory. A design with pours, stitching or code-placed
-copper gets a realization check you write per `jitx-code-layout`
+copper gets a realization check, which the assembly task writes per `jitx-code-layout`
 "Verification", at `<ns>/designs/check_layout_<name>.py`: it submits the
 design, captures it, asserts each authored pour, stitch target and code route
 from the capture, and exits nonzero on a miss. Run it from the project root as
