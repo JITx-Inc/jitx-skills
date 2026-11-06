@@ -21,7 +21,8 @@ worked from them:
   quarter wavelength at 2.45 GHz on ``ARM_71``'s 1.6e11 mm/s:
   1.6e11 / 2.45e9 / 4 = 16.327 mm, within 0.5 mm. Two arms that overlap
   where they leave a stub's end face read short by about the overlapped
-  stretch, which is as wide as the stub and reads as wide copper;
+  stretch, which is as wide as the stub and reads as wide copper; the
+  prompt rules overlapping arms out;
 - coincident keepout: an L1 GND pour realizes, covers none of any body
   (under 0.001 mm2), and its nearest copper stands 0.19 to 0.23 mm off
   each body: the prompt's keepout on the body's outline grown by 0.20, the
