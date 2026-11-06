@@ -26,7 +26,7 @@ See [Interactive edits](#interactive-edits). Keep width, structure, net and laye
 
 - `.at(x, y, rotate=, on=Side.Bottom)` places a child in its parent's frame. Place parts and the copper that depends on them in one circuit, so they move together.
 - `self.place(child, (x, y), relative_to=other)` records a placement request without changing the child's transform, and sets a child circuit floating: use it only to place relative to another instance.
-- A circuit at `.at(floating=True)` with no stored placement sits off the board: its routes do not realize and its pours come back `Empty()`, with `status: ok`. A headless check gives every circuit a position.
+- A circuit at `.at(floating=True)` with no stored placement sits off the board: its routes do not realize and its pours come back `Empty()`. A headless check gives every circuit a position.
 - Via classes come from the substrate (`jitx-substrate-modeler`); code places instances. Join a power or ground via with `net += via`; `PortAttachment` binds a signal port to a control point or signal via.
 - Store every via, copper, keepout, control point and route on `self`: geometry reachable only through a net drops out of exports.
 - Stitch and fence vias come from rules (`jitx-layout-constraints`), never a hand-placed grid.
@@ -44,13 +44,13 @@ See [Interactive edits](#interactive-edits). Keep width, structure, net and laye
 
 ### Route.Sketch
 
-`Route.Sketch(Route.Sketch.Terminal(start), turns, Route.Sketch.Terminal(end))` tells the router which side of an obstacle to pass. A turn is a side hint, not a waypoint, whatever the `Route.Sketch.turns` docstring says: the route bends only as far as the obstacle needs, so moving a turn further out buys no margin (a route `KeepOut` does). Turns are read in the declaring circuit's frame. Report where the copper passed from the captured trace, not the turns.
+`Route.Sketch(Route.Sketch.Terminal(start), turns, Route.Sketch.Terminal(end))` tells the router which side of an obstacle to pass. A turn is a side hint, not the waypoint its `Route.Sketch.turns` docstring describes: the route bends only as far as the obstacle needs, so moving a turn further out buys no margin (a route `KeepOut` does). Turns are read in the declaring circuit's frame. Report where the copper passed from the captured trace, not the turns.
 
 ### Route.Config and Route.Target
 
-`Route.Config` overrides the rules for one route, and the view cannot change the fields it sets; a class of routes takes a tag rule. `trace_space` is also the pour's pullback.
+`Route.Config` overrides the rules for one route, and the view cannot change the fields it sets; a class of routes takes a tag rule. `trace_space` is also the pour's pullback. Leave its `pour` unset: fill around a route with a `Pour` on the net.
 
-A `Route.Target` that differs from the trace width tapers the whole route it is on: `Route.Target.rectangle` realizes as one polygon widening linearly to the target's extent across the trace, with no drawn trace width. To taper only at the pad, split at a `RoutePoint` and put the target on the short last route (`code_route_basics`). A taper suits widening into a wider pad but cannot hold a width over one: for copper narrower than the pad, split at a `RoutePoint` at least half the wide width past the pad edge (a route ends in a round cap) and give the short route its own width.
+A `Route.Target` that differs from the trace width tapers the whole route it is on: `Route.Target.rectangle` realizes as one polygon widening linearly to the target's extent across the trace, with no drawn trace width. To taper only at the pad, split at a `RoutePoint` and put the target on the short last route (`code_route_basics`). A taper suits widening into a wider pad but cannot hold a width over one: for copper narrower than the pad, split at a `RoutePoint` at least half the wide width past the pad edge and give the short route its own width.
 
 ## Narrowing a route
 
@@ -79,7 +79,7 @@ Matched length is a timing constraint (`jitx-interconnect-constraints`), never a
 
 - A pour keeps copper only where its net has a pad or via with copper on that layer inside it; otherwise it comes back `Empty()` with `status: ok`, and stitch or fence vias do not hold it. Anchor each layer's pour, for example with one through via on the net. Worked pattern: `jitxexamples.patterns.board_ground_pours`.
 - A pour larger than the board is pulled back by `min_copper_edge_space` or a larger `IsBoardEdge` rule (`jitx-layout-constraints`).
-- `KeepOut(pour=True)` removes pour copper at every rank; `rank` only orders competing pours. `KeepOut(via=True)` blocks generated vias, not code-placed ones. A pour does not avoid `OverlappableCopper`: add a coincident `KeepOut(pour=True)`.
+- `KeepOut(pour=True)` removes pour copper at every rank. `KeepOut(via=True)` blocks generated vias, not code-placed ones. A pour does not avoid `OverlappableCopper`: add a coincident `KeepOut(pour=True)`.
 - Declare a pour in the circuit that owns its net. One declared in a parent on a child's net can be captured off that net, and a fence-tagged child pour joined to a parent's net fails at submit ("Key N does not exist in table").
 - `OverlappableCopper` connects only through the pads it overlaps; for the router to count two same-net pads joined by it, declare a [`VirtualConnection`](https://docs.jitx.com/en/latest/essentials/physical_design/creating-layouts-from-code.html#virtual-connections) (`jitx.virtual`); on a constrained path give it a `PinModel` with the leg's electrical delay, not one from its drawn length.
 - Shapes: `jitx.shapes.composites` first; `ShapelyGeometry(g)` wraps shapely, `.to_shapely()` converts back. Use only a non-empty `Polygon` or `MultiPolygon`. `.at(scale=(1, -1))` does not mirror: transform the geometry.
