@@ -12,17 +12,17 @@ worked from them:
   meander drawn by hand, or a body drawn in the tree, fails here);
 - arm length: an arm's length is its centre line between the 0.30 copper
   it leaves and the 0.30 copper it reaches, which it meets square on (the
-  prompt, with no fillet at either end). A round opening by 0.12 mm (more
-  than half the 0.17 ``ARM_71`` width, less than half the 0.30 line)
-  removes the arm copper from each body; cut 0.1 mm back from the wide
-  copper, so arms that touch at the junction part, it leaves two pieces.
-  Each one's area over 0.17, plus what the same reading drops from a
-  straight arm of known length between two square joins, is its length, a
-  quarter wavelength at 2.45 GHz on ``ARM_71``'s 1.6e11 mm/s:
-  1.6e11 / 2.45e9 / 4 = 16.327 mm, within 0.5 mm. Two arms that overlap
-  where they leave a stub's end face read short by about the overlapped
-  stretch, which is as wide as the stub and reads as wide copper; the
-  prompt rules overlapping arms out;
+  prompt, with no fillet at either end, and the two arms touching each
+  other nowhere but where they leave the 0.30 copper). An opening by
+  0.12 mm with square corners (more than half the 0.17 ``ARM_71`` width,
+  less than half the 0.30 line) removes the arm copper from each body; cut
+  0.1 mm back from the wide copper, so arms that touch at the junction
+  part, it leaves two pieces. Each one's area over 0.17, plus what the
+  same reading drops from a straight arm of known length between two
+  square joins (0.2), is its length, a quarter wavelength at 2.45 GHz on
+  ``ARM_71``'s 1.6e11 mm/s: 1.6e11 / 2.45e9 / 4 = 16.327 mm, within 0.5 mm.
+  Arms that overlap or run side by side form copper as wide as the stub,
+  which no width reading separates; the prompt rules both out;
 - coincident keepout: an L1 GND pour realizes, covers none of any body
   (under 0.001 mm2), and its nearest copper stands 0.19 to 0.23 mm off
   each body: the prompt's keepout on the body's outline grown by 0.20, the
@@ -97,10 +97,10 @@ SKEW = 1.0e-12
 def arm_pieces(g: BaseGeometry) -> list[BaseGeometry]:
     """The arm copper of a body: what an opening by OPEN removes, less the
     copper within TRIM of what it keeps, in pieces over 0.3 mm2. The
-    opening is round: a square-cornered one fuses two arms that overlap
-    where they leave a stub, and the round one reaching a little way into
-    each arm at a join is what ``end_allowance`` measures."""
-    opened = g.buffer(-OPEN).buffer(OPEN)
+    opening keeps square corners (mitre joins): a round one reaches into an
+    arm where it meets wide copper, by an amount that turns on whether the
+    join is onto a stub's end or its side."""
+    opened = g.buffer(-OPEN, join_style="mitre").buffer(OPEN, join_style="mitre")
     thin = g.difference(opened.buffer(TRIM))
     return [p for p in getattr(thin, "geoms", [thin]) if p.area > 0.3]
 
@@ -206,7 +206,7 @@ with L.built(out, "fixture_wilkinson_tree", "WilkinsonTreeDesign", wait=120.0) a
         if over > 1e-3:
             L.fail(f"{owner}: L1 pour covers {over:.4f} mm2 of the body")
         if near is not None and not POUR_GAP[0] <= near <= POUR_GAP[1]:
-            L.fail(f"{owner}: L1 pour stands {near:.3f} off the body, not 0.20 to {POUR_GAP[1]}")
+            L.fail(f"{owner}: L1 pour stands {near:.3f} off the body, not {POUR_GAP[0]} to {POUR_GAP[1]}")
         if bare > 1e-3:
             L.fail(f"{owner}: no pour KeepOut over {bare:.4f} mm2 of the body")
 
