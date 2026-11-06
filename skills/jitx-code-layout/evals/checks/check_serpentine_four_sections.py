@@ -17,10 +17,10 @@ each of the four pairs against the prompt:
   neighbouring two average to the pitch. Only the lower bound is scored;
 - rows 5 and -5: the deskew bumps, read as the arc radii one trace has and
   the other does not, are at least the prompt's radius (0.4 and 0.6 mm):
-  ``deskew_bump_radius`` is a lower bound on the router's own radius (on
-  this fixture 0.2 realized 0.275), so a radius above the asked one is the router's choice, not
-  the runner's. The largest bump radius on row 5 must stay below the
-  smallest on row -5, so the two rows still show two different settings.
+  ``deskew_bump_radius`` is a lower bound on the router's own radius, so a
+  radius above the asked one is the router's choice, not the runner's.
+  The largest bump radius on row 5 must stay below the smallest on row -5,
+  so the two rows still show two different settings.
   Provenance: on this fixture 0.4 and 0.6 realized exactly, and 0.2 realized
   0.275, the radius the bumps take on a row with no radius rule; what sets
   that floor is not established, so the prompt asks only for radii above it;
