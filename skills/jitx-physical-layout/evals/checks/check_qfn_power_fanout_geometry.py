@@ -13,20 +13,21 @@ part's docstring) against the prompt and the land pattern:
   short side as captured (0.30, land pattern figure 13-3 X1). The routed
   copper over the pad is cut across the pad's long axis every 0.005 along
   it and at both ends, and no cut may span the pad's width less 0.001.
-  The step was chosen against the band a 0.40 run's round end leaves when
-  its RoutePoint sits just past the pad edge: the end spans the full 0.30
-  for about 0.033 of the pad's length with the RoutePoint 0.10 past the
-  edge (synthetic probe, round caps as jitx builds them), and a 0.005 step
-  puts about six cuts in that band. A band shorter than the step, from a
-  RoutePoint close to 0.13 past the edge where the end stops spanning the
-  pad, can fall between cuts. The 0.25 neck width itself is judged, not
-  checked here;
+  The end cuts make the round-end case exact at any step. The 0.005 step
+  was first chosen to put about six cuts in the full-width band a 0.40
+  run's round end leaves with its RoutePoint 0.10 past the edge (about
+  0.033 long in a synthetic round-cap probe). The 0.25 neck width itself
+  is judged, not checked here;
 - the connected piece of routed copper that leaves each pad reaches a via
-  placed in code, and every route whose endpoint is that via has every
-  realized trace drawn 0.40 wide (the prompt's run width, within 0.001).
-  Only routes ending at the via count, so a neck that ends near the via
-  does not. Copper with no drawn width there, such as a ``Route.Target``
-  taper, fails;
+  placed in code. Every route whose endpoint is that via (the via or its
+  port), and every other route whose copper lies in that piece and does
+  not touch the pad, has every realized trace drawn 0.40 wide (the
+  prompt's run width, within 0.001). So the whole run off the pad is
+  0.40, and a neck built from two 0.25 routes fails, the second one
+  lying off the pad. A neck ending close to the via is not reached here:
+  the runtime refuses a 0.40 run whose RoutePoint is within about 0.45 of
+  the via centre ("Overlapping target shapes"). Copper with no drawn
+  width, such as a ``Route.Target`` taper, fails;
 - that via stands outside the package body (7.00 square, the part's BODY)
   and its centre lies inside the realized L3 1V2 pour, so it joins the
   plane; each pin has its own via, six in all;
@@ -106,14 +107,30 @@ with L.built(out, "fixture_qfn_power_fanout_geometry", "QfnPowerFanoutGeometryDe
             L.fail(f"pin {pin}: the fanout reaches no code-placed via outside the body on the 1V2 plane")
             continue
         x, y, via, _ = hit[0]
+        ends = (via, via.port)
         at_via = sorted(
-            {w for _, r in routes if r.source is via or r.destination is via for w in L.trace_widths(r)}, key=str
+            {w for _, r in routes if any(r.source is e or r.destination is e for e in ends) for w in L.trace_widths(r)},
+            key=str,
         )
         if not at_via or any(w is None or abs(w - RUN) >= TOL for w in at_via):
             L.fail(f"pin {pin}: widths of the routes ending at the via {at_via}, not all drawn {RUN}")
+        off_pad = sorted(
+            {
+                w
+                for _, r in routes
+                if piece is not None
+                and piece.distance(g := L.route_geom(r)) < 1e-3
+                and not g.is_empty
+                and g.distance(pad) >= 1e-3
+                for w in L.trace_widths(r)
+            },
+            key=str,
+        )
+        if any(w is None or abs(w - RUN) >= TOL for w in off_pad):
+            L.fail(f"pin {pin}: widths of the routes off the pad {off_pad}, not all drawn {RUN}")
         used.add((round(x, 3), round(y, 3)))
         print(
-            f"pin {pin}: pad {pad_w} wide, widest cut over it {widest}, widths of the routes ending at the via {at_via}, via {x:.3f}, {y:.3f}"
+            f"pin {pin}: pad {pad_w} wide, widest cut over it {widest}, widths of the routes ending at the via {at_via}, widths off the pad {off_pad}, via {x:.3f}, {y:.3f}"
         )
     if len(used) != len(PINS):
         L.fail(f"{len(used)} distinct fanout vias for {len(PINS)} pins")
