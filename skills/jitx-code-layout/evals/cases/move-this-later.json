@@ -1,0 +1,41 @@
+{
+  "name": "move-this-later",
+  "prompt": "fixture_move_this_later.py has a KSZ9031RNX. Fan its three DVDDH (3V3) pins out on L1 to through vias just outside the package, with 0.30 mm traces; the 3V3 pour on L4 comes later. I will tidy the via positions and the bends by hand in the board view once the rest of the board is placed, so set the fanout up for that.",
+  "inputs": {
+    "pyproject.toml": "evals/cases/fixtures/common/pyproject.toml",
+    "cl_substrate.py": "evals/cases/fixtures/common/cl_substrate.py",
+    "cl_parts.py": "evals/cases/fixtures/common/cl_parts.py",
+    "pellingham_cl_fab_sheet.md": "evals/cases/fixtures/common/pellingham_cl_fab_sheet.md",
+    "cl_phy_board.py": "evals/cases/fixtures/common/cl_phy_board.py",
+    "fixture_move_this_later.py": "evals/cases/fixtures/move-this-later/fixture_move_this_later.py"
+  },
+  "notes": "The fixtures import jitxexamples parts from py-components e6bf1cb (the installed package in the eval venv, 2.0.1.dev74+ge6bf1cbc2) and import no jitxexamples.patterns module; the fictional parts in cl_parts.py need no parts database. The fixture module is fixture_move_this_later.py, Design MoveThisLaterDesign. DVDDH is pins 16, 34 and 40 (part docstring). Judged only. Control points a designer would move come from the interactive process (Duncan, 2026-11-04). Spike C7 (through rd.layout, the API behind the physical design view; an interactive drag was not tried): update_control on a code-placed RoutePoint or PairPoint is refused, 'placed in code (code-placed)'; a point made with rd.layout.route_point moves and keeps the move across rebuilds; modify(width=...) on a code route is kept until the code sets Route.Config. Spike C1: rd.layout.modify(route, turns=...) is refused while the route's sketch is set in code. In both spikes a drag in the view was not tried, and no spike moved a code-placed via (update_via was not exercised). Hard-coding a movable point is judged, not a hard fail (decision 4). There is no deterministic check: one that rebuilds from a clean state would discard points made in the design view, which is a right answer here. Duncan's ruling (2026-11-06, verbatim): \"if a via is placed in code, it can't be dragged relative to anything else that was also placed in teh same circuit/not floating. if it was done with the interactive layout (being develolped, it can be dragged\". So a code-placed via moves only with its circuit, and only if that circuit floats; a via made through the interactive layout API, which is under development, can be dragged. The second assertion also accepts a claim about moving vias that matches this ruling.",
+  "runner_models": [
+    "sonnet"
+  ],
+  "runner_rationale": "Customers drive this skill with mixed-strength agents, so the eval runs the skill under a Sonnet-class runner; judges stay frontier-tier.",
+  "runner_artifacts": "The input files are the starting design. Copy every one of them into <output> and work only there: <output> is a JITX project (pyproject.toml) whose modules import each other by file name. Write the layout in the fixture module, fixture_move_this_later.py, or in a module it imports, and keep its Design class name, MoveThisLaterDesign. Do not move or remove the fixture's parts, nets, pours or vias, do not change the KSZ9031RNX's land pattern, and do not change the substrate. You may create layout through the physical design view's API instead of in code if you judge that right. Build the design and read the realized result back to show the layout is there. Write a completion summary to <output>/COMPLETION.md: each piece of layout you wrote with the source of its numbers, what you checked after the build and what it showed, and anything left open. Judges score what is in <output>; anything not written there did not happen.",
+  "expected_output": "A fanout the engineer can move by hand: either vias and points left out of code (or created through rd.layout) with the routes that depend on them said so, or code-placed ones clearly marked as placeholders, with the layout API's refusal of code-placed control points (update_control) stated as measured and a drag stated as not tried, and any claim about moving a via matching Duncan's ruling (a code-placed via moves only with a floating circuit); the routes shown realized; COMPLETION.md that names each movable point and who owns it.",
+  "assertions": [
+    {
+      "text": "COMPLETION.md names which points of the fanout (vias, route points, sketch turns) the designer will move, and says those belong to the interactive process",
+      "check": "judge"
+    },
+    {
+      "text": "the runner does not present control points hard-coded in Python as final; where it hard-codes any, it says they are placeholders. Any claim about moving them says only what is measured or ruled: refused by the layout API that backs the view (rd.layout.update_control), and a drag was not tried; a via placed in code moves only with its circuit, and only if that circuit floats, while a via made through the interactive layout (still under development) can be dragged (Duncan's ruling). For vias this assertion asks only that they are left to the designer and that the runner says so",
+      "check": "judge"
+    },
+    {
+      "text": "the runner shows the fanout realized after a build (traces read back for each pin) before calling it ready for the hand edit",
+      "check": "judge"
+    },
+    {
+      "text": "the runner keeps in code what is fixed by the electrical need (the 0.30 width, the net, the layer) and leaves to the designer only the positions",
+      "check": "judge"
+    },
+    {
+      "text": "COMPLETION.md gives, for each piece of layout the prompt asked for, the electrical or fabrication need it holds: what goes wrong on this board without it, in a sentence.",
+      "check": "judge"
+    }
+  ]
+}

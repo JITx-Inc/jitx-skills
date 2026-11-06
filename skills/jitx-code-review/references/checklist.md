@@ -111,11 +111,11 @@ Patterns where the substrate / routing-structure / framework API is being misuse
 
 **Discriminator:** `.transform` is local to the element's **immediate container**. Wrong for anything nested — and a `Component` declaring multiple landpatterns is combined into a *composite* landpattern, so its pads are nested one level deeper than they look. The fix is `trace.transform * element.transform` from a `visit`, which is what the framework does internally (`jitx/landpattern.py::_pad_to_copper`). Resolving port → pad through `PadMapping` is *not* the smell; only the coordinate half is.
 
-**Carve-out:** reading `.transform` is correct when the frame you want *is* the element's immediate parent frame — `self.led.transform` in the circuit that did `self.led = LED().at(x, y)`. Also correct: applying `trace.transform` alone to a **`query`** result, because `query`'s transformers already fold the source element's transform into the trace — the per-target rules (`Route.Trace.shapes` already design-global, `ControlPoint.traces` local) are in `geometry-verification.md`, and flagging those is a false positive.
+**Carve-out:** reading `.transform` is correct when the frame you want *is* the element's immediate parent frame: `self.led.transform` in the circuit that did `self.led = LED().at(x, y)`. Also correct: applying `trace.transform` alone to a **`query`** result, because `query`'s transformers already fold the source element's transform into the trace. A route's `Route.Trace.shapes` are in the frame of the circuit that declares the route: board coordinates need `trace.transform` from `visit(rd.root, Route)` applied to each shape, so reading them raw is wrong for a route in a placed sub-circuit (`jitx/_translate/reverse_flow/linker.py::in_route_frame`). `ControlPoint.traces` shapes are local to the control point; `rd.query(Copper)` composes the point's transform into the trace (`jitx/controlpoint.py::_control_point_to_copper`). See `jitx-code-layout/SKILL.md` § "Coordinate frames".
 
 **Severity:** CRITICAL when the coordinate drives placement or geometry (via positions, escape/fanout targets, keepout bounds). WARNING when it only feeds a log or assert message.
 
-**Rule source:** `jitx-physical-layout/references/geometry-verification.md` § "Coordinate frames".
+**Rule source:** `jitx-code-layout/SKILL.md` § "Coordinate frames", and the `jitx.inspect.visit` docstring.
 
 ### `coplanar-feature-misplaced`
 

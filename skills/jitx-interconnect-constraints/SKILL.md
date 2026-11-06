@@ -98,7 +98,7 @@ self.routes = [
 ]
 ```
 
-These routes are what the runtime follows to infer the path between the `Topology` ends: a path crosses a via, or a part with a pin model, where routes land on both sides of it. Route between physical pads, vias and control points, one segment per hop. A route the router cannot make reports `Unable to find path for requested route` under Routing, and the constraint `Missing Connection on Path: <a>, <b>`. Control points and route mechanics: `jitx-physical-layout`.
+These routes are what the runtime follows to infer the path between the `Topology` ends: a path crosses a via, or a part with a pin model, where routes land on both sides of it. Route between physical pads, vias and control points, one segment per hop. A route the router cannot make reports `Unable to find path for requested route` under Routing, and the constraint `Missing Connection on Path: <a>, <b>`. Control points and route mechanics: `jitx-code-layout`.
 
 ## Differential Pairs
 
@@ -168,7 +168,7 @@ A daisy chain feeds loads in a fixed order, such as a DDR flyby clock. `self.a0 
 
 ## Verification
 
-Proving each SI constraint applied (width and clearance: `jitx-layout-constraints`; geometry: `jitx-physical-layout`).
+Proving each SI constraint applied (width and clearance: `jitx-layout-constraints`; geometry: `jitx-code-layout`).
 
 Prove binding on a verification design per constrained interface: parts placed, every path code-routed between physical pads (on a pin-assigned port, the provider's pins). The shipping assembly carries no proof routes. Details: [references/verification.md](references/verification.md).
 

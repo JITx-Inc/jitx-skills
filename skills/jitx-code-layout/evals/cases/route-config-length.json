@@ -19,7 +19,7 @@
     {
       "text": "CLK is routed on L1 0.25 wide with the L1 pour 0.35 from it; DATA's extra length comes from a section with Route.Config(envelope_overhead=E), 0 < E <= 3.0, whose copper stays within E/2 + half the trace of its chord, the other DATA legs are straight, the delay constraint raises no issue, and no copper is drawn in code",
       "check": "deterministic",
-      "cmd": "python3 skills/jitx-physical-layout/evals/checks/check_route_config_length.py <output>"
+      "cmd": "python3 skills/jitx-code-layout/evals/checks/check_route_config_length.py <output>"
     },
     {
       "text": "the runner sets the CLK width and spacing on the CLK route alone, through Route.Config or a rule on a tag only CLK carries, not a design rule over the whole board or copper drawn by hand",

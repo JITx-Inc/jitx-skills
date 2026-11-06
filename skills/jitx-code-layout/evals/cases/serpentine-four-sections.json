@@ -19,7 +19,7 @@
     {
       "text": "each row has one configured coupled section within 2 mm beyond the pair's copper; row 15's meander pitch is at least 3.0, rows 5 and -5 have bumps of 0.4 and 0.6 radius to three decimals, row -15's bumps sit 2.0 apart along the pair; delay and skew raise no issue, and no copper is drawn in code",
       "check": "deterministic",
-      "cmd": "python3 skills/jitx-physical-layout/evals/checks/check_serpentine_four_sections.py <output>"
+      "cmd": "python3 skills/jitx-code-layout/evals/checks/check_serpentine_four_sections.py <output>"
     },
     {
       "text": "each setting is a design rule on a tag carried by that pair's section only, not a board-wide rule that would also change the other pairs",

@@ -20,7 +20,7 @@
     {
       "text": "each of the four layers carries a realized pour (not Empty) covering at least 90 % of the board inside row 8's pullback, and the L1 and L4 pours joined to the SMA ground pads",
       "check": "deterministic",
-      "cmd": "python3 skills/jitx-physical-layout/evals/checks/check_board_ground_pours.py <output>"
+      "cmd": "python3 skills/jitx-code-layout/evals/checks/check_board_ground_pours.py <output>"
     },
     {
       "text": "the runner reads Pour.shape after capture on every layer and would have caught an Empty() inner pour, rather than reporting the pours from the code it wrote or from status ok",

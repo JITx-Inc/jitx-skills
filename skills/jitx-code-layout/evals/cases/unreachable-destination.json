@@ -20,7 +20,7 @@
     {
       "text": "the runner wrote a code route on layer 0, the 21 ring vias and the layer-0 route keepout around J2 are where the fixture put them, no realized copper reaches J2's centre pad, and no copper is drawn in code",
       "check": "deterministic",
-      "cmd": "python3 skills/jitx-physical-layout/evals/checks/check_unreachable_destination.py <output>"
+      "cmd": "python3 skills/jitx-code-layout/evals/checks/check_unreachable_destination.py <output>"
     },
     {
       "text": "COMPLETION.md reports the RF route as not realized, with the evidence read from the build (no traces, a blocked Route.status, or the issue report's routing line), and does not call the task done",

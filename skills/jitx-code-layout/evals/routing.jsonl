@@ -1,0 +1,35 @@
+{"intent":"My JITX build says status ok, but the inner ground pour captures as Empty(). Diagnose why no copper materialized.","expected_skill":"jitx-code-layout","ambiguous_with":["jitx-layout-constraints"]}
+{"intent":"Inspect the realized pour geometry after RuntimeDesign.capture and tell me why its type and area changed.","expected_skill":"jitx-code-layout"}
+{"intent":"The via-stitch rule matched and the build passed, but it generated zero vias. Check the realized target and grid.","expected_skill":"jitx-layout-constraints","ambiguous_with":["jitx-code-layout"]}
+{"intent":"Verify that this KeepOut actually removed copper from the finished GND pour at every rank.","expected_skill":"jitx-code-layout","ambiguous_with":["jitx-layout-constraints"]}
+{"intent":"Pull this board-wide copper fill back from the profile and verify the final copper-to-edge gap.","expected_skill":"jitx-code-layout","ambiguous_with":["jitx-layout-constraints"]}
+{"intent":"Write a capture check that refuses Empty pours before calling to_shapely().","expected_skill":"jitx-code-layout"}
+{"intent":"Why did floating=True make all my board pours and stitch vias disappear even though the design built?","expected_skill":"jitx-code-layout"}
+{"intent":"Build a runtime probe for four Pour layers without reading Instantiable proxy attributes at module scope.","expected_skill":"jitx-code-layout"}
+{"intent":"Draw a netless copper antenna that overlaps its feed and short pads without triggering copper overlap checks.","expected_skill":"jitx-code-layout"}
+{"intent":"Create a custom polygonal copper shape with shapely and prove its realized bounds after capture.","expected_skill":"jitx-code-layout"}
+{"intent":"Place these thermal vias in code, retain them structurally, and verify they realize in the capture.","expected_skill":"jitx-code-layout","ambiguous_with":["jitx-substrate-modeler"]}
+{"intent":"Author a code Route through control points and assert that every trace actually realized.","expected_skill":"jitx-code-layout","ambiguous_with":["jitx-layout-constraints"]}
+{"intent":"Add soldermask and paste openings to this custom thermal pad and validate the generated polygons.","expected_skill":"jitx-component-modeler","ambiguous_with":["jitx-code-layout"]}
+{"intent":"Compute board-global pad positions for a composite landpattern so I can place escape vias correctly.","expected_skill":"jitx-code-layout"}
+{"intent":"Set a rule that stitches every tagged ground pour with the preferred via on a 2 mm pitch.","expected_skill":"jitx-layout-constraints","ambiguous_with":["jitx-code-layout"]}
+{"intent":"Add thermal relief, direct-connect, and sliver-removal rules for the ground planes.","expected_skill":"jitx-layout-constraints","ambiguous_with":["jitx-code-layout"]}
+{"intent":"Choose the return layer and write trace-to-pour clearance rules for the high-voltage class.","expected_skill":"jitx-layout-constraints","ambiguous_with":["jitx-code-layout"]}
+{"intent": "Just connect GND and add a basic ground pour to the top-level circuit.", "expected_skill": "jitx-code-layout", "ambiguous_with": ["jitx-circuit-builder"]}
+{"intent": "Wire this regulator and add its passives.", "expected_skill": "jitx-circuit-builder"}
+{"intent":"Define the six-layer stackup and the through, blind, and buried via classes.","expected_skill":"jitx-substrate-modeler","ambiguous_with":["jitx-code-layout"]}
+{"intent":"Turn the fab report into FabricationConstraints, including minimum copper-to-edge spacing.","expected_skill":"jitx-substrate-modeler","ambiguous_with":["jitx-code-layout"]}
+{"intent":"Create a fenced pour outline and select the substrate via definition for its fence rule.","expected_skill":"jitx-layout-constraints","ambiguous_with":["jitx-substrate-modeler"]}
+{"intent":"Model this QFN component and its exposed thermal pad from the datasheet.","expected_skill":"jitx-component-modeler","ambiguous_with":["jitx-code-layout"]}
+{"intent": "Route the RF line from SMA to SMA on L1 in code, passing below the via column instead of above it.", "expected_skill": "jitx-code-layout"}
+{"intent": "Give this code route a 0.25 mm trace and 0.35 mm to the pour with Route.Config, and read both back after the build.", "expected_skill": "jitx-code-layout", "ambiguous_with": ["jitx-layout-constraints"]}
+{"intent": "Add a length-matching section between two route points with a 3 mm envelope so the router meanders DATA to its delay target.", "expected_skill": "jitx-code-layout", "ambiguous_with": ["jitx-interconnect-constraints"]}
+{"intent": "Set the deskew bump radius and minimum meander pitch on each pair's length-matched section.", "expected_skill": "jitx-code-layout", "ambiguous_with": ["jitx-layout-constraints"]}
+{"intent": "Launch the SMA centre pad straight along its axis for 2 mm, then route to the other connector, with a ground cutout under the pad.", "expected_skill": "jitx-code-layout"}
+{"intent": "Split the BGA pair at a pair point at the ball-field edge so the inner section can take a narrower structure.", "expected_skill": "jitx-code-layout", "ambiguous_with": ["jitx-layout-constraints"]}
+{"intent": "My code route came back unrouted with 'Unable to find path for requested route'. Find what blocks it.", "expected_skill": "jitx-code-layout"}
+{"intent": "Hold DATA to 300 ps pad to pad and keep the pair's skew within 1 ps.", "expected_skill": "jitx-interconnect-constraints", "ambiguous_with": ["jitx-code-layout"]}
+{"intent": "Write the tag rule that applies the narrow pair structure to the escape routes at a higher priority than the net's structure.", "expected_skill": "jitx-layout-constraints", "ambiguous_with": ["jitx-code-layout"]}
+{"intent": "Define a fenced coplanar routing structure with two rows of fence vias on each side.", "expected_skill": "jitx-substrate-modeler", "ambiguous_with": ["jitx-layout-constraints", "jitx-code-layout"]}
+{"intent": "Drag this pair point 2 mm left in the board view and keep it there after the next build.", "expected_skill": null}
+{"intent": "Move the bend in the RF line by hand in the layout UI until it clears the shield can.", "expected_skill": null}

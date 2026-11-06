@@ -75,7 +75,7 @@ Run `python scripts/check.py <ns>/ --build <module.path.DesignClass>` once from 
 | General Gotcha Scrub | N/N |
 | Layout rules | <check command; exit code; each declared rule witnessed in captured copper, or named unwitnessed with the reason> |
 | SI measurements | <`ver-` task: `python -m <ns>.designs.check_si_<iface>` command; one quoted group per constraint with a timing, loss or skew target, carrying its Time / Loss / Skew measurement, intended ends, `met` or `NOT MET`, no unresolved text; each structure-only constraint named from its code / any other task: not applicable + reason> |
-| Physical realization | <`python scripts/check_realization.py <module.Design> [witness args]`; exit code; authored pours, stitch targets, board-wide pours / not applicable + reason> |
+| Physical realization | <`python -m <ns>.designs.check_layout_<name>` command; exit code; authored pours, stitch targets, board-wide pours / not applicable + reason> |
 | `ruff check` | <`ruff check` summary line; PASS, or FAIL fixed and re-run> |
 | `ruff format` | <`ruff format` summary line; PASS, or reformatted and re-run> |
 | `pyright` | <`pyright` summary line; PASS, or FAIL fixed and re-run; ERROR needs a reason> |
@@ -157,8 +157,8 @@ The orchestrator (or user) then appends the acceptance decision:
   verification design's values are proof-route numbers, not the board's.
 
   The physical row carries the command, exit 0, and the witness names. A
-  missing row, a verification design that does not pass, a blocking text, exit
-  1, exit 2, or a claimed pass without named witnesses blocks acceptance.
+  missing row, a verification design that does not pass, a blocking text, a
+  nonzero exit, or a claimed pass without named witnesses blocks acceptance.
   `not applicable` names the concrete reason no SI constraint or authored
   physical witness exists; it is not a substitute for an unavailable command.
 - **JITX code review (self) is required for complete-board tier.** A complete-board task acceptance block with `JITX code review (self): not run` defaults to `block`. Bulk dispositions on findings ("all accepted, framework code") without per-line rationale fail review. See `jitx-code-review/SKILL.md`.
@@ -488,7 +488,7 @@ For each item: pass | fail with details | not run (with reason)
 | SI constraints | all satisfied | <compliance from the routed assembly's own groups (`group.satisfied`; the measurement is binding evidence, not the verdict), or list of failures with disposition; verification-design values are proof-route numbers and do not stand in; a constraint whose path has no route reads `not measured: unrouted; see SI constraint binding` and gets the `SI compliance pending routing` Deferred item> |
 | SI constraint binding | measured / not applicable | <each verification design: exact `python -m <ns>.designs.check_si_<iface>` command and one quoted group per constraint with a timing, loss or skew target, with its measurement (structure-only: named from code); assembly: command and each SI group dispositioned / concrete reason no SI constraint is expected> |
 | Placement overlap | none | <or list> |
-| Physical realization | exit 0 | <exact `check_realization.py` command; authored pour names; stitch targets; board-wide pours> |
+| Physical realization | exit 0 | <exact `python -m <ns>.designs.check_layout_<name>` command; authored pour names; stitch targets; board-wide pours> |
 
 If any row is `not run`, give the reason. Common reasons:
 
@@ -538,8 +538,8 @@ Rules:
   Deferred item `SI compliance pending routing: rerun python -m
   <ns>.designs.check_si_main after routing`, shown to the user with the
   verdict. Without that item the verdict is `not-yet`.
-- The Physical realization row is blocking. Absence, `not run`, exit 1, or exit
-  2 makes the verdict `not-yet`; a clean build does not substitute for it.
+- The Physical realization row is blocking. Absence, `not run`, or a nonzero
+  exit makes the verdict `not-yet`; a clean build does not substitute for it.
 - A `not run` row also requires fallback artifacts: if the JITX UI isn't available, name the build-output files used to substitute for it. Conventional fallbacks:
     - **Schematic / Issues List → `build log`** (cite path; flag any errors/warnings)
     - **Board placement / overlap → `<design-folder>/design-info/stable.design`** (machine-readable; can be inspected for overlap)

@@ -20,7 +20,7 @@
     {
       "text": "the RF line is realized as code routes on layer 0 joining both SMA centre pads, its copper at x = 0 entirely below the via column, the column's five vias still in place, and no copper drawn in code",
       "check": "deterministic",
-      "cmd": "python3 skills/jitx-physical-layout/evals/checks/check_route_around_with_sketch.py <output>"
+      "cmd": "python3 skills/jitx-code-layout/evals/checks/check_route_around_with_sketch.py <output>"
     },
     {
       "text": "the runner uses a Route.Sketch (or control points) to choose the side and says that sketch turns are a side hint the router follows only as far as the obstacle needs, not waypoints the copper passes through",
