@@ -12,19 +12,23 @@ worked from them:
   meander drawn by hand, or a body drawn in the tree, fails here);
 - arm length: an arm's length is its centre line between the 0.30 copper
   it leaves and the 0.30 copper it reaches, which it meets square on (the
-  prompt). An opening by 0.12 mm with square corners (more than half the
-  0.17 ``ARM_71`` width, less than half the 0.30 line) removes the arm
-  copper from each body; cut 0.1 mm back from the wide copper, so arms that
-  meet at the junction part, it leaves two pieces. Each one's area over
-  0.17, plus what the same reading drops from a straight arm of known
-  length between two square joins (0.2), is its length, a quarter
-  wavelength at 2.45 GHz on ``ARM_71``'s 1.6e11 mm/s:
-  1.6e11 / 2.45e9 / 4 = 16.327 mm, within 0.5 mm;
+  prompt, with no fillet at either end). A round opening by 0.12 mm (more
+  than half the 0.17 ``ARM_71`` width, less than half the 0.30 line)
+  removes the arm copper from each body; cut 0.1 mm back from the wide
+  copper, so arms that touch at the junction part, it leaves two pieces.
+  Each one's area over 0.17, plus what the same reading drops from a
+  straight arm of known length between two square joins, is its length, a
+  quarter wavelength at 2.45 GHz on ``ARM_71``'s 1.6e11 mm/s:
+  1.6e11 / 2.45e9 / 4 = 16.327 mm, within 0.5 mm. Two arms that overlap
+  where they leave a stub's end face read short by about the overlapped
+  stretch, which is as wide as the stub and reads as wide copper;
 - coincident keepout: an L1 GND pour realizes, covers none of any body
-  (under 0.001 mm2), and its nearest copper stands 0.20 to 0.23 mm off
+  (under 0.001 mm2), and its nearest copper stands 0.19 to 0.23 mm off
   each body: the prompt's keepout on the body's outline grown by 0.20, the
   clearance ``ARM_71`` and ``CPWG_50_FENCED`` declare, with up to 0.03
-  more, and 0.001 allowed under for the pour's polygon edges; an L1 pour
+  more. The 0.01 allowed under covers the chord sag of a coarse round
+  buffer (0.004 at four segments a quarter circle) and still fails a pour
+  that touches the body or stands at half the clearance; an L1 pour
   ``KeepOut`` covers each body;
 - region fence: around each body, at least 8 generated vias within 2.0 mm of
   its outline that stand more than 2.0 mm from every route's centre line, so
@@ -51,7 +55,8 @@ worked from them:
   groups included, which carries every measurement whether met or not:
   three skew measurements (``UnmetTimeDiff``, outputs 1 to 3 against
   output 0, the fixture's constraint resolved through the cells), each
-  within the prompt's 1.0 ps; no signal measurement unmet; no
+  within the prompt's 1.0 ps, in a report whose categories are complete;
+  no signal measurement unmet; no
   ``UnsquiggledRoute`` or ``UnrealizedRoute``; and the unmet report names
   no "signal constraint" and no "Unable to find path".
 """
@@ -84,17 +89,17 @@ MAX_ENVELOPE = 3.0
 EXIT_MAX = 4.0
 FENCE_MIN = 8
 FENCE_ROWS = (WIDTH / 2 + 0.6, WIDTH / 2 + 1.2)
-POUR_GAP = (0.199, 0.23)
+POUR_GAP = (0.19, 0.23)
 SKEW = 1.0e-12
 
 
 def arm_pieces(g: BaseGeometry) -> list[BaseGeometry]:
     """The arm copper of a body: what an opening by OPEN removes, less the
     copper within TRIM of what it keeps, in pieces over 0.3 mm2. The
-    opening keeps square corners (mitre joins): a round one reaches into an
-    arm where it meets wide copper, by an amount that turns on the corner's
-    exact vertices."""
-    opened = g.buffer(-OPEN, join_style="mitre").buffer(OPEN, join_style="mitre")
+    opening is round: a square-cornered one fuses two arms that overlap
+    where they leave a stub, and the round one reaching a little way into
+    each arm at a join is what ``end_allowance`` measures."""
+    opened = g.buffer(-OPEN).buffer(OPEN)
     thin = g.difference(opened.buffer(TRIM))
     return [p for p in getattr(thin, "geoms", [thin]) if p.area > 0.3]
 
@@ -296,7 +301,8 @@ with L.built(out, "fixture_wilkinson_tree", "WilkinsonTreeDesign", wait=120.0) a
     # The report with satisfied groups carries every measurement, met or
     # not; each measurement says whether it is met.
     report = rd.issues(satisfied=True, wait=15.0)
-    print("report complete:", report.complete)
+    if not report.complete:
+        L.fail("the issue report is incomplete: a category is still pending after the wait")
     bad = L.issue_kinds(L.issues_text(rd), "signal constraint", "Unable to find path")
     bad += [i.text for i in report.of(UnsquiggledRoute) + report.of(UnrealizedRoute)]
     bad += [i.text for i in report.of(SignalIntegrityIssue) if not i.satisfied]
