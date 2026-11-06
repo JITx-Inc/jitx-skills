@@ -30,12 +30,12 @@ WIDTH = 0.30
 out = L.output_dir()
 with L.built(out, "fixture_route_one_layer", "RouteOneLayerDesign") as rd:
     routes = L.realized_routes(rd, layer=0)
-    widths = [w for _, r in routes for w in L.trace_widths(r)]
+    widths = [w for wr in routes for w in L.trace_widths(wr.route)]
     print(f"routes realized: {len(routes)}, trace widths: {sorted(set(widths), key=str)}")
     bad = [w for w in widths if w is None or abs(w - WIDTH) > 1e-3]
     if routes and (bad or not widths):
         L.fail(f"trace widths {bad or widths}, not MS_50's {WIDTH}")
-    copper = shapely.union_all([L.route_geom(r) for _, r in routes]) if routes else shapely.Polygon()
+    copper = shapely.union_all([L.route_geom(wr) for wr in routes]) if routes else shapely.Polygon()
     pads = L.sma_centre_pads(rd)
     if len(pads) != 2:
         L.fail(f"{len(pads)} SMA centre pads found, the fixture has 2")

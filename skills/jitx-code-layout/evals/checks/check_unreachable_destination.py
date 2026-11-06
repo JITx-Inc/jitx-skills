@@ -45,8 +45,8 @@ BAND = [
 out = L.output_dir()
 with L.built(out, "fixture_unreachable_destination", "UnreachableDestinationDesign") as rd:
     routes = L.world_routes(rd)
-    on_l1 = [p for p, r in routes if r.layer == 0]
-    print(f"routes: {[(p, r.layer, getattr(r, 'status', None)) for p, r in routes]}")
+    on_l1 = [wr.path for wr in routes if wr.route.layer == 0]
+    print(f"routes: {[(wr.path, wr.route.layer, getattr(wr.route, 'status', None)) for wr in routes]}")
     if not on_l1:
         L.fail("no Route on layer 0: the prompt asks for a code route on L1")
     placed = {(round(x, 3), round(y, 3)) for x, y, _ in L.placed_vias(rd)}
@@ -67,7 +67,7 @@ with L.built(out, "fixture_unreachable_destination", "UnreachableDestinationDesi
     else:
         L.ok("layer-0 route keepout covers the ring's band")
     pads = L.sma_centre_pads(rd)
-    copper = shapely.union_all([L.route_geom(r) for _, r in routes]) if routes else shapely.Polygon()
+    copper = shapely.union_all([L.route_geom(wr) for wr in routes]) if routes else shapely.Polygon()
     if len(pads) == 2 and copper.distance(pads[1]) < 1e-3:
         L.fail("realized copper reaches J2's centre pad through the wall")
     else:

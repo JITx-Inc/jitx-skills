@@ -43,7 +43,7 @@ with L.built(out, "fixture_route_around_with_sketch", "RouteAroundWithSketchDesi
     else:
         L.ok("the five column vias stand where the fixture put them")
     routes = L.realized_routes(rd, layer=0)
-    copper = shapely.union_all([L.route_geom(r) for _, r in routes]) if routes else shapely.Polygon()
+    copper = shapely.union_all([L.route_geom(wr) for wr in routes]) if routes else shapely.Polygon()
     pads = L.sma_centre_pads(rd)
     if len(pads) != 2 or not L.joins(copper, pads[0], pads[1]):
         L.fail("no connected piece of routed copper touches both SMA centre pads")

@@ -36,7 +36,7 @@ The layout API refuses to move a code-placed control point; a code-placed via mo
 `Route(source, destination, layer, sketch=None, config=None)` joins two ports, pads, vias or control points on one layer. Worked pattern: `jitxexamples.patterns.code_route_basics`.
 
 - Width, spacing and structure come from rules or a structure on the net (`jitx-layout-constraints`), or from `Route.Config`. With none, it is drawn at `min_copper_width`.
-- A route ending on a control point in a sibling circuit fails to translate ("not an ancestor"): declare it in the common ancestor. A control point's `.port` cannot be a `Topology` end either: constrain between part ports. A circuit's bundle port works as an end but resolves to its first pad, leaving out a series part inside.
+- A route ending on a control point in a sibling circuit fails to translate ("not an ancestor"): declare it in the common ancestor. A control point's `.port` cannot be a `Topology` end either: constrain between part ports. A circuit's bundle port works as an end but resolves to its first pad, leaving a series part inside out of the constraint's measurement.
 - Every control point joins its net (`net += point.port`, or a `PortAttachment`), or the design fails to load ("INVALID-STATE").
 - `RoutePoint.pad` routes and `.port` nets; `PairInsertion` joins `.uncoupled.p`/`.n` legs to `.coupled`; `PairPoint` joins coupled sections at `.front` and `.back`. Attach a pair in `[p, n]` order and set handedness with `invert=` (which ends join: the `PairInsertion` docstring). A reversed attachment order builds and makes no copper. "Code route dropped: its ends can never be joined" means a wrong `invert=` or end.
 - A route heads for its destination, so it leaves a pad on the pad's axis only when the destination lies on that axis. Where the line must (an RF launch, a tangent exit), put a `RoutePoint` on the axis at the stated length: the route to it is straight. Keepout strips beside the exit keep other traces out but do not hold the route exactly on the axis. Worked pattern: `jitxexamples.patterns.rf_connector_launch`.
@@ -44,7 +44,7 @@ The layout API refuses to move a code-placed control point; a code-placed via mo
 
 ### Route.Sketch
 
-`Route.Sketch(Route.Sketch.Terminal(start), turns, Route.Sketch.Terminal(end))` tells the router which side of an obstacle to pass. A turn is a side hint, not a waypoint, whatever the `Route.Sketch.turns` docstring says: the route bends only as far as the obstacle needs, and with nothing in the way stays straight, so moving a turn further out buys no margin (a route `KeepOut` does). Turns are read in the declaring circuit's frame. Report where the copper passed from the captured trace, not the turns.
+`Route.Sketch(Route.Sketch.Terminal(start), turns, Route.Sketch.Terminal(end))` tells the router which side of an obstacle to pass. A turn is a side hint, not a waypoint, whatever the `Route.Sketch.turns` docstring says: the route bends only as far as the obstacle needs, so moving a turn further out buys no margin (a route `KeepOut` does). Turns are read in the declaring circuit's frame. Report where the copper passed from the captured trace, not the turns.
 
 ### Route.Config and Route.Target
 
@@ -54,7 +54,7 @@ A `Route.Target` that differs from the trace width tapers the whole route it is 
 
 ## Narrowing a route
 
-Where the full structure does not fit, split the route at a `RoutePoint` or `PairPoint` and tag the narrow route. The tag's `routing_structure` rule must outrank the net's: above a priority-2 net rule, so 3 or 4; below it, the net's rule wins, unreported. Split just outside the field, so the full section clears the last pads. Worked patterns: `jitxexamples.patterns.hex_bga_escape`, `jitxexamples.patterns.layout_routing_structure_by_tag`.
+Where the full structure does not fit (a BGA ball field, a fine-pitch pad row), split the route at a `RoutePoint` or `PairPoint` and tag the narrow route. The tag's `routing_structure` rule must outrank the net's: above a priority-2 net rule, so 3 or 4; below it, the net's rule wins, unreported. Split just outside the field or row, so the full section clears the last pads. Worked patterns: `jitxexamples.patterns.hex_bga_escape`, `jitxexamples.patterns.layout_routing_structure_by_tag`.
 
 An impedance lookup (`substrate.differential_routing_structure(100 * ohm)`, or a protocol constraint given no `structure`) returns a structure whose `impedance` fits; two structures sharing an `impedance` make the result depend on declaration order. Give a narrow structure an `impedance` no lookup window admits (`hex_bga_escape` gives its neck 0 ohm).
 
@@ -63,7 +63,7 @@ An impedance lookup (`substrate.differential_routing_structure(100 * ohm)`, or a
 Matched length is a timing constraint (`jitx-interconnect-constraints`), never a meander drawn in code. A section with `Route.Config(envelope_overhead=w)` may meander within `w` beyond its own copper, half each side, until the route meets its timing constraint; zero, or no `Config`, turns matching off. Worked patterns: `jitxexamples.patterns.serpentine_sections`, `jitxexamples.patterns.wilkinson_tree`.
 
 - End a matched section on `RoutePoint`s or `PairPoint`s, which resize to fit the envelope. A small pad leaves no room (`UnsquiggledRoute`); a matched coupled section between two `PairInsertion`s does not route.
-- Size each envelope for the delay its section adds: too little room leaves the route short, reported only as unmet time (`UnmetTime`, `UnmetTimeDiff`) with routing "Satisfied". The router stops at the low edge of the timing window.
+- Size each envelope for the delay its section adds: too little room leaves the route short, reported only as unmet time (`UnmetTime`, `UnmetTimeDiff`) with routing "Satisfied": widen the envelope, or put the delay in another section. The router stops at the low edge of the timing window.
 - Per-section settings are rules on a tag only that section's `Route` carries: `serpentine_params(min_pitch=...)`, `coupled_pair_params(deskew_bump_radius=..., min_bump_spacing=...)`. `min_pitch` and `deskew_bump_radius` are lower bounds on the router's choice (their docstrings). The router does not hold `min_radius` or `max_bump_length`: never claim either without reading the arcs.
 - Read back each section's span across its axis against its envelope, pitch and bump radii from the captured arcs, and the timing lines from `rd.issues()`.
 
@@ -81,7 +81,7 @@ Matched length is a timing constraint (`jitx-interconnect-constraints`), never a
 - A pour larger than the board is pulled back by `min_copper_edge_space` or a larger `IsBoardEdge` rule (`jitx-layout-constraints`).
 - `KeepOut(pour=True)` removes pour copper at every rank; `rank` only orders competing pours. `KeepOut(via=True)` blocks generated vias, not code-placed ones. A pour does not avoid `OverlappableCopper`: add a coincident `KeepOut(pour=True)`.
 - Declare a pour in the circuit that owns its net. One declared in a parent and added to a child's net has been seen unlinked by capture, and a fence-tagged child pour joined to a parent's net fails at submit ("Key N does not exist in table").
-- `OverlappableCopper` connects only through the pads it overlaps; for the router to count two same-net pads joined by it, declare a `VirtualConnection` (Essentials above); on a constrained path give it a `PinModel` with the leg's electrical delay, not one from its drawn length.
+- `OverlappableCopper` connects only through the pads it overlaps; for the router to count two same-net pads joined by it, declare a [`VirtualConnection`](https://docs.jitx.com/en/latest/essentials/physical_design/creating-layouts-from-code.html#virtual-connections) (`jitx.virtual`); on a constrained path give it a `PinModel` with the leg's electrical delay, not one from its drawn length.
 - Shapes: `jitx.shapes.composites` first; `ShapelyGeometry(g)` wraps shapely, `.to_shapely()` converts back. Use only a non-empty `Polygon` or `MultiPolygon`. `.at(scale=(1, -1))` does not mirror: transform the geometry.
 
 ## Thermal vias
@@ -105,7 +105,7 @@ Compare structures and realized copper with `rd.root.substrate.constraints`. A s
 
 ## Verification
 
-A check proves every requested property from the capture: `with jitx.runtime as r: rd = r.submit(MyDesign)`, `rd.capture()`, read, assert, exit nonzero on failure. A printed value is not a check. Take expected values from the request, documents and geometry, never from your own code's constants.
+A check proves every requested property from the capture: `with jitx.runtime as r: rd = r.submit(MyDesign)`, `rd.capture()`, read, assert, exit nonzero on failure. Take expected values from the request, documents and geometry, never from your own code's constants.
 
 | Claim | Read and assert |
 |---|---|

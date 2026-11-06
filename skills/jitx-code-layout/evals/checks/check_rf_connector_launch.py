@@ -53,15 +53,15 @@ VIA_PAD = 0.500
 out = L.output_dir()
 with L.built(out, "fixture_rf_connector_launch", "RfConnectorLaunchDesign") as rd:
     routes = L.realized_routes(rd, layer=0)
-    widths = sorted({w for _, r in routes for w in L.trace_widths(r)}, key=str)
+    widths = sorted({w for wr in routes for w in L.trace_widths(wr.route)}, key=str)
     print(f"trace widths {widths}")
     if any(w is None or abs(w - WIDTH) > 1e-3 for w in widths):
         L.fail(f"trace widths {widths}, not {WIDTH}")
-    copper = shapely.union_all([L.route_geom(r) for _, r in routes]) if routes else shapely.Polygon()
+    copper = shapely.union_all([L.route_geom(wr) for wr in routes]) if routes else shapely.Polygon()
     pads = L.sma_centre_pads(rd)
     if len(pads) != 2 or L.piece_touching(copper, *pads) is None:
         L.fail("no connected piece of routed copper joins the two SMA centre pads")
-    segs = [s for _, r in routes for s in L.segments(r)]
+    segs = [s for wr in routes for s in L.segments(wr)]
     pours = [g for _, p, g in L.world_pours(rd) if int(p.layer) == 1]
     l2 = shapely.union_all(pours) if pours else shapely.Polygon()
     for k, pad in enumerate(pads):
@@ -104,7 +104,7 @@ with L.built(out, "fixture_rf_connector_launch", "RfConnectorLaunchDesign") as r
             L.fail(f"pad {k + 1}: L2 pour covers {over:.4f} mm2 of the cutout")
         if near < 1.0:
             L.fail(f"pad {k + 1}: no L2 pour around the cutout")
-    lines = shapely.union_all([L.centreline(t) for _, r in routes for t in r.traces or []]) if routes else None
+    lines = shapely.union_all([L.centreline(t) for wr in routes for t in L.world_traces(wr)]) if routes else None
     gen = L.generated_vias(rd)
     rows = Counter(round(lines.distance(Point(x, y)), 2) for x, y in gen) if lines is not None else Counter()
     held = sorted(d for d, n in rows.items() if n >= 4)
