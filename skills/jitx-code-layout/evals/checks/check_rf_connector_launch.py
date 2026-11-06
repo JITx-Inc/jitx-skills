@@ -23,8 +23,8 @@ fixture's, or worked from them:
   fails as such. No routed copper comes within C of either square, less
   0.001: the gap is read from each trace's centre line, arcs sampled on the
   arc every 1 degree, less half the width (``cl_check.copper_gap``), so a
-  chord sits inside its arc by at most r(1 - cos 0.5 deg), 0.0001 at
-  r = 2.6. Reading the copper as a polygon instead would put it up to 0.04
+  chord sits inside its arc by at most r(1 - cos 0.5 deg), under 0.0001 at
+  the 1.15 bend. Reading the copper as a polygon instead would put it up to 0.04
   nearer: jitx's ``discretize`` at its 0.01 tolerance can stroke an arc of
   under two steps as one chord, which on the 1.15 bend (a 15.1 degree step)
   covers up to 30 degrees and sits up to 1.15 (1 - cos 15.1 deg) = 0.040
@@ -44,7 +44,7 @@ fixture's, or worked from them:
 - the coplanar pour: an L1 GND pour that realizes, whose nearest copper to
   the line between x = -20 and 20 is 0.20 to 0.23 off the line's copper,
   and that fills at least half of the band 0.2 to 0.5 off the line there;
-- the obstacle: routed copper stays at least P3_CLEAR = 1.5 from the
+- the obstacle: routed copper stays at least the prompt's P3_CLEAR from the
   P3V3 test pad's copper (read as for the squares, less 0.001), and every
   generated via's 0.500 pad (row 11) at least the fab sheet's 0.100
   copper-to-copper space (row 4) from it; line copper over the pad is
@@ -57,12 +57,18 @@ fixture's, or worked from them:
   1.0 pitch plus 0.5. One missing via leaves a gap of two pitches, 2.0;
   the 0.5 allows for a row's spacing on the outside of a bend. A via
   belongs to a row when its centre stands within 0.1 of the row's
-  distance from the centre line, on that side;
+  distance from the centre line, on that side. The prompt's P3_CLEAR is worked
+  from the fence: on the pad's side the outer row stands 1.2 from the
+  line's copper edge toward the pad, so a via there can stand
+  P3_CLEAR - 1.2 from the pad's copper and its 0.500 pad P3_CLEAR - 1.45.
+  The fab sheet's 0.100 needs P3_CLEAR at least 1.55; at 1.5 a via landing
+  at the nearest point would stand 0.05 off, under it, so 1.5 holds only
+  where the vias happen to fall;
 - no keepout around the test pad (the prompt): no ``KeepOut`` on any layer
-  reaches within 2.95 of the pad's copper, the reach of the line's fence
-  beside it (1.5 to the copper edge, 1.2 on to the outer row, 0.25 via pad
-  radius). Read after the row gaps, so a keepout that eats the fence fails
-  on the rows first;
+  reaches within AROUND = 3.0 of the pad's copper, a stated bound for
+  "around the pad" that matches the 3.0 either side of the nearest point
+  the rows are read over. Read after the row gaps, so a keepout that eats
+  the fence fails on the rows first;
 - the fence: the vias the runtime generated, read by their distance to the
   routed line's centre line, stand in two rows (two distinct distances, each
   held by at least four vias), the two rows ``CPWG_50_FENCED`` declares;
@@ -102,7 +108,8 @@ C = 1.0
 RADIUS = WIDTH / 2 + C
 R_TOL = 0.01
 SAG = 1e-3
-P3_CLEAR = 1.5
+P3_CLEAR = 1.7
+AROUND = 3.0
 COPPER_SPACE = 0.100
 CUT_HALF = 1.8 / 2
 TAPER = 2.0
@@ -314,7 +321,7 @@ with L.built(out, "fixture_rf_connector_launch", "RfConnectorLaunchDesign") as r
         L.fail(f"generated vias stand at {held} from the line, not in two rows")
     for tp in tps:
         row_gaps(lines, tp, gen)
-        reach = P3_CLEAR + FENCE_ROWS[1] - WIDTH / 2 + VIA_PAD / 2
+        reach = AROUND
         zone = tp.buffer(reach)
         near = [g for flag in ("route", "via", "pour") for layer in range(4) for g in L.keepouts(rd, layer, flag) if g.intersects(zone)]
         print(f"keepouts within {reach:.2f} of the P3V3 test pad: {len(near)}")

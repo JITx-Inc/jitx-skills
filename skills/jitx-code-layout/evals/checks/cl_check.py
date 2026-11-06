@@ -507,7 +507,7 @@ def copper_gap(routes: list[WorldRoute], g: BaseGeometry, step_deg: float = 1.0)
     into ``g``: for a trace with a width, its centre line (arcs sampled every
     ``step_deg``, points on the arc) to ``g`` less half the width; for a
     polygon trace, its outline. Sampling on the arc puts each chord inside it
-    by at most r(1 - cos(step_deg / 2)), 0.0001 at r = 2.6 and 1 degree."""
+    by at most r(1 - cos(step_deg / 2)), under 0.0001 at r = 1.15 and 1 degree."""
     best = math.inf
     for wr in routes:
         for tr in world_traces(wr):
