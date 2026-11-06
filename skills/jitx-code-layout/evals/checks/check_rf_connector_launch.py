@@ -12,18 +12,29 @@ fixture's, or worked from them:
   by trace segments on the pad's axis (both ends within 0.01 mm of it,
   under 0.1 degree to it). Spike C4: a pad-to-pad code route does not leave
   a pad along its axis; a RoutePoint on the axis does;
-- each exit's tangency square: an L1 route keepout covers the 0.20 mm
+- each exit's tangency square: GND ``Copper`` on L1 covers the 0.20 mm
   square the prompt places on the inside of the turn (toward the other
-  jack's row), its near side on the 0.30 trace's copper edge, 0.15 off the
-  axis, from the RoutePoint to 0.20 mm past it; read 0.01 in from each side
-  of the square, so a square up to 0.01 off its place still covers it.
-  Every L1 route keepout that reaches into that square is no larger than
-  0.20 mm on a side. No routed copper lies inside any L1 route keepout
-  (over 0.0001 mm2). From the pad's inner end through the square's far
-  edge, 0.20 past the RoutePoint, routed copper covers the axis and the
-  routed centre line (arcs sampled every 5 degrees) stays within 0.01 mm
-  of it: the square holds the line on the axis up to its far edge, where
-  the line turns around its corner;
+  jack's row), its near side C = 1.0 off the 0.30 trace's copper edge,
+  1.15 off the axis, from the RoutePoint to 0.20 mm past it; read 0.01 in
+  from each side of the square, so a square up to 0.01 off its place still
+  covers it. Each copper piece that reaches into it is no larger than 0.20
+  on a side and is joined to the net named GND. A route keepout between the
+  copper edge and the square's far side, past the RoutePoint, in its place
+  fails as such. No routed copper comes within C of either square, less
+  0.001: the gap is read from each trace's centre line, arcs sampled on the
+  arc every 1 degree, less half the width (``cl_check.copper_gap``), so a
+  chord sits inside its arc by at most r(1 - cos 0.5 deg), 0.0001 at
+  r = 2.6. Reading the copper as a polygon instead would put it up to 0.04
+  nearer: jitx's ``discretize`` at its 0.01 tolerance can stroke an arc of
+  under two steps as one chord, which on the 1.15 bend (a 15.1 degree step)
+  covers up to 30 degrees and sits up to 1.15 (1 - cos 15.1 deg) = 0.040
+  inside it. RF copper over a square
+  fails here even when the build reports no issue. From the pad's inner end
+  through the square's far edge, routed copper covers the axis and the
+  centre line stays within 0.01 mm of it. Past the far edge the line turns
+  around the square's corner: some trace holds an arc centred within 0.01
+  of that corner (the RoutePoint plus 0.20 along, 1.15 across) with a
+  centre-line radius of 0.15 + C = 1.15 within 0.01;
 - each cutout: across the axis at stations along the pad and the 2.0 mm
   taper, the realized L2 GND pour's void reaches h(s) on each side, within
   0.02 mm, where h is 0.9 under the pad and k / (s + s0) along the taper,
@@ -33,10 +44,12 @@ fixture's, or worked from them:
 - the coplanar pour: an L1 GND pour that realizes, whose nearest copper to
   the line between x = -20 and 20 is 0.20 to 0.23 off the line's copper,
   and that fills at least half of the band 0.2 to 0.5 off the line there;
-- the obstacle: routed copper and every generated via's 0.500 pad (row 11)
-  stay at least 1.0 from the P3V3 test pad's copper; line copper over the
-  pad is reported as running through it. The 1.0 covers both fence rows
-  (the prompt), so neither row may lose vias to it: along the stretch of
+- the obstacle: routed copper stays at least P3_CLEAR = 1.5 from the
+  P3V3 test pad's copper (read as for the squares, less 0.001), and every
+  generated via's 0.500 pad (row 11) at least the fab sheet's 0.100
+  copper-to-copper space (row 4) from it; line copper over the pad is
+  reported as running through it. Neither fence row may lose vias beside
+  the pad (the prompt): along the stretch of
   the line nearest the pad, the 6.0 mm of its centre line centred on the
   point closest to the pad, each of the four rows (0.75 and 1.35 off the
   centre line, each side) holds vias with no gap between neighbours, and
@@ -45,6 +58,11 @@ fixture's, or worked from them:
   the 0.5 allows for a row's spacing on the outside of a bend. A via
   belongs to a row when its centre stands within 0.1 of the row's
   distance from the centre line, on that side;
+- no keepout around the test pad (the prompt): no ``KeepOut`` on any layer
+  reaches within 2.95 of the pad's copper, the reach of the line's fence
+  beside it (1.5 to the copper edge, 1.2 on to the outer row, 0.25 via pad
+  radius). Read after the row gaps, so a keepout that eats the fence fails
+  on the rows first;
 - the fence: the vias the runtime generated, read by their distance to the
   routed line's centre line, stand in two rows (two distinct distances, each
   held by at least four vias), the two rows ``CPWG_50_FENCED`` declares;
@@ -53,7 +71,8 @@ fixture's, or worked from them:
   rows 0.6 and 1.2 from the trace edge, 0.75 and 1.35 from the centre line
   of a 0.30 trace, and a via placed in code whose 0.500 pad covers either
   distance is a hand fence. A via elsewhere, such as one tying the L2 pour to
-  GND, is not scored. No Copper or OverlappableCopper is drawn in code.
+  GND, is not scored. No Copper or OverlappableCopper is drawn in code but
+  the two squares.
 """
 
 import math
@@ -69,18 +88,27 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import cl_check as L  # noqa: E402
 
+from jitx.copper import Copper, Pour  # noqa: E402
+from jitx.feature import OverlappableCopper  # noqa: E402
+from jitx.inspect import visit  # noqa: E402
+
 WIDTH = 0.30
 EXIT = 2.5
 DRIFT = 0.01
 ANGLE = 0.1
 GAP = 0.20
 SQUARE = 0.20
+C = 1.0
+RADIUS = WIDTH / 2 + C
+R_TOL = 0.01
+SAG = 1e-3
+P3_CLEAR = 1.5
+COPPER_SPACE = 0.100
 CUT_HALF = 1.8 / 2
 TAPER = 2.0
 SLOT_HALF = WIDTH / 2 + GAP
 H_TOL = 0.02
 L1_GAP = (GAP - 1e-3, GAP + 0.03)
-CLEAR = 1.0
 FENCE_ROWS = (WIDTH / 2 + 0.6, WIDTH / 2 + 1.2)
 VIA_PAD = 0.500
 PITCH = 1.0
@@ -153,6 +181,10 @@ with L.built(out, "fixture_rf_connector_launch", "RfConnectorLaunchDesign") as r
     print(f"routed copper inside L1 route keepouts: {inside:.5f} mm2")
     if inside > 1e-4:
         L.fail(f"routed copper runs {inside:.4f} mm2 inside an L1 route keepout")
+    gnd = L.net_members(rd, "GND")
+    drawn = [(t, c) for t, c in visit(rd.root, Copper) if not isinstance(c, Pour) and int(c.layer) == 0]
+    drawn_g = [(str(t.path), L.geom(c.shape if t.transform is None else t.transform * c.shape), id(c) in gnd) for t, c in drawn]
+    squares_used = set()
 
     for k, pad in enumerate(pads):
         x0, y0, x1, y1 = pad.bounds
@@ -167,20 +199,38 @@ with L.built(out, "fixture_rf_connector_launch", "RfConnectorLaunchDesign") as r
         far = point + sign * SQUARE
         c, d = sorted((inner, far))
         sx0, sx1 = sorted((point, far))
-        sy0, sy1 = sorted((yc + turn * WIDTH / 2, yc + turn * (WIDTH / 2 + SQUARE)))
+        sy0, sy1 = sorted((yc + turn * (WIDTH / 2 + C), yc + turn * (WIDTH / 2 + C + SQUARE)))
         want = box(sx0 + 0.01, sy0 + 0.01, sx1 - 0.01, sy1 - 0.01)
-        got = want.intersection(keepouts).area / want.area
-        sizes = [
-            (round(g.bounds[2] - g.bounds[0], 4), round(g.bounds[3] - g.bounds[1], 4))
-            for g in L.route_keepouts(rd, 0)
-            if g.intersection(want).area > 1e-6
-        ]
-        print(f"pad {k + 1}: tangency square on side {turn:+.0f}: L1 route keepouts cover {got:.3f} of it; their sizes {sizes}")
-        if got < 0.99:
-            L.fail(f"pad {k + 1}: no L1 route keepout square on the inside of the turn past the RoutePoint ({got:.3f} of it covered)")
-        big = [z for z in sizes if max(z) > SQUARE + 1e-3]
-        if big:
-            L.fail(f"pad {k + 1}: tangency keepout larger than the {SQUARE} mm square: {big}")
+        mine = [(path, g, on_gnd) for path, g, on_gnd in drawn_g if g.intersection(want).area > 1e-6]
+        squares_used |= {path for path, _, _ in mine}
+        got = want.intersection(shapely.union_all([g for _, g, _ in mine] or [shapely.Polygon()])).area / want.area
+        sizes = [(round(g.bounds[2] - g.bounds[0], 4), round(g.bounds[3] - g.bounds[1], 4)) for _, g, _ in mine]
+        # A route keepout anywhere between the copper edge and the square's
+        # far side, past the RoutePoint, stands in place of the square.
+        by0, by1 = sorted((yc + turn * WIDTH / 2, yc + turn * (WIDTH / 2 + C + SQUARE)))
+        ko = box(sx0, by0, sx1, by1).intersection(keepouts).area
+        print(f"pad {k + 1}: tangency square on side {turn:+.0f}: L1 copper covers {got:.3f} of it, sizes {sizes}, on GND {[n for _, _, n in mine]}; route keepouts beside it {ko:.4f} mm2")
+        if got < 0.99 and ko > 1e-3:
+            L.fail(f"pad {k + 1}: the tangency square past the RoutePoint is a route keepout, not GND copper")
+        elif got < 0.99:
+            L.fail(f"pad {k + 1}: no GND copper square on the inside of the turn past the RoutePoint ({got:.3f} of it covered)")
+        if any(max(z) > SQUARE + 1e-3 for z in sizes):
+            L.fail(f"pad {k + 1}: tangency copper larger than the {SQUARE} mm square: {sizes}")
+        if not all(n for _, _, n in mine):
+            L.fail(f"pad {k + 1}: tangency square not on GND")
+        for _, g, _ in mine:
+            near = L.copper_gap(routes, g)
+            print(f"pad {k + 1}: routed copper {near:.4f} from the square (centre-line reading), {L.gap(copper, g)} as a polygon")
+            if near < 0:
+                L.fail(f"pad {k + 1}: routed copper overlaps the GND tangency square")
+            elif near < C - SAG:
+                L.fail(f"pad {k + 1}: routed copper {near:.4f} from the tangency square, under its {C} clearance")
+        corner = (far, yc + turn * (WIDTH / 2 + C))
+        bends = [(a, math.dist(a.center, corner)) for wr in routes for tr in L.world_traces(wr) for a in L.arcs(tr)]
+        bends = [(round(a.radius, 4), round(d, 4)) for a, d in bends if d < 0.5]
+        print(f"pad {k + 1}: arcs centred within 0.5 of the square's corner {corner}: (radius, centre off the corner) {bends}")
+        if not any(d <= R_TOL and abs(r - RADIUS) <= R_TOL for r, d in bends):
+            L.fail(f"pad {k + 1}: no bend of radius {RADIUS} centred on the tangency square's corner: {bends}")
         held = copper.intersection(LineString([(c, yc), (d, yc)])).length
         band = centre.intersection(box(c, yc - 5.0, d, yc + 5.0)) if centre is not None else LineString()
         if band.is_empty:
@@ -248,13 +298,13 @@ with L.built(out, "fixture_rf_connector_launch", "RfConnectorLaunchDesign") as r
         through = copper.intersection(tp).area
         if through > 0:
             L.fail(f"line copper runs through the P3V3 test pad ({through:.4f} mm2)")
-        dl = L.gap(copper, tp)
+        dl = L.copper_gap(routes, tp)
         dv = min((L.gap(Point(x, y).buffer(VIA_PAD / 2), tp) for x, y in gen), default=math.inf)
-        print(f"P3V3 test pad: line copper {dl} from it, nearest generated via pad {dv}")
-        if dl < CLEAR - 1e-3:
-            L.fail(f"line copper {dl} from the P3V3 test pad, under {CLEAR}")
-        if dv < CLEAR - 1e-3:
-            L.fail(f"a fence via pad {dv} from the P3V3 test pad, under {CLEAR}")
+        print(f"P3V3 test pad: line copper {dl:.4f} from it (centre-line reading), {L.gap(copper, tp)} as a polygon; nearest generated via pad {dv}")
+        if dl < P3_CLEAR - SAG:
+            L.fail(f"line copper {dl:.4f} from the P3V3 test pad, under {P3_CLEAR}")
+        if dv < COPPER_SPACE - 1e-4:
+            L.fail(f"a fence via pad {dv} from the P3V3 test pad, under the fab sheet's {COPPER_SPACE}")
 
     lines = centre
     rows = Counter(round(lines.distance(Point(x, y)), 2) for x, y in gen) if lines is not None else Counter()
@@ -264,6 +314,12 @@ with L.built(out, "fixture_rf_connector_launch", "RfConnectorLaunchDesign") as r
         L.fail(f"generated vias stand at {held} from the line, not in two rows")
     for tp in tps:
         row_gaps(lines, tp, gen)
+        reach = P3_CLEAR + FENCE_ROWS[1] - WIDTH / 2 + VIA_PAD / 2
+        zone = tp.buffer(reach)
+        near = [g for flag in ("route", "via", "pour") for layer in range(4) for g in L.keepouts(rd, layer, flag) if g.intersects(zone)]
+        print(f"keepouts within {reach:.2f} of the P3V3 test pad: {len(near)}")
+        if near:
+            L.fail(f"a KeepOut within {reach:.2f} of the P3V3 test pad, where the prompt asks for a rule and no keepout")
     hand = (
         [
             (x, y)
@@ -275,5 +331,9 @@ with L.built(out, "fixture_rf_connector_launch", "RfConnectorLaunchDesign") as r
     )
     if hand:
         L.fail(f"vias placed in code beside the line, where the structure's fence was asked for: {hand}")
-    L.no_authored_copper(rd, "code routes on CPWG_50_FENCED were asked for")
+    extra = [path for path, _, _ in drawn_g if path not in squares_used]
+    extra += [str(t.path) for t, c in visit(rd.root, (Copper, OverlappableCopper)) if not isinstance(c, Pour) and int(c.layer) != 0]
+    extra += [str(t.path) for t, _ in visit(rd.root, OverlappableCopper)]
+    if extra:
+        L.fail(f"copper drawn in code other than the two tangency squares: {sorted(set(extra))}")
 L.finish()

@@ -478,6 +478,53 @@ def arcs(shapes: list[Shape]) -> list[Arc]:
     return out
 
 
+def net_members(rd: Any, name: str) -> set[int]:
+    """Ids of every object (port, copper, via, net) joined to the net named
+    ``name``, following each ``Net``'s connected list and the ports nets
+    share."""
+    from jitx.net import Net
+
+    parent: dict[int, int] = {}
+
+    def find(k: int) -> int:
+        while parent.setdefault(k, k) != k:
+            parent[k] = parent[parent[k]]
+            k = parent[k]
+        return k
+
+    named = []
+    for _, n in visit(rd.root, Net):
+        if getattr(n, "name", None) == name:
+            named.append(id(n))
+        for m in getattr(n, "connected", []):
+            parent[find(id(m))] = find(id(n))
+    roots = {find(k) for k in named}
+    return {k for k in list(parent) if find(k) in roots}
+
+
+def copper_gap(routes: list[WorldRoute], g: BaseGeometry, step_deg: float = 1.0) -> float:
+    """Distance from the routed copper to ``g``, negative when it reaches
+    into ``g``: for a trace with a width, its centre line (arcs sampled every
+    ``step_deg``, points on the arc) to ``g`` less half the width; for a
+    polygon trace, its outline. Sampling on the arc puts each chord inside it
+    by at most r(1 - cos(step_deg / 2)), 0.0001 at r = 2.6 and 1 degree."""
+    best = math.inf
+    for wr in routes:
+        for tr in world_traces(wr):
+            for s in tr:
+                w = getattr(getattr(s, "geometry", s), "width", None)
+                if w is None:
+                    p = geom(s)
+                    d = -1.0 if p.intersects(g) and p.intersection(g).area > 1e-9 else float(p.distance(g))
+                else:
+                    line = centreline([s], step_deg=step_deg)
+                    d = float(line.distance(g)) - float(w) / 2
+                    if line.intersects(g):
+                        d = -float(w) / 2
+                best = min(best, d)
+    return best
+
+
 def centreline(shapes: list[Shape], step_deg: float = 5.0) -> LineString:
     """A realized trace's centre line in board coordinates, arcs sampled
     every ``step_deg``; ``shapes`` is one trace from ``world_traces``."""
