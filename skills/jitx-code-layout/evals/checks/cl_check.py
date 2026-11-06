@@ -9,8 +9,9 @@ What a headless build reads back after ``rd.capture()``:
 - ``Pour.shape`` holds the computed pour copper, holes included, or
   ``Empty()`` when the pour did not realize;
 - ``Route.traces[*].shapes`` holds the realized trace shapes (a trace can
-  come back as a ``Polygon`` with no width); a route with no traces did not
-  realize;
+  come back as a ``Polygon`` with no width), in the frame of the circuit
+  that declares the route: ``world_routes`` carries that frame and
+  ``world_traces`` applies it; a route with no traces did not realize;
 - ``rd.query(Via)`` returns the vias the runtime generated (route fences,
   stitching) together with the vias the design places in code, which
   ``generated_vias`` leaves out;
@@ -28,7 +29,7 @@ import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 import shapely
 from shapely.geometry import LineString
@@ -169,13 +170,33 @@ def world_pours(rd: Any) -> list[tuple[str, Pour, BaseGeometry]]:
     return out
 
 
-def world_routes(rd: Any) -> list[tuple[str, Route]]:
-    return [(str(trace.path), r) for trace, r in visit(rd.root, Route)]
+class WorldRoute(NamedTuple):
+    """A route, its path, and the frame its realized trace shapes are in."""
+
+    path: str
+    route: Route
+    frame: Transform | None
 
 
-def route_geom(route: Route) -> BaseGeometry:
-    """Union of a route's realized trace shapes (empty when it did not realize)."""
-    shapes = [geom(s) for tr in route.traces or [] for s in tr.shapes]
+def world_routes(rd: Any) -> list[WorldRoute]:
+    """Every route in the design with the transform of the circuits above it.
+
+    The runtime's route geometry is board absolute and capture stores it in
+    the frame of the circuit that declares the route (``in_route_frame`` in
+    jitx's reverse-flow linker), so ``frame * shape`` is in board coordinates.
+    """
+    return [WorldRoute(str(trace.path), r, trace.transform) for trace, r in visit(rd.root, Route)]
+
+
+def world_traces(wr: WorldRoute) -> list[list[Shape]]:
+    """Each realized trace's shapes in board coordinates, trace by trace."""
+    return [[s if wr.frame is None else wr.frame * s for s in tr.shapes] for tr in wr.route.traces or []]
+
+
+def route_geom(wr: WorldRoute) -> BaseGeometry:
+    """Union of a route's realized trace shapes in board coordinates (empty
+    when it did not realize)."""
+    shapes = [geom(s) for tr in world_traces(wr) for s in tr]
     return shapely.union_all(shapes) if shapes else shapely.Polygon()
 
 
@@ -248,11 +269,12 @@ def gap(a: BaseGeometry, b: BaseGeometry) -> float:
     return round(float(a.distance(b)), 4)
 
 
-def segments(route: Route) -> list[tuple[tuple[float, float], tuple[float, float], float]]:
-    """The straight pieces of every realized ``Polyline`` trace: (start, end, width)."""
+def segments(wr: WorldRoute) -> list[tuple[tuple[float, float], tuple[float, float], float]]:
+    """The straight pieces of every realized ``Polyline`` trace in board
+    coordinates: (start, end, width)."""
     out = []
-    for tr in route.traces or []:
-        for s in tr.shapes:
+    for tr in world_traces(wr):
+        for s in tr:
             g = getattr(s, "geometry", s)
             pts = getattr(g, "elements", None)
             w = getattr(g, "width", None)
@@ -294,7 +316,7 @@ def sma_centre_pads(rd: Any) -> list[BaseGeometry]:
     return sorted(pads, key=lambda g: g.centroid.x)
 
 
-def realized_routes(rd: Any, layer: int | None = None) -> list[tuple[str, Route]]:
+def realized_routes(rd: Any, layer: int | None = None) -> list[WorldRoute]:
     """Every route in the design, failing each one that did not realize (no
     traces, or a blocked status) and, with ``layer``, each one on another
     layer. Returns the realized ones."""
@@ -302,14 +324,15 @@ def realized_routes(rd: Any, layer: int | None = None) -> list[tuple[str, Route]
     routes = world_routes(rd)
     if not routes:
         fail("the design has no Route")
-    for path, r in routes:
+    for wr in routes:
+        path, r = wr.path, wr.route
         status = getattr(r, "status", None)
         if not r.traces or (status is not None and not status.routed):
             fail(f"{path}: route did not realize (status {status}, {len(r.traces or [])} traces)")
             continue
         if layer is not None and r.layer != layer:
             fail(f"{path}: on layer {r.layer}, not layer {layer}")
-        good.append((path, r))
+        good.append(wr)
     return good
 
 
@@ -330,23 +353,32 @@ def joins(copper: BaseGeometry, a: BaseGeometry, b: BaseGeometry) -> bool:
     return False
 
 
+def _arc_point(el: Arc, frac: float) -> tuple[float, float]:
+    """The point ``frac`` of the way along an arc's sweep, in the arc's frame."""
+    a = math.radians(float(el.start) + float(el.arc) * frac)
+    r = float(el.radius)
+    return (float(el.center[0]) + r * math.cos(a), float(el.center[1]) + r * math.sin(a))
+
+
 def _end_point(el: Any, last: bool) -> tuple[float, float] | None:
     """First (or last) point of one ArcPolyline element: a point or an Arc."""
     if isinstance(el, tuple) and len(el) == 2:
         return (float(el[0]), float(el[1]))
     if not isinstance(el, Arc):
         return None
-    a = math.radians(float(el.start) + (float(el.arc) if last else 0.0))
-    r = float(el.radius)
-    return (float(el.center[0]) + r * math.cos(a), float(el.center[1]) + r * math.sin(a))
+    return _arc_point(el, 1.0 if last else 0.0)
 
 
-def trace_ends(route: Route) -> list[tuple[tuple[float, float], tuple[float, float]]]:
+def _xy(p: Any) -> tuple[float, float]:
+    return (float(p[0]), float(p[1]))
+
+
+def trace_ends(wr: WorldRoute) -> list[tuple[tuple[float, float], tuple[float, float]]]:
     """First and last point of each realized trace shape, in board
     coordinates. Elements may be points or arcs."""
     out = []
-    for tr in route.traces or []:
-        for s in tr.shapes:
+    for tr in world_traces(wr):
+        for s in tr:
             g = getattr(s, "geometry", s)
             els = list(getattr(g, "elements", []))
             if not els:
@@ -399,22 +431,37 @@ def placed(transform: Transform | None) -> Transform:
     return transform
 
 
-def arcs(trace: Any) -> list[Arc]:
-    """The arcs of one realized trace, in order."""
-    return [e for s in trace.shapes for e in getattr(getattr(s, "geometry", s), "elements", []) if isinstance(e, Arc)]
+def arcs(shapes: list[Shape]) -> list[Arc]:
+    """The arcs of one realized trace, in order, in board coordinates;
+    ``shapes`` is one trace from ``world_traces``."""
+    out: list[Arc] = []
+    for s in shapes:
+        xf = s.transform
+        o = _xy(xf * (0.0, 0.0))
+        ux, uy = (c - d for c, d in zip(_xy(xf * (1.0, 0.0)), o))
+        vx, vy = (c - d for c, d in zip(_xy(xf * (0.0, 1.0)), o))
+        turn = math.degrees(math.atan2(uy, ux))
+        mirrored = ux * vy - uy * vx < 0
+        scale = math.hypot(ux, uy)
+        for e in getattr(s.geometry, "elements", []):
+            if isinstance(e, Arc):
+                start = turn - float(e.start) if mirrored else turn + float(e.start)
+                sweep = -float(e.arc) if mirrored else float(e.arc)
+                out.append(Arc(_xy(xf * _xy(e.center)), float(e.radius) * scale, start % 360.0, sweep))
+    return out
 
 
-def centreline(trace: Any, step_deg: float = 5.0) -> LineString:
-    """A realized trace's centre line, arcs sampled every ``step_deg``."""
+def centreline(shapes: list[Shape], step_deg: float = 5.0) -> LineString:
+    """A realized trace's centre line in board coordinates, arcs sampled
+    every ``step_deg``; ``shapes`` is one trace from ``world_traces``."""
     pts: list[tuple[float, float]] = []
-    for s in trace.shapes:
-        for el in getattr(getattr(s, "geometry", s), "elements", []):
+    for s in shapes:
+        xf = s.transform
+        for el in getattr(s.geometry, "elements", []):
             if isinstance(el, Arc):
-                cx, cy = el.center
                 n = max(2, math.ceil(abs(el.arc) / step_deg))
-                for i in range(n + 1):
-                    t = math.radians(el.start + el.arc * i / n)
-                    pts.append((cx + el.radius * math.cos(t), cy + el.radius * math.sin(t)))
+                local = [_arc_point(el, i / n) for i in range(n + 1)]
             else:
-                pts.append((float(el[0]), float(el[1])))
+                local = [_xy(el)]
+            pts += [_xy(xf * p) for p in local]
     return LineString(pts)

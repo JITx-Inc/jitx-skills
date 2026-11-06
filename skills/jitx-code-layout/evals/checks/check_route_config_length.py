@@ -47,14 +47,14 @@ with L.built(out, "fixture_route_config_length", "RouteConfigLengthDesign") as r
     clk_pads = sorted([p for p in pads if abs(p.centroid.y - 10.0) < 0.5], key=lambda g: g.centroid.x)
     data_pads = sorted([p for p in pads if abs(p.centroid.y + 8.0) < 0.5], key=lambda g: g.centroid.x)
     routes = L.realized_routes(rd, layer=0)
-    geoms = {path: L.route_geom(r) for path, r in routes}
+    geoms = {wr.path: L.route_geom(wr) for wr in routes}
     copper = shapely.union_all(list(geoms.values())) if geoms else shapely.Polygon()
 
     clk = L.piece_touching(copper, *clk_pads) if len(clk_pads) == 2 else None
     if clk is None:
         L.fail("no connected piece of routed copper joins the two CLK pads")
     else:
-        widths = sorted({w for path, r in routes if geoms[path].intersects(clk) for w in L.trace_widths(r)}, key=str)
+        widths = sorted({w for wr in routes if geoms[wr.path].intersects(clk) for w in L.trace_widths(wr.route)}, key=str)
         print(f"CLK trace widths {widths}")
         if any(w is None or abs(w - CLK_WIDTH) > 1e-3 for w in widths):
             L.fail(f"CLK trace widths {widths}, not {CLK_WIDTH}")
@@ -71,11 +71,12 @@ with L.built(out, "fixture_route_config_length", "RouteConfigLengthDesign") as r
     else:
         sections = 0
         chords = 0.0
-        for path, r in routes:
+        for wr in routes:
+            path, r = wr.path, wr.route
             if not geoms[path].intersects(data):
                 continue
             env = getattr(r.config, "envelope_overhead", None) if r.config is not None else None
-            ends = L.trace_ends(r)
+            ends = L.trace_ends(wr)
             w = max((x for x in L.trace_widths(r) if x is not None), default=0.0)
             if not ends:
                 L.fail(f"{path}: no trace ends read")

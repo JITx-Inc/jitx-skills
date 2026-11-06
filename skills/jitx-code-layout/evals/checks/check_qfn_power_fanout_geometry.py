@@ -85,11 +85,11 @@ with L.built(out, "fixture_qfn_power_fanout_geometry", "QfnPowerFanoutGeometryDe
         if max(abs(x), abs(y)) > BODY_HALF and plane.contains(Point(x, y))
     ]
     shapes = []  # (route path, width, geometry) of every realized trace shape
-    for path, r in routes:
-        for tr in r.traces or []:
-            for s in tr.shapes:
+    for wr in routes:
+        for tr in L.world_traces(wr):
+            for s in tr:
                 w = getattr(getattr(s, "geometry", s), "width", None)
-                shapes.append((path, None if w is None else round(float(w), 4), L.geom(s)))
+                shapes.append((wr.path, None if w is None else round(float(w), 4), L.geom(s)))
     copper = shapely.union_all([g for _, _, g in shapes]) if shapes else shapely.Polygon()
     pieces = list(getattr(copper, "geoms", [copper]))
     used: set[tuple[float, float]] = set()
@@ -112,7 +112,7 @@ with L.built(out, "fixture_qfn_power_fanout_geometry", "QfnPowerFanoutGeometryDe
         x, y, via, _ = hit[0]
         ends = (via, via.port)
         at_via = sorted(
-            {w for _, r in routes if any(r.source is e or r.destination is e for e in ends) for w in L.trace_widths(r)},
+            {w for wr in routes if any(wr.route.source is e or wr.route.destination is e for e in ends) for w in L.trace_widths(wr.route)},
             key=str,
         )
         if not at_via or any(w is None or abs(w - RUN) >= TOL for w in at_via):
@@ -120,12 +120,12 @@ with L.built(out, "fixture_qfn_power_fanout_geometry", "QfnPowerFanoutGeometryDe
         off_pad = sorted(
             {
                 w
-                for _, r in routes
+                for wr in routes
                 if piece is not None
-                and piece.distance(g := L.route_geom(r)) < 1e-3
+                and piece.distance(g := L.route_geom(wr)) < 1e-3
                 and not g.is_empty
                 and g.distance(pad) >= 1e-3
-                for w in L.trace_widths(r)
+                for w in L.trace_widths(wr.route)
             },
             key=str,
         )

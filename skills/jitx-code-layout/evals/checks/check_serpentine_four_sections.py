@@ -71,17 +71,17 @@ out = L.output_dir()
 with L.built(out, "fixture_serpentine_four_sections", "SerpentineFourSectionsDesign") as rd:
     routes = L.realized_routes(rd, layer=0)
     sections = [
-        (p, r)
-        for p, r in routes
-        if r.config is not None and (r.config.envelope_overhead or 0) > 0 and len(r.traces or []) == 2
+        wr
+        for wr in routes
+        if wr.route.config is not None and (wr.route.config.envelope_overhead or 0) > 0 and len(wr.route.traces or []) == 2
     ]
     for y in ROWS:
-        here = [(p, r) for p, r in sections if abs(L.route_geom(r).centroid.y - y) < 2.0]
+        here = [wr for wr in sections if abs(L.route_geom(wr).centroid.y - y) < 2.0]
         if len(here) != 1:
             L.fail(f"row {y}: {len(here)} coupled routes configured for length matching, not 1")
             continue
-        path, sec = here[0]
-        g = L.route_geom(sec)
+        path, sec = here[0].path, here[0].route
+        g = L.route_geom(here[0])
         span = g.bounds[3] - g.bounds[1]
         envelope = sec.config.envelope_overhead if sec.config is not None else None
         print(f"row {y}: {path}, envelope {envelope}, copper spans {span:.3f} across its axis")
@@ -89,7 +89,7 @@ with L.built(out, "fixture_serpentine_four_sections", "SerpentineFourSectionsDes
             L.fail(f"row {y}: section copper spans {span:.3f}, over {PAIR + ENVELOPE:.3f}")
         if span <= PAIR + 1e-3:
             L.fail(f"row {y}: section did not meander (spans {span:.3f})")
-        traces = list(sec.traces or [])
+        traces = L.world_traces(here[0])
         if y == 15.0:
             for k, t in enumerate(traces):
                 hits = L.centreline(t).intersection(LineString([(-100.0, y), (100.0, y)]))

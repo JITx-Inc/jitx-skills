@@ -59,15 +59,16 @@ with L.built(out, "fixture_hex_bga_escape", "HexBgaEscapeDesign") as rd:
         L.fail(f"{len(balls)} BGA ball pads, not {BALLS}")
     field = box(*shapely.union_all(balls).bounds)
     routes = L.realized_routes(rd, layer=0)
-    copper = shapely.union_all([L.route_geom(r) for _, r in routes]) if routes else shapely.Polygon()
+    copper = shapely.union_all([L.route_geom(wr) for wr in routes]) if routes else shapely.Polygon()
     touched = [b for b in balls if b.distance(copper) < 1e-3]
     if len(touched) != SIGNAL_BALLS:
         L.fail(f"routed copper touches {len(touched)} ball pads, not the {SIGNAL_BALLS} signal balls")
     if any(p.distance(copper) > 1e-3 for p in chip_pads) or len(chip_pads) != 4:
         L.fail("routed copper does not reach every pair chip pad")
     counts = {"field": 0, "below": 0}
-    for path, r in routes:
-        g = L.route_geom(r)
+    for wr in routes:
+        path, r = wr.path, wr.route
+        g = L.route_geom(wr)
         where = "field" if g.intersects(field) else "below"
         want_w, want_gap = NECK if where == "field" else FULL
         widths = L.trace_widths(r)
@@ -78,9 +79,9 @@ with L.built(out, "fixture_hex_bga_escape", "HexBgaEscapeDesign") as rd:
             if reach > MAX_NECK_OUT + TOL:
                 L.fail(f"{path}: 0.08 copper runs {reach:.3f} outside the field, past {MAX_NECK_OUT:.3f}")
         gap = None
-        traces = r.traces
-        if traces is not None and len(traces) == 2:
-            a, b = (shapely.union_all([L.geom(s) for s in t.shapes]) for t in traces)
+        traces = L.world_traces(wr)
+        if len(traces) == 2:
+            a, b = (shapely.union_all([L.geom(s) for s in t]) for t in traces)
             gap = round(a.distance(b), 4)
             counts[where] += 1
         print(f"{path}: {where}, widths {widths}, gap {gap}")
