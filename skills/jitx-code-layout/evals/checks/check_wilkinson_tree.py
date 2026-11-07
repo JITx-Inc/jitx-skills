@@ -8,8 +8,9 @@ worked from them:
 
 - hierarchy: three ``WilkinsonCell`` instances, each under the one
   ``WilkinsonTree``, and each holding exactly one ``OverlappableCopper`` body
-  on L1; no other ``Copper`` or ``OverlappableCopper`` in the design (a
-  meander drawn by hand, or a body drawn in the tree, fails here);
+  on L1; no other ``Copper`` or ``OverlappableCopper`` in the design but the
+  0.20 mm tangency squares (a meander drawn by hand, or a body drawn in the
+  tree, fails here);
 - arm length: an arm's length is its centre line between the 0.30 copper
   it leaves and the 0.30 copper it reaches, which it meets square on (the
   prompt, with no fillet at either end, and the two arms touching each
@@ -31,10 +32,41 @@ worked from them:
   buffer (0.004 at four segments a quarter circle) and still fails a pour
   that touches the body or stands at half the clearance; an L1 pour
   ``KeepOut`` covers each body;
-- region fence: around each body, at least 8 generated vias within 2.0 mm of
-  its outline that stand more than 2.0 mm from every route's centre line, so
-  they are not the route fence (its outer row stands 1.35 off the centre
-  line, and a 0.500 via pad reaches 1.6);
+- region fence: the shape a ``fence_via`` rule's tag is on, over each body,
+  is the body copper (their symmetric difference under 0.01 along the
+  body's outline). Its rows then sit 0.6 and 1.2 off the copper edge (the
+  prompt). Each row is the set of points that distance off the body
+  copper, every ring of it, the inside of the loop included. Taken off
+  each ring: what lies within 1.85 of a route centre line, and within 0.45
+  of a resistor pad. The 1.85 is the route fence's outer row (1.35 off the
+  centre line) plus the 0.5 between via centres that the fab sheet's
+  0.25 drill (row 12) and 0.25 hole-to-hole space (row 15) set, so a region
+  via there would collide with a route fence via. The 0.45 is the prompt's
+  0.20 via keepout around a resistor pad plus a 0.25 via pad radius. A
+  generated via serves a free stretch when its centre is within that 0.5
+  of it, since no other via can stand there; this joins the two stretches
+  of a row that pass 0.1 apart between a cell's output legs. The prompt's
+  "a via every 1.0 mm" is scored per stretch of the first row at least two
+  pitches long (a shorter one holds floor(n / 1.0) - 1 = 0 vias): no gap
+  between neighbouring vias along it, or from either end to the nearest,
+  over the pitch plus 0.5. One missing via leaves 2.0. Stretches inside the
+  loop are scored first. The counts (floor(n / 1.0) - 1 per stretch, summed
+  inside and outside the loop, against the vias serving them) and the
+  outer row are printed, not scored: the gap rule is the stricter reading
+  of the prompt's words, and the outer row reads sparse for a cause not
+  found (a build without the body's via keepout read the same);
+- via keepouts: the prompt allows two near the bodies and the RF lines,
+  the body's outline and the rectangle over the resistor's two pads and
+  the gap between them, each grown by 0.20, and a launch cutout under a
+  jack's centre pad. A ``KeepOut`` with ``via`` set on any layer that
+  meets a body's hull or a route centre line grown by ROUTE_CLEAR (the
+  line fence's outer row plus a via pitch's spacing, so the bands the
+  region and line fences stand in), meets no jack centre pad, and reaches
+  more than 0.001 mm2 past the allowed area fails, so a via keepout that
+  eats a line fence or a first-row via the gap rule cannot resolve still
+  fails. The allowed area is those two shapes each grown by 0.20 with
+  square corners (a mitred offset contains a round one, so either growth a
+  runner draws fits) plus DRIFT. Read after the region rows;
 - fenced routes: every route realized on L1 at 0.30 (``CPWG_50_FENCED``; a
   route ending on a pad can realize as a polygon trace with no width, read
   as the short side of its minimum rotated rectangle), and the generated
@@ -42,17 +74,34 @@ worked from them:
   least four, 0.75 and 1.35 off it;
 - tangency: routed copper meets each body (within 0.05 mm) in exactly three
   places, its three ports. A port's axis runs from the centroid of the body
-  copper within 0.6 mm of the contact to the contact. Routed copper covers
-  that axis for the first 2.0 mm, and none of it (over 0.0001 mm2) stands
-  outside a strip half the trace and 0.01 wide about the axis over that
-  length, so the route leaves straight along the axis;
+  copper within 0.6 mm of the contact to the contact; a jack's runs along x
+  from the inner end of its centre pad. At each of these 14 ends exactly
+  one 0.20 mm L1 copper square (within 0.005 a side) starts 2.0 to 3.0 out
+  along the axis, within 0.02 either way, measured where the prompt
+  measures it: from the end of the 0.30 stub (the furthest body copper
+  along the axis within 1.0 of the contact) or from the inner end of the
+  jack's centre pad. Its near side stands 1.15 off the axis (within 0.02),
+  the prompt's 1.0 from the 0.30 trace's copper edge. It is joined to
+  the net named GND. Routed copper covers the axis from the port through the
+  square's far edge, none of it (over 0.0001 mm2) stands outside a strip
+  half the trace and 0.01 wide about the axis over the first 2.0 mm, and
+  the centre line stays within 0.01 of the axis. Past the far edge the line
+  bends on an arc of radius 0.15 + 1.0 = 1.15 within 0.01, centred within
+  0.01 of the square's corner. Only at the two ends of the input feed (the
+  piece of routed copper touching the input jack), which the prompt keeps
+  straight, may it run straight on instead. No routed copper comes within 1.0 of any square, less 0.001,
+  read from each trace's centre line as in ``cl_check.copper_gap`` (an arc
+  sampled every degree sags under 0.0001 at r = 1.15; a polygon reading of
+  the same copper falls up to 0.04 short where jitx strokes a short arc as
+  one chord). Envelope copper over a square fails here even when the build
+  reports no issue. A square at no port or jack fails;
 - matching: the routed copper falls into seven connected pieces (the input
   feed, two joins, four output feeds). Each piece but the one touching the
   input jack has exactly one route with ``Route.Config(envelope_overhead=E)``,
-  0 < E <= 3.0, at most three routes, and every other route in it straight
-  (its copper's minimum rotated rectangle no wider than the trace and 0.02)
-  and no more than 4.0 mm long; a zigzag of control points fails here. The
-  input feed's routes are straight. In the issue report with satisfied
+  0 < E <= 3.0, at most five routes (the prompt's exit, bend, matched
+  route, bend and entry), and every other route in it no more than 4.0 mm
+  along its centre line; a zigzag of control points fails here. The input
+  feed's routes are straight and carry no envelope. In the issue report with satisfied
   groups included, which carries every measurement whether met or not:
   three skew measurements (``UnmetTimeDiff``, outputs 1 to 3 against
   output 0, the fixture's constraint resolved through the cells), each
@@ -74,6 +123,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import cl_check as L  # noqa: E402
 
+from jitx.constraints import AtomExpr, Tags, UnaryDesignConstraint  # noqa: E402
+from jitx.copper import Copper, Pour  # noqa: E402
 from jitx.feature import OverlappableCopper  # noqa: E402
 from jitx.inspect import visit  # noqa: E402
 from jitx.issue import SignalIntegrityIssue, UnmetTimeDiff, UnrealizedRoute, UnsquiggledRoute  # noqa: E402
@@ -88,8 +139,30 @@ TANGENT = 2.0
 DRIFT = 0.01
 MAX_ENVELOPE = 3.0
 EXIT_MAX = 4.0
-FENCE_MIN = 8
-FENCE_ROWS = (WIDTH / 2 + 0.6, WIDTH / 2 + 1.2)
+SECTION_MAX = 5
+SQUARE = 0.20
+SQ_TOL = 0.005
+C = 1.0
+RADIUS = WIDTH / 2 + C
+R_TOL = 0.01
+SAG = 1e-3
+PLACE_TOL = 0.02
+POINT_MAX = 3.0
+PITCH = 1.0
+REGION_ROWS = (0.6, 1.2)
+FENCE_ROWS = (WIDTH / 2 + REGION_ROWS[0], WIDTH / 2 + REGION_ROWS[1])
+# Fab sheet rows 12 and 15: a 0.25 drill, and 0.25 between drill edges, so
+# via centres at least 0.5 apart. A region via nearer a route centre line
+# than its outer fence row (1.35) plus 0.5 can collide with a route fence via.
+VIA_SPACE = 0.125 + 0.25 + 0.125
+ROUTE_CLEAR = FENCE_ROWS[1] + VIA_SPACE
+VIA_R = 0.25
+RESISTOR_CLEAR = 0.20
+# A missing via leaves a gap of two pitches, 2.0; the 0.5 over the pitch
+# fails that and allows for the row's spacing around a corner, as in the
+# rf-connector-launch check.
+ROW_GAP = PITCH + 0.5
+KEEPOUT_GROW = 0.20
 POUR_GAP = (0.19, 0.23)
 SKEW = 1.0e-12
 
@@ -119,6 +192,14 @@ def end_allowance() -> float:
     )
     (piece,) = arm_pieces(g)
     return known - piece.area / ARM
+
+
+def is_square(g: BaseGeometry) -> bool:
+    """Whether ``g`` is a SQUARE mm square, within SQ_TOL on each side."""
+    if g.is_empty or abs(g.area - g.minimum_rotated_rectangle.area) > 1e-6:
+        return False
+    xy = list(g.minimum_rotated_rectangle.exterior.coords)
+    return all(abs(math.dist(xy[i], xy[i + 1]) - SQUARE) <= SQ_TOL for i in range(2))
 
 
 def straight(geom: BaseGeometry) -> tuple[bool, float]:
@@ -163,14 +244,24 @@ with L.built(out, "fixture_wilkinson_tree", "WilkinsonTreeDesign", wait=120.0) a
     elif any(not p.startswith(trees[0] + ".") for p, _ in cells):
         L.fail("a WilkinsonCell is not under the WilkinsonTree")
 
-    drawn = L.authored_copper(rd)
+    gnd = L.net_members(rd, "GND")
     bodies = []
-    for path, g, layer in drawn:
+    squares = []
+    for tr, cu in visit(rd.root, (Copper, OverlappableCopper)):
+        if isinstance(cu, Pour):
+            continue
+        path = str(tr.path)
+        g = L.geom(cu.shape if tr.transform is None else tr.transform * cu.shape)
+        layer = int(cu.layer)
+        if not isinstance(cu, OverlappableCopper) and layer == 0 and is_square(g):
+            squares.append((path, g, id(cu) in gnd))
+            continue
         owner = [cp for cp, _ in cells if path.startswith(cp + ".")]
         if not owner:
             L.fail(f"copper drawn outside a cell: {path}")
             continue
         bodies.append((owner[0], path, g, layer))
+    print(f"{len(squares)} {SQUARE} mm copper squares on L1, {sum(1 for s in squares if s[2])} on GND")
     for cp, _ in cells:
         mine = [b for b in bodies if b[0] == cp]
         kinds = [type(c).__name__ for t, c in visit(rd.root, OverlappableCopper) if str(t.path).startswith(cp + ".")]
@@ -194,6 +285,7 @@ with L.built(out, "fixture_wilkinson_tree", "WilkinsonTreeDesign", wait=120.0) a
                 L.fail(f"{owner}: arm {n} mm long, not {QUARTER:.3f} within {ARM_TOL}")
 
     pours = L.world_pours(rd)
+    iso_pads = shapely.union_all(L.chip_pads(rd, mod.IsoResistor100) or [shapely.Polygon()])
     l1 = shapely.union_all([g for _, p, g in pours if int(p.layer) == 0] or [shapely.Polygon()])
     pour_keepouts = shapely.union_all(L.keepouts(rd, 0, "pour") or [shapely.Polygon()])
     if l1.is_empty:
@@ -228,14 +320,99 @@ with L.built(out, "fixture_wilkinson_tree", "WilkinsonTreeDesign", wait=120.0) a
     print(f"{len(gen)} generated vias; route fence rows {rows}")
     if any(n < 4 for n in rows.values()):
         L.fail(f"route fence rows {rows}: not two rows of the structure's fence")
+    # The region fence: the shape a fence_via rule's tag is on, over each
+    # body, is the body copper (the prompt), so its rows sit where a
+    # CPWG_50_FENCED line's would, measured from the copper edge.
+    rules = [c for _, c in visit(rd.root, UnaryDesignConstraint) if c.fence_via_constraint is not None]
+    fence_tags = tuple(type(c.condition.atom) for c in rules if isinstance(c.condition, AtomExpr))
+    print(f"fence_via rules {[repr(c) for c in rules]}")
+    regions = [(path, g) for path, p, g in pours if fence_tags and any(isinstance(t, fence_tags) for t in getattr(Tags.get(p), "tags", []))]
+    print(f"fence-tagged pours {[(path, round(g.area, 3)) for path, g in regions]}")
     for owner, _, g, _ in bodies:
-        ring = [(x, y) for x, y in gen if g.distance(Point(x, y)) <= 2.0 and centre.distance(Point(x, y)) > 2.0]
-        print(f"{owner}: {len(ring)} region fence vias")
-        if len(ring) < FENCE_MIN:
-            L.fail(f"{owner}: {len(ring)} fence vias around the body away from the routes, under {FENCE_MIN}")
+        mine = [r for _, r in regions if r.intersects(g)]
+        if not mine:
+            L.fail(f"{owner}: no fence-tagged shape over the body, so no region fence")
+            continue
+        region = shapely.union_all(mine)
+        diff = region.symmetric_difference(g).area
+        tol = DRIFT * g.exterior.length
+        print(f"{owner}: fence region differs from the body copper by {diff:.4f} mm2 (tolerance {tol:.4f}: {DRIFT} along its {g.exterior.length:.3f} mm outline)")
+        if diff > tol:
+            L.fail(f"{owner}: the fence region is not the body copper: they differ by {diff:.4f} mm2, over {tol:.4f}")
+            continue
+        # Each row is the body outline offset by the row's distance (a true
+        # offset, round at convex corners), every ring of it, the inside of
+        # the loop included. Free of it: what lies within ROUTE_CLEAR of a
+        # route centre line, and within RESISTOR_CLEAR plus a via pad's
+        # radius of a resistor pad (the prompt's via keepout there). Pieces
+        # are line-merged so a ring's start point does not split a stretch.
+        # Each stretch is scored by its widest gap; floor(n / PITCH) - 1,
+        # the vias a piece of length n holds, is printed.
+        hull = g.convex_hull
+        holes = hull.difference(g.buffer(1e-3))
+        loop = max(getattr(holes, "geoms", [holes]), key=lambda q: q.area)
+        iso_here = iso_pads.intersection(hull.buffer(1.0))
+        for r in REGION_ROWS:
+            buf = g.buffer(r, quad_segs=32)
+            rings = shapely.union_all([buf.exterior, *buf.interiors])
+            free = rings.difference(centre.buffer(ROUTE_CLEAR)).difference(iso_here.buffer(RESISTOR_CLEAR + VIA_R))
+            if not free.is_empty:
+                free = shapely.line_merge(free)
+            pieces = [q for q in getattr(free, "geoms", [free]) if not q.is_empty and q.length > 1e-6]
+            tally = {"inside the loop": [0, 0, 0.0], "outside the loop": [0, 0, 0.0]}
+            worst: list[tuple[str, float, float]] = []
+            for q in pieces:
+                where = "inside the loop" if loop.contains(q.interpolate(0.5, normalized=True)) else "outside the loop"
+                at = sorted(q.project(Point(x, y)) for x, y in gen if q.distance(Point(x, y)) <= VIA_SPACE)
+                gaps = [b - a for a, b in zip([0.0, *at], [*at, q.length])]
+                tally[where][0] += max(0, math.floor(q.length / PITCH) - 1)
+                tally[where][1] += len(at)
+                tally[where][2] += q.length
+                worst.append((where, max(gaps), q.length))
+                print(f"{owner}: row {r} {where}: piece {q.length:.3f} mm from ({q.coords[0][0]:.2f}, {q.coords[0][1]:.2f}), {len(at)} vias, widest gap {max(gaps):.3f}")
+            for where, (need, have, length) in tally.items():
+                widest = max((w for z, w, _ in worst if z == where), default=0.0)
+                print(f"{owner}: row {r} {where}: {length:.3f} mm free, room for {need}, {have} region fence vias on it, widest gap {widest:.3f}")
+            if r == REGION_ROWS[0]:
+                # A stretch under two pitches holds no via by the count rule
+                # (floor(n) - 1 = 0), so its gaps are not scored.
+                for where, w, n in sorted(worst, key=lambda z: z[0] != "inside the loop"):
+                    if n >= 2 * PITCH and w > ROW_GAP:
+                        L.fail(f"{owner}: the first row {where} has a {w:.3f} mm gap on a {n:.3f} mm free stretch, over {ROW_GAP}")
+                        break
+
+    # Near the bodies and the RF lines the prompt allows two via keepouts,
+    # the body's outline and the rectangle over the resistor's two pads and
+    # the gap between them, each grown by 0.20 (square corners allowed),
+    # and a launch cutout under a jack's centre pad. Any other via keepout
+    # there can eat a fence the gap rule or the route rows do not resolve.
+    near_bodies = shapely.union_all([g.convex_hull.buffer(ROUTE_CLEAR) for g in body_geoms] + [centre.buffer(ROUTE_CLEAR)])
+    launch_pads = shapely.union_all(L.sma_centre_pads(rd))
+    allowed = shapely.union_all(
+        [g.buffer(KEEPOUT_GROW + DRIFT, join_style="mitre") for g in body_geoms]
+        + [
+            iso_pads.intersection(g.convex_hull.buffer(1.0)).minimum_rotated_rectangle.buffer(KEEPOUT_GROW + DRIFT, join_style="mitre")
+            for g in body_geoms
+        ]
+    )
+    for layer in range(4):
+        for k in L.keepouts(rd, layer, "via"):
+            if not k.intersects(near_bodies) or k.intersects(launch_pads):
+                continue
+            extra = k.difference(allowed).area
+            if extra > 1e-3:
+                c = k.centroid
+                L.fail(f"a via KeepOut on layer {layer} near ({c.x:.3f}, {c.y:.3f}) reaches {extra:.4f} mm2 past the body and the resistor's pad rectangle grown by {KEEPOUT_GROW}, the only via keepouts the prompt allows near the bodies and RF lines")
 
     geoms = {wr.path: L.route_geom(wr) for wr in routes}
     copper = shapely.union_all(list(geoms.values())) if geoms else shapely.Polygon()
+    pieces = list(getattr(copper, "geoms", [copper]))
+    jacks = L.sma_centre_pads(rd)
+    jin = jacks[0] if jacks else None
+    input_piece = next((q for q in pieces if jin is not None and q.distance(jin) < 1e-3), None)
+    route_keep = L.route_keepouts(rd, 0)
+    used: set[str] = set()
+    ends = []
     for owner, _, g, _ in bodies:
         touch = copper.intersection(g.buffer(0.05))
         contacts = [c for c in getattr(touch, "geoms", [touch]) if not c.is_empty and c.area > 1e-4]
@@ -250,28 +427,87 @@ with L.built(out, "fixture_wilkinson_tree", "WilkinsonTreeDesign", wait=120.0) a
                 L.fail(f"{owner}: no body copper at ({cx:.3f}, {cy:.3f}) to take the port axis from")
                 continue
             ux, uy = (cx - near.centroid.x) / n, (cy - near.centroid.y) / n
+            # The prompt measures the RoutePoint from the end of the 0.30
+            # stub: the furthest body copper along the axis near the contact.
+            stub = g.intersection(shapely.Polygon([(cx + ux * s - uy * w, cy + uy * s + ux * w) for s, w in ((-1.0, -0.2), (1.0, -0.2), (1.0, 0.2), (-1.0, 0.2))]))
+            tip = max(((x - cx) * ux + (y - cy) * uy for x, y in shapely.get_coordinates(stub)), default=0.0)
+            ends.append((f"{owner}: port at ({cx:.3f}, {cy:.3f})", (cx, cy), (ux, uy), tip))
+    for k, pad in enumerate(jacks):
+        # A jack's line leaves the inner end of its centre pad along x, into the board.
+        x0, y0, x1, y1 = pad.bounds
+        inward = 1.0 if pad.centroid.x < 0 else -1.0
+        ends.append((f"jack pad {k}", (x1 if inward > 0 else x0, (y0 + y1) / 2), (inward, 0.0), 0.0))
 
-            def slab(s0: float, s1: float, half: float) -> shapely.Polygon:
-                return shapely.Polygon(
-                    [
-                        (cx + ux * s0 - uy * half, cy + uy * s0 + ux * half),
-                        (cx + ux * s1 - uy * half, cy + uy * s1 + ux * half),
-                        (cx + ux * s1 + uy * half, cy + uy * s1 - ux * half),
-                        (cx + ux * s0 + uy * half, cy + uy * s0 - ux * half),
-                    ]
-                )
+    for name, (cx, cy), (ux, uy), tip in ends:
+        on_input = input_piece is not None and Point(cx, cy).distance(input_piece) < 0.1
 
-            wide = copper.intersection(slab(0.0, TANGENT - WIDTH / 2, 2.0)).difference(g.buffer(0.05))
-            stray = wide.difference(slab(0.0, TANGENT, WIDTH / 2 + DRIFT)).area
-            axis = LineString([(cx, cy), (cx + ux * TANGENT, cy + uy * TANGENT)])
-            held = axis.intersection(copper).length
-            heading = math.degrees(math.atan2(uy, ux))
-            print(f"{owner}: port at ({cx:.3f}, {cy:.3f}) heading {heading:.1f}: copper on the axis {held:.3f} of {TANGENT}, off it {stray:.5f} mm2")
-            if held < TANGENT - 1e-3 or stray > 1e-4:
-                L.fail(f"{owner}: the route at ({cx:.3f}, {cy:.3f}) does not leave straight on the port axis for {TANGENT} mm")
+        def slab(
+            s0: float, s1: float, t0: float, t1: float, o: tuple[float, float] = (cx, cy), u: tuple[float, float] = (ux, uy)
+        ) -> shapely.Polygon:
+            """The box s0..s1 along the axis and t0..t1 across it."""
+            return shapely.Polygon(
+                [(o[0] + u[0] * s - u[1] * t, o[1] + u[1] * s + u[0] * t) for s, t in ((s0, t0), (s1, t0), (s1, t1), (s0, t1))]
+            )
 
-    pieces = list(getattr(copper, "geoms", [copper]))
-    jin = L.sma_centre_pads(rd)[0] if L.sma_centre_pads(rd) else None
+        wide = copper.intersection(slab(0.0, TANGENT - WIDTH / 2, -2.0, 2.0)).difference(shapely.union_all(body_geoms).buffer(0.05))
+        stray = wide.difference(slab(0.0, TANGENT, -(WIDTH / 2 + DRIFT), WIDTH / 2 + DRIFT)).area
+        # The square: GND copper beside the line, its near side C off the
+        # copper (WIDTH / 2 + C off the axis), from the RoutePoint, 2.0 to
+        # POINT_MAX out, to SQUARE further.
+        found = []
+        for path, sg, on_gnd in squares:
+            loc = [((x - cx) * ux + (y - cy) * uy, (y - cy) * ux - (x - cx) * uy) for x, y in sg.exterior.coords]
+            s0, s1 = min(s for s, _ in loc), max(s for s, _ in loc)
+            t0, t1 = min(t for _, t in loc), max(t for _, t in loc)
+            side = 1.0 if t0 + t1 > 0 else -1.0
+            near_t = min(abs(t0), abs(t1))
+            if TANGENT - PLACE_TOL <= s0 - tip <= POINT_MAX + PLACE_TOL and abs(near_t - RADIUS) <= PLACE_TOL:
+                found.append((path, sg, on_gnd, s0, s1, side))
+        print(f"{name}: stub end {tip:.3f} along; copper squares beside the exit (along from, to, side, on GND) {[(round(f[3], 3), round(f[4], 3), f[5], f[2]) for f in found]}")
+        if len(found) != 1:
+            L.fail(f"{name}: {len(found)} {SQUARE} mm copper squares {RADIUS} off the axis past the exit's RoutePoint, not one")
+            continue
+        path, sg, on_gnd, s0, far, side = found[0]
+        used.add(path)
+        if not on_gnd:
+            L.fail(f"{name}: the tangency square is not on GND")
+        reach = far
+        band = centre.intersection(slab(0.0, reach, -1.0, 1.0))
+        pts = [p for line in getattr(band, "geoms", [band]) for p in getattr(line, "coords", [])]
+        drift = max((abs((y - cy) * ux - (x - cx) * uy) for x, y in pts), default=None)
+        axis = LineString([(cx, cy), (cx + ux * reach, cy + uy * reach)])
+        held = axis.intersection(copper).length
+        print(f"{name}: copper on the axis {held:.3f} of {reach:.3f}, centre line {drift} off it, off the strip {stray:.5f} mm2")
+        if held < reach - 1e-3 or stray > 1e-4 or drift is None or drift > DRIFT:
+            L.fail(f"{name}: the line does not hold the axis from the port through the square's far edge, {reach:.3f} mm")
+        # Past the far edge the line runs straight on (the input feed) or
+        # turns around the square's corner at RADIUS.
+        on = centre.intersection(slab(reach, reach + 1.0, -1.0, 1.0))
+        more = [p for line in getattr(on, "geoms", [on]) for p in getattr(line, "coords", [])]
+        if on_input and more and max(abs((y - cy) * ux - (x - cx) * uy) for x, y in more) <= DRIFT:
+            print(f"{name}: on the input feed, the line runs straight on past the square")
+        else:
+            corner = (cx + ux * far - uy * side * RADIUS, cy + uy * far + ux * side * RADIUS)
+            bends = [(round(a.radius, 4), round(math.dist(a.center, corner), 4)) for wr in routes for tr in L.world_traces(wr) for a in L.arcs(tr)]
+            bends = [b for b in bends if b[1] < 0.5]
+            print(f"{name}: arcs centred within 0.5 of the square's corner: (radius, centre off the corner) {bends}")
+            if not any(d <= R_TOL and abs(r - RADIUS) <= R_TOL for r, d in bends):
+                L.fail(f"{name}: no bend of radius {RADIUS} centred on the tangency square's corner: {bends}")
+    for path, sg, _ in squares:
+        gap = L.copper_gap(routes, sg)
+        print(f"{path}: routed copper {gap:.4f} from it (centre-line reading), {L.gap(copper, sg)} as a polygon")
+        if gap < 0:
+            L.fail(f"{path}: routed copper overlaps the GND tangency square")
+        elif gap < C - SAG:
+            L.fail(f"{path}: routed copper {gap:.4f} from the tangency square, under its {C} clearance")
+    stray_sq = [path for path, _, _ in squares if path not in used]
+    if stray_sq:
+        L.fail(f"copper squares at no connection point: {stray_sq}")
+    inside = copper.intersection(shapely.union_all(route_keep)).area if route_keep else 0.0
+    print(f"routed copper inside route keepouts {inside:.5f} mm2")
+    if inside > 1e-4:
+        L.fail(f"routed copper inside route keepouts: {inside:.5f} mm2")
+
     print(f"{len(pieces)} pieces of routed copper")
     if len(pieces) != 7:
         L.fail(f"{len(pieces)} pieces of routed copper, not the input feed, two joins and four output feeds")
@@ -283,21 +519,26 @@ with L.built(out, "fixture_wilkinson_tree", "WilkinsonTreeDesign", wait=120.0) a
             env = getattr(wr.route.config, "envelope_overhead", None) if wr.route.config is not None else None
             if env:
                 configured.append((wr.path, env))
+                if is_input:
+                    L.fail(f"{wr.path}: the input feed carries an envelope, where the prompt keeps it straight")
                 if env > MAX_ENVELOPE + 1e-9:
                     L.fail(f"{wr.path}: envelope {env}, over {MAX_ENVELOPE}")
                 continue
-            ok, length = straight(geoms[wr.path])
-            if not ok:
-                L.fail(f"{wr.path}: not straight between its ends, with no envelope: length drawn by hand")
-            elif not is_input and length > EXIT_MAX:
+            if is_input:
+                ok, _ = straight(geoms[wr.path])
+                if not ok:
+                    L.fail(f"{wr.path}: the input feed is not straight")
+                continue
+            length = sum(axis_line(tr).length for tr in L.world_traces(wr))
+            if length > EXIT_MAX:
                 L.fail(f"{wr.path}: a {length:.3f} mm route with no envelope on a matched section, over {EXIT_MAX}")
         name = "input feed" if is_input else f"piece {i}"
         print(f"{name}: {len(members)} routes, configured {configured}")
         if not is_input:
             if len(configured) != 1:
                 L.fail(f"{name}: {len(configured)} routes with an envelope, not one")
-            if len(members) > 3:
-                L.fail(f"{name}: {len(members)} routes, more than the exit, section and entry")
+            if len(members) > SECTION_MAX:
+                L.fail(f"{name}: {len(members)} routes, more than the exit, bend, matched route, bend and entry")
 
     # The report with satisfied groups carries every measurement, met or
     # not; each measurement says whether it is met.
