@@ -582,7 +582,7 @@ with L.built(out, "fixture_wilkinson_tree", "WilkinsonTreeDesign", wait=120.0) a
                 gap = a.distance(b)
                 print(f"{na} and {nb.split(': ', 1)[1]}: straight exits {gap:.3f} apart at their closest")
                 if gap < OUT_GAP - DRIFT:
-                    L.fail(f"{na} and {nb.split(': ', 1)[1]}: straight exits {gap:.3f} apart at their closest, under {OUT_GAP:.2f}, so their fence rows overlap")
+                    L.fail(f"{na} and {nb.split(': ', 1)[1]}: straight exits {gap:.3f} apart at their closest, under {OUT_GAP:.2f}, the floor for every pair")
     for path, sg, _ in squares:
         gap = L.copper_gap(routes, sg)
         print(f"{path}: routed copper {gap:.4f} from it (centre-line reading), {L.gap(copper, sg)} as a polygon")
