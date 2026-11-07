@@ -84,10 +84,12 @@ worked from them:
   vias read by distance to the routes' centre lines stand in two rows of at
   least four, 0.75 and 1.35 off it;
 - tangency: routed copper meets each body (within 0.05 mm) in exactly three
-  places, its three ports. Two ports of a cell whose axes point the same way
-  (the outputs) stand at least 3.2 apart across them: each line's outer
-  fence row, 1.35, twice, plus the 0.5 between via centres. A port's axis runs from the centroid of the body
-  copper within 0.6 mm of the contact to the contact; a jack's runs along x
+  places, its three ports. The straight exits of a cell's three ports
+  (each from the port along its axis to its square's far edge) stand at
+  least 3.2 apart at their closest, whichever way they point: each line's
+  outer fence row, 1.35, twice, plus the 0.5 between via centres. A port's
+  axis runs from the centroid of the body copper within 0.6 mm of the
+  contact to the contact; a jack's runs along x
   from the inner end of its centre pad. At each of these 14 ends exactly
   one 0.20 mm L1 copper square (within 0.005 a side) starts 2.0 to 3.0 out
   along the axis, within 0.02 either way, measured where the prompt
@@ -502,22 +504,13 @@ with L.built(out, "fixture_wilkinson_tree", "WilkinsonTreeDesign", wait=120.0) a
             stub = g.intersection(shapely.Polygon([(cx + ux * s - uy * w, cy + uy * s + ux * w) for s, w in ((-1.0, -0.2), (1.0, -0.2), (1.0, 0.2), (-1.0, 0.2))]))
             tip = max(((x - cx) * ux + (y - cy) * uy for x, y in shapely.get_coordinates(stub)), default=0.0)
             ends.append((f"{owner}: port at ({cx:.3f}, {cy:.3f})", (cx, cy), (ux, uy), tip))
-        # Ports that leave the cell side by side (the two outputs) stand
-        # OUT_GAP apart across their axes, so both lines keep their fences.
-        mine_ends = [e for e in ends if e[0].startswith(owner + ":")]
-        for i, (na, a, ua, _) in enumerate(mine_ends):
-            for nb, b, ub, _ in mine_ends[i + 1 :]:
-                if ua[0] * ub[0] + ua[1] * ub[1] > 0.99:
-                    gap = abs((b[0] - a[0]) * ua[1] - (b[1] - a[1]) * ua[0])
-                    print(f"{na} and {nb.split(': ', 1)[1]}: centre lines {gap:.3f} apart")
-                    if gap < OUT_GAP - DRIFT:
-                        L.fail(f"{na} and {nb.split(': ', 1)[1]} leave side by side {gap:.3f} apart, under {OUT_GAP:.2f}, so their fence rows collide")
     for k, pad in enumerate(jacks):
         # A jack's line leaves the inner end of its centre pad along x, into the board.
         x0, y0, x1, y1 = pad.bounds
         inward = 1.0 if pad.centroid.x < 0 else -1.0
         ends.append((f"jack pad {k}", (x1 if inward > 0 else x0, (y0 + y1) / 2), (inward, 0.0), 0.0))
 
+    exits: dict[str, LineString] = {}
     for name, (cx, cy), (ux, uy), tip in ends:
         on_input = input_piece is not None and Point(cx, cy).distance(input_piece) < 0.1
 
@@ -553,6 +546,7 @@ with L.built(out, "fixture_wilkinson_tree", "WilkinsonTreeDesign", wait=120.0) a
         if not on_gnd:
             L.fail(f"{name}: the tangency square is not on GND")
         reach = far
+        exits[name] = LineString([(cx, cy), (cx + ux * reach, cy + uy * reach)])
         band = centre.intersection(slab(0.0, reach, -1.0, 1.0))
         pts = [p for line in getattr(band, "geoms", [band]) for p in getattr(line, "coords", [])]
         drift = max((abs((y - cy) * ux - (x - cx) * uy) for x, y in pts), default=None)
@@ -574,6 +568,16 @@ with L.built(out, "fixture_wilkinson_tree", "WilkinsonTreeDesign", wait=120.0) a
             print(f"{name}: arcs centred within 0.5 of the square's corner: (radius, centre off the corner) {bends}")
             if not any(d <= R_TOL and abs(r - RADIUS) <= R_TOL for r, d in bends):
                 L.fail(f"{name}: no bend of radius {RADIUS} centred on the tangency square's corner: {bends}")
+    # A cell's straight exits stand OUT_GAP apart at their closest, so the
+    # lines keep both fence rows each, whichever way they leave.
+    for owner, _, _, _ in bodies:
+        mine_exits = [(n, s) for n, s in exits.items() if n.startswith(owner + ":")]
+        for i, (na, a) in enumerate(mine_exits):
+            for nb, b in mine_exits[i + 1 :]:
+                gap = a.distance(b)
+                print(f"{na} and {nb.split(': ', 1)[1]}: straight exits {gap:.3f} apart at their closest")
+                if gap < OUT_GAP - DRIFT:
+                    L.fail(f"{na} and {nb.split(': ', 1)[1]}: straight exits {gap:.3f} apart at their closest, under {OUT_GAP:.2f}, so their fence rows overlap")
     for path, sg, _ in squares:
         gap = L.copper_gap(routes, sg)
         print(f"{path}: routed copper {gap:.4f} from it (centre-line reading), {L.gap(copper, sg)} as a polygon")
