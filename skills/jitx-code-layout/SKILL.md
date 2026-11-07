@@ -1,6 +1,6 @@
 ---
 name: jitx-code-layout
-description: "Use when the user asks to write a fixed PCB layout in Python: place parts or vias in code, code routes through control points (RoutePoint, PairPoint, PairInsertion), Route.Sketch, Route.Config, a Route.Target taper, splitting a route to narrow it in a BGA field or at a fine-pitch pad, escape or fanout routes and their vias as geometry, a connector launch along its pad axis, serpentine or deskew settings on a matched section, thermal vias in an exposed pad, pours, keepouts, cutouts, Copper or OverlappableCopper (antennas, net ties), or reading the realized layout back (capture, Empty pours, 'Unable to find path'). Also sorts control points between code and the interactive layout. Tag rules, escape width rules, stitching, fencing and structures by tag go to jitx-layout-constraints; stackups, vias and structure definitions to jitx-substrate-modeler; land-pattern soldermask, paste and thermal pads to jitx-component-modeler; nets and passives to jitx-circuit-builder; timing to jitx-interconnect-constraints."
+description: "Use when the user asks to write a fixed PCB layout in Python: place parts or vias in code, code routes through control points (RoutePoint, PairPoint, PairInsertion), Route.Sketch, Route.Config, a Route.Target taper, splitting a route to narrow it in a BGA field or at a fine-pitch pad, escape or fanout routes and their vias as geometry, a connector launch along its pad axis, serpentine or deskew settings on a matched section, thermal vias in an exposed pad, pours, keepouts, cutouts, Copper or OverlappableCopper (antennas, net ties), or reading the realized layout back (capture, Empty pours, 'Unable to find path'). Also sorts control points between code and jitx-interactive-layout. Tag rules, escape width rules, stitching, fencing and structures by tag go to jitx-layout-constraints; stackups, vias and structure definitions to jitx-substrate-modeler; land-pattern soldermask, paste and thermal pads to jitx-component-modeler; nets and passives to jitx-circuit-builder; timing to jitx-interconnect-constraints."
 ---
 
 # JITX Code Layout
@@ -18,7 +18,7 @@ First sort every control point, via and turn:
 | Kind | Examples | Where |
 |---|---|---|
 | Fixed by geometry or a stated number | a connector exit on the pad axis, the split at a ball-field edge, thermal vias in a pad | code |
-| A designer's choice | fanout via positions, escape bends, sketch turns | the interactive layout, or code in a function named and documented as designer-placed (`designer_placed_fanout_points` in `qfn_thermal_and_power_fanout`) |
+| A designer's choice | fanout via positions, escape bends, sketch turns | the interactive layout (`jitx-interactive-layout`), or code in a function named and documented as designer-placed (`designer_placed_fanout_points` in `qfn_thermal_and_power_fanout`) |
 
 See [Interactive edits](#interactive-edits). Keep width, structure, net and layer in code even where positions go to the designer, and name the routes that end on each designer-owned point: they go with it.
 
@@ -125,7 +125,7 @@ When a route, pour or via did not realize, report it as not done with that evide
 
 ## Interactive edits
 
-`rd.layout` (the API behind the board view) and `jitx design session` with `jitx design exec` edit the layout the runtime holds. The interactive layout is under development: never present it as a finished, supported path.
+`rd.layout` (the API behind the board view) and `jitx design session` with `jitx design exec` edit the layout the runtime holds; placing and routing that way is `jitx-interactive-layout`. The interactive layout is under development: never present it as a finished, supported path.
 
 - `rd.layout.update_control` refuses a control point placed in code (`RoutePoint`, `PairPoint`, `PairInsertion`).
 - A point made with `rd.layout.route_point` moves with `update_control` and keeps the move across rebuilds.

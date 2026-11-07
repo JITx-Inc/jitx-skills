@@ -8,7 +8,7 @@
 {"intent": "pour the switch node as a convex hull of its pads in the live layout", "expected_skill": "jitx-interactive-layout", "ambiguous_with": ["jitx-code-layout"]}
 {"intent": "drop pair insertions for the USB pair and route it to the connector with rd.layout", "expected_skill": "jitx-interactive-layout"}
 {"intent": "floorplan the board: place each circuit block around the signal flow using design session", "expected_skill": "jitx-interactive-layout"}
-{"intent": "add length-matching regions to the DQ routes that are still short", "expected_skill": "jitx-interactive-layout", "ambiguous_with": ["jitx-interconnect-constraints"]}
+{"intent": "add length-matching regions to the DQ routes that are still short", "expected_skill": "jitx-interactive-layout", "ambiguous_with": ["jitx-interconnect-constraints", "jitx-code-layout"]}
 {"intent": "my rd.layout.via request came back blocked, find a free spot and move it", "expected_skill": "jitx-interactive-layout"}
 // Negatives: near misses owned by siblings.
 {"intent": "write a code Route from the pin to a control point and tag it with PinFanoutTag in the design source", "expected_skill": "jitx-code-layout", "ambiguous_with": ["jitx-interactive-layout"]}

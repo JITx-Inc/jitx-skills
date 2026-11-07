@@ -31,5 +31,5 @@
 {"intent": "Hold DATA to 300 ps pad to pad and keep the pair's skew within 1 ps.", "expected_skill": "jitx-interconnect-constraints", "ambiguous_with": ["jitx-code-layout"]}
 {"intent": "Write the tag rule that applies the narrow pair structure to the escape routes at a higher priority than the net's structure.", "expected_skill": "jitx-layout-constraints", "ambiguous_with": ["jitx-code-layout"]}
 {"intent": "Define a fenced coplanar routing structure with two rows of fence vias on each side.", "expected_skill": "jitx-substrate-modeler", "ambiguous_with": ["jitx-layout-constraints", "jitx-code-layout"]}
-{"intent": "Drag this pair point 2 mm left in the board view and keep it there after the next build.", "expected_skill": "jitx-code-layout"}
-{"intent": "Move the bend in the RF line by hand in the layout UI until it clears the shield can.", "expected_skill": "jitx-code-layout"}
+{"intent": "Drag this pair point 2 mm left in the board view and keep it there after the next build.", "expected_skill": "jitx-code-layout", "ambiguous_with": ["jitx-interactive-layout"]}
+{"intent": "Move the bend in the RF line by hand in the layout UI until it clears the shield can.", "expected_skill": "jitx-code-layout", "ambiguous_with": ["jitx-interactive-layout"]}
