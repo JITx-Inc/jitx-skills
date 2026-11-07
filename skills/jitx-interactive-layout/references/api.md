@@ -180,6 +180,9 @@ region(feature, *, origin=None, net=None)
   reach the pads.
 - `net` is required for a pour (a net, or a pad, port or via on it) and
   refused for anything else.
+- A `KeepOut(via=True)` placed in code removes the fence vias it covers,
+  unreported ([fencing](../../jitx-layout-constraints/SKILL.md#fencing)).
+  A region keepout over a fence is untested: count the fence vias after.
 - `origin` makes the region move and flip with a component or one of its
   pads, vias or control points.
 
@@ -204,7 +207,8 @@ sync(timeout=None) -> bool
   a width set by `modify` lasts until code sets that `Route.Config` field.
 - `update_via`, `update_control` and `update_region` act only on objects the
   runtime made (by a request or in the editor), not ones placed in code.
-  Attached routes follow, and a moved point keeps its move across rebuilds.
+  Attached routes follow, and a point made with `route_point` and moved with
+  `update_control` keeps its move across rebuilds.
 - A region's kind cannot change; delete it and create another.
 - `delete` removes runtime-made routes, vias, control points and regions.
   Routes attached to a deleted via or control point are removed or joined.
