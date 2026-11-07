@@ -84,7 +84,9 @@ worked from them:
   vias read by distance to the routes' centre lines stand in two rows of at
   least four, 0.75 and 1.35 off it;
 - tangency: routed copper meets each body (within 0.05 mm) in exactly three
-  places, its three ports. A port's axis runs from the centroid of the body
+  places, its three ports. Two ports of a cell whose axes point the same way
+  (the outputs) stand at least 3.2 apart across them: each line's outer
+  fence row, 1.35, twice, plus the 0.5 between via centres. A port's axis runs from the centroid of the body
   copper within 0.6 mm of the contact to the contact; a jack's runs along x
   from the inner end of its centre pad. At each of these 14 ends exactly
   one 0.20 mm L1 copper square (within 0.005 a side) starts 2.0 to 3.0 out
@@ -95,7 +97,8 @@ worked from them:
   the prompt's 1.0 from the 0.30 trace's copper edge. It is joined to
   the net named GND. Routed copper covers the axis from the port through the
   square's far edge, none of it (over 0.0001 mm2) stands outside a strip
-  half the trace and 0.01 wide about the axis over the first 2.0 mm, and
+  half the trace and 0.01 wide about the axis over the first 2.0 mm (only
+  the line's own piece of routed copper is read there), and
   the centre line stays within 0.01 of the axis. Past the far edge the line
   bends on an arc of radius 0.15 + 1.0 = 1.15 within 0.01, centred within
   0.01 of the square's corner. Only at the two ends of the input feed (the
@@ -171,6 +174,9 @@ FENCE_ROWS = (WIDTH / 2 + REGION_ROWS[0], WIDTH / 2 + REGION_ROWS[1])
 # than its outer fence row (1.35) plus 0.5 can collide with a route fence via.
 VIA_SPACE = 0.125 + 0.25 + 0.125
 ROUTE_CLEAR = FENCE_ROWS[1] + VIA_SPACE
+# Two lines that leave a cell side by side keep both fence rows each when
+# their centre lines stand both outer rows plus one via spacing apart.
+OUT_GAP = 2 * FENCE_ROWS[1] + VIA_SPACE
 VIA_R = 0.25
 RESISTOR_CLEAR = 0.20
 # A missing via leaves a gap of two pitches, 2.0; the 0.5 over the pitch
@@ -496,6 +502,16 @@ with L.built(out, "fixture_wilkinson_tree", "WilkinsonTreeDesign", wait=120.0) a
             stub = g.intersection(shapely.Polygon([(cx + ux * s - uy * w, cy + uy * s + ux * w) for s, w in ((-1.0, -0.2), (1.0, -0.2), (1.0, 0.2), (-1.0, 0.2))]))
             tip = max(((x - cx) * ux + (y - cy) * uy for x, y in shapely.get_coordinates(stub)), default=0.0)
             ends.append((f"{owner}: port at ({cx:.3f}, {cy:.3f})", (cx, cy), (ux, uy), tip))
+        # Ports that leave the cell side by side (the two outputs) stand
+        # OUT_GAP apart across their axes, so both lines keep their fences.
+        mine_ends = [e for e in ends if e[0].startswith(owner + ":")]
+        for i, (na, a, ua, _) in enumerate(mine_ends):
+            for nb, b, ub, _ in mine_ends[i + 1 :]:
+                if ua[0] * ub[0] + ua[1] * ub[1] > 0.99:
+                    gap = abs((b[0] - a[0]) * ua[1] - (b[1] - a[1]) * ua[0])
+                    print(f"{na} and {nb.split(': ', 1)[1]}: centre lines {gap:.3f} apart")
+                    if gap < OUT_GAP - DRIFT:
+                        L.fail(f"{na} and {nb.split(': ', 1)[1]} leave side by side {gap:.3f} apart, under {OUT_GAP:.2f}, so their fence rows collide")
     for k, pad in enumerate(jacks):
         # A jack's line leaves the inner end of its centre pad along x, into the board.
         x0, y0, x1, y1 = pad.bounds
@@ -513,7 +529,8 @@ with L.built(out, "fixture_wilkinson_tree", "WilkinsonTreeDesign", wait=120.0) a
                 [(o[0] + u[0] * s - u[1] * t, o[1] + u[1] * s + u[0] * t) for s, t in ((s0, t0), (s1, t0), (s1, t1), (s0, t1))]
             )
 
-        wide = copper.intersection(slab(0.0, TANGENT - WIDTH / 2, -2.0, 2.0)).difference(shapely.union_all(body_geoms).buffer(0.05))
+        own = min(pieces, key=lambda q: q.distance(Point(cx, cy))) if pieces else copper
+        wide = own.intersection(slab(0.0, TANGENT - WIDTH / 2, -2.0, 2.0)).difference(shapely.union_all(body_geoms).buffer(0.05))
         stray = wide.difference(slab(0.0, TANGENT, -(WIDTH / 2 + DRIFT), WIDTH / 2 + DRIFT)).area
         # The square: GND copper beside the line, its near side C off the
         # copper (WIDTH / 2 + C off the axis), from the RoutePoint, 2.0 to
