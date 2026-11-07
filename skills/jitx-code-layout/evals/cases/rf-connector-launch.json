@@ -26,7 +26,7 @@
       "check": "judge"
     },
     {
-      "text": "COMPLETION.md reports, from the captured trace, that the line holds the axis through each square's far edge, the radius and centre of the bend past it, and the gap from the line's copper to each square, and says how it read the gap (a polygon reading of an arc's copper falls short of the centre-line reading)",
+      "text": "COMPLETION.md reports, from the captured trace, that the line holds the axis through each square's far edge, the radius and centre of the bend past it, and the gap from the line's copper to each square",
       "check": "judge"
     },
     {

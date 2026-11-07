@@ -201,7 +201,8 @@ def end_allowance() -> float:
 def launch_zone(pad: BaseGeometry) -> shapely.Polygon:
     """The prompt's launch cutout allowance at a jack: LAUNCH_HALF either side
     of the line's axis (the centre pad's middle in y), from the board edge
-    (taken as 3.0 past the pad's outer end) to TANGENT past its inner end."""
+    (the pad's outer end sits on it, so 3.0 past that end is a margin
+    off the board, not a prompt number) to TANGENT past its inner end."""
     x0, y0, x1, y1 = pad.bounds
     ym = (y0 + y1) / 2
     if pad.centroid.x < 0:
