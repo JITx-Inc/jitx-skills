@@ -55,13 +55,18 @@ worked from them:
   outer row are printed, not scored: the gap rule is the stricter reading
   of the prompt's words, and the outer row reads sparse for a cause not
   found (a build without the body's via keepout read the same);
-- via keepouts: the prompt names two, the body's outline and the
-  rectangle over the resistor's two pads and the gap between them, each
-  grown by 0.20. A ``KeepOut`` with ``via`` set on
-  any layer that reaches more than 0.001 mm2 past those shapes grown by
-  0.20 (plus 0.01 for a round buffer's sag) fails, so a via keepout that
+- via keepouts: the prompt allows two near the bodies and the RF lines,
+  the body's outline and the rectangle over the resistor's two pads and
+  the gap between them, each grown by 0.20, and a launch cutout under a
+  jack's centre pad. A ``KeepOut`` with ``via`` set on any layer that
+  meets a body's hull or a route centre line grown by ROUTE_CLEAR (the
+  line fence's outer row plus a via pitch's spacing, so the bands the
+  region and line fences stand in), meets no jack centre pad, and reaches
+  more than 0.001 mm2 past the allowed area fails, so a via keepout that
   eats a line fence or a first-row via the gap rule cannot resolve still
-  fails. Read after the region rows;
+  fails. The allowed area is those two shapes each grown by 0.20 with
+  square corners (a mitred offset contains a round one, so either growth a
+  runner draws fits) plus DRIFT. Read after the region rows;
 - fenced routes: every route realized on L1 at 0.30 (``CPWG_50_FENCED``; a
   route ending on a pad can realize as a polygon trace with no width, read
   as the short side of its minimum rotated rectangle), and the generated
@@ -335,13 +340,14 @@ with L.built(out, "fixture_wilkinson_tree", "WilkinsonTreeDesign", wait=120.0) a
         if diff > tol:
             L.fail(f"{owner}: the fence region is not the body copper: they differ by {diff:.4f} mm2, over {tol:.4f}")
             continue
-        # Each row is the body outline offset by the row's distance, sharp
-        # corners kept, every ring of it, the inside of the loop included.
-        # Free of it: what lies within ROUTE_CLEAR of a route centre line,
-        # and within RESISTOR_CLEAR plus a via pad's radius of a resistor
-        # pad (the prompt's via keepout there). A free piece of length n
-        # holds floor(n / PITCH) - 1 vias at the pitch with neither end on
-        # a boundary.
+        # Each row is the body outline offset by the row's distance (a true
+        # offset, round at convex corners), every ring of it, the inside of
+        # the loop included. Free of it: what lies within ROUTE_CLEAR of a
+        # route centre line, and within RESISTOR_CLEAR plus a via pad's
+        # radius of a resistor pad (the prompt's via keepout there). Pieces
+        # are line-merged so a ring's start point does not split a stretch.
+        # Each stretch is scored by its widest gap; floor(n / PITCH) - 1,
+        # the vias a piece of length n holds, is printed.
         hull = g.convex_hull
         holes = hull.difference(g.buffer(1e-3))
         loop = max(getattr(holes, "geoms", [holes]), key=lambda q: q.area)
@@ -350,6 +356,8 @@ with L.built(out, "fixture_wilkinson_tree", "WilkinsonTreeDesign", wait=120.0) a
             buf = g.buffer(r, quad_segs=32)
             rings = shapely.union_all([buf.exterior, *buf.interiors])
             free = rings.difference(centre.buffer(ROUTE_CLEAR)).difference(iso_here.buffer(RESISTOR_CLEAR + VIA_R))
+            if not free.is_empty:
+                free = shapely.line_merge(free)
             pieces = [q for q in getattr(free, "geoms", [free]) if not q.is_empty and q.length > 1e-6]
             tally = {"inside the loop": [0, 0, 0.0], "outside the loop": [0, 0, 0.0]}
             worst: list[tuple[str, float, float]] = []
@@ -373,12 +381,15 @@ with L.built(out, "fixture_wilkinson_tree", "WilkinsonTreeDesign", wait=120.0) a
                         L.fail(f"{owner}: the first row {where} has a {w:.3f} mm gap on a {n:.3f} mm free stretch, over {ROW_GAP}")
                         break
 
-    # The prompt names the via keepouts it allows: the body's outline, and
-    # the rectangle over the resistor's two pads and the gap between them,
-    # each grown by 0.20. Any other via keepout can
-    # eat a fence the counts above or the route rows do not resolve.
+    # Near the bodies and the RF lines the prompt allows two via keepouts,
+    # the body's outline and the rectangle over the resistor's two pads and
+    # the gap between them, each grown by 0.20 (square corners allowed),
+    # and a launch cutout under a jack's centre pad. Any other via keepout
+    # there can eat a fence the gap rule or the route rows do not resolve.
+    near_bodies = shapely.union_all([g.convex_hull.buffer(ROUTE_CLEAR) for g in body_geoms] + [centre.buffer(ROUTE_CLEAR)])
+    launch_pads = shapely.union_all(L.sma_centre_pads(rd))
     allowed = shapely.union_all(
-        [g.buffer(KEEPOUT_GROW + DRIFT) for g in body_geoms]
+        [g.buffer(KEEPOUT_GROW + DRIFT, join_style="mitre") for g in body_geoms]
         + [
             iso_pads.intersection(g.convex_hull.buffer(1.0)).minimum_rotated_rectangle.buffer(KEEPOUT_GROW + DRIFT, join_style="mitre")
             for g in body_geoms
@@ -386,10 +397,12 @@ with L.built(out, "fixture_wilkinson_tree", "WilkinsonTreeDesign", wait=120.0) a
     )
     for layer in range(4):
         for k in L.keepouts(rd, layer, "via"):
+            if not k.intersects(near_bodies) or k.intersects(launch_pads):
+                continue
             extra = k.difference(allowed).area
             if extra > 1e-3:
                 c = k.centroid
-                L.fail(f"a via KeepOut on layer {layer} near ({c.x:.3f}, {c.y:.3f}) reaches {extra:.4f} mm2 past the body and the resistor's pad rectangle grown by {KEEPOUT_GROW}, the only via keepouts the prompt names")
+                L.fail(f"a via KeepOut on layer {layer} near ({c.x:.3f}, {c.y:.3f}) reaches {extra:.4f} mm2 past the body and the resistor's pad rectangle grown by {KEEPOUT_GROW}, the only via keepouts the prompt allows near the bodies and RF lines")
 
     geoms = {wr.path: L.route_geom(wr) for wr in routes}
     copper = shapely.union_all(list(geoms.values())) if geoms else shapely.Polygon()

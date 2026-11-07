@@ -66,8 +66,9 @@ fixture's, or worked from them:
   where the vias happen to fall;
 - no keepout around the test pad (the prompt): no ``KeepOut`` on any layer
   reaches within AROUND = 3.0 of the pad's copper, a stated bound for
-  "around the pad" that matches the 3.0 either side of the nearest point
-  the rows are read over. Read after the row gaps, so a keepout that eats
+  "around the pad": at P3_CLEAR the far-side outer row's via pads start
+  1.7 + 0.30 + 1.2 - 0.25 = 2.95 from the pad, so 3.0 covers every fence
+  via pad. Read after the row gaps, so a keepout that eats
   the fence fails on the rows first;
 - the fence: the vias the runtime generated, read by their distance to the
   routed line's centre line, stand in two rows (two distinct distances, each
