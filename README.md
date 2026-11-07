@@ -121,9 +121,9 @@ Example triggers:
 - "Define a 14-layer RF stackup"
 - "Set up 100-ohm differential routing structure"
 
-### jitx-physical-layout
+### jitx-code-layout
 
-Author PCB physical layout from code: copper, pours, custom shapes, pad features, explicit placement, vias, code-based routes, and layout-intent tags.
+Write a fixed layout in code: relative placement, code-placed vias, code routes through control points, narrowing a route, length matching, pours, keepouts, copper and overlappable copper, and reading the realized layout back from the capture. Also sorts which control points stay in code and which a designer moves interactively.
 
 Example triggers:
 
@@ -228,7 +228,7 @@ jitx-skills/
 │   ├── jitx-component-modeler/
 │   ├── jitx-circuit-builder/
 │   ├── jitx-substrate-modeler/
-│   ├── jitx-physical-layout/
+│   ├── jitx-code-layout/
 │   ├── jitx-interactive-layout/
 │   ├── jitx-layout-constraints/
 │   ├── jitx-interconnect-constraints/

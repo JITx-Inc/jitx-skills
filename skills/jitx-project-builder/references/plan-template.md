@@ -159,10 +159,10 @@ See ARCHITECTURE.md sections `Power Tree`, `Interface Map`, `Board`, and, when p
 ## Phase 3: Top-Level Assembly
 
 ### [asm-01] Top-Level Design
-- **Type / skill / deps:** assembly | jitx-circuit-builder + jitx-interconnect-constraints | [every Phase 2 id, listed out]
+- **Type / skill / deps:** assembly | jitx-circuit-builder + jitx-interconnect-constraints + jitx-layout-constraints + jitx-code-layout (pours) | [every Phase 2 id, listed out]
 - **Data:** [accepted Phase 2 outputs; ARCHITECTURE.md sections by name]
-- **Specifics:** [assembly decisions no other document owns; writes `<ns>/designs/check_si_main.py` when the design has SI constraints]
-- **Verify:** `python scripts/check.py <ns>/ --build <ns>.main.Design`, then `python -m <ns>.designs.check_si_main` when the design has SI constraints
+- **Specifics:** [assembly decisions no other document owns; writes `<ns>/designs/check_si_main.py` when the design has SI constraints, and `<ns>/designs/check_layout_main.py` when it has pours, stitching or code-placed copper]
+- **Verify:** `python scripts/check.py <ns>/ --build <ns>.main.Design`, then `python -m <ns>.designs.check_si_main` when the design has SI constraints, and `python -m <ns>.designs.check_layout_main` when it has pours, stitching or code-placed copper
 - **Status:** pending
 
 ## Phase 3b: Design Review and Loopback

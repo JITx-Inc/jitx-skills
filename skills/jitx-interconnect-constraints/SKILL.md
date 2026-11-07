@@ -1,6 +1,6 @@
 ---
 name: jitx-interconnect-constraints
-description: "Use when the user asks about timing constraints, skew matching, insertion loss limits, pin models (bridging, terminating, via models), proving that an SI constraint applied, or debugging a constraint that does not measure in the design issues report. Also covers differential pairs, DiffPair bundles, skew across a bundle or against a clock, protocol constraints for PCIe, USB, DisplayPort, RGMII, Ethernet, DDR, reference planes, length matching, impedance-controlled routing, SignalConstraint definitions, and daisy-chain or flyby topologies built with the double-greater-than operator. Covers Topology, Constrain, ConstrainDiffPair, ConstrainReferenceDifference, DiffPairConstraint, BridgingPinModel, TerminatingPinModel, via models, ReferencePlanes, design issues, and protocol-specific constraint patterns. Trace width and clearance design rules belong to jitx-layout-constraints. Pin muxing and lane or polarity swappability belong to jitx-pin-assignment. Stackups and routing-structure definitions belong to jitx-substrate-modeler."
+description: "Use when the user asks about timing constraints, skew matching, insertion loss limits, pin models (bridging, terminating, via models), proving that an SI constraint applied, or debugging a constraint that does not measure in the design issues report. Also covers differential pairs, DiffPair bundles, skew across a bundle or against a clock, protocol constraints for PCIe, USB, DisplayPort, RGMII, Ethernet, DDR, reference planes, length matching, impedance-controlled routing, SignalConstraint definitions, and daisy-chain or flyby topologies built with the double-greater-than operator. Covers Topology, Constrain, ConstrainDiffPair, ConstrainReferenceDifference, DiffPairConstraint, BridgingPinModel, TerminatingPinModel, ReferencePlanes, and protocol-specific constraint patterns. Trace width and clearance design rules belong to jitx-layout-constraints. Pin muxing and lane or polarity swappability belong to jitx-pin-assignment. Stackups and routing-structure definitions belong to jitx-substrate-modeler."
 ---
 
 # JITX Interconnect Constraints
@@ -52,6 +52,8 @@ self.cst = Constrain(Topology(self.drv.o, self.rcv.i)).timing(500e-12).insertion
 
 Worked pattern: `jitxexamples.patterns.si_point_to_point`. `.timing(high=..., low=...)` sets a window; `Constrain([topo_a, topo_b])` takes several paths.
 
+A timing constraint alone draws no meander: length is added only inside an envelope (`Route.Config(envelope_overhead=...)` on a code route section, or `envelope_overhead` on an interactive route, `jitx-interactive-layout`), and a path left short reports `UnmetTime` ([`jitx-code-layout`, length matching](../jitx-code-layout/SKILL.md#length-matching)).
+
 Cover every timed path with one routing structure, on its own constraint or, in a daisy chain, the longest path's. Without one the measurement is not the structure's, and `Missing routing structure on Path: ...` is a defect to fix. `Constrain.structure()` takes only a single-ended `RoutingStructure`; differential work uses `ConstrainDiffPair` or `DiffPairConstraint`.
 
 ### Choosing the ends
@@ -98,7 +100,7 @@ self.routes = [
 ]
 ```
 
-These routes are what the runtime follows to infer the path between the `Topology` ends: a path crosses a via, or a part with a pin model, where routes land on both sides of it. Route between physical pads, vias and control points, one segment per hop. A route the router cannot make reports `Unable to find path for requested route` under Routing, and the constraint `Missing Connection on Path: <a>, <b>`. Control points and route mechanics: `jitx-physical-layout`.
+These routes are what the runtime follows to infer the path between the `Topology` ends: a path crosses a via, or a part with a pin model, where routes land on both sides of it. Route between physical pads, vias and control points, one segment per hop. A route the router cannot make reports `Unable to find path for requested route` under Routing, and the constraint `Missing Connection on Path: <a>, <b>`. Control points and route mechanics: `jitx-code-layout`.
 
 ## Differential Pairs
 
@@ -168,7 +170,7 @@ A daisy chain feeds loads in a fixed order, such as a DDR flyby clock. `self.a0 
 
 ## Verification
 
-Proving each SI constraint applied (width and clearance: `jitx-layout-constraints`; geometry: `jitx-physical-layout`).
+Proving each SI constraint applied (width and clearance: `jitx-layout-constraints`; geometry: `jitx-code-layout`).
 
 Prove binding on a verification design per constrained interface: parts placed, every path code-routed between physical pads (on a pin-assigned port, the provider's pins). The shipping assembly carries no proof routes. Details: [references/verification.md](references/verification.md).
 
