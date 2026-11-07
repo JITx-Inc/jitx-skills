@@ -18,7 +18,7 @@
 {"intent": "constrain the skew on this differential pair", "expected_skill": "jitx-interconnect-constraints", "ambiguous_with": ["jitx-layout-constraints"]}
 {"intent": "model the stackup and fab limits from this fabrication CSV", "expected_skill": "jitx-substrate-modeler", "ambiguous_with": ["jitx-layout-constraints"]}
 {"intent": "draw an antenna from code with custom copper geometry", "expected_skill": "jitx-code-layout", "ambiguous_with": ["jitx-layout-constraints"]}
-{"intent": "stitch vias into the QFN's thermal pad and fan the escapes out to layer 3", "expected_skill": "jitx-code-layout"}
+{"intent": "stitch vias into the QFN's thermal pad and fan the escapes out to layer 3", "expected_skill": "jitx-code-layout", "ambiguous_with": ["jitx-interactive-layout"]}
 {"intent": "import the board edge and keepout outline from DXF", "expected_skill": "jitx-mechanical", "ambiguous_with": ["jitx-layout-constraints"]}
 {"intent": "I just wired nine subcircuits — check them for string-hacking before I merge", "expected_skill": "jitx-code-review"}
 {"intent": "set up decoupling placement and short routes for the MCU", "expected_skill": "jitx-circuit-builder", "ambiguous_with": ["jitx"]}

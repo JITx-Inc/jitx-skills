@@ -22,7 +22,7 @@
   "interface": {
     "displayName": "JITX Skills",
     "shortDescription": "Design PCBs with JITX Python workflows",
-    "longDescription": "JITX Skills packages reusable agent workflows for building JITX Python PCB designs, including component modeling, circuit wiring, substrate creation, physical layout, layout constraints and design rules, signal-integrity constraints, pin assignment, code review, mechanical CAD interchange, and the opt-in JLCPCB fab option.",
+    "longDescription": "JITX Skills packages reusable agent workflows for building JITX Python PCB designs, including component modeling, circuit wiring, substrate creation, physical layout, interactive place and route, layout constraints and design rules, signal-integrity constraints, pin assignment, code review, mechanical CAD interchange, and the opt-in JLCPCB fab option.",
     "developerName": "JITX Support",
     "category": "Developer Tools",
     "capabilities": [
