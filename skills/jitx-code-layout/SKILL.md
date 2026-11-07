@@ -125,7 +125,7 @@ When a route, pour or via did not realize, report it as not done with that evide
 
 ## Interactive edits
 
-`rd.layout` (the API behind the board view) and `jitx design session` with `jitx design exec` edit the layout the runtime holds; placing and routing that way is `jitx-interactive-layout`. The interactive layout is under development: never present it as a finished, supported path.
+`rd.layout` (the API behind the board view) and `jitx design session` with `jitx design exec` edit the layout the runtime holds; placing and routing that way is `jitx-interactive-layout`.
 
 - `rd.layout.update_control` refuses a control point placed in code (`RoutePoint`, `PairPoint`, `PairInsertion`).
 - A point made with `rd.layout.route_point` moves with `update_control` and keeps the move across rebuilds.
