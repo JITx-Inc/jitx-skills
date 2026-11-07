@@ -85,9 +85,11 @@ worked from them:
   least four, 0.75 and 1.35 off it;
 - tangency: routed copper meets each body (within 0.05 mm) in exactly three
   places, its three ports. The straight exits of a cell's three ports
-  (each from the port along its axis to its square's far edge) stand at
-  least 3.2 apart at their closest, whichever way they point: each line's
-  outer fence row, 1.35, twice, plus the 0.5 between via centres. A port's
+  (each from the end of the port's stub along its axis to its square's far
+  edge) stand at least 3.2 apart at their closest, whichever way they
+  point: one floor for every pair, set by two lines leaving side by side,
+  each line's outer fence row, 1.35, twice, plus the 0.5 between via
+  centres. A port's
   axis runs from the centroid of the body copper within 0.6 mm of the
   contact to the contact; a jack's runs along x
   from the inner end of its centre pad. At each of these 14 ends exactly
@@ -177,7 +179,8 @@ FENCE_ROWS = (WIDTH / 2 + REGION_ROWS[0], WIDTH / 2 + REGION_ROWS[1])
 VIA_SPACE = 0.125 + 0.25 + 0.125
 ROUTE_CLEAR = FENCE_ROWS[1] + VIA_SPACE
 # Two lines that leave a cell side by side keep both fence rows each when
-# their centre lines stand both outer rows plus one via spacing apart.
+# their centre lines stand both outer rows plus one via spacing apart; the
+# prompt holds every pair of a cell's straight exits to that one floor.
 OUT_GAP = 2 * FENCE_ROWS[1] + VIA_SPACE
 VIA_R = 0.25
 RESISTOR_CLEAR = 0.20
@@ -546,7 +549,9 @@ with L.built(out, "fixture_wilkinson_tree", "WilkinsonTreeDesign", wait=120.0) a
         if not on_gnd:
             L.fail(f"{name}: the tangency square is not on GND")
         reach = far
-        exits[name] = LineString([(cx, cy), (cx + ux * reach, cy + uy * reach)])
+        # The prompt measures a straight exit from the end of the stub,
+        # not from the contact centroid behind it.
+        exits[name] = LineString([(cx + ux * tip, cy + uy * tip), (cx + ux * reach, cy + uy * reach)])
         band = centre.intersection(slab(0.0, reach, -1.0, 1.0))
         pts = [p for line in getattr(band, "geoms", [band]) for p in getattr(line, "coords", [])]
         drift = max((abs((y - cy) * ux - (x - cx) * uy) for x, y in pts), default=None)
@@ -568,8 +573,8 @@ with L.built(out, "fixture_wilkinson_tree", "WilkinsonTreeDesign", wait=120.0) a
             print(f"{name}: arcs centred within 0.5 of the square's corner: (radius, centre off the corner) {bends}")
             if not any(d <= R_TOL and abs(r - RADIUS) <= R_TOL for r, d in bends):
                 L.fail(f"{name}: no bend of radius {RADIUS} centred on the tangency square's corner: {bends}")
-    # A cell's straight exits stand OUT_GAP apart at their closest, so the
-    # lines keep both fence rows each, whichever way they leave.
+    # A cell's straight exits stand OUT_GAP apart at their closest, whichever
+    # way they leave.
     for owner, _, _, _ in bodies:
         mine_exits = [(n, s) for n, s in exits.items() if n.startswith(owner + ":")]
         for i, (na, a) in enumerate(mine_exits):
