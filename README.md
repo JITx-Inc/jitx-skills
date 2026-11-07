@@ -131,6 +131,16 @@ Example triggers:
 - "Create a net tie between AGND and DGND"
 - "Route the BGA escape lanes from code"
 
+### jitx-interactive-layout
+
+Place and route in the open board layout from scripts run through `jitx design session` and `jitx design exec`. Placements, routes, vias, pair insertions and hull pours made this way stay editable in the board editor. Reads the result back through route status, design issues and skew margins.
+
+Example triggers:
+
+- "Place and route the buck converter in the open layout"
+- "Fan out the BGA and route the DDR byte lanes interactively"
+- "How much skew margin is left on the DQS pairs?"
+
 ### jitx-layout-constraints
 
 Design rules for the layout: board defaults, classes of nets by tag with their own width and clearance, pour rules (relief, sliver removal, heavy copper), via stitching and fencing, routing structures applied by tag, fanout step-down into package pads, and after-build checks that each rule applied.
@@ -219,6 +229,7 @@ jitx-skills/
 │   ├── jitx-circuit-builder/
 │   ├── jitx-substrate-modeler/
 │   ├── jitx-physical-layout/
+│   ├── jitx-interactive-layout/
 │   ├── jitx-layout-constraints/
 │   ├── jitx-interconnect-constraints/
 │   ├── jitx-pin-assignment/
