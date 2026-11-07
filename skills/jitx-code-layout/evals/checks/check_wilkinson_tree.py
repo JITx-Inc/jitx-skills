@@ -36,10 +36,11 @@ worked from them:
   is the body copper (their symmetric difference under 0.01 along the
   body's outline). A fence pour inside the body's own pour keepout (on L1)
   realizes Empty, and capture keeps no shape for it, though its fence
-  stands; then its first-row vias show the region: none nearer the copper
-  than 0.6, and the nearest and the median 0.6 within 0.01 (a corner via
-  reads further, a grown or shrunk region moves every straight-edge via). Its rows then sit 0.6 and 1.2 off the copper edge (the
-  prompt). Each row is the set of points that distance off the body
+  stands; then its first-row vias show the region: each stands within
+  0.01 of the body copper offset by 0.6, round or square-cornered (the
+  fence's corner vias read on either), so a region grown or shrunk on
+  any part of its outline moves the vias there off both. Its rows then
+  sit 0.6 and 1.2 off the copper edge (the prompt). Each row is the set of points that distance off the body
   copper, every ring of it, the inside of the loop included. Taken off
   each ring: what lies within 1.85 of a route centre line, and within 0.45
   of a resistor pad. The 1.85 is the route fence's outer row (1.35 off the
@@ -350,11 +351,16 @@ with L.built(out, "fixture_wilkinson_tree", "WilkinsonTreeDesign", wait=120.0) a
     print(f"fence-tagged pours {[(path, round(g.area, 3)) for path, g in regions]}")
     for owner, _, g, _ in bodies:
         mine = [r for _, r in regions if not r.is_empty and r.intersects(g)]
-        voided = [path for path, r in regions if r.is_empty and path.startswith(owner + ".")]
+        voided = [path for path, r in regions if r.is_empty]
+        beside = [path for path, r in regions if not r.is_empty and not r.intersects(g) and r.distance(g) < REGION_ROWS[0]]
+        if beside and not mine:
+            L.fail(f"{owner}: fence-tagged pour {beside} realized beside the body copper, not over it, so the region is not the body copper")
+            continue
         if not mine and not voided:
             L.fail(f"{owner}: no fence-tagged shape over the body, so no region fence")
             continue
-        iso_band = iso_pads.intersection(g.convex_hull.buffer(1.0)).buffer(RESISTOR_CLEAR + VIA_R)
+        iso_here = iso_pads.intersection(g.convex_hull.buffer(1.0))
+        iso_band = iso_here.buffer(RESISTOR_CLEAR + VIA_R)
         if mine:
             region = shapely.union_all(mine)
             diff = region.symmetric_difference(g).area
@@ -368,20 +374,22 @@ with L.built(out, "fixture_wilkinson_tree", "WilkinsonTreeDesign", wait=120.0) a
             # Empty and capture keeps no shape for it, but its fence stands.
             # Its first row then shows the region: the generated vias nearer
             # the body copper than midway between the rows, off the route and
-            # resistor bands. Along the body's straight edges they stand
-            # REGION_ROWS[0] off it; at a convex corner the fence follows a
-            # square-cornered offset and the via reads further (up to 0.6 /
-            # sin(a / 2) at a corner of interior angle a). So none may stand
-            # nearer than REGION_ROWS[0], and the nearest and the median must
-            # read REGION_ROWS[0], each within DRIFT: a region grown or shrunk
-            # moves every straight-edge via.
+            # resistor bands. Each must stand within DRIFT of the body copper
+            # offset by REGION_ROWS[0], round or square-cornered (a corner via
+            # reads on either), every ring of it. A region grown or shrunk on
+            # any part of its outline moves the vias there off both.
             mid = sum(REGION_ROWS) / 2
             band = centre.buffer(ROUTE_CLEAR).union(iso_band)
-            near = sorted(d for x, y in gen if (d := g.distance(Point(x, y))) < mid and not band.contains(Point(x, y)))
-            median = near[len(near) // 2] if near else None
-            print(f"{owner}: fence pour {voided} realized Empty; {len(near)} first-row vias read {near[0] if near else 0:.4f} to {near[-1] if near else 0:.4f} off the body copper, median {median}")
-            if median is None or abs(near[0] - REGION_ROWS[0]) > DRIFT or abs(median - REGION_ROWS[0]) > DRIFT:
-                L.fail(f"{owner}: the fence region is not the body copper: its first-row vias stand {near[0] if near else 0:.4f} off it at the nearest, median {median}, not {REGION_ROWS[0]} within {DRIFT}")
+            offsets = shapely.union_all([g.buffer(REGION_ROWS[0], quad_segs=32).boundary, g.buffer(REGION_ROWS[0], join_style="mitre").boundary])
+            first = [(g.distance(q), offsets.distance(q)) for x, y in gen if g.distance(q := Point(x, y)) < mid and not band.contains(q)]
+            off = sorted((o, d) for d, o in first if o > DRIFT)
+            print(
+                f"{owner}: fence pours {voided} realized Empty; {len(first)} first-row vias read {min((d for d, _ in first), default=0):.4f} to {max((d for d, _ in first), default=0):.4f} off the body copper, "
+                f"furthest {max((o for _, o in first), default=0):.4f} off its {REGION_ROWS[0]} offset"
+            )
+            if not first or off:
+                worst = f"{off[-1][0]:.4f} off it ({off[-1][1]:.4f} from the copper)" if off else "none read"
+                L.fail(f"{owner}: the fence region is not the body copper: {len(off)} of {len(first)} first-row vias stand off the copper's {REGION_ROWS[0]} offset by over {DRIFT}, the furthest {worst}")
                 continue
         # Each row is the body outline offset by the row's distance (a true
         # offset, round at convex corners), every ring of it, the inside of
@@ -394,11 +402,10 @@ with L.built(out, "fixture_wilkinson_tree", "WilkinsonTreeDesign", wait=120.0) a
         hull = g.convex_hull
         holes = hull.difference(g.buffer(1e-3))
         loop = max(getattr(holes, "geoms", [holes]), key=lambda q: q.area)
-        iso_here = iso_pads.intersection(hull.buffer(1.0))
         for r in REGION_ROWS:
             buf = g.buffer(r, quad_segs=32)
             rings = shapely.union_all([buf.exterior, *buf.interiors])
-            free = rings.difference(centre.buffer(ROUTE_CLEAR)).difference(iso_here.buffer(RESISTOR_CLEAR + VIA_R))
+            free = rings.difference(centre.buffer(ROUTE_CLEAR)).difference(iso_band)
             if not free.is_empty:
                 free = shapely.line_merge(free)
             pieces = [q for q in getattr(free, "geoms", [free]) if not q.is_empty and q.length > 1e-6]
