@@ -16,6 +16,7 @@ SKILLS = [
     "jitx-circuit-builder",
     "jitx-substrate-modeler",
     "jitx-physical-layout",
+    "jitx-interactive-layout",
     "jitx-layout-constraints",
     "jitx-interconnect-constraints",
     "jitx-pin-assignment",

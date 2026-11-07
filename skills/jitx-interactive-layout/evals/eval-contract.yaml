@@ -1,0 +1,35 @@
+# Eval contract for jitx-interactive-layout.
+#
+# Scope: placing and routing in the open layout of a live design through
+# jitx design session and jitx design exec, with the rd.layout request API,
+# so the result stays editable in the board editor; reading the result back
+# through route status, the report script and rd.issues(). Writing rules,
+# constraints, tags or code geometry is out of scope (sibling skills).
+goal: |
+  An engineer whose design already carries its layout constraints asks an
+  agent to place and route part or all of the board, and gets a layout made
+  of interactive objects (placements, routes, vias, control points, pours)
+  that they can keep editing in the board editor. Excellent = the agent reads
+  the constraints from the design source before planning, drives the layout
+  from re-runnable scripts, reads the state back after every batch, does not
+  call anything done on an accepted request or an empty issue list, states
+  each interactive-API limitation it hit (no route-end query, no constraint query, no
+  tags, one copy of a thing loaded at a time) and works around it rather than hiding
+  it, and reports what it verified and what it did not. A weaker agent model
+  following the skill should still get there, because the skill carries the
+  mechanics and the checks.
+dimensions:
+  - "INTERACTIVE_NOT_CODE: are placements, routes, vias, control points and pours made through rd.layout requests in scripts run by jitx design exec, with no code Route, code-placed via, Copper or tag added to the design source to stand in for them?"
+  - "CONSTRAINT_GROUNDING: are rules, net classes, topologies and timing bounds read from the design source and named with the file they came from, given that the live design cannot report them, and is any width or space override on a request justified by one of those rules, or by the measured width of the pad it ends on?"
+  - "READ_BACK: after each batch, does the agent read route status, issues (with every category complete) and its own connectivity check for plain nets, treat blocked routes and split pours as signals to change placement or order, and keep the floorplan and checks as re-runnable files?"
+  - "PLACE_AND_ROUTE_CRAFT: are local circuits dense with courtyards clear, escapes planned, decoupling capacitors turned so the pads that close each loop face the pins they serve, with each loop's area measured against a stated mm^2 target, power and ground taken to planes through short via routes with same-net vias shared where they can be, vias placed only at computed free spots, hull pours used for switch nodes with distinct ranks and expand for thermals, and tight connections routed before pours and bulk?"
+  - "SI_DISCIPLINE: on SI-constrained work, do fanouts go in first, is pin assignment chosen by the agent from the provide/require pool rather than read from the capture's nets, are skew margins read from rd.issues(satisfied=True) or layout_report.py issues_all, and are length-matching regions added only after skew is close, with space planned and P/N skew addressed before macro skew?"
+  - "LIMITATION_HONESTY: are the interactive API's limitations stated where they bite (routes needing a fanout tag listed for the user to tag, constraints read from source, assignments requested explicitly), with nothing presented as verified that was not read back?"
+hard_fails:
+  - "A code Route, code-placed via, Copper, or layout tag written into the design source as the way to deliver the requested interactive layout."
+  - "The layout is called done on the strength of accepted requests, a clean build, or an empty issue list, with no route-status read-back and no connectivity check for plain nets."
+  - "A claim that the agent queried constraints, applied a tag, or listed a route's possible ends through the interactive API."
+  - "A via placed with force=True at a spot the agent did not check for clearance from other pads, courtyards and neighbouring escapes. A via at the centre of its own pad, on a definition that allows via-in-pad, is a valid spot and needs no clearance check from that pad."
+  - "Pin assignment for a constrained interface taken from the nets the session capture assigned, with no eligible pool read from the design source."
+  - "Length-matching regions added to an SI group before its routes are measured, or with no measured margins reported."
+  - "An invented electrical number (inductance, skew, delay, current) with no source, measurement, or labeled estimate."

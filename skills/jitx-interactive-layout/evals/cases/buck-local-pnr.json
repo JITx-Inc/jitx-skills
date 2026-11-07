@@ -1,0 +1,70 @@
+{
+  "name": "buck-local-pnr",
+  "prompt": "My board's layout constraints are in. Using the open layout, place and route the 3.3 V buck regulator circuit (reg_3v3) so I can keep editing it in the board editor. Keep it compact and tidy on the top layer with the capacitors tight to the IC and inductor, bring the input power in as a pour, take power and ground to the planes, and show me it is fully routed.",
+  "inputs": {
+    "project": "The JITX project of the ethernet-board-pnr case (design ethboard.main.EthernetBoardDesign: the JS2 Ethernet PHY board with an input terminal block and a pin-assigned host header on an 80 x 40 mm board, ethboard.substrate.EthernetBoardSubstrate, the 18-layer reference stackup with only through-hole vias whose definitions forbid via-in-pad, GND plane pours on the substrate's reference-plane layers and a V3V3 plane pour on L9_PWR1_2OZ, nothing placed). The reg_3v3 circuit holds the buck IC (pins RT, VIN, GND, SW_NODE, BST, FB), input and output capacitors, the inductor, the bootstrap capacitor and resistor, and the feed-forward capacitor. Copy the project to a scratch directory; never run against the user's own checkout. The project's `[tool.jitx.parts] chain` is `[\"csv:parts/example-passives.csv\", \"ideal\"]`, with the kit catalogue in `parts/`, so every passive resolves to a real part (the inductor to a 1210 power inductor); a build that resolves any part to an `IDEAL-` placeholder makes the case invalid.",
+    "environment": "The JITX CLI and runtime installed at the bundle's supported version line (see the base jitx skill); the runner starts its own runtime and session for the copy and stops the session at the end.",
+    "notes": "Other jumpstart-kit buck circuits with the same parts list, on a board with GND and 3.3 V plane pours, are equivalent fixtures."
+  },
+  "notes": "For whoever reads the judges' output, not for the runner. The case tests the general playbook on a small circuit: the runner must read the circuit's ShortTrace pairs and the design rules from the source, place densely and in order with the capacitors' loop-closing pads facing the IC and inductor, route the switch node as a hull pour or short top-layer routes and join the input loop with pours, take GND to vias at computed spots beside the pads (through-hole vias only, no via-in-pad), and prove the result with route status, issues, layout_checks.py and its own connectivity check. The design's SI constraints are on nets outside reg_3v3, which stay unrouted, so the final issue list still shows their 'No path for signal constraint' topology issues; those are expected, the runner should name them as outside the task, and they do not count against it. No timing margin is expected. 'Take power and ground to the planes' means vias from the regulator's ground pads into a GND plane and from its output into the V3V3 plane. The rest of the board stays unplaced; placing other circuits is outside the task. VIN and V3V3 also reach parts outside reg_3v3, so the connectivity result and the VIN power path cover reg_3v3's pads and its vias into the planes; with the terminal block unplaced, the VIN pour runs from the input capacitors to the IC. The power width rule (0.5 mm, priority 1 over the buck's own 0.25 mm rule) is wider than the TPS62933's 0.28 mm pads; a default-width route from the VIN pad came back routed at 0.5 mm with about 0.11 mm to the neighbouring pads and rd.issues() reported nothing (probed 2026-11-05). A runner that narrows the last segment into such a pad and cites the pad width, or the buck's 0.25 mm rule for a VIN or V3V3 stub (it tags both nets whole and does not cover GND), is following the skill; a default-width route there is a silent clearance violation. Run b1 (2026-11-05, 80 x 80 board) is the earlier baseline; this fixture's board, vias and checks differ, so the first run here is a new baseline. The hot-loop target has no datasheet number; the runner states the target it used and why. The 4x bound against the 100 nF capacitor's loop is the case's choice, not a sourced figure. Power paths are judged by layout_checks.py's estimated DC IR drop at a current and against a drop budget, not by the narrowest point: thermal spokes, necks and traces count by the resistance they add. The runner takes the current from the design source (the circuit's rating or load) or states it with its reason, and states the budget with its reason; the case sets neither. The 'input is a pour' requirement (`require_pour`, trace_hops 0) is separate from the drop: in e1 (ethernet-board-pnr) the VIN path from the terminal block to the buck, with 20.3 mm of trace legs, was estimated at 11.1 mOhm, 11.1 mV at 1 A, which a 1% budget would pass, so the pour requirement is what carries that fault.",
+  "runner_models": [
+    "gpt-6.1-sol"
+  ],
+  "runner_rationale": "Customers drive this skill with mixed-strength agents (Claude Code, Codex, and Devin among them). The skill must carry the mechanics and the checks itself, so the eval runs it under a codex workhorse-tier runner at high effort. Judges stay frontier-tier regardless of runner.",
+  "runner_artifacts": "The runner MUST write its scripts to <output>/scripts/, the final state.json and issues.json from layout_report.py to <output>/, and a completion summary to <output>/COMPLETION.md that quotes the last layout_report.py summaries verbatim with their command lines and lists anything left for the user (routes that need a tag, unverified loop estimates). Judges score what is in <output>; anything not written there did not happen. Before the run, the harness makes the scratch project a git repository with every file committed (`git init && git add -A && git commit -m baseline`). After the run, the runner MUST write <output>/project.diff from `git add -A && git diff --cached` in the scratch project, so judges see every changed and new file, and can check that the design source gained no layout code. The runner MUST also quote the last `layout_checks.py` output verbatim in COMPLETION.md with its command line and the checks-config.json it used, and copy checks.json to <output>/. The final issues.json MUST come from `layout_report.py -f issues_all`, so passing checks and their margins are in it.",
+  "expected_output": "Re-runnable scripts that place reg_3v3's parts densely and in order on the top layer (courtyards clear, inside the board), with the input and output capacitors' loop-closing pads facing the IC pins and inductor, route the tight loops first (bootstrap and switch node to inductor on the top layer or as a ConvexHull pour; the input capacitors joined to VIN and GND by pours) with expand and a distinct rank on each hull, carry VIN from the input capacitors to the IC as a pour with its IR drop within a stated budget, take GND to the GND planes and the 3.3 V output to the V3V3 plane through through-hole vias at checked free spots beside the pads and share a via where pins can, then route the rest; a read-back and layout_checks.py after each batch; a final state with every reg_3v3 route routed, none blocked, every issue category complete and no error issue on a reg_3v3 net (the unrouted SI nets elsewhere keep their topology issues), VIN and V3V3 IR drop within the stated budget, no connection over 1.5 times its straight line, a connectivity check over reg_3v3's plain nets, and each capacitor's loop area against a stated target.",
+  "assertions": [
+    {
+      "text": "every placement, route, via and pour is made with rd.layout requests from scripts run by jitx design exec; the design source gains no code Route, code-placed via, Copper or tag",
+      "check": "judge"
+    },
+    {
+      "text": "COMPLETION.md quotes a layout_report.py summary showing no blocked routes, no courtyard overlaps among reg_3v3's parts, none off the board, and every issue category complete, and a separate connectivity result for reg_3v3's plain nets",
+      "check": "judge"
+    },
+    {
+      "text": "no via sits inside or overlaps a pad, and no via is placed with force=True unless the scripts first check the spot against pads, large courtyards and neighbouring escapes; a pad shares a same-net via only where the shared route stays short and the current stays within what one via carries by the design's rules, every decoupling and bulk capacitor keeps at least one plane via of its own, and the summary names the pads that share a via or says why none do",
+      "check": "judge"
+    },
+    {
+      "text": "the tight loops (input capacitor, bootstrap, switch node) are placed and routed before the bulk, and any hull pour has a distinct rank and an expand, with its fill piece count checked",
+      "check": "judge"
+    },
+    {
+      "text": "the design rules and ShortTrace pairs used are named with the file they came from; any width or space set on a request cites one of them or a measured pad width; a power trace narrowed at a pad says why",
+      "check": "judge"
+    },
+    {
+      "text": "the regulator's ground pads reach a GND plane and its output reaches the V3V3 plane through vias at checked spots, and the summary names the plane layers with the source file that defines them",
+      "check": "judge"
+    },
+    {
+      "text": "project.diff shows no new Route, via, Copper, Pour or tag in the design's Python source; changes under designs/<design>/design-info/ are expected",
+      "check": "judge"
+    },
+    {
+      "text": "the input hot loop's pads (the input capacitors' ground pads with the IC's ground pins, and their supply pads with the IC's supply pin) are joined by pours made with region requests rather than by separate traces or only through vias to a plane, each reported as one fill piece, unless the summary shows why such a pour could not be built in one piece; any other pour is on a current path where it lowers resistance or inductance; the summary says why each pour helps",
+      "check": "judge"
+    },
+    {
+      "text": "each bulk input and output capacitor (reg_3v3.input_caps.* and reg_3v3.output_caps.*) has more than one ground via; the 100 nF parts (c_inp_sm, c_out_100n) need only one",
+      "check": "judge"
+    },
+    {
+      "text": "the final layout_report.py summary lists no ideal_parts",
+      "check": "judge"
+    },
+    {
+      "text": "every VIN, V3V3 or GND trace that ends on a TPS62933 pin (0.28 mm pads) is narrowed on the leg that ends at the pad to no wider than the pad, with the width set on the request and cited, or measured at least 0.125 mm from the neighbouring pads by a script in scripts/ that reads the trace copper, with its output quoted in COMPLETION.md; a 0.5 mm trace into such a pad fails",
+      "check": "judge"
+    },
+    {
+      "text": "the input and output capacitors are placed with the pads that close each loop facing the IC's VIN and GND pins and the inductor, packed tight with the passives in rows or columns rather than scattered, and the quoted layout_checks.py loop section reports the area of each input capacitor's loop against a target the runner states with its reason, each reported met; a bulk input capacitor turned away from the IC, a loop reported not met, or a bulk loop more than 4 times the 100 nF capacitor's (the case's choice, see notes) fails",
+      "check": "judge"
+    },
+    {
+      "text": "the quoted layout_checks.py output has a VIN power path from an input capacitor to the buck's VIN pin with `require_pour` and trace_hops 0 (a step-down leg within neck_down_mm of the narrow pad excepted) and a V3V3 path from the inductor's output pad to an output capacitor, each with an IR drop (r_mohm and drop_mv) within the budget at the current the summary states with their sources or reasons; and its circuitousness section shows no reg_3v3 connection over 1.5 times its straight-line length, however short",
+      "check": "judge"
+    }
+  ]
+}
