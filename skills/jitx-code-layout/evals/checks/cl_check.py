@@ -1,0 +1,541 @@
+"""Shared helpers for the code-layout eval checks.
+
+Each check builds the runner's design in ``<output>`` with a runtime it starts
+for that directory and stops at exit, captures it, measures the realized
+copper, prints what it measured, and exits nonzero on a failure.
+
+What a headless build reads back after ``rd.capture()``:
+
+- ``Pour.shape`` holds the computed pour copper, holes included, or
+  ``Empty()`` when the pour did not realize;
+- ``Route.traces[*].shapes`` holds the realized trace shapes (a trace can
+  come back as a ``Polygon`` with no width), in the frame of the circuit
+  that declares the route: ``world_routes`` carries that frame and
+  ``world_traces`` applies it; a route with no traces did not realize;
+- ``rd.query(Via)`` returns the vias the runtime generated (route fences,
+  stitching) together with the vias the design places in code, which
+  ``generated_vias`` leaves out;
+- ``rd.issues(...)`` returns the design issues, timing among them.
+"""
+
+from __future__ import annotations
+
+import importlib
+import json
+import math
+import shutil
+import subprocess
+import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Any, NamedTuple
+
+import shapely
+from shapely.geometry import LineString
+from shapely.geometry.base import BaseGeometry
+
+from jitx.circuit import Route
+from jitx.copper import Copper, Pour
+from jitx.design import Design
+from jitx.feature import KeepOut, OverlappableCopper
+from jitx.inspect import visit
+from jitx.landpattern import Pad, PadShape
+from jitx.run.runtime import Runtime
+from jitx.shapes import Shape
+from jitx.shapes.primitive import Arc, Empty
+from jitx.transform import Transform
+from jitx.via import Via
+
+FAILURES: list[str] = []
+
+SKILL = Path(__file__).resolve().parents[2]
+
+
+def fail(msg: str) -> None:
+    """Record a failed expectation; the check exits nonzero at the end."""
+    FAILURES.append(msg)
+    print(f"FAIL: {msg}")
+
+
+def ok(msg: str) -> None:
+    print(f"ok: {msg}")
+
+
+def finish() -> None:
+    if FAILURES:
+        print(f"{len(FAILURES)} check(s) failed")
+        sys.exit(1)
+    print("all checks passed")
+    sys.exit(0)
+
+
+def output_dir() -> Path:
+    if len(sys.argv) != 2:
+        print(f"usage: {Path(sys.argv[0]).name} <output-dir>", file=sys.stderr)
+        sys.exit(2)
+    out = Path(sys.argv[1]).resolve()
+    if not (out / "pyproject.toml").is_file():
+        print(f"error: {out} has no pyproject.toml; copy the fixture there first", file=sys.stderr)
+        sys.exit(2)
+    return out
+
+
+def load_design(out: Path, module: str, cls: str) -> type[Design]:
+    """Import ``module.cls`` from the runner's output directory."""
+    sys.path.insert(0, str(out))
+    mod = importlib.import_module(module)
+    design = getattr(mod, cls)
+    if not (isinstance(design, type) and issubclass(design, Design)):
+        print(f"error: {module}.{cls} is not a Design subclass", file=sys.stderr)
+        sys.exit(2)
+    return design
+
+
+@contextmanager
+def runtime_for(out: Path) -> Iterator[None]:
+    """Start a runtime for ``out`` and stop it on exit, whatever happens."""
+    start = subprocess.run(
+        ["jitx", "runtime", "start", "--background", "--project", str(out)],
+        capture_output=True,
+        text=True,
+    )
+    if start.returncode != 0:
+        print(start.stdout + start.stderr, file=sys.stderr)
+        print("error: could not start a JITX runtime for the output directory", file=sys.stderr)
+        sys.exit(2)
+    try:
+        yield
+    finally:
+        subprocess.run(
+            ["jitx", "runtime", "stop", "--project", str(out)],
+            capture_output=True,
+            text=True,
+        )
+
+
+@contextmanager
+def built(out: Path, module: str, cls: str, wait: float = 60.0) -> Iterator[Any]:
+    """Submit and capture the design; yields the RuntimeDesign.
+
+    The stored design state is removed first: a headless submit after a
+    design change otherwise aborts at "stabilization".
+    """
+    design = load_design(out, module, cls)
+    stored = out / "designs" / f"{module}.{cls}"
+    if stored.exists():
+        shutil.rmtree(stored)
+    with runtime_for(out):
+        with Runtime(project=out) as r:
+            rd = r.submit(design)
+            rd.capture(wait=wait)
+            yield rd
+
+
+def bare_fixture(module: str, into: Path) -> Path:
+    """Copy the inputs of the case whose fixture module is ``module`` into ``into``."""
+    for case in sorted((SKILL / "evals" / "cases").glob("*.json")):
+        inputs = json.loads(case.read_text())["inputs"]
+        if f"{module}.py" in inputs:
+            into.mkdir(parents=True, exist_ok=True)
+            for dst, src in inputs.items():
+                shutil.copy(SKILL / src, into / dst)
+            return into
+    raise FileNotFoundError(f"no case lists {module}.py")
+
+
+# ---------------------------------------------------------------- reading
+
+
+def issues_text(rd: Any, wait: float = 15.0) -> str:
+    """The runtime's design issue report, as text."""
+    return rd.issues(satisfied=False, wait=wait).text()
+
+
+def geom(shape: Any) -> BaseGeometry:
+    """Shapely geometry of a jitx shape, holes kept."""
+    if isinstance(shape, Empty) or isinstance(getattr(shape, "geometry", None), Empty):
+        return shapely.Polygon()
+    return shape.to_shapely().g
+
+
+def world_pours(rd: Any) -> list[tuple[str, Pour, BaseGeometry]]:
+    """Every pour in the design, with its computed copper in board coordinates."""
+    out: list[tuple[str, Pour, BaseGeometry]] = []
+    for trace, p in visit(rd.root, Pour):
+        s = p.shape
+        if trace.transform is not None and not isinstance(s, Empty):
+            s = trace.transform * s
+        out.append((str(trace.path), p, geom(s)))
+    return out
+
+
+class WorldRoute(NamedTuple):
+    """A route, its path, and the frame its realized trace shapes are in."""
+
+    path: str
+    route: Route
+    frame: Transform | None
+
+
+def world_routes(rd: Any) -> list[WorldRoute]:
+    """Every route in the design with the transform of the circuits above it.
+
+    The runtime's route geometry is board absolute and capture stores it in
+    the frame of the circuit that declares the route (``in_route_frame`` in
+    jitx's reverse-flow linker), so ``frame * shape`` is in board coordinates.
+    """
+    return [WorldRoute(str(trace.path), r, trace.transform) for trace, r in visit(rd.root, Route)]
+
+
+def world_traces(wr: WorldRoute) -> list[list[Shape]]:
+    """Each realized trace's shapes in board coordinates, trace by trace."""
+    return [[s if wr.frame is None else wr.frame * s for s in tr.shapes] for tr in wr.route.traces or []]
+
+
+def route_geom(wr: WorldRoute) -> BaseGeometry:
+    """Union of a route's realized trace shapes in board coordinates (empty
+    when it did not realize)."""
+    shapes = [geom(s) for tr in world_traces(wr) for s in tr]
+    return shapely.union_all(shapes) if shapes else shapely.Polygon()
+
+
+def trace_widths(route: Route) -> list[float | None]:
+    """Width of every realized trace shape; None for a shape with no width
+    (a ``Polygon``), which a width check must not skip silently."""
+    ws: list[float | None] = []
+    for tr in route.traces or []:
+        for s in tr.shapes:
+            w = getattr(getattr(s, "geometry", s), "width", None)
+            ws.append(None if w is None else round(float(w), 4))
+    return ws
+
+
+def pad_world(rd: Any, pad: Pad) -> BaseGeometry:
+    """World geometry of one pad's copper."""
+    for trace, p in visit(rd.root, Pad):
+        if p is pad:
+            if trace.transform is None or p.transform is None:
+                raise ValueError(f"unresolved frame for {trace.path}")
+            s: Shape = p.shape.shape if isinstance(p.shape, PadShape) else p.shape
+            return geom((trace.transform * p.transform) * s)
+    raise KeyError("pad not found")
+
+
+def placed_vias(rd: Any) -> list[tuple[float, float, Via]]:
+    """Centres of the vias the design places in code, with the via object."""
+    out = []
+    for trace, v in visit(rd.root, Via):
+        if trace.transform is None or v.transform is None:
+            continue
+        x, y = (trace.transform * v.transform).trs[0]
+        out.append((float(x), float(y), v))
+    return out
+
+
+def generated_vias(rd: Any) -> list[tuple[float, float]]:
+    """Centres of the vias the runtime generated (route fences, stitching).
+
+    ``rd.query(Via)`` yields them together with the vias placed in code;
+    those are the ``Via`` objects ``visit`` lists in the captured tree, and
+    they are left out by identity."""
+    placed = {id(v) for _, v in visit(rd.root, Via)}
+    out = []
+    for trace, v in rd.query(Via):
+        if id(v) in placed:
+            continue
+        if trace.transform is None or v.transform is None:
+            raise ValueError(f"unresolved frame for a generated via at {trace.path}")
+        x, y = (trace.transform * v.transform).translation
+        out.append((float(x), float(y)))
+    return out
+
+
+def authored_copper(rd: Any) -> list[tuple[str, BaseGeometry, int]]:
+    """``Copper`` and ``OverlappableCopper`` shapes the design draws in code,
+    in board coordinates, with their layer. Pads are not included."""
+    out = []
+    for trace, c in visit(rd.root, (Copper, OverlappableCopper)):
+        if isinstance(c, Pour):
+            continue
+        s = c.shape
+        if trace.transform is not None:
+            s = trace.transform * s
+        out.append((str(trace.path), geom(s), int(c.layer)))
+    return out
+
+
+def on_layer(layers: Any, layer: int, count: int = 4) -> bool:
+    """True when a ``LayerSet`` covers ``layer`` of a ``count``-layer board;
+    negative indices count from the bottom."""
+    for lo, hi in layers.ranges:
+        lo, hi = lo % count, hi % count
+        if lo <= layer <= hi:
+            return True
+    return False
+
+
+def keepouts(rd: Any, layer: int, flag: str) -> list[BaseGeometry]:
+    """Board geometry of every ``KeepOut`` on ``layer`` with ``flag``
+    (``"route"``, ``"pour"`` or ``"via"``) set."""
+    out = []
+    for trace, k in visit(rd.root, KeepOut):
+        if not getattr(k, flag) or not on_layer(k.layers, layer):
+            continue
+        s = k.shape if trace.transform is None else trace.transform * k.shape
+        out.append(geom(s))
+    return out
+
+
+def route_keepouts(rd: Any, layer: int) -> list[BaseGeometry]:
+    """Board geometry of every route ``KeepOut`` on ``layer``."""
+    return keepouts(rd, layer, "route")
+
+
+def gap(a: BaseGeometry, b: BaseGeometry) -> float:
+    return round(float(a.distance(b)), 4)
+
+
+def segments(wr: WorldRoute) -> list[tuple[tuple[float, float], tuple[float, float], float]]:
+    """The straight pieces of every realized ``Polyline`` trace in board
+    coordinates: (start, end, width)."""
+    out = []
+    for tr in world_traces(wr):
+        for s in tr:
+            g = getattr(s, "geometry", s)
+            pts = getattr(g, "elements", None)
+            w = getattr(g, "width", None)
+            if pts is None or w is None:
+                continue
+            xf = getattr(s, "transform", None)
+            coords = []
+            for p in pts:
+                if not (isinstance(p, tuple) and len(p) == 2):
+                    break
+                coords.append((float(p[0]), float(p[1])))
+            else:
+                if xf is not None:
+                    coords = [tuple(map(float, xf * c)) for c in coords]
+                out += [(a, b, float(w)) for a, b in zip(coords, coords[1:])]
+    return out
+
+
+def seg_len(a: tuple[float, float], b: tuple[float, float]) -> float:
+    return math.hypot(b[0] - a[0], b[1] - a[1])
+
+
+def dump(obj: Any) -> None:
+    print(json.dumps(obj, indent=1, default=str))
+
+
+# ---------------------------------------------------------------- shared checks
+
+
+def sma_centre_pads(rd: Any) -> list[BaseGeometry]:
+    """World geometry of each Würth SMA's centre pad, left to right."""
+    from jitxexamples.components.connectors.wurth_elektronik_60312202114514 import (
+        Wurth60312202114514,
+    )
+
+    pads = []
+    for _, comp in visit(rd.root, Wurth60312202114514):
+        pads.append(pad_world(rd, comp.landpattern.sig))
+    return sorted(pads, key=lambda g: g.centroid.x)
+
+
+def realized_routes(rd: Any, layer: int | None = None) -> list[WorldRoute]:
+    """Every route in the design, failing each one that did not realize (no
+    traces, or a blocked status) and, with ``layer``, each one on another
+    layer. Returns the realized ones."""
+    good = []
+    routes = world_routes(rd)
+    if not routes:
+        fail("the design has no Route")
+    for wr in routes:
+        path, r = wr.path, wr.route
+        status = getattr(r, "status", None)
+        if not r.traces or (status is not None and not status.routed):
+            fail(f"{path}: route did not realize (status {status}, {len(r.traces or [])} traces)")
+            continue
+        if layer is not None and r.layer != layer:
+            fail(f"{path}: on layer {r.layer}, not layer {layer}")
+        good.append(wr)
+    return good
+
+
+def no_authored_copper(rd: Any, why: str) -> None:
+    """Fail on any ``Copper`` or ``OverlappableCopper`` drawn in code."""
+    drawn = authored_copper(rd)
+    if drawn:
+        fail(f"copper drawn in code where {why}: {[p for p, _, _ in drawn]}")
+    else:
+        ok("no copper drawn in code")
+
+
+def joins(copper: BaseGeometry, a: BaseGeometry, b: BaseGeometry) -> bool:
+    """True when one connected piece of ``copper`` touches both ``a`` and ``b``."""
+    for piece in getattr(copper, "geoms", [copper]):
+        if piece.distance(a) < 1e-3 and piece.distance(b) < 1e-3:
+            return True
+    return False
+
+
+def _arc_point(el: Arc, frac: float) -> tuple[float, float]:
+    """The point ``frac`` of the way along an arc's sweep, in the arc's frame."""
+    a = math.radians(float(el.start) + float(el.arc) * frac)
+    r = float(el.radius)
+    return (float(el.center[0]) + r * math.cos(a), float(el.center[1]) + r * math.sin(a))
+
+
+def _end_point(el: Any, last: bool) -> tuple[float, float] | None:
+    """First (or last) point of one ArcPolyline element: a point or an Arc."""
+    if isinstance(el, tuple) and len(el) == 2:
+        return (float(el[0]), float(el[1]))
+    if not isinstance(el, Arc):
+        return None
+    return _arc_point(el, 1.0 if last else 0.0)
+
+
+def _xy(p: Any) -> tuple[float, float]:
+    return (float(p[0]), float(p[1]))
+
+
+def trace_ends(wr: WorldRoute) -> list[tuple[tuple[float, float], tuple[float, float]]]:
+    """First and last point of each realized trace shape, in board
+    coordinates. Elements may be points or arcs."""
+    out = []
+    for tr in world_traces(wr):
+        for s in tr:
+            g = getattr(s, "geometry", s)
+            els = list(getattr(g, "elements", []))
+            if not els:
+                continue
+            a, b = _end_point(els[0], False), _end_point(els[-1], True)
+            if a is None or b is None:
+                continue
+            xf = getattr(s, "transform", None)
+            if xf is not None:
+                a, b = tuple(map(float, xf * a)), tuple(map(float, xf * b))
+            out.append((a, b))
+    return out
+
+
+def chip_pads(rd: Any, cls: type, mpn: str | None = None) -> list[BaseGeometry]:
+    """World geometry of every pad of every component of type ``cls`` (and,
+    with ``mpn``, that part number)."""
+    out = []
+    for _, comp in visit(rd.root, cls):
+        if mpn is not None and getattr(comp, "mpn", None) != mpn:
+            continue
+        for _, pad in visit(comp.landpattern, Pad):
+            out.append(pad_world(rd, pad))
+    return out
+
+
+def piece_touching(copper: BaseGeometry, *targets: BaseGeometry) -> BaseGeometry | None:
+    """The connected piece of ``copper`` that touches every one of ``targets``."""
+    for piece in getattr(copper, "geoms", [copper]):
+        if all(piece.distance(t) < 1e-3 for t in targets):
+            return piece
+    return None
+
+
+def issue_kinds(text: str, *kinds: str) -> list[str]:
+    """Lines of an issue report that name any of kinds (any case), each
+    joined with the line after it, which carries the detail."""
+    lines = text.splitlines()
+    out = []
+    for i, ln in enumerate(lines):
+        if any(k.lower() in ln.lower() for k in kinds):
+            out.append(" ".join(x.strip() for x in lines[i : i + 2]))
+    return out
+
+
+def placed(transform: Transform | None) -> Transform:
+    """A visited feature's transform, failing loud when the visit gave none."""
+    if transform is None:
+        raise RuntimeError("visited feature has no transform")
+    return transform
+
+
+def arcs(shapes: list[Shape]) -> list[Arc]:
+    """The arcs of one realized trace, in order, in board coordinates;
+    ``shapes`` is one trace from ``world_traces``."""
+    out: list[Arc] = []
+    for s in shapes:
+        xf = s.transform
+        o = _xy(xf * (0.0, 0.0))
+        ux, uy = (c - d for c, d in zip(_xy(xf * (1.0, 0.0)), o))
+        vx, vy = (c - d for c, d in zip(_xy(xf * (0.0, 1.0)), o))
+        turn = math.degrees(math.atan2(uy, ux))
+        mirrored = ux * vy - uy * vx < 0
+        scale = math.hypot(ux, uy)
+        for e in getattr(s.geometry, "elements", []):
+            if isinstance(e, Arc):
+                start = turn - float(e.start) if mirrored else turn + float(e.start)
+                sweep = -float(e.arc) if mirrored else float(e.arc)
+                out.append(Arc(_xy(xf * _xy(e.center)), float(e.radius) * scale, start % 360.0, sweep))
+    return out
+
+
+def net_members(rd: Any, name: str) -> set[int]:
+    """Ids of every object (port, copper, via, net) joined to the net named
+    ``name``, following each ``Net``'s connected list and the ports nets
+    share."""
+    from jitx.net import Net
+
+    parent: dict[int, int] = {}
+
+    def find(k: int) -> int:
+        while parent.setdefault(k, k) != k:
+            parent[k] = parent[parent[k]]
+            k = parent[k]
+        return k
+
+    named = []
+    for _, n in visit(rd.root, Net):
+        if getattr(n, "name", None) == name:
+            named.append(id(n))
+        for m in getattr(n, "connected", []):
+            parent[find(id(m))] = find(id(n))
+    roots = {find(k) for k in named}
+    return {k for k in list(parent) if find(k) in roots}
+
+
+def copper_gap(routes: list[WorldRoute], g: BaseGeometry, step_deg: float = 1.0) -> float:
+    """Distance from the routed copper to ``g``, negative when it reaches
+    into ``g``: for a trace with a width, its centre line (arcs sampled every
+    ``step_deg``, points on the arc) to ``g`` less half the width; for a
+    polygon trace, its outline. Sampling on the arc puts each chord inside it
+    by at most r(1 - cos(step_deg / 2)), under 0.0001 at r = 1.15 and 1 degree."""
+    best = math.inf
+    for wr in routes:
+        for tr in world_traces(wr):
+            for s in tr:
+                w = getattr(getattr(s, "geometry", s), "width", None)
+                if w is None:
+                    p = geom(s)
+                    d = -1.0 if p.intersects(g) and p.intersection(g).area > 1e-9 else float(p.distance(g))
+                else:
+                    line = centreline([s], step_deg=step_deg)
+                    d = float(line.distance(g)) - float(w) / 2
+                    if line.intersects(g):
+                        d = -float(w) / 2
+                best = min(best, d)
+    return best
+
+
+def centreline(shapes: list[Shape], step_deg: float = 5.0) -> LineString:
+    """A realized trace's centre line in board coordinates, arcs sampled
+    every ``step_deg``; ``shapes`` is one trace from ``world_traces``."""
+    pts: list[tuple[float, float]] = []
+    for s in shapes:
+        xf = s.transform
+        for el in getattr(s.geometry, "elements", []):
+            if isinstance(el, Arc):
+                n = max(2, math.ceil(abs(el.arc) / step_deg))
+                local = [_arc_point(el, i / n) for i in range(n + 1)]
+            else:
+                local = [_xy(el)]
+            pts += [_xy(xf * p) for p in local]
+    return LineString(pts)

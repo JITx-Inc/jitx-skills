@@ -399,7 +399,7 @@ A verification design:
 - instantiates every module on the interface's paths with the parts between them, and places every part with `.at(...)`;
 - applies the SI constraints the assembly will apply, with the same Topology ends and pin models;
 - code-routes every path of the interface between physical pads; for a pin-assigned port, the routes land on the provider's physical pins and fix one legal mapping;
-- is checked with its SI check script, `<ns>/designs/check_si_<iface>.py`, run as `python -m <ns>.designs.check_si_<iface>`: the Python check in `jitx-interconnect-constraints` "Verification" (`issues(satisfied=True, wait=30)`, a `report.complete` check, then each group's `satisfied` and text, all in `main()` behind the `__name__` guard) with the verification design imported. The assembly's script, `<ns>/designs/check_si_main.py`, belongs to the assembly task (`asm-01`).
+- is checked with its SI check script, `<ns>/designs/check_si_<iface>.py`, run as `python -m <ns>.designs.check_si_<iface>`: the Python check in `jitx-interconnect-constraints` "Verification" (`issues(satisfied=True, wait=30)`, a `report.complete` check, then each group's `satisfied` and text, all in `main()` behind the `__name__` guard) with the verification design imported. The assembly's script, `<ns>/designs/check_si_main.py`, belongs to the assembly task (`asm-01`), as does its layout realization check, `<ns>/designs/check_layout_main.py`.
 
 It passes when every constraint with a timing, loss or skew target shows a Time, Loss or Skew measurement from its intended begin pad to its intended end pad, and no group for it holds unresolved text. Unplaced parts give `Missing Connection on Path` and `Unable to find path for requested route` instead of a measurement.
 
@@ -572,19 +572,20 @@ Do not accept "noted for future refactoring" — if it's broken, fix it now.
    - Every summary line reports `PASS`: proceed to verification
    - Any `FAIL` or `ERROR`: read the full tool output, dispatch a fix sub-agent, review its acceptance block, and re-run the command
 4. Run each verification design's SI check (`python -m <ns>.designs.check_si_<iface>`) and the assembly's (`python -m <ns>.designs.check_si_main`), and apply [SI verification designs (CRITICAL)](#si-verification-designs-critical): each verification design passes, and each assembly constraint meets the bar for its routing state with no blocking line. Read compliance from the assembly's own `group.satisfied`. A constraint whose path has no route on the assembly has no compliance measurement: its `SI constraints` row reads `not measured: unrouted`, and the block lists the Deferred item `SI compliance pending routing: rerun python -m <ns>.designs.check_si_main after routing`, which goes to the user. Rerun after any change to routing, a pin model or an SI constraint.
-5. Open the popout viewer (`jitx ui open --board --design <ns>.main.Design` and `jitx ui open --schematic --design <ns>.main.Design`) and verify:
+5. When the design has pours, stitching or code-placed copper, run the assembly's layout realization check (`python -m <ns>.designs.check_layout_main`, owned by the assembly task `asm-01`). Its command and exit code go in the `Physical realization` row; a nonzero exit dispatches a fix to the assembly task, then rerun this step. Rerun after any change to placement, routing, pours or layout rules.
+6. Open the popout viewer (`jitx ui open --board --design <ns>.main.Design` and `jitx ui open --schematic --design <ns>.main.Design`) and verify:
    - Schematic: all connections present, symbols readable
    - Board: components placed (or floating), no overlaps
    - Issues List: SI constraints satisfied or flagged
    - DRC: clean or flagged
-6. Iterate:
+7. Iterate:
    - Build errors → dispatch a code fix, review, and re-run the verification command
    - DRC violations → dispatch a clearance or routing-structure fix
    - SI constraint failures → dispatch parameter and routing-structure review
    - A verification design that does not pass, or an assembly constraint below the bar for its routing state: dispatch a fix to the owning `ver-` task, module or assembly, then rerun step 4
    - Missing connections → trace back to Phase 2/3 and dispatch the fix
 
-7. **Emit the Phase 4 Verification Block** from `references/completion-blocks.md`. The block requires the parts gate field and JITX UI / Issues List / DRC / SI / placement-overlap rows with explicit pass/fail status, or a `not run` reason for any row the environment can't run (e.g. headless CI). PLAN reconciliation, deferred items, and blocking items also belong in the block. **Blocking items must be empty for `Verdict: done`.**
+8. **Emit the Phase 4 Verification Block** from `references/completion-blocks.md`. The block requires the parts gate field and JITX UI / Issues List / DRC / SI / placement-overlap rows with explicit pass/fail status, or a `not run` reason for any row the environment can't run (e.g. headless CI). PLAN reconciliation, deferred items, and blocking items also belong in the block. **Blocking items must be empty for `Verdict: done`.**
 
 ### Completion Criteria
 

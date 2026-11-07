@@ -8,7 +8,7 @@
 {"intent": "these three regulator stages are copy-pasted — make them one block", "expected_skill": "jitx-circuit-builder"}
 {"intent": "I got 'Incompatible ports on Net: Port and list' when I tied the ground rail", "expected_skill": "jitx-circuit-builder"}
 {"intent": "what temperature coefficient should I ask for on these decoupling caps", "expected_skill": "jitx-circuit-builder"}
-{"intent": "add a ground pour on the bottom layer of the top-level design", "expected_skill": "jitx-physical-layout", "ambiguous_with": ["jitx-layout-constraints"]}
+{"intent": "add a ground pour on the bottom layer of the top-level design", "expected_skill": "jitx-code-layout", "ambiguous_with": ["jitx-layout-constraints"]}
 {"intent": "connect the sensor's I2C to the MCU and put the pull-ups at the bus level", "expected_skill": "jitx-circuit-builder"}
 {"intent": "model this QFN part and its thermal pad from the datasheet", "expected_skill": "jitx-component-modeler", "ambiguous_with": ["jitx-layout-constraints"]}
 {"intent": "this MCU can bring SPI out on two different pin groups — let the assignment pick which", "expected_skill": "jitx-pin-assignment"}
@@ -17,8 +17,8 @@
 {"intent": "what trace width should I use for a 3 A rail", "expected_skill": "jitx-layout-constraints"}
 {"intent": "constrain the skew on this differential pair", "expected_skill": "jitx-interconnect-constraints", "ambiguous_with": ["jitx-layout-constraints"]}
 {"intent": "model the stackup and fab limits from this fabrication CSV", "expected_skill": "jitx-substrate-modeler", "ambiguous_with": ["jitx-layout-constraints"]}
-{"intent": "draw an antenna from code with custom copper geometry", "expected_skill": "jitx-physical-layout", "ambiguous_with": ["jitx-layout-constraints"]}
-{"intent": "stitch vias into the QFN's thermal pad and fan the escapes out to layer 3", "expected_skill": "jitx-physical-layout"}
+{"intent": "draw an antenna from code with custom copper geometry", "expected_skill": "jitx-code-layout", "ambiguous_with": ["jitx-layout-constraints"]}
+{"intent": "stitch vias into the QFN's thermal pad and fan the escapes out to layer 3", "expected_skill": "jitx-code-layout", "ambiguous_with": ["jitx-interactive-layout"]}
 {"intent": "import the board edge and keepout outline from DXF", "expected_skill": "jitx-mechanical", "ambiguous_with": ["jitx-layout-constraints"]}
 {"intent": "I just wired nine subcircuits — check them for string-hacking before I merge", "expected_skill": "jitx-code-review"}
 {"intent": "set up decoupling placement and short routes for the MCU", "expected_skill": "jitx-circuit-builder", "ambiguous_with": ["jitx"]}
@@ -39,8 +39,8 @@
 {"intent": "Check cache/netlist.json to confirm U4.EN moved from the old rail to the new enable net.", "expected_skill": "jitx"}
 {"intent": "Generate three repeated RC filter channels inside one Circuit without losing their structural objects.", "expected_skill": "jitx-circuit-builder"}
 {"intent": "My named net collides with a public port named BOOT; repair the circuit wiring.", "expected_skill": "jitx-circuit-builder"}
-{"intent": "Draw a ground pour around the board edge and shape a copper keepout under the antenna.", "expected_skill": "jitx-physical-layout"}
-{"intent": "Inspect the realized copper geometry after build and verify the route coordinates from RuntimeDesign.", "expected_skill": "jitx-physical-layout", "ambiguous_with": ["jitx-circuit-builder"]}
+{"intent": "Draw a ground pour around the board edge and shape a copper keepout under the antenna.", "expected_skill": "jitx-code-layout"}
+{"intent": "Inspect the realized copper geometry after build and verify the route coordinates from RuntimeDesign.", "expected_skill": "jitx-code-layout", "ambiguous_with": ["jitx-circuit-builder"]}
 {"intent": "Write a trace-to-pour clearance rule for the high-voltage net class.", "expected_skill": "jitx-layout-constraints"}
 {"intent": "Place and route the decoupling capacitors with escape-width and loop-inductance constraints.", "expected_skill": "jitx-circuit-builder", "ambiguous_with": ["jitx"]}
 {"intent": "Use provide and require to map one SPI peripheral onto either of two MCU pin groups.", "expected_skill": "jitx-pin-assignment", "ambiguous_with": ["jitx-circuit-builder"]}
@@ -52,4 +52,4 @@
 {"intent": "Wire the PHY to the RJ45 through typed ports.", "expected_skill": "jitx-circuit-builder"}
 {"intent": "Declare this sensor circuit's boundary as a Power port and an I2C bundle.", "expected_skill": "jitx-circuit-builder"}
 {"intent": "Compose the regulator, PHY and connector circuits in a top-level circuit and connect them port to port.", "expected_skill": "jitx-circuit-builder"}
-{"intent": "Pin the regulator subcircuit at (10, 5) and leave the PHY subcircuit floating.", "expected_skill": "jitx-circuit-builder", "ambiguous_with": ["jitx-physical-layout"]}
+{"intent": "Pin the regulator subcircuit at (10, 5) and leave the PHY subcircuit floating.", "expected_skill": "jitx-circuit-builder", "ambiguous_with": ["jitx-code-layout"]}

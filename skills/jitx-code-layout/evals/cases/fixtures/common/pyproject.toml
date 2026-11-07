@@ -1,0 +1,7 @@
+[project]
+name = "cl-eval-fixture"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = ["jitx==4.6.0", "jitxlib-standard==4.6.0", "jitxlib-parts==2.0.0"]
+
+# No fixture queries a passive, so no parts database is needed.
