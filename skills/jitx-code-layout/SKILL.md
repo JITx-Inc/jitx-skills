@@ -1,6 +1,6 @@
 ---
 name: jitx-code-layout
-description: "Use when the user asks to write a fixed PCB layout in Python: place parts or vias in code, code routes through control points (RoutePoint, PairPoint, PairInsertion), Route.Sketch, Route.Config, a Route.Target taper, splitting a route to narrow it in a BGA field or at a fine-pitch pad, escape or fanout routes and their vias as geometry, a connector launch along its pad axis, serpentine or deskew settings on a matched section, thermal vias in an exposed pad, pours, keepouts, cutouts, Copper or OverlappableCopper (antennas, net ties), or reading the realized layout back (capture, Empty pours, 'Unable to find path'). Also sorts control points between code and jitx-interactive-layout. Tag rules, escape width rules, stitching, fencing and structures by tag go to jitx-layout-constraints; stackups, vias and structure definitions to jitx-substrate-modeler; land-pattern soldermask, paste and thermal pads to jitx-component-modeler; nets and passives to jitx-circuit-builder; timing to jitx-interconnect-constraints."
+description: "Use when the user asks to write a fixed PCB layout in Python: place vias, and parts relative to another instance (Circuit.place), code routes through control points (RoutePoint, PairPoint, PairInsertion), Route.Sketch, Route.Config, a Route.Target taper, narrowing a route in a BGA field or at a fine-pitch pad, escape or fanout geometry fixed by a stated number or pad geometry, a connector launch on its pad axis, serpentine or deskew settings on a matched section, thermal vias in an exposed pad, pours, keepouts, cutouts, Copper or OverlappableCopper (antennas, net ties), or reading the realized layout back (Empty pours, 'Unable to find path'). Sorts control points between code and jitx-interactive-layout. Tag rules, escape widths, stitching and fencing go to jitx-layout-constraints; stackups, vias and structure definitions to jitx-substrate-modeler; land-pattern mask, paste and thermal pads to jitx-component-modeler; nets and passives to jitx-circuit-builder; timing to jitx-interconnect-constraints."
 ---
 
 # JITX Code Layout
@@ -24,7 +24,7 @@ See [Interactive edits](#interactive-edits). Keep width, structure, net and laye
 
 ## Placement and vias
 
-- `.at(x, y, rotate=, on=Side.Bottom)` places a child in its parent's frame. Place parts and the copper that depends on them in one circuit, so they move together.
+- Fixed `.at` placement is [`jitx-circuit-builder`](../jitx-circuit-builder/SKILL.md#placement). Place parts and the copper that depends on them in one circuit, so they move together.
 - `self.place(child, (x, y), relative_to=other)` records a placement request without changing the child's transform, and sets a child circuit floating: use it only to place relative to another instance.
 - A circuit at `.at(floating=True)` with no stored placement sits off the board: its routes do not realize and its pours come back `Empty()`. A headless check gives every circuit a position.
 - Via classes come from the substrate (`jitx-substrate-modeler`); code places instances. Join a power or ground via with `net += via`; `PortAttachment` binds a signal port to a control point or signal via.
@@ -36,15 +36,15 @@ See [Interactive edits](#interactive-edits). Keep width, structure, net and laye
 `Route(source, destination, layer, sketch=None, config=None)` joins two ports, pads, vias or control points on one layer. Worked pattern: `jitxexamples.patterns.code_route_basics`.
 
 - Width, spacing and structure come from rules or a structure on the net (`jitx-layout-constraints`), or from `Route.Config`. With none, it is drawn at `min_copper_width`.
-- A route ending on a control point in a sibling circuit fails to translate ("not an ancestor"): declare it in the common ancestor. A control point's `.port` cannot be a `Topology` end either: constrain between part ports. A circuit's bundle port works as an end but resolves to its first pad, leaving a series part inside out of the constraint's measurement.
+- A route ending on a control point in a sibling circuit fails to translate ("not an ancestor"): declare it in the common ancestor. A control point's `.port` cannot be a `Topology` end either: constrain between part ports.
 - Every control point joins its net (`net += point.port`, or a `PortAttachment`), or the design fails to load ("INVALID-STATE").
 - `RoutePoint.pad` routes and `.port` nets; `PairInsertion` joins `.uncoupled.p`/`.n` legs to `.coupled`; `PairPoint` joins coupled sections at `.front` and `.back`. Attach a pair in `[p, n]` order and set handedness with `invert=` (which ends join: the `PairInsertion` docstring). A reversed attachment order builds and makes no copper. "Code route dropped: its ends can never be joined" means a wrong `invert=` or end.
-- A route heads for its destination, so it leaves a pad on the pad's axis only when the destination lies on that axis. Where the line must (an RF launch, a tangent exit), put a `RoutePoint` on the axis at the stated length: the route to it is straight. Keepout strips beside the exit keep other traces out but do not hold the route exactly on the axis. Worked pattern: `jitxexamples.patterns.rf_connector_launch`.
+- A route heads for its destination, so it leaves a pad on the pad's axis only when the destination lies on that axis. Where the line must (an RF launch, a tangent exit), put a `RoutePoint` on the axis at the stated length: the route to it is straight. For a tangent bend after it, tag a GND `Copper` square inside the turn and give that tag a clearance rule to the line's tag, outranking any rule between the line's tag and any tag reaching the square ([priority](../jitx-layout-constraints/SKILL.md#priority)): the line bends about the square's corner at half its width plus the clearance. One square, inside only; a route `KeepOut` holds no clearance. Worked pattern: `jitxexamples.patterns.rf_connector_launch`.
 - A control point whose copper overlaps a via's pad gives "Unrealizable Route: Overlapping target shapes": keep the point's copper, half the route width around it, off the via pad.
 
 ### Route.Sketch
 
-`Route.Sketch(Route.Sketch.Terminal(start), turns, Route.Sketch.Terminal(end))` tells the router which side of an obstacle to pass. A turn is a side hint, not the waypoint its `Route.Sketch.turns` docstring describes: the route bends only as far as the obstacle needs, so moving a turn further out buys no margin (a route `KeepOut` does). Turns are read in the declaring circuit's frame. Report where the copper passed from the captured trace, not the turns.
+`Route.Sketch(Route.Sketch.Terminal(start), turns, Route.Sketch.Terminal(end))` tells the router which side of an obstacle to pass. A turn is a side hint, not the waypoint its `Route.Sketch.turns` docstring describes: the route bends only as far as the obstacle needs, so moving a turn further out buys no margin (a tagged square's clearance does). Turns are read in the declaring circuit's frame. Report where the copper passed from the captured trace, not the turns.
 
 ### Route.Config and Route.Target
 
@@ -54,7 +54,7 @@ A `Route.Target` that differs from the trace width tapers the whole route it is 
 
 ## Narrowing a route
 
-Where the full structure does not fit (a BGA ball field, a fine-pitch pad row), split the route at a `RoutePoint` or `PairPoint` and tag the narrow route. The tag's `routing_structure` rule must outrank the net's: at 4, over a priority-2 net rule. Below the net's priority, its rule wins, unreported. Split just outside the field or row, so the full section clears the last pads. Worked patterns: `jitxexamples.patterns.hex_bga_escape`, `jitxexamples.patterns.layout_routing_structure_by_tag`.
+Where the full structure does not fit (a BGA ball field, a fine-pitch pad row), split the route at a `RoutePoint` or `PairPoint` and tag the narrow route. The tag's `routing_structure` rule must outrank the net's ([priority](../jitx-layout-constraints/SKILL.md#priority)). Split just outside the field or row, so the full section clears the last pads. Worked patterns: `jitxexamples.patterns.hex_bga_escape`, `jitxexamples.patterns.layout_routing_structure_by_tag`.
 
 An impedance lookup (`substrate.differential_routing_structure(100 * ohm)`, or a protocol constraint given no `structure`) returns a structure whose `impedance` fits; two structures sharing an `impedance` make the result depend on declaration order. Give a narrow structure an `impedance` no lookup window admits (`hex_bga_escape` gives its neck 0 ohm).
 
@@ -65,6 +65,7 @@ Matched length is a timing constraint (`jitx-interconnect-constraints`), never a
 - End a matched section on `RoutePoint`s or `PairPoint`s, which resize to fit the envelope. A small pad leaves no room (`UnsquiggledRoute`); a matched coupled section between two `PairInsertion`s does not route.
 - Size each envelope for the delay its section adds: too little room leaves the route short, reported only as unmet time (`UnmetTime`, `UnmetTimeDiff`) with routing "Satisfied": widen the envelope, or put the delay in another section. The router stops at the low edge of the timing window.
 - Per-section settings are rules on a tag only that section's `Route` carries: `serpentine_params(min_pitch=...)`, `coupled_pair_params(deskew_bump_radius=..., min_bump_spacing=...)`. `min_pitch` and `deskew_bump_radius` are lower bounds on the router's choice (their docstrings). The router does not hold `min_radius` or `max_bump_length`: never claim either without reading the arcs.
+- An envelope section ignores keepouts and tag clearances, unreported: end it at `RoutePoint`s clear of obstacles, and pass them with plain routes.
 - Read back each section's span across its axis against its envelope, pitch and bump radii from the captured arcs, and the timing lines from `rd.issues()`.
 
 ## Copper, pours and keepouts
@@ -79,14 +80,15 @@ Matched length is a timing constraint (`jitx-interconnect-constraints`), never a
 
 - A pour keeps copper only where its net has a pad or via with copper on that layer inside it; otherwise it comes back `Empty()` with `status: ok`, and stitch or fence vias do not hold it. Anchor each layer's pour, for example with one through via on the net. Worked pattern: `jitxexamples.patterns.board_ground_pours`.
 - A pour larger than the board is pulled back by `min_copper_edge_space` or a larger `IsBoardEdge` rule (`jitx-layout-constraints`).
-- `KeepOut(pour=True)` removes pour copper at every rank. `KeepOut(via=True)` blocks generated vias, not code-placed ones. A pour does not avoid `OverlappableCopper`: add a coincident `KeepOut(pour=True)`.
+- `KeepOut(pour=True)` removes pour copper at every rank. `KeepOut(via=True)` blocks generated vias, fence vias included, not code-placed ones: hold other-net copper off a fenced line with a tag clearance rule ([fencing](../jitx-layout-constraints/SKILL.md#fencing)). A pour does not avoid `OverlappableCopper`: add a coincident `KeepOut(pour=True)`.
+- Fence non-route copper (a divider body) with a fence-tagged GND `Pour` equal to it on L1 or L2 ([fencing](../jitx-layout-constraints/SKILL.md#fencing)); in the body's pour keepout it comes back `Empty`, but its fence stands.
 - Declare a pour in the circuit that owns its net. One declared in a parent on a child's net can be captured off that net, and a fence-tagged child pour joined to a parent's net fails at submit ("Key N does not exist in table").
 - `OverlappableCopper` connects only through the pads it overlaps; for the router to count two same-net pads joined by it, declare a [`VirtualConnection`](https://docs.jitx.com/en/latest/essentials/physical_design/creating-layouts-from-code.html#virtual-connections) (`jitx.virtual`); on a constrained path give it a `PinModel` with the leg's electrical delay, not one from its drawn length.
 - Shapes: `jitx.shapes.composites` first; `ShapelyGeometry(g)` wraps shapely, `.to_shapely()` converts back. Use only a non-empty `Polygon` or `MultiPolygon`. `.at(scale=(1, -1))` does not mirror: transform the geometry.
 
 ## Thermal vias
 
-Vias in one exposed pad at a stated pitch are placed in code; a `stitch_via` rule (`jitx-layout-constraints`) stitches a tagged `Pour` and places no vias in a chosen pad. Worked pattern: `jitxexamples.patterns.qfn_thermal_and_power_fanout`; its `thermal_via_grid` spreads the vias over the span, so for a stated pitch place the centres at the pitch.
+Vias in one exposed pad at a stated pitch are placed in code, not by a `stitch_via` rule (`jitx-layout-constraints`). Worked pattern: `jitxexamples.patterns.qfn_thermal_and_power_fanout`; its `thermal_via_grid` spreads the vias over the span, so for a stated pitch place the centres at the pitch.
 
 - Derive the count from the land pattern's pad size, the pitch, the rim margin and the via pad.
 - JITX raises no issue for a via in a pad whose via class disallows it: read `via_in_pad` yourself and refuse a false one.
@@ -98,7 +100,6 @@ Vias in one exposed pad at a stated pitch are placed in code; a `stitch_via` rul
 JITX raises no issue for these; keep the design's copper at or above its fabricator's limits:
 
 - Spacing is not enforced between copper of one net, such as neighbouring meander segments: keep `min_pitch` at or above one segment's copper plus `min_copper_copper_space`.
-- A routing structure's width and pair gap take precedence over `min_copper_width` and `min_copper_copper_space`.
 - Land-pattern pads are placed as drawn, even inside `min_copper_edge_space`.
 
 Compare structures and realized copper with `rd.root.substrate.constraints`. A structure below the floors that the substrate or user states is an open item naming who must accept it; any other miss fails.
@@ -110,7 +111,7 @@ A check proves every requested property from the capture: `with jitx.runtime as 
 | Claim | Read and assert |
 |---|---|
 | A route exists | `route.status.routed` and non-empty `route.traces` (two for a coupled section) |
-| Width, layer | each captured trace's `shapes`: width equal to the structure's or `Config`'s value (or `min_copper_width` if larger), on the named layer, not read from the authored `Route` |
+| Width, layer | each captured trace's `shapes`: width equal to the structure's (over any floor), or the larger of the `Config`'s and `min_copper_width`, on the named layer, not read from the authored `Route` |
 | A pour fills | `Pour.shape`: `Empty()` means removed (test before `.to_shapely()`, which raises on it); otherwise the computed copper with holes, and the realized edge gap |
 | Generated vias | `rd.query(Via)` less the code-placed ones `visit(rd.root, Via)` lists, by identity; assert counts per row or region |
 | Net | `rd.nets.find(obj).name` on pours, vias and each trace of a pair |
@@ -125,13 +126,9 @@ When a route, pour or via did not realize, report it as not done with that evide
 
 ## Interactive edits
 
-`rd.layout` (the API behind the board view) and `jitx design session` with `jitx design exec` edit the layout the runtime holds; placing and routing that way is `jitx-interactive-layout`.
+`rd.layout` (the API behind the board view) and `jitx design session` with `jitx design exec` edit the layout the runtime holds: `jitx-interactive-layout`, whose [API reference](../jitx-interactive-layout/references/api.md#changing-and-removing) lists what an edit cannot change.
 
-- `rd.layout.update_control` refuses a control point placed in code (`RoutePoint`, `PairPoint`, `PairInsertion`).
-- A point made with `rd.layout.route_point` moves with `update_control` and keeps the move across rebuilds.
-- `rd.layout.modify(route, turns=...)` is refused while the route's sketch is set in code.
 - A via placed in code cannot be dragged relative to anything else placed in its circuit; it moves only when a floating circuit containing it is moved. A via made through the interactive layout can be dragged. A designer would take over a placeholder via by deleting it and its routes from code and re-creating them in the interactive layout; untested.
-- A width set with `modify` lasts until code sets that `Route.Config` field.
 
 Dragging a control point, turn or width in the board view is untested: never report one as working unless you did it.
 

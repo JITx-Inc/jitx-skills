@@ -1,6 +1,6 @@
 ---
 name: jitx-interactive-layout
-description: "Use when the user asks to place components, route nets, drop vias, add pair insertions or route points, or draw pours in the open board layout from a script, so the result stays editable in the board editor: place and route a board or a circuit, fan out a BGA, route DDR byte lanes, change a layout the user has been editing by hand, fix blocked routes, report layout issues or skew margin. Runs Python against a live design through jitx design session and jitx design exec, with the rd.layout requests (place, route, via, route_point, pair_insertion, region, modify, delete, batch, sync), and reads the result back through route status, rd.issues() and the bundled checks. Assumes the layout constraints are already in the design. Design rules, net classes, decoupling modules and escape-width rules in code belong to jitx-layout-constraints; copper, code-placed vias, code Route objects, control points in code and layout tags to jitx-code-layout; topology, timing and skew constraints to jitx-interconnect-constraints."
+description: "Use when the user asks to place components, route nets, drop vias, add pair insertions or route points, or draw pours in the open board layout from a script, so the result stays editable in the board editor: place and route a board or circuit, fan out a BGA, route DDR byte lanes, change a layout the user has been editing by hand, fix blocked routes, report layout issues or skew margin. Runs Python against a live design through jitx design session and exec, with the rd.layout requests (place, route, via, route_point, pair_insertion, region, modify, delete), and reads the result back through route status, rd.issues() and the bundled checks. Assumes the layout constraints are already in the design. Design rules, net classes, tags and escape-width rules in code belong to jitx-layout-constraints; decoupling modules to jitx-circuit-builder; copper, code-placed vias, code Route objects and control points in code to jitx-code-layout; topology, timing and skew constraints to jitx-interconnect-constraints."
 ---
 
 # JITX Interactive Layout
@@ -25,8 +25,9 @@ There are two ways in, and most work alternates between them:
 | Task | Skill |
 |---|---|
 | Place, route, vias, pair insertions, route points, pours, keepouts in the open layout; read back status, issues, margins; floorplan and routing solvers | this skill |
-| Design rules, net classes, power widths, escape widths, decoupling modules | `jitx-layout-constraints` |
-| Copper, code vias, code `Route`s, control points in code, tags; drawing the realized geometry | `jitx-code-layout` |
+| Design rules, net classes, tags, power widths, escape widths | `jitx-layout-constraints` |
+| Decoupling modules | `jitx-circuit-builder` |
+| Copper, code vias, code `Route`s, control points in code; drawing the realized geometry | `jitx-code-layout` |
 | Topology, timing, skew, loss constraints | `jitx-interconnect-constraints` |
 | provide/require pools, swapping | `jitx-pin-assignment` |
 | Stackup, via definitions, routing structures | `jitx-substrate-modeler` |
