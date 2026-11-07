@@ -58,11 +58,12 @@ worked from them:
 - via keepouts: the prompt allows two near the bodies and the RF lines,
   the body's outline and the rectangle over the resistor's two pads and
   the gap between them, each grown by 0.20, and a launch cutout under a
-  jack's centre pad. A ``KeepOut`` with ``via`` set on any layer that
-  meets a body's hull or a route centre line grown by ROUTE_CLEAR (the
-  line fence's outer row plus a via pitch's spacing, so the bands the
-  region and line fences stand in), meets no jack centre pad, and reaches
-  more than 0.001 mm2 past the allowed area fails, so a via keepout that
+  jack's centre pad within 0.9 of its axis, from the board edge to 2.0
+  past the pad's inner end. A ``KeepOut`` with ``via`` set on any layer
+  that meets a body's hull or a route centre line grown by ROUTE_CLEAR (the
+  line fence's outer row plus the 0.5 via centre spacing, which covers the
+  bands the region and line fences stand in) and reaches more than 0.001
+  mm2 past the allowed area fails, so a via keepout that
   eats a line fence or a first-row via the gap rule cannot resolve still
   fails. The allowed area is those two shapes each grown by 0.20 with
   square corners (a mitred offset contains a round one, so either growth a
@@ -148,6 +149,9 @@ R_TOL = 0.01
 SAG = 1e-3
 PLACE_TOL = 0.02
 POINT_MAX = 3.0
+# The prompt's launch cutout: within 0.9 of the jack's axis (the rf case's
+# 1.8 mm cutout), from the board edge to TANGENT past the pad's inner end.
+LAUNCH_HALF = 0.9
 PITCH = 1.0
 REGION_ROWS = (0.6, 1.2)
 FENCE_ROWS = (WIDTH / 2 + REGION_ROWS[0], WIDTH / 2 + REGION_ROWS[1])
@@ -192,6 +196,17 @@ def end_allowance() -> float:
     )
     (piece,) = arm_pieces(g)
     return known - piece.area / ARM
+
+
+def launch_zone(pad: BaseGeometry) -> shapely.Polygon:
+    """The prompt's launch cutout allowance at a jack: LAUNCH_HALF either side
+    of the line's axis (the centre pad's middle in y), from the board edge
+    (taken as 3.0 past the pad's outer end) to TANGENT past its inner end."""
+    x0, y0, x1, y1 = pad.bounds
+    ym = (y0 + y1) / 2
+    if pad.centroid.x < 0:
+        return shapely.box(x0 - 3.0, ym - LAUNCH_HALF, x1 + TANGENT, ym + LAUNCH_HALF)
+    return shapely.box(x0 - TANGENT, ym - LAUNCH_HALF, x1 + 3.0, ym + LAUNCH_HALF)
 
 
 def is_square(g: BaseGeometry) -> bool:
@@ -384,25 +399,27 @@ with L.built(out, "fixture_wilkinson_tree", "WilkinsonTreeDesign", wait=120.0) a
     # Near the bodies and the RF lines the prompt allows two via keepouts,
     # the body's outline and the rectangle over the resistor's two pads and
     # the gap between them, each grown by 0.20 (square corners allowed),
-    # and a launch cutout under a jack's centre pad. Any other via keepout
-    # there can eat a fence the gap rule or the route rows do not resolve.
+    # and a launch cutout under a jack's centre pad, LAUNCH_HALF either side
+    # of its axis from the board edge to TANGENT past the pad's inner end.
+    # Any other via keepout there can eat a fence the gap rule or the route
+    # rows do not resolve.
     near_bodies = shapely.union_all([g.convex_hull.buffer(ROUTE_CLEAR) for g in body_geoms] + [centre.buffer(ROUTE_CLEAR)])
-    launch_pads = shapely.union_all(L.sma_centre_pads(rd))
     allowed = shapely.union_all(
         [g.buffer(KEEPOUT_GROW + DRIFT, join_style="mitre") for g in body_geoms]
         + [
             iso_pads.intersection(g.convex_hull.buffer(1.0)).minimum_rotated_rectangle.buffer(KEEPOUT_GROW + DRIFT, join_style="mitre")
             for g in body_geoms
         ]
+        + [launch_zone(pad).buffer(DRIFT, join_style="mitre") for pad in L.sma_centre_pads(rd)]
     )
     for layer in range(4):
         for k in L.keepouts(rd, layer, "via"):
-            if not k.intersects(near_bodies) or k.intersects(launch_pads):
+            if not k.intersects(near_bodies):
                 continue
             extra = k.difference(allowed).area
             if extra > 1e-3:
                 c = k.centroid
-                L.fail(f"a via KeepOut on layer {layer} near ({c.x:.3f}, {c.y:.3f}) reaches {extra:.4f} mm2 past the body and the resistor's pad rectangle grown by {KEEPOUT_GROW}, the only via keepouts the prompt allows near the bodies and RF lines")
+                L.fail(f"a via KeepOut on layer {layer} near ({c.x:.3f}, {c.y:.3f}) reaches {extra:.4f} mm2 past the body and the resistor's pad rectangle grown by {KEEPOUT_GROW} and the launch cutouts, the only via keepouts the prompt allows near the bodies and RF lines")
 
     geoms = {wr.path: L.route_geom(wr) for wr in routes}
     copper = shapely.union_all(list(geoms.values())) if geoms else shapely.Polygon()
