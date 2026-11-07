@@ -36,11 +36,16 @@ worked from them:
   is the body copper (their symmetric difference under 0.01 along the
   body's outline). A fence pour inside the body's own pour keepout (on L1)
   realizes Empty, and capture keeps no shape for it, though its fence
-  stands; then its first-row vias show the region: each stands within
-  0.01 of the body copper offset by 0.6, round or square-cornered (the
-  fence's corner vias read on either), so a region grown or shrunk on
-  any part of its outline moves the vias there off both. Its rows then
-  sit 0.6 and 1.2 off the copper edge (the prompt). Each row is the set of points that distance off the body
+  stands. On either layer the first-row vias show the region: each
+  stands within 0.02 of the body copper offset by 0.6, round or mitred
+  (the corner vias observed, at about 110 and 137 degrees, read on the
+  mitred one), so a region grown or shrunk on any part of its outline
+  moves the vias there off both. The 0.02 holds a body drawn with arcs,
+  which capture splits into chords up to 0.005 either side of the arc
+  (``jitx/shapes/primitive.py``, tolerance 1e-2), and a region off by
+  0.2 still fails by ten times it. Vias within the route and resistor
+  bands are not read. Its rows then sit 0.6 and 1.2 off the copper edge
+  (the prompt). Each row is the set of points that distance off the body
   copper, every ring of it, the inside of the loop included. Taken off
   each ring: what lies within 1.85 of a route centre line, and within 0.45
   of a resistor pad. The 1.85 is the route fence's outer row (1.35 off the
@@ -143,6 +148,7 @@ OPEN = 0.12
 TRIM = 0.1
 TANGENT = 2.0
 DRIFT = 0.01
+VIA_DRIFT = 0.02  # a region fence via off the body's 0.6 offset (module docstring)
 MAX_ENVELOPE = 3.0
 EXIT_MAX = 4.0
 SECTION_MAX = 5
@@ -372,25 +378,31 @@ with L.built(out, "fixture_wilkinson_tree", "WilkinsonTreeDesign", wait=120.0) a
         else:
             # A fence pour inside the body's own pour keepout (on L1) realizes
             # Empty and capture keeps no shape for it, but its fence stands.
-            # Its first row then shows the region: the generated vias nearer
-            # the body copper than midway between the rows, off the route and
-            # resistor bands. Each must stand within DRIFT of the body copper
-            # offset by REGION_ROWS[0], round or square-cornered (a corner via
-            # reads on either), every ring of it. A region grown or shrunk on
-            # any part of its outline moves the vias there off both.
-            mid = sum(REGION_ROWS) / 2
-            band = centre.buffer(ROUTE_CLEAR).union(iso_band)
-            offsets = shapely.union_all([g.buffer(REGION_ROWS[0], quad_segs=32).boundary, g.buffer(REGION_ROWS[0], join_style="mitre").boundary])
-            first = [(g.distance(q), offsets.distance(q)) for x, y in gen if g.distance(q := Point(x, y)) < mid and not band.contains(q)]
-            off = sorted((o, d) for d, o in first if o > DRIFT)
-            print(
-                f"{owner}: fence pours {voided} realized Empty; {len(first)} first-row vias read {min((d for d, _ in first), default=0):.4f} to {max((d for d, _ in first), default=0):.4f} off the body copper, "
-                f"furthest {max((o for _, o in first), default=0):.4f} off its {REGION_ROWS[0]} offset"
+            print(f"{owner}: no fence-tagged shape over the body; {len(voided)} fence-tagged pours realized Empty")
+        # On either layer the first row shows the region: the generated vias
+        # nearer the body copper than midway between the rows, off the route
+        # and resistor bands. Each must stand within VIA_DRIFT of the body
+        # copper offset by REGION_ROWS[0], round or mitred, every ring of it.
+        # A region grown or shrunk on any part of its outline moves the vias
+        # there off both.
+        mid = sum(REGION_ROWS) / 2
+        band = centre.buffer(ROUTE_CLEAR).union(iso_band)
+        offsets = shapely.union_all([g.buffer(REGION_ROWS[0], quad_segs=32).boundary, g.buffer(REGION_ROWS[0], join_style="mitre").boundary])
+        first = [(g.distance(q), offsets.distance(q)) for x, y in gen if g.distance(q := Point(x, y)) < mid and not band.contains(q)]
+        off = sorted((o, d) for d, o in first if o > VIA_DRIFT)
+        print(
+            f"{owner}: {len(first)} first-row region vias read {min((d for d, _ in first), default=0):.4f} to {max((d for d, _ in first), default=0):.4f} off the body copper, "
+            f"furthest {max((o for _, o in first), default=0):.4f} off its {REGION_ROWS[0]} offset"
+        )
+        if not first:
+            L.fail(f"{owner}: no first-row via near the body, so no region fence")
+            continue
+        if off:
+            L.fail(
+                f"{owner}: the fence region is not the body copper: {len(off)} of {len(first)} first-row vias stand off the copper's {REGION_ROWS[0]} offset by over {VIA_DRIFT}, "
+                f"the furthest {off[-1][0]:.4f} off it ({off[-1][1]:.4f} from the copper)"
             )
-            if not first or off:
-                worst = f"{off[-1][0]:.4f} off it ({off[-1][1]:.4f} from the copper)" if off else "none read"
-                L.fail(f"{owner}: the fence region is not the body copper: {len(off)} of {len(first)} first-row vias stand off the copper's {REGION_ROWS[0]} offset by over {DRIFT}, the furthest {worst}")
-                continue
+            continue
         # Each row is the body outline offset by the row's distance (a true
         # offset, round at convex corners), every ring of it, the inside of
         # the loop included. Free of it: what lies within ROUTE_CLEAR of a
