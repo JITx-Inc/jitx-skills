@@ -40,7 +40,7 @@ A two-condition rule takes only `.clearance(mm)`; the rest (`.trace_width`, `.th
 
 ### Priority
 
-Higher `priority=` wins; at equal priority the more specific condition wins, object type tags first, so a `PowerTag()` width at 0 loses to the `IsTrace` default at 0. The loser is not applied at all, and nothing reports it. One ladder, commented beside the rules:
+Higher `priority=` wins; at equal priority the more specific condition wins, object type tags first, so a `PowerTag()` width at 0 loses to the `IsTrace` default at 0. The loser is not applied, and nothing reports it. One ladder, commented beside the rules:
 
 | Priority | Rules |
 |---|---|
@@ -86,7 +86,7 @@ A heavy copper layer needs wider traces and gaps (`layout_heavy_copper_layer`). 
 
 ## Stitching
 
-Stitch vias give a pour's return current a short path to the planes below. `design_constraint(StitchedPourTag()).stitch_via(ViaClass, checked_stitch_grid(ViaClass, fab, pitch, inset))`, the tag on each `Pour` (`layout_stitched_pour`); the vias take the pour's net.
+`design_constraint(StitchedPourTag()).stitch_via(ViaClass, checked_stitch_grid(ViaClass, fab, pitch, inset))`, the tag on each `Pour` (`layout_stitched_pour`); the vias take the pour's net.
 
 - Sites sit on multiples of the pitch from the board origin; `inset` runs from the via pad's edge to the computed pour boundary, and a site that fails it is dropped, never moved, unreported.
 - Below the via pad the grid thins to a checkerboard, and JITX checks no pitch against the fab: `checked_stitch_grid` refuses a pitch below `min_stitch_pitch`. Clearance is not enforced between copper of the same net, so stitch via pads need no copper spacing between them.
@@ -105,6 +105,7 @@ A via fence keeps fields in and gives a line's ground a short return.
 - Grounded coplanar: board clearances under the cap, the gap set by `design_constraint(RFLineTag(), GroundTag(), priority=2).clearance(c_s)` at the structure's clearance; with several coplanar structures on a net, at the smallest one's. The gap is `coplanar_gap(structure_clearance, winning_rule_clearance)`; a keep-away from the line to `AnyObject` above 2, wider than the gap, pushes the ground out. Measure the realized gap.
 - Row k sits `initial_offset + (k-1)·offset` out; an unset `initial_offset` takes `offset`. JITX puts fence pads inside the gap unreported: `checked_fence_pattern(pattern, via, pour_gap)` refuses that.
 - A coplanar pour needs a same-net via in each region the line separates; an unanchored region vanishes unreported.
+- A via `KeepOut` over a fence removes its vias, unreported: space other copper with a tag clearance.
 - A fence pitch below one via pad thins unreported, and below `min_stitch_pitch` the fab cannot drill it: check the pitch.
 - Count with `fence_count_range` per outline row and `straight_run_fence_sites` per side per row of a straight run, and assert that count, not that vias exist; identify fence vias by position on the derived row, not a distance band.
 

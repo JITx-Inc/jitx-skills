@@ -200,10 +200,11 @@ sync(timeout=None) -> bool
 ```
 
 - `modify` reroutes as needed. `reset` returns settings to the constraints.
-  A route created in code can be modified except for what its code sets.
+  A route created in code can be modified except for what its code sets;
+  a width set by `modify` lasts until code sets that `Route.Config` field.
 - `update_via`, `update_control` and `update_region` act only on objects the
   runtime made (by a request or in the editor), not ones placed in code.
-  Attached routes follow.
+  Attached routes follow, and a moved point keeps its move across rebuilds.
 - A region's kind cannot change; delete it and create another.
 - `delete` removes runtime-made routes, vias, control points and regions.
   Routes attached to a deleted via or control point are removed or joined.

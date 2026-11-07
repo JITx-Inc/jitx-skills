@@ -123,7 +123,7 @@ Example triggers:
 
 ### jitx-code-layout
 
-Write a fixed layout in code: placement, code-placed vias, code routes through control points, narrowing a route, length matching, pours, keepouts, copper and overlappable copper, and reading the realized layout back from the capture. Also sorts which control points stay in code and which a designer moves interactively.
+Write a fixed layout in code: relative placement, code-placed vias, code routes through control points, narrowing a route, length matching, pours, keepouts, copper and overlappable copper, and reading the realized layout back from the capture. Also sorts which control points stay in code and which a designer moves interactively.
 
 Example triggers:
 
