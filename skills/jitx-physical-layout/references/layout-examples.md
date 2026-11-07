@@ -22,8 +22,9 @@ Copy this skill's `scripts/thermal_via_stitch.py` into the project,
 then use it at the landpattern and circuit call sites. It raises `ValueError`
 when the exposed pad cannot hold the grid or the opening is not a polygon; a
 raise means change the grid, not skip the check. The substrate supplies
-the soldermask bridge, registration, and copper-edge values. The selected via
-class supplies its pad diameter.
+the soldermask bridge and registration; the edge margin is the caller's `edge_margin`,
+else the skill default of bridge plus registration. `min_copper_edge_space` is not read.
+The selected via class supplies its pad diameter.
 
 ```python
 from jitx import Pad, current

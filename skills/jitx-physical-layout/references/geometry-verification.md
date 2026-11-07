@@ -173,7 +173,7 @@ lookup is how you verify a coupled trunk's polarity (which physical line carries
 
 ## What checks to write
 
-For any authored layout, the minimum battery (each is 1–3 lines):
+For any authored layout, the minimum battery (checks 1 to 5 are 1 to 3 lines each):
 
 1. **Realization** — every `Route` has non-empty `traces` (2 for a coupled trunk);
    every control point involved has `traces`. This is non-negotiable: routes fail
@@ -188,6 +188,26 @@ For any authored layout, the minimum battery (each is 1–3 lines):
    for vias). The known drop: any via/copper reachable only through a `Net` or
    `PortAttachment` (build warning "not assigned to a circuit … deprecated") is
    SILENTLY ABSENT from the EDB — store instances structurally on the circuit.
+6. **Fabrication minimums the engine does not hold**: spacing is not enforced
+   between copper on the same net, a routing structure's trace width and pair
+   gap take precedence over the floors, and land-pattern pads are placed as
+   drawn, so none of these raises an issue. On jitx 4.6.0 a `serpentine_params`
+   `min_pitch` of the trace width plus 0.1 mm put a meander's segments 0.1 mm
+   apart under a 0.127 mm `min_copper_copper_space`; a structure with 0.08 mm
+   traces 0.1 mm apart routed at those values under 0.127 mm floors; and
+   connector pads at the board edge sat inside a 0.5 mm `min_copper_edge_space`.
+   Read the floors from `rd.root.substrate.constraints`. Compare each structure's
+   widths and pair gap with them. Neighboring meander segments face copper of
+   their own net: check the gap as `min_pitch` less the copper across one
+   segment (trace width, or both traces plus the pair gap), or, for a single
+   trace with no pitch rule, the routing structure's clearance (not measured for
+   pairs); set `min_pitch` to at least that copper plus
+   `min_copper_copper_space`. Measure pad-to-edge distance against
+   `rd.root.board.shape`. Report a structure the substrate lists as an open
+   item below the floors, or edge pads the user's fabricator allows, as an open
+   item rather than a failure; any other miss fails.
+   `scripts/check_realization.py` checks edge distance for pours only, not pads
+   or traces.
 
 Structure them as a plain script (`python -m myproj.checks`) or pytest module in
 the design project; print `[PASS]/[FAIL]` per check and exit nonzero on failure.

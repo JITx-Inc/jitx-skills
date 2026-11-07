@@ -10,11 +10,11 @@ The module deliberately ships no via definition. Pass a class supplied by the
 substrate or the fabrication library; the same class works with
 ``design_constraint(...).stitch_via(...)`` whether it is reached through the
 substrate's mixin, re-declared as a substrate attribute, or declared at module
-scope. The rule API accepts a via class at ``jitx/constraints.py:924``.
+scope. The rule API accepts a via class at ``jitx/constraints.py:925``.
 
 Fabrication values come from :class:`FabricationConstraints`
-(``min_soldermask_bridge`` at ``jitx/substrate.py:202``, ``solder_mask_registration``
-at ``jitx/substrate.py:198``). The via-rim-to-pad-edge margin has no fab field:
+(``min_soldermask_bridge`` at ``jitx/substrate.py:204``, ``solder_mask_registration``
+at ``jitx/substrate.py:200``). The via-rim-to-pad-edge margin has no fab field:
 :meth:`StitchParams.from_substrate` uses bridge plus registration as a labeled
 skill default (the mask dam must fit inside the pad copper) unless the caller
 supplies one. ``min_copper_edge_space`` is copper to board edge and is not used. A via's pad diameter is its ``diameter`` field at
@@ -26,16 +26,25 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from typing import Self
+from typing import Protocol, Self
 
 from jitx import Container
 from jitx.shapes import Shape
-from jitx.substrate import FabricationConstraints
 from jitx.via import Via, ViaDiameter
 from jitxlib.landpatterns.pads import SMDPadConfig
 
 _COORDINATE_DIGITS = 6  # skill default: 6 decimal places when grouping grid axes.
 _CIRCLE_RESOLUTION = 24  # skill default: 24 segments per quadrant for mask dams.
+
+
+class MaskRules(Protocol):
+    """The two :class:`FabricationConstraints` fields the stitch reads."""
+
+    @property
+    def min_soldermask_bridge(self) -> float: ...
+
+    @property
+    def solder_mask_registration(self) -> float: ...
 
 
 @dataclass(frozen=True)
@@ -51,7 +60,7 @@ class StitchParams:
     @classmethod
     def from_substrate(
         cls,
-        constraints: FabricationConstraints,
+        constraints: MaskRules,
         via_cls: type[Via],
         *,
         edge_margin: float | None = None,  # None: skill default, bridge + registration
@@ -61,12 +70,12 @@ class StitchParams:
 
         ``min_soldermask_bridge`` supplies web width and
         ``solder_mask_registration`` supplies radial mask overlap around each
-        tented via (``jitx/substrate.py:202`` and ``:198``). The via-pad rim
+        tented via (``jitx/substrate.py:204`` and ``:200``). The via-pad rim
         inset from the exposed-pad edge is ``edge_margin`` when given, else the
         skill default bridge plus registration, which keeps each dam inside the
         pad copper; there is no fab field for it.
         ``Via.diameter`` may be a float or a :class:`ViaDiameter`; the latter
-        exposes its pad size as ``pad`` at ``jitx/via.py:309``.
+        exposes its pad size as ``pad`` at ``jitx/via.py:352``.
         """
 
         diameter = via_cls.diameter
@@ -93,9 +102,9 @@ def grid_thermal_via_positions(
     """Return an evenly spaced columns-by-rows grid in the EP-local frame.
 
     The outermost via pad rim stays ``edge_margin`` from each exposed-pad edge.
-    ``edge_margin`` normally comes from
-    ``FabricationConstraints.min_copper_edge_space`` and ``via_pad_diameter``
-    from the selected via class through :meth:`StitchParams.from_substrate`.
+    ``edge_margin`` and ``via_pad_diameter`` normally come from
+    :meth:`StitchParams.from_substrate`: the caller's margin or the skill
+    default bridge plus registration, and the selected via class's pad.
     """
 
     nx, ny = via_grid

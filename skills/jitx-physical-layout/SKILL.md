@@ -546,7 +546,7 @@ see `jitx-layout-constraints`).
 Common layout-intent tag roles (define the `Tag` subclasses in your design):
 
 - **Fanout / escape** (`PinFanoutTag`, `PowerPinFanoutTag`, `BootstrapFanoutTag`) —
-  local neckdown/escape for fine-pitch package pins, applied to short route segments
+  local narrowing/escape for fine-pitch package pins, applied to short route segments
   or individual pads, overriding the board-wide width/clearance for the escape.
 - **`FanoutPourKeepoutTag`** — ask pours to stay back from dense local fanout copper.
 - **`DirectConnectTag`** — solid pour connection (no thermal-relief spokes) for

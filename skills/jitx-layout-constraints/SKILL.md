@@ -125,7 +125,7 @@ A rule that builds is not a rule that applied. Build, `rd.capture()`, and read t
 - Every rule has witnessing copper or is reported unwitnessed. `Copper` placed from code ignores the rules: check it.
 - Capture does not show which rule won; the board view does (select the route, press B).
 - The check exits nonzero on failure; `status: ok` is not proof.
-- A rule that did not apply is usually unreachable, out-ranked (a heavy layer's floor too), the wrong arity, aimed at the wrong target, below a `min_copper_*` floor, or keyed on a tag not on the `Pour`.
+- A rule that did not apply is usually unreachable, out-ranked (a heavy layer's floor too), the wrong arity, aimed at the wrong target, below a `min_copper_*` floor (not a `routing_structure` rule, whose width and pair gap override the floors), or keyed on a tag not on the `Pour`.
 
 ## Completion
 

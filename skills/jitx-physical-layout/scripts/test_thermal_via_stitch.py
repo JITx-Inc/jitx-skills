@@ -5,9 +5,10 @@ from __future__ import annotations
 
 import sys
 import unittest
+from dataclasses import dataclass
 from pathlib import Path
-from types import SimpleNamespace
 
+from jitx.via import Via
 from shapely.geometry import MultiPolygon
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -20,19 +21,26 @@ from thermal_via_stitch import (  # noqa: E402
 )
 
 
-class StandInVia:
+class StandInVia(Via):
     diameter = 0.52
+
+
+@dataclass(frozen=True)
+class StandInRules:
+    min_soldermask_bridge: float
+    solder_mask_registration: float
+    min_copper_edge_space: float | None = None
 
 
 class StitchParamsTests(unittest.TestCase):
     def test_from_substrate_reads_constraints_and_via_class(self) -> None:
-        constraints = SimpleNamespace(
+        constraints = StandInRules(
             min_soldermask_bridge=0.12,
             solder_mask_registration=0.06,
             min_copper_edge_space=0.31,
         )
 
-        params = StitchParams.from_substrate(constraints, StandInVia)  # type: ignore[arg-type]
+        params = StitchParams.from_substrate(constraints, StandInVia)
 
         self.assertEqual(params.min_mask_bridge, 0.12)
         self.assertEqual(params.mask_expansion, 0.06)
@@ -40,11 +48,11 @@ class StitchParamsTests(unittest.TestCase):
         self.assertEqual(params.via_pad_diameter, 0.52)
 
     def test_caller_supplied_edge_margin_wins(self) -> None:
-        constraints = SimpleNamespace(
+        constraints = StandInRules(
             min_soldermask_bridge=0.12,
             solder_mask_registration=0.06,
         )
-        params = StitchParams.from_substrate(constraints, StandInVia, edge_margin=0.3)  # type: ignore[arg-type]
+        params = StitchParams.from_substrate(constraints, StandInVia, edge_margin=0.3)
         self.assertEqual(params.edge_margin, 0.3)
 
 
