@@ -11,7 +11,7 @@
 {"intent": "add length-matching regions to the DQ routes that are still short", "expected_skill": "jitx-interactive-layout", "ambiguous_with": ["jitx-interconnect-constraints", "jitx-code-layout"]}
 {"intent": "my rd.layout.via request came back blocked, find a free spot and move it", "expected_skill": "jitx-interactive-layout"}
 // Negatives: near misses owned by siblings.
-{"intent": "write a code Route from the pin to a control point and tag it with PinFanoutTag in the design source", "expected_skill": "jitx-code-layout", "ambiguous_with": ["jitx-interactive-layout"]}
+{"intent": "write a code Route from the pin to a control point and tag it with PinFanoutTag in the design source", "expected_skill": "jitx-code-layout", "ambiguous_with": ["jitx-interactive-layout", "jitx-layout-constraints"]}
 {"intent": "draw a custom copper antenna shape with shapely", "expected_skill": "jitx-code-layout"}
 {"intent": "set a 0.2 mm clearance rule between the 12 V class and everything else", "expected_skill": "jitx-layout-constraints", "ambiguous_with": ["jitx-interactive-layout"]}
 {"intent": "build a DecouplingBank module that places the caps next to each power pin in code", "expected_skill": "jitx-circuit-builder", "ambiguous_with": ["jitx-interactive-layout"]}

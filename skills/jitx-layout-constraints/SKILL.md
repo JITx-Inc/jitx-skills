@@ -58,7 +58,7 @@ Higher `priority=` wins; at equal priority the more specific condition wins, obj
 
 Rules are found by walking the design tree: one at module scope, or built and dropped, does not exist. Board-wide rules go in the `Design`'s `self.rules = [...]`; a circuit's rules still apply board-wide.
 
-A tag on a `Net` reaches its traces, pours, pads and code-placed vias; on a `Pad`, `Landpattern` or `Component`, those pads; on a `Route`, its segments; on a `Pour` or `Via`, that object. `TopologyNet`, `Copper`, `Circuit` and `ControlPoint` also take tags; anything else, or a tag assigned outside a design context, warns and does nothing.
+A tag on a `Net` reaches its traces, pours, pads, code-placed vias and `Copper`; on a `Pad`, `Landpattern` or `Component`, those pads; on a `Route`, its segments; on a `Pour` or `Via`, that object. `TopologyNet`, `Copper`, `Circuit` and `ControlPoint` also take tags; anything else, or a tag assigned outside a design context, warns and does nothing.
 
 ## Defaults and classes
 
@@ -122,7 +122,7 @@ A rule that builds is not a rule that applied. Build, `rd.capture()`, and read t
 
 - Derive expected values from the prompt, documents or geometry, never from the rule.
 - A route can realize as a widthless `Polygon`, or with no traces (a width override under a rule it already matches can do this): a width check fails on either, never skips it.
-- Every rule has witnessing copper or is reported unwitnessed. `Copper` placed from code is drawn as written whatever the rules say (routes still keep their clearance to it): check it.
+- Every rule has witnessing copper or is reported unwitnessed. `Copper` placed from code is drawn as written whatever the rules say (routes other than an envelope section keep their clearance to it): check it.
 - Capture does not show which rule won; the board view does (select the route, press B).
 - The check exits nonzero on failure; `status: ok` is not proof.
 - A rule that did not apply is usually unreachable, out-ranked (a heavy layer's floor too), the wrong arity, aimed at the wrong target, below a `min_copper_*` floor (not a `routing_structure` rule, whose width and pair gap override the floors), or keyed on a tag not on the `Pour`.
