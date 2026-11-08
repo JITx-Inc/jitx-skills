@@ -74,7 +74,7 @@ A bare `No path`, naming no part, can come from an unrouted net crossing a circu
 
 ### TerminatingPinModel: package delay at an end
 
-Adds a chip or connector pin's package delay and loss, one per pin, whenever package or connector data is supplied: `pkg = [TerminatingPinModel(p, delay=15e-12, loss=0.2) for p in (tx.p, tx.n)]`. Worked pattern: `jitxexamples.patterns.si_point_to_point`.
+Adds a chip or connector pin's package delay and loss, one per pin, whenever package or connector data is supplied: `pkg = [TerminatingPinModel(p, delay=15e-12, loss=0.2) for p in (tx.p, tx.n)]`. Worked pattern: `jitxexamples.patterns.si_point_to_point`. Every modeled delay on a path counts toward its delay limits as well as its skews: both ends' pin models, via models and bridging models. A length rule written as a delay limit therefore includes them. Holding the trace alone instead means raising each limit by delays that, on a `require()`d end or an unrouted path, are not known until assignment and routing; state which reading the constraint applies.
 
 ### Via models
 
@@ -157,7 +157,7 @@ For several signal groups, compose one constraint per group, called from `constr
 
 ## Constraints on pin-assigned ports
 
-A constraint on a `require()`d port measures only once the assignment resolves (until then `Unassigned Pin on Path`, or `No path` between fixed physical ends). Code routes on the provider's physical pins resolve it, P/N inversion included; a route matching no offered mapping is dropped (`Code route dropped: it conflicts with other connections`) and the pin reported unassigned. A route cannot end on a `require()`d port, and a `require()`d port cannot be stored on `self`. Proof routes fix one mapping, so they belong in a verification design. Full rules: [jitx-pin-assignment](../jitx-pin-assignment/SKILL.md#constraints-on-pin-assigned-ports).
+A constraint on a `require()`d port measures only once the assignment resolves (until then `Unassigned Pin on Path`, or `No path` between fixed physical ends). Code routes on the provider's physical pins resolve it, P/N inversion included; a route matching no offered mapping is dropped (`Code route dropped: it conflicts with other connections`) and the pin reported unassigned. A route cannot end on a `require()`d port, and a `require()`d port cannot be stored on `self`. Proof routes fix one mapping, so they belong in a verification design. Report paths name a `require()`d bundle after the first stored `Net` holding any of its signals, so store a net of the whole bundle first ([jitx-pin-assignment](../jitx-pin-assignment/SKILL.md#consuming-providers-with-require)). Full rules: [jitx-pin-assignment](../jitx-pin-assignment/SKILL.md#constraints-on-pin-assigned-ports).
 
 ## Daisy chains (`>>`)
 
