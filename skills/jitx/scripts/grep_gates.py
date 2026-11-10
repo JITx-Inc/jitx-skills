@@ -67,17 +67,30 @@ def print_help():
     print("  -h, --help  show this help message and exit")
 
 
+SELF_MARKER = "# grep_gates.py — JITX skill grep-gate enforcement"
+
+
 def iter_py_files(root, errors):
-    """Yield Python paths and retain every directory traversal error."""
+    """Yield Python paths and retain every directory traversal error. Hidden
+    directories (a project's .venv) and site-packages hold no project source."""
 
     def onerror(error):
         errors.append(error)
 
     for dirpath, dirnames, filenames in os.walk(root, onerror=onerror):
-        dirnames.sort()
+        dirnames[:] = sorted(
+            d for d in dirnames if not d.startswith(".") and d != "site-packages"
+        )
         for fn in sorted(filenames):
             if fn.endswith(".py"):
                 yield os.path.join(dirpath, fn)
+
+
+def is_gate_copy(lines):
+    """A copy of this script, which the skill has projects keep in scripts/:
+    its pattern strings would otherwise report themselves."""
+
+    return any(SELF_MARKER in line for line in lines[:3])
 
 
 def scan_sources(src_dir):
@@ -88,9 +101,12 @@ def scan_sources(src_dir):
     for path in iter_py_files(src_dir, errors):
         try:
             with open(path, "r", encoding="utf-8", errors="replace") as fh:
-                files[path] = [raw.rstrip("\r\n") for raw in fh]
+                lines = [raw.rstrip("\r\n") for raw in fh]
         except OSError as error:
             errors.append(error)
+            continue
+        if not is_gate_copy(lines):
+            files[path] = lines
     return files, errors
 
 

@@ -5,6 +5,8 @@ description: "Create JITX Python component code from datasheets, KiCad footprint
 
 # JITX Component Generation Skill
 
+Run the base `jitx` skill's setup first; it owns install and the supported versions.
+
 A component task is not complete until the [Component completeness check — run before calling it done](#component-completeness-check--run-before-calling-it-done) block is filled row by row in `COMPLETION.md` next to the components, under the `Checks run` field of the task acceptance block in `jitx-project-builder/references/completion-blocks.md`. A block only in chat is not the block.
 
 ## Route before reading detail

@@ -200,7 +200,7 @@ A hard-fail hit blocks task acceptance. Fix the underlying code; do not whitelis
 | 1 | SI application outside the conventional top-level directory. The search skips the paths where such a call is a definition or a harness rather than a misplaced application: any `constraints/` directory, `main.py`, and test modules. What remains is an SI constraint applied inside an ordinary subcircuit, which is the failure the rule names. A comment or docstring that spells out the call form in a non-skipped path still trips the regex; reword the prose, since a hard-fail takes no disposition. | `\b(ReferencePlanes\|Constrain\|ConstrainDiffPair\|ConstrainReferenceDifference)\s*\(` | `<ns>/` excluding `<ns>/designs/`, `constraints/`, `main.py`, tests |
 | 2 | Net symbols outside top-level designs (`GroundSymbol` / `PowerSymbol` are top-level only) | `\b(GroundSymbol\|PowerSymbol)\s*\(` | `<ns>/` excluding `<ns>/designs/` |
 | 3 | `setattr(self, ...)` / `getattr(self, ...)` — JITX convention violation (see `jitx/SKILL.md` Don'ts) | `\b(setattr\|getattr)\s*\(\s*self\b` | anywhere in `<ns>/` |
-| 4 | Retired. The anonymous `.insert(...)` pattern has no 2.x form: `.insert` does not exist in jitxlib-parts 2.x, and a passive held only in a local variable or an inline expression fails `jitx build` once its ports join a net (`Unable to map local reference`), which a `TestCase` that only instantiates the design misses. The number stays reserved so earlier acceptance blocks keep their meaning. | none | n/a |
+| 4 | Retired. The anonymous `.insert(...)` pattern has no current form: `.insert` does not exist in jitxlib-parts, and a passive held only in a local variable or an inline expression fails `jitx build` once its ports join a net (`Unable to map local reference`), which a `TestCase` that only instantiates the design misses. The number stays reserved so earlier acceptance blocks keep their meaning. | none | n/a |
 
 ### Review-required patterns (need disposition)
 
@@ -492,7 +492,7 @@ For each item: pass | fail with details | not run (with reason)
 
 If any row is `not run`, give the reason. Common reasons:
 
-- **JITX UI not available** (CI / headless / no display). When this applies, use the build-output checks: parse `cache/netlist.json` for orphan nets, parse `design-info/stable.design` for placement, the build log for DRC complaints, and `python -m <ns>.designs.check_si_main` for SI. Note in the row: `not run: headless; checked via netlist.json (no orphans), build log, and the SI check script (SI groups dispositioned)`.
+- **JITX UI not available** (CI / headless / no display). When this applies, use the build-output checks: run the connectivity tests (`jitx-circuit-builder`, "Asserting connectivity in tests") for orphan nets, parse `design-info/stable.design` for placement, the build log for DRC complaints, and `python -m <ns>.designs.check_si_main` for SI. Note in the row: `not run: headless; checked via connectivity tests (no orphans), build log, and the SI check script (SI groups dispositioned)`.
 - **Tool not installed.** Reason should name what's missing and a follow-up to install.
 
 A row that is `not run` without a reason fails the gate.
@@ -543,7 +543,7 @@ Rules:
 - A `not run` row also requires fallback artifacts: if the JITX UI isn't available, name the build-output files used to substitute for it. Conventional fallbacks:
     - **Schematic / Issues List → `build log`** (cite path; flag any errors/warnings)
     - **Board placement / overlap → `<design-folder>/design-info/stable.design`** (machine-readable; can be inspected for overlap)
-    - **Connectivity / orphan nets → `<design-folder>/cache/netlist.json`** (parse for disconnected ports)
+    - **Connectivity / orphan nets → the connectivity tests** (`jitx-circuit-builder`, "Asserting connectivity in tests"); `cache/design-explorer.json` keeps nets per module, so it is no netlist
     - **DRC → `build log`** (DRC complaints surface in the build output)
     - **SI → `python -m <ns>.designs.check_si_main`** (measured and unresolved SI groups)
   A `not run: headless` row with no fallback artifact named is rejected.

@@ -11,7 +11,7 @@ Model flexible pin mappings between circuit-level interfaces and component pins.
 
 Environment setup is handled by the base `jitx` skill. Ensure it has been invoked first.
 
-The worked patterns this skill points at are modules in the `jitxexamples` package. Install it into the project venv once with `pip install --no-deps --upgrade jitxexamples` (`--no-deps` keeps its pins off the project's `jitx`); it is not a project dependency. If importing a pointed-at module raises `ModuleNotFoundError`, the installed `jitxexamples` predates these patterns: say so, and work from the rules here.
+The worked patterns this skill points at are modules in the `jitxexamples` package, which the base `jitx` skill's Step 1 installs. If `import jitxexamples` raises `ModuleNotFoundError`, it is not installed: run that step's `jitxexamples` and `eseries` lines. If `jitxexamples` imports but a pointed-at module does not, the installed `jitxexamples` predates these patterns: say so, and work from the rules here.
 
 ## Package Architecture
 
@@ -26,10 +26,10 @@ from jitx.toleranced import Toleranced
 ```
 
 **These DO NOT EXIST — never import:**
-`jitx.provide`, `jitx.providers`, `jitx.pin_assignment`, `jitx.assign`,
+`jitx.providers`, `jitx.pin_assignment`, `jitx.assign`,
 `jitx.net.provide_one_of`, `jitxlib.pin_assignment`, `jitx.pin_assign`
 
-`Provide` is also re-exported from `jitx`. Every constraint class, `DiffPairConstraint` and `ReferencePlanes` included, is in `jitx.si`.
+`provide` and `Provide` are also re-exported from `jitx`. Every constraint class, `DiffPairConstraint` and `ReferencePlanes` included, is in `jitx.si`.
 
 ## When to Use Pin Assignment
 
@@ -144,10 +144,10 @@ A code route from `TXN` to the far end's `p` pin resolves the inverted option. W
 
 ## Constraints on Pin-Assigned Ports
 
-On jitx 4.6, write the constraint as `jitx-interconnect-constraints` teaches: plain `+` nets and `Topology(begin, end)`, no `>>`. The path between the ends is inferred from the routes; it crosses a via, or a part with a pin model, where routes land on both sides. `>>` (`TopologyNet`) is only for a daisy chain whose order is part of the design, such as a flyby clock. What pin assignment adds:
+Write the constraint as `jitx-interconnect-constraints` teaches: plain `+` nets and `Topology(begin, end)`, no `>>`. The path between the ends is inferred from the routes; it crosses a via, or a part with a pin model, where routes land on both sides. `>>` (`TopologyNet`) is only for a daisy chain whose order is part of the design, such as a flyby clock. What pin assignment adds:
 
 1. Give every part with a path through it a `BridgingPinModel` between the two pins that path joins (a series resistor, an AC-coupling capacitor, an ESD channel whose datasheet gives an in-to-out path); without one the path stops there (`No path for signal constraint ... which has no pin model`). A flow-through package whose pin opposite the channel is n.c. has no path through it: no pin model, and the channel pin and the n.c. pin are one net joined by board copper. A pin model's delay and loss come from the part's datasheet; a fixture or placeholder part says it is fictional in its docstring and labels its values illustrative.
-2. Prove it on a verification design: a separate Design that places every part with `.at(...)` and closes the path with code `Route`s ending on the provider's physical pins. A route cannot end on a required port (`Using require ports as route ends ... is not implemented`). Proof routes fix one mapping, so they never go in the product design.
+2. Prove it on a verification design: a separate Design that closes the path with code `Route`s ending on the provider's physical pins, and gives each component a proof route touches its own `.at(...)` (`jitx-circuit-builder`, "Placement"). A route cannot end on a required port (`Using require ports as route ends ... is not implemented`). A via in a pad joins that pad's pin by `PortAttachment(pin, via)`, never also in a `Net` (`Encountered <via> both in a net and port attached`). Proof routes fix one mapping, so they never go in the product design.
 3. Routes that match one offered mapping resolve the assignment to it. Routes that match none are dropped (`Code route dropped`) and their leg has no path; a leg whose routes fit an offered mapping still measures. A constraint on a required port measures only once its assignment resolves, so with no routes nothing measures.
 4. Pick the Topology ends by where the assigned part sits.
    - Mid-path (a pass-through part with interchangeable channels): ends on fixed physical pins either side, such as `Topology(self.drv.d[0], self.rcv.d[0])`. Worked pattern: `jitxexamples.patterns.pin_series_array`.

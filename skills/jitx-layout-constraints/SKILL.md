@@ -9,7 +9,7 @@ This skill adds the constraints that make a layout perform electrically. JITX ro
 
 ## Environment
 
-Invoke the base `jitx` skill first. Add `jitxexamples` to the project's `dependencies`: the design calls its `jitxexamples.patterns` functions. An `ImportError`, or a `TypeError` from a named function, means an older copy: upgrade it, and if that does not bring the function in, list each value it would derive as an open item. Never drop a keyword, and never derive the value by hand instead.
+Invoke the base `jitx` skill first. Add `jitxexamples`, with the bound in the base skill's Supported versions table, to the project's `dependencies`: the design calls its `jitxexamples.patterns` functions. An `ImportError`, or a `TypeError` from a named function, means an older copy: upgrade it, and if that does not bring the function in, list each value it would derive as an open item. Never drop a keyword, and never derive the value by hand instead.
 
 ## Start from what the board needs
 

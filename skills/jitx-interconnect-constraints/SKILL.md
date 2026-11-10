@@ -1,17 +1,17 @@
 ---
 name: jitx-interconnect-constraints
-description: "Use when the user asks about timing constraints, skew matching, insertion loss limits, pin models (bridging, terminating, via models), proving that an SI constraint applied, or debugging a constraint that does not measure in the design issues report. Also covers differential pairs, DiffPair bundles, skew across a bundle or against a clock, protocol constraints for PCIe, USB, DisplayPort, RGMII, Ethernet, DDR, reference planes, length matching, impedance-controlled routing, SignalConstraint definitions, and daisy-chain or flyby topologies built with the double-greater-than operator. Covers Topology, Constrain, ConstrainDiffPair, ConstrainReferenceDifference, DiffPairConstraint, BridgingPinModel, TerminatingPinModel, ReferencePlanes, and protocol-specific constraint patterns. Trace width and clearance design rules belong to jitx-layout-constraints. Pin muxing and lane or polarity swappability belong to jitx-pin-assignment. Stackups and routing-structure definitions belong to jitx-substrate-modeler."
+description: "Use when the user asks about timing constraints, skew matching, insertion loss limits, pin models (bridging, terminating, via models), proving that an SI constraint applied, or debugging a constraint that does not measure in the design issues report. Also covers differential pairs, DiffPair bundles, skew across a bundle or against a clock, protocol constraints for PCIe, USB, DisplayPort, RGMII, Ethernet, DDR, reference planes, length matching, impedance-controlled routing, SignalConstraint definitions, and daisy-chain or flyby topologies built with the double-greater-than operator. Covers Topology, Constrain, ConstrainDiffPair, ConstrainReferenceDifference, DiffPairConstraint, BridgingPinModel, TerminatingPinModel, ReferencePlanes, and protocol-specific constraint patterns. Trace width and clearance rules belong to jitx-layout-constraints. Pin muxing and lane or polarity swappability belong to jitx-pin-assignment. Stackups and routing structures belong to jitx-substrate-modeler."
 ---
 
 # JITX Interconnect Constraints
 
-SI constraints (timing, insertion loss, intra-pair skew, skew to a reference) on jitx 4.6: `Topology(begin, end)` names a path's ends, routes and pin models let the runtime follow it, and the design issues report proves it measured.
+SI constraints (timing, insertion loss, intra-pair skew, skew to a reference): `Topology(begin, end)` names a path's ends, routes and pin models let the runtime follow it, and the design issues report proves it measured.
 
 ## Environment
 
 Environment setup is handled by the base `jitx` skill. Ensure it has been invoked first.
 
-The worked patterns this skill points at are modules in the `jitxexamples` package. Install it into the project venv once with `pip install --no-deps --upgrade jitxexamples` (`--no-deps` keeps its pins off the project's `jitx`); it is not a project dependency. If importing a pointed-at module raises `ModuleNotFoundError`, the installed `jitxexamples` predates these patterns: say so, and work from the rules here.
+The worked patterns this skill points at are modules in the `jitxexamples` package, which the base `jitx` skill's Step 1 installs. If `import jitxexamples` raises `ModuleNotFoundError`, it is not installed: run that step's `jitxexamples` and `eseries` lines. If `jitxexamples` imports but a pointed-at module does not, the installed `jitxexamples` predates these patterns: say so, and work from the rules here.
 
 ## Package Architecture
 
@@ -148,7 +148,7 @@ For several signal groups, compose one constraint per group, called from `constr
 
 ## Via Structures
 
-`SingleViaStructure(via, ground_cages=[PolarViaGroundCage(...)], antipads=[])` (`jitxlib.via_structures`; `via` a class with `models`; the keyword-only `ground_cages` and `antipads` required) is a `Circuit` with `sig_in`, `sig_out` and `COMMON` ports around `signal_via`. Net it in like a part, join `COMMON` to ground, route to `signal_via` on each layer, and name the outer pads; it binds on plain nets and counts the via's `models` (single-ended and differential, measured on jitx 4.6.0rc10). A cage that closes the via off fails the routes (`Missing Connection on Path`): size it, turn it with `theta=`, or gap it with `skips=`. Worked pattern: `jitxexamples.patterns.si_via_structure`.
+`SingleViaStructure(via, ground_cages=[PolarViaGroundCage(...)], antipads=[])` (`jitxlib.via_structures`; `via` a class with `models`; the keyword-only `ground_cages` and `antipads` required) is a `Circuit` with `sig_in`, `sig_out` and `COMMON` ports around `signal_via`. Net it in like a part, join `COMMON` to ground, route to `signal_via` on each layer, and name the outer pads; it binds on plain nets and counts the via's `models` (single-ended and differential, both measured). A cage that closes the via off fails the routes (`Missing Connection on Path`): size it, turn it with `theta=`, or gap it with `skips=`. Worked pattern: `jitxexamples.patterns.si_via_structure`.
 
 `DifferentialViaStructure(vias, pitch, ground_cages=..., antipads=...)` has `DiffPair` ports and vias `via_p` and `via_n`; `enterOn` / `exitOn` add pair insertions. Neither takes `insertion_points`.
 

@@ -15,12 +15,12 @@
     {
       "text": "no jitxlib-parts 1.x API in the output: no passive `.insert(`, meaning any `.insert(` whose first argument is not index-like (an integer literal, `len(...)`, or a name such as `i` or `idx`), so `cap.insert(p, gnd)` and `Capacitor(...).insert(self.u1.vdd, ...)` fail while a list's `xs.insert(0, item)` and `sys.path.insert(0, ...)` pass; no `short_trace=`, `jitx.interval`, `rated_voltage=` or `tcr_pos`/`tcr_neg`, none of which exist in 2.x",
       "check": "deterministic",
-      "cmd": "python3 skills/jitx-circuit-builder/evals/checks/passive_calls.py no-insert <output> && ! grep -nHE 'short_trace=|jitx\\.interval|rated_voltage=|tcr_pos|tcr_neg' <output>/*.py"
+      "cmd": "python3 skills/jitx-circuit-builder/evals/checks/passive_calls.py no-insert <output> && ! grep -rnHE --include='*.py' --exclude-dir='.*' --exclude-dir=site-packages 'short_trace=|jitx\\.interval|rated_voltage=|tcr_pos|tcr_neg' <output>"
     },
     {
       "text": "the power-rail capacitor count rule (completion-blocks review-required row 12) has no hits: no output file has more `Capacitor(` or `PolarizedCapacitor(` call sites than `ShortTrace(` call sites, and the output has at least one `ShortTrace(`. Every capacitor this prompt asks for decouples a supply pin, so a hit here is a failure, not a disposition. The count cannot see what a `ShortTrace` joins: the judge assertions below grade one per capacitor, each to a ball",
       "check": "deterministic",
-      "cmd": "python3 skills/jitx/scripts/grep_gates.py <output>/ | grep -qF 'ok    no hits: Capacitor(...) call sites outnumber ShortTrace(...) call sites' && grep -qE 'ShortTrace\\(' <output>/*.py"
+      "cmd": "python3 skills/jitx/scripts/grep_gates.py <output>/ | grep -qF 'ok    no hits: Capacitor(...) call sites outnumber ShortTrace(...) call sites' && grep -rqE --include='*.py' --exclude-dir='.*' --exclude-dir=site-packages 'ShortTrace\\(' <output>"
     },
     {
       "text": "the HF capacitor count scales with the ball count rather than being a fixed small number: the core rail gets tens of capacitors, not two or four",
@@ -28,6 +28,10 @@
     },
     {
       "text": "each capacitor's supply-side pad is joined to a BALL through `ShortTrace(cap.p1, ball)`, never to the rail net: `ShortTrace` takes two ports, and a net has no position, so a rail-centric tie decouples nothing in particular",
+      "check": "judge"
+    },
+    {
+      "text": "each `ShortTrace` ends on a port that is one ball. Where the FPGA model joins several balls to one port, the `ShortTrace` ends on a component port mapped to one pad instead, which builds with no warning but names no pad; the runner adds no port to the model just to name a pad, and a shared port it could not avoid is listed as an open item",
       "check": "judge"
     },
     {

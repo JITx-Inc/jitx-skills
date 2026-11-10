@@ -183,7 +183,7 @@ Example triggers:
 
 ### jitx-mechanical
 
-Mechanical CAD interface for JITX designs: inspect/import DXF, EMN, IDF, IDX, and BDF data; export DXF; attach STEP models; export a full board STEP via the JITX UI (no CLI in py-jitx 4.2.x).
+Mechanical CAD interface for JITX designs: use `jitxlib-mechanical` to inspect/import DXF and IDF text (.emn/.idf/.idx/.bdf), and export captured designs with `jitx design export dxf`. Attach STEP models and export a full board STEP with `jitx design export legacy-step` or the JITX application UI.
 
 Example triggers:
 
@@ -244,6 +244,7 @@ jitx-skills/
 ## Requirements
 
 - A JITX Python project with `pyproject.toml` containing a JITX dependency
+- JITX 4.6 (`jitx>=4.6,<4.7`) and the JITX 4.6 runtime, with `jitxlib-standard` 4.6, `jitxlib-parts` 2.x, `jitxexamples` 2.0.x and, for JLCPCB boards, `jitxlib-jlcpcb` 4.x. This release targets JITX 4.6 only. The previous release, 1.7.0, documents the JITX 4.2 API, and no release targets 4.4, so move a 4.4 project to 4.6 before using these skills. The released versions the skills were checked against are in the Supported versions table in `skills/jitx/SKILL.md`.
 - Python 3.12+
 - For datasheet processing: `pip install pymupdf`
 

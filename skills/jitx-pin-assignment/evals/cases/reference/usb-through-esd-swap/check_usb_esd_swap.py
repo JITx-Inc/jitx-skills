@@ -18,6 +18,14 @@ and checks each report:
 - ``sides_disagree`` (host side and connector side on different channel
   pairs): a code route is dropped and neither leg has a path or a measurement.
 - ``unrouted``: neither leg has a path, nothing is measured, nothing dropped.
+- ``circuit_placed`` (straight routes, the ESD circuit placed rather than its
+  part): the routes cannot be made, each reported as ``Unable to find path for
+  requested route`` with a ``Missing Connection on Path`` line, and nothing is
+  measured.
+- ``via_in_pad_attached`` (straight, the host side through a via in each ESD
+  in pad, ``PortAttachment``-ed to its pin): measures like ``straight``.
+- ``via_in_pad_both`` (the same vias also in a ``Net`` with their pins): the
+  build is rejected with ``Encountered <via> both in a net and port attached``.
 
 The check asserts binding (a measured line), not compliance: a measured skew
 outside the USB limit still passes.
@@ -68,6 +76,11 @@ NO_PATH = re.compile(r"No path for signal constraint")
 UNASSIGNED = re.compile(r"Unassigned Pin")
 DROPPED = re.compile(r"Code route dropped")
 ERROR = re.compile(r"^Error:", re.MULTILINE)
+NO_ROUTE_PATH = re.compile(r"Unable to find path for requested route")
+MISSING_CONNECTION = re.compile(
+    r"Missing Connection on Path: host\.usb\.[pn], prot\.esd\.ch_in"
+)
+BOTH_JOINS = re.compile(r"both in a net and port attached")
 
 
 def has(pattern: re.Pattern[str]) -> Callable[[str], bool]:
@@ -113,12 +126,28 @@ UNROUTED: list[Expectation] = [
     ("no dropped code route", lacks(DROPPED)),
 ]
 
+CIRCUIT_PLACED: list[Expectation] = [
+    ("route reports no path", has(NO_ROUTE_PATH)),
+    ("missing connection to an ESD in pin", has(MISSING_CONNECTION)),
+    ("no time measured", lacks(ANY_TIME)),
+    ("no skew measured", lacks(ANY_SKEW)),
+]
+BOTH_REJECTED: list[Expectation] = [
+    ("build rejects a via both netted and attached", has(BOTH_JOINS)),
+    ("no time measured", lacks(ANY_TIME)),
+]
+# Variants whose report is a build error by design.
+ERROR_EXPECTED = {"via_in_pad_both"}
+
 VARIANTS: dict[str, tuple[str, list[Expectation]]] = {
     "straight": ("Straight", MEASURES),
     "swapped_inverted": ("SwappedInverted", MEASURES),
     "illegal": ("Illegal", SPLIT_PAIR),
     "sides_disagree": ("SidesDisagree", SIDES_DISAGREE),
     "unrouted": ("Unrouted", UNROUTED),
+    "circuit_placed": ("CircuitPlaced", CIRCUIT_PLACED),
+    "via_in_pad_attached": ("ViaInPadAttached", MEASURES),
+    "via_in_pad_both": ("ViaInPadBoth", BOTH_REJECTED),
 }
 
 
@@ -155,7 +184,7 @@ def run(
 
 
 def check(name: str, report: str, expectations: list[Expectation]) -> bool:
-    if ERROR.search(report):
+    if name not in ERROR_EXPECTED and ERROR.search(report):
         print(f"FAIL variant={name}: the command reported an error")
         return False
     misses = [label for label, test in expectations if not test(report)]

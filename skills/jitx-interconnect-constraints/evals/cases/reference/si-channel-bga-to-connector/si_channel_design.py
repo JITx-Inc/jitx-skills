@@ -29,14 +29,31 @@ Variants, one Design class each:
   Same routes, so each path's delay and loss drop by exactly the via model.
 - ``NoViaModelDesign``: the escape via carries no model. The runtime measures
   with a placeholder model and reports that it did.
+- ``ViaAttachedAcrossPadDesign``: each leg passes a pass-through part whose
+  two pads are on the leg's net, routed via, ``pt.a``, ``pt.b``, cap. The
+  escape via is ``PortAttachment``-ed to ``pt.b``, which the routes reach from
+  the via only through ``pt.a``. The attachment is a second join beside those
+  routes, so the path is ambiguous.
+- ``ViaNettedAcrossPadDesign``: the same legs with the via put on the net by
+  ``Net([pt.b, via])`` instead; the path is followed.
+- ``FinePitchDesign``: the connector's pads sit at 0.3 mm pitch, 0.1 mm apart,
+  closer than the 0.2 mm clearance of ``DRS_100``, so the routes into them
+  cannot be made.
+- ``FinePitchNeckDesign``: the same connector, with the routes into it tagged
+  and held to a single-ended neck structure above the pair's rule.
 
 ``SiChannelDesign`` is the reference; ``NoTerminationDesign`` and
-``IdealViaDesign`` are probes that prove the models move the numbers; the
-other three are mutations the check must reject.
+``IdealViaDesign`` are probes that prove the models move the numbers;
+``ViaNettedAcrossPadDesign`` and ``FinePitchNeckDesign`` are the fixes for
+``ViaAttachedAcrossPadDesign`` and ``FinePitchDesign``; the rest are mutations the
+check must reject.
 """
+
+from typing import Literal
 
 from jitx.circuit import Circuit, Route
 from jitx.component import Component
+from jitx.constraints import Tag, design_constraint
 from jitx.feature import Courtyard, Soldermask
 from jitx.landpattern import Landpattern, Pad, PadMapping
 from jitx.layerindex import Side
@@ -49,9 +66,12 @@ from jitx.si import (
     ConstrainDiffPair,
     ConstrainReferenceDifference,
     PinModel,
+    RoutingStructure,
     TerminatingPinModel,
+    symmetric_routing_layers,
 )
 from jitx.symbol import Direction, Pin, Symbol
+from jitx.units import ohm
 from jitx.via import Via
 
 # Fixture pin-model values, as the case prompt supplies them (seconds, dB).
@@ -78,8 +98,13 @@ ROWS = (1.5, 0.5, -0.5, -1.5)  # tx0.p, tx0.n, tx1.p, tx1.n
 
 BGA_X = -15.0
 VIA_X = BGA_X + 1.5  # one pitch outboard of the TX ball column at BGA_X + 0.5
+PASS_X = -7.0  # the pass-through part of the via-join variants
 CAP_X = 0.0
 CONN_X = 15.0
+
+# Fine-pitch connector: 0.2 mm pads at 0.3 mm pitch leave 0.1 mm between pads,
+# under the 0.2 mm clearance of SampleSubstrate.DRS_100.
+FINE_ROWS = (0.45, 0.15, -0.15, -0.45)
 
 
 class BallPad(Pad):
@@ -163,11 +188,31 @@ class FixtureAcCap(Component):
             )
 
 
-class ConnLandpattern(Landpattern):
-    """One column of four pads at 1.0 mm pitch."""
+class FinePad(Pad):
+    shape = rectangle(0.6, 0.2)
+    soldermask = Soldermask(rectangle(0.6, 0.2))
+
+
+class FixturePassThrough(Component):
+    """Fictional pass-through part: two pads joined in the net, like the n.c. and
+    channel pins of a flow-through ESD array. Not a real product."""
+
+    a = Port()
+    b = Port()
 
     def __init__(self) -> None:
-        self.pads = [SmdPad().at(0, y) for y in ROWS]
+        self.landpattern = CapLandpattern()
+        self.symbol = BoxSymbol(2)
+
+
+class ConnLandpattern(Landpattern):
+    """One column of four pads at 1.0 mm pitch, or at 0.3 mm when ``fine``."""
+
+    def __init__(self, fine: bool = False) -> None:
+        if fine:
+            self.pads = [FinePad().at(0, y) for y in FINE_ROWS]
+        else:
+            self.pads = [SmdPad().at(0, y) for y in ROWS]
         self.court = Courtyard(rectangle(1.5, 4.5))
 
 
@@ -181,8 +226,8 @@ class FixtureConnector(Component):
     tx0 = DiffPair()
     tx1 = DiffPair()
 
-    def __init__(self, terminate: bool = True) -> None:
-        self.landpattern = ConnLandpattern()
+    def __init__(self, terminate: bool = True, fine: bool = False) -> None:
+        self.landpattern = ConnLandpattern(fine)
         self.symbol = BoxSymbol(4)
         tx_pins = [self.tx0.p, self.tx0.n, self.tx1.p, self.tx1.n]
         self.mapping = PadMapping(
@@ -193,6 +238,27 @@ class FixtureConnector(Component):
                 TerminatingPinModel(p, delay=CONN_TX_DELAY, loss=CONN_TX_LOSS)
                 for p in tx_pins
             ]
+
+
+class NeckSubstrate(SampleSubstrate):
+    """The sample substrate plus a single-ended neck for the fine-pitch pads."""
+
+    # DRS_100's trace width, velocity and loss with a 0.05 mm clearance.
+    # Fixture values.
+    NECK = RoutingStructure(
+        name="Fixture neck",
+        impedance=100 * ohm,
+        layers=symmetric_routing_layers(
+            {
+                0: RoutingStructure.Layer(
+                    trace_width=0.09,
+                    clearance=0.05,
+                    velocity=191335235228,
+                    insertion_loss=0.0178,
+                )
+            }
+        ),
+    )
 
 
 class EscapeVia(SampleSubstrate.THVia):
@@ -211,6 +277,10 @@ class BareEscapeVia(SampleSubstrate.THVia):
     """The sample through via with no model, for the no-via-model mutation."""
 
 
+class NeckTag(Tag):
+    """Routes held to the neck structure."""
+
+
 class SiChannel(Circuit):
     """BGA ball, escape via, bottom-layer trace, AC cap, connector; two pairs."""
 
@@ -218,12 +288,16 @@ class SiChannel(Circuit):
     terminated: bool = True
     via_class: type[Via] = EscapeVia
     cap_without_model: int | None = None  # index into ROWS order
+    # A pass-through part on each leg, and how the escape via joins its far pad.
+    via_join: Literal["attached", "netted"] | None = None
+    fine_pitch: bool = False
+    necked: bool = False
 
     def __init__(self) -> None:
         self.bga = FixtureFpgaBga(terminate=self.terminated).at(BGA_X, 0)
-        self.conn = FixtureConnector(terminate=self.terminated).at(
-            CONN_X, 0, on=Side.Bottom
-        )
+        self.conn = FixtureConnector(
+            terminate=self.terminated, fine=self.fine_pitch
+        ).at(CONN_X, 0, on=Side.Bottom)
         bga_pins = [self.bga.tx0.p, self.bga.tx0.n, self.bga.tx1.p, self.bga.tx1.n]
         conn_pins = [
             self.conn.tx0.p,
@@ -239,7 +313,10 @@ class SiChannel(Circuit):
         self.TX_CONN_P: list[Net] = []
         self.TX_CONN_N: list[Net] = []
         self.escapes: list[PortAttachment] = []
+        self.passes: list[FixturePassThrough] = []
+        self.via_nets: list[Net] = []
         self.routes: list[Route] = []
+        conn_routes: list[Route] = []
         for i, (src, dst, y) in enumerate(zip(bga_pins, conn_pins, ROWS, strict=True)):
             # On the bottom side the cap's x axis is mirrored; rotating by 180
             # puts pad ``a`` back on the BGA side.
@@ -252,13 +329,26 @@ class SiChannel(Circuit):
             n_leg = i % 2 == 1  # the pin lists alternate p, n
             (self.TX_FPGA_N if n_leg else self.TX_FPGA_P).append(Net([src, cap.a]))
             (self.TX_CONN_N if n_leg else self.TX_CONN_P).append(Net([cap.b, dst]))
-            self.escapes.append(PortAttachment(src, via))
-            if self.routed:
-                self.routes += [
-                    Route(src, via, layer=0),
-                    Route(via, cap.a, layer=1),
-                    Route(cap.b, dst, layer=1),
+            if self.via_join is None:
+                self.escapes.append(PortAttachment(src, via))
+                bottom = [Route(via, cap.a, layer=1)]
+            else:
+                pt = FixturePassThrough().at(PASS_X, y, on=Side.Bottom, rotate=180)
+                self.passes.append(pt)
+                self.via_nets.append(Net([src, pt.a, pt.b]))
+                if self.via_join == "attached":
+                    self.escapes.append(PortAttachment(pt.b, via))
+                else:
+                    self.via_nets.append(Net([pt.b, via]))
+                bottom = [
+                    Route(via, pt.a, layer=1),
+                    Route(pt.a, pt.b, layer=1),
+                    Route(pt.b, cap.a, layer=1),
                 ]
+            if self.routed:
+                to_conn = Route(cap.b, dst, layer=1)
+                conn_routes.append(to_conn)
+                self.routes += [Route(src, via, layer=0), *bottom, to_conn]
 
         pair0 = Topology(self.bga.tx0, self.conn.tx0)
         pair1 = Topology(self.bga.tx1, self.conn.tx1)
@@ -269,6 +359,14 @@ class SiChannel(Circuit):
             .insertion_loss(LOSS_LIMIT)
             .structure(SampleSubstrate.DRS_100)
         )
+        if self.necked:
+            for route in conn_routes:
+                NeckTag().assign(route)
+            self.GND = Net(self.bga.gnd)
+            self.neck_rule = design_constraint(NeckTag(), priority=1).routing_structure(
+                NeckSubstrate.NECK, ref_net=self.GND
+            )
+
         # The guide must be a single pin, so one leg of pair 0 stands for it.
         self.bundle = ConstrainReferenceDifference(
             Topology(self.bga.tx0.p, self.conn.tx0.p),
@@ -299,6 +397,23 @@ class NoViaModel(SiChannel):
     via_class = BareEscapeVia
 
 
+class ViaAttachedAcrossPad(SiChannel):
+    via_join = "attached"
+
+
+class ViaNettedAcrossPad(SiChannel):
+    via_join = "netted"
+
+
+class FinePitch(SiChannel):
+    fine_pitch = True
+
+
+class FinePitchNeck(SiChannel):
+    fine_pitch = True
+    necked = True
+
+
 class SiChannelDesign(SampleDesign):
     def __init__(self) -> None:
         self.circuit = SiChannel()
@@ -327,3 +442,25 @@ class IdealViaDesign(SampleDesign):
 class NoViaModelDesign(SampleDesign):
     def __init__(self) -> None:
         self.circuit = NoViaModel()
+
+
+class ViaAttachedAcrossPadDesign(SampleDesign):
+    def __init__(self) -> None:
+        self.circuit = ViaAttachedAcrossPad()
+
+
+class ViaNettedAcrossPadDesign(SampleDesign):
+    def __init__(self) -> None:
+        self.circuit = ViaNettedAcrossPad()
+
+
+class FinePitchDesign(SampleDesign):
+    def __init__(self) -> None:
+        self.circuit = FinePitch()
+
+
+class FinePitchNeckDesign(SampleDesign):
+    substrate = NeckSubstrate()
+
+    def __init__(self) -> None:
+        self.circuit = FinePitchNeck()

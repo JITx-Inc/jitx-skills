@@ -115,15 +115,14 @@ Passives resolve from the project's parts chain, and its first member reads `par
 
 Once the user chose JLCPCB, the chain and this list follow `jitx-jlcpcb`.
 
-With no list from the user, copy the example CSV that ships in `jitxexamples` as a stand-in. Install it into the project venv once with `--no-deps`, so its own pins cannot replace the project's `jitx` or `jitxlib-parts`; it is not added to the project's dependencies:
+With no list from the user, copy the example CSV that ships in `jitxexamples` as a stand-in. The base `jitx` skill's setup installs `jitxexamples` (Step 1); it is not added to the project's dependencies:
 
 ```bash
-pip install --no-deps --upgrade jitxexamples
 mkdir -p parts
 python -c "import importlib.resources as r, shutil; shutil.copy(r.files('jitxexamples') / 'parts' / 'example-passives.csv', 'parts/approved-parts.csv')"
 ```
 
-If the copy raises `FileNotFoundError`, the installed `jitxexamples` predates the packaged example CSV: ask the user for a parts list instead.
+If the copy raises `ModuleNotFoundError`, `jitxexamples` is not installed: run the base skill's Step 1 `jitxexamples` and `eseries` lines, then copy again. If it raises `FileNotFoundError`, the installed `jitxexamples` predates the packaged example CSV: ask the user for a parts list instead.
 
 Tell the user the list is a stand-in and record it in PLAN.md `Data Sources`. A stand-in is not an approval: the Phase 4 parts gate lists every MPN the final build resolved, each with the user's approval quoted, or the user's list replaces the stand-in. Read that list from the final build. Not from `parts.lock.json`: the lock never prunes, so it still holds stale entries, `IDEAL-` parts included. Not from `parts-check` either: it prints counts, not MPNs. Start `jitx design session <design>` in the background (it prints nothing until stopped), then:
 
@@ -213,7 +212,7 @@ Run independent clusters in parallel. Within a cluster, respect dependencies.
 
 ### Bundle wiring for constrained signals
 
-Subcircuits that expose bundles (I2C, ULPI, USB2, etc.) wire the bundle sub-ports to component pins with `+`, including for signals that will receive an SI constraint at top level. On jitx 4.6 a constraint binds across plain nets; no `>>` is needed. What it does need is a `BridgingPinModel` on every part inside the subcircuit with a path through it (none on a flow-through package whose opposite pin is n.c.; its two lands are one net) and, before it measures, routes along the path. See [Plain nets carry SI constraints (CRITICAL)](#plain-nets-carry-si-constraints-critical).
+Subcircuits that expose bundles (I2C, ULPI, USB2, etc.) wire the bundle sub-ports to component pins with `+`, including for signals that will receive an SI constraint at top level. A constraint binds across plain nets; no `>>` is needed. What it does need is a `BridgingPinModel` on every part inside the subcircuit with a path through it (none on a flow-through package whose opposite pin is n.c.; its two lands are one net) and, before it measures, routes along the path. See [Plain nets carry SI constraints (CRITICAL)](#plain-nets-carry-si-constraints-critical).
 
 Each constrained interface's verification design belongs to its own Phase 2 `ver-` task, not to the module tasks on its path; see [SI verification designs (CRITICAL)](#si-verification-designs-critical).
 
@@ -347,7 +346,7 @@ classes of nets" with a reason.
 
 ### Plain nets carry SI constraints (CRITICAL)
 
-On jitx 4.6, `Constrain`, `ConstrainDiffPair` and `ConstrainReferenceDifference` apply to `Topology(begin, end)` when the ports between the two ends are joined by ordinary `+` nets. A subcircuit wires its bundle sub-ports to component pins with `+`, the top level merges the bundles with `+`, and the constraint follows the signal across both. No `>>` is needed. On jitx 4.6.0rc10 with runtime 4.6.0-rc.16, a diff pair netted to a circuit-level `DiffPair` port with `+` in each of two subcircuits, joined with `+` at the top and code-routed, measured `Time: 104.529ps` and `Skew: 0s`, with no unresolved text in any group, whether the Topology named the component pins or the two circuit bundle ports. A circuit bundle port resolves to the first pad behind it, so with a series part inside the sub-circuit, name the chip pad instead, and on a single-ended net also put a structure-only constraint on the circuit ports: without it the segment joined through the ports reports `Missing routing structure` (with it the measured Time changes; not tried on a diff pair). `jitx-interconnect-constraints` "Choosing the ends" links the measured case.
+`Constrain`, `ConstrainDiffPair` and `ConstrainReferenceDifference` apply to `Topology(begin, end)` when the ports between the two ends are joined by ordinary `+` nets. A subcircuit wires its bundle sub-ports to component pins with `+`, the top level merges the bundles with `+`, and the constraint follows the signal across both. No `>>` is needed. In one checked build, a diff pair netted to a circuit-level `DiffPair` port with `+` in each of two subcircuits, joined with `+` at the top and code-routed, measured `Time: 104.529ps` and `Skew: 0s`, with no unresolved text in any group, whether the Topology named the component pins or the two circuit bundle ports. A circuit bundle port resolves to the first pad behind it, so with a series part inside the sub-circuit, name the chip pad instead, and on a single-ended net also put a structure-only constraint on the circuit ports: without it the segment joined through the ports reports `Missing routing structure` (with it the measured Time changes; not tried on a diff pair). `jitx-interconnect-constraints` "Choosing the ends" links the measured case.
 
 ```python
 # Subcircuit: the bundle port and the component pin share a plain net.
@@ -396,7 +395,7 @@ Binding is proven on a code-routed verification design, not on the shipping asse
 A constrained interface is the constrained paths between the same modules, with every constraint on them: for example, every data, strobe, address, command and clock path between an FPGA and its DDR5 device, with each path's own constraint and each byte lane's `ConstrainReferenceDifference`. A path under two constraints belongs to that one interface, not to one interface per constraint. Each constrained interface gets its own Phase 2 `ver-` task (`ver-01`, `ver-02`, ...), which writes the verification design at `<ns>/designs/verify_<iface>.py`. Its PLAN entry depends on every module task on the path (the modules at both ends and any module the path passes through) and the constraint (`cst-`) task. The module tasks verify on their own `TestDesign` and do not depend on each other for SI, so two modules that share a path never wait on each other. The Phase 3 assembly checks its constraints against the verification design for parity. For routing and placement, follow the verification designs in `jitxexamples.patterns.pin_series_array` (`jitx-pin-assignment`, "Constraints on Pin-Assigned Ports"), but keep the constraint out of the product module: that pattern applies its constraints inside its circuit, which grep gate Pattern 1 hard-fails under `<ns>/circuits/`. Here the constraint goes in `verify_<iface>.py` and in the assembly.
 
 A verification design:
-- instantiates every module on the interface's paths with the parts between them, and places every part with `.at(...)`;
+- instantiates every module on the interface's paths with the parts between them, and gives each component a proof route touches its own `.at(...)` (`jitx-circuit-builder`, "Placement");
 - applies the SI constraints the assembly will apply, with the same Topology ends and pin models;
 - code-routes every path of the interface between physical pads; for a pin-assigned port, the routes land on the provider's physical pins and fix one legal mapping;
 - is checked with its SI check script, `<ns>/designs/check_si_<iface>.py`, run as `python -m <ns>.designs.check_si_<iface>`: the Python check in `jitx-interconnect-constraints` "Verification" (`issues(satisfied=True, wait=30)`, a `report.complete` check, then each group's `satisfied` and text, all in `main()` behind the `__name__` guard) with the verification design imported. The assembly's script, `<ns>/designs/check_si_main.py`, belongs to the assembly task (`asm-01`), as does its layout realization check, `<ns>/designs/check_layout_main.py`.
@@ -631,7 +630,7 @@ Concrete rule:
 1. **Surface the missing dependency to the user immediately.** Name what's missing and what work it blocks.
 2. **Do not substitute a lower-fidelity design as a workaround**: no removing SI constraints because the SI module didn't load, no swapping a custom substrate for a fallback because the predefined package didn't import.
 3. **Wait for user confirmation** before making any design-scope change. If the user explicitly accepts a reduced scope ("ship without controlled impedance, we'll fix the env after"), record that as a deferred item with their approval in the relevant gate block.
-4. **Environment fixes go before design fixes.** If the missing dependency is a setup issue (wrong venv, missing pip install, wrong Python version), fix the setup. If it's a real availability gap (`jitxexamples` not installed but referenced), confirm with the user before proceeding.
+4. **Environment fixes go before design fixes.** If the missing dependency is a setup issue (wrong venv, missing pip install such as `jitxexamples`, wrong Python version), fix the setup. If it's a real availability gap (a package or module the design needs that no install provides), confirm with the user before proceeding.
 
 This rule applies through every phase, not just Phase 0. Mid-project missing-dependency discoveries follow the same protocol.
 
