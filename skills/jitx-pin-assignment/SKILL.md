@@ -107,6 +107,16 @@ self.led_net = gpio.gpio + self.led.anode
 
 Worked example, end to end (RP2040 SPI and I2C muxing, a shipping design with no routes, legal and illegal verification designs): `jitxexamples.jumpstart_kits.js3_pin_assignment.mcu_muxing`.
 
+A required bundle has no field of its own. It takes its name from the first stored `Net` (a `>>` topology does not count), in the order the circuit assigns its fields, that holds any of its signals, and constraint paths that start on it read as members of that net (`RESET_n.ch[0].ca[0]`). Name it by storing a net of the whole bundle before any net of its signals:
+
+```python
+bus = self.fpga.require(VersalLPDDR4X)
+self.lpddr4x = Net([bus])  # stored first: paths read lpddr4x.ch[0].ca[0]
+self.RESET_n = bus.reset_n + self.memory.memory.RESET_n
+```
+
+Worked pattern: `jitxexamples.jumpstart_kits.js4_si_constraints.main`.
+
 ## Hierarchical Provider Composition
 
 Inside a provide method a provider can call `self.require(...)` on its own providers and map the outer bundle onto what it gets back. Use it when parts of an interface are chosen independently, such as SDA and SCL from their own pin lists. Inner bundle types are nested classes on the circuit or live in their own module.
