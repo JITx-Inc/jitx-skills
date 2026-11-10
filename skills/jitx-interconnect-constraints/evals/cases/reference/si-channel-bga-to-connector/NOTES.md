@@ -168,3 +168,27 @@ Each mutation first prints the problems the reference checks found in it (6
 for `cap-no-model`, 37 for `no-routes`, 16 for `no-via-model`), then
 `PASS variant=<name> problems=0`. A whole `main` run took 7.8 s wall time,
 runtime start and stop included.
+
+## Via joins and fine-pitch pads
+
+Four designs, two mutations and their fixes, each its own check variant.
+
+| Variant | Design | Report |
+|---|---|---|
+| `via-attached-across-pad` | each leg runs via, `pt.a`, `pt.b`, cap through a pass-through part whose pads are on the leg's net; the via is `PortAttachment(pt.b, via)` | `AmbiguousTopology` on all four legs: `Cannot infer the signal path from bga.tx0.p to conn.tx0.p: they are joined more than once, ...`; nothing measures |
+| `via-netted-across-pad` | the same, with `Net([pt.b, via])` | four Time, four Loss and four Skew lines, all satisfied; passes the reference checks |
+| `fine-pitch` | connector pads 0.2 mm wide at 0.3 mm pitch, 0.1 mm apart under `DRS_100`'s 0.2 mm clearance | `Unrealizable Route: Insufficient space`; the legs still measure |
+| `fine-pitch-neck` | the same, with the connector routes tagged `NeckTag` and `design_constraint(NeckTag(), priority=1).routing_structure(NeckSubstrate.NECK, ref_net=GND)`, a single-ended structure with 0.05 mm clearance | no unrealized route; four Time, four Loss and four Skew lines, all satisfied; passes the reference checks |
+
+- The attachment is ambiguous only across a pad. A via attached to the BGA pin
+  it is routed from (the reference) measures, and so do two vias between the
+  escape via and the cap, both attached to the BGA pin or to `cap.a`. A
+  flow-through part's pass-through pin pair (an ESD array's n.c. and channel
+  pins) is the common case: a via attached to the channel pin is ambiguous when
+  the routes reach that pin from the via through the n.c. pin, and measures
+  when they run from the channel pin straight to the via.
+- `check_reference` rejects `AmbiguousTopology` and `UnrealizedRoute` issues;
+  the reference reports neither.
+- The fixture reports a structure too wide for the gap as `Unrealizable Route:
+  Insufficient space`, at gaps from 0.05 to 0.2 mm against clearances of 0.2
+  and 0.6 mm, and the check asserts that form.

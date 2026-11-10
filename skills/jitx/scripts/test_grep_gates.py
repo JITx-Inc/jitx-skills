@@ -220,5 +220,28 @@ class PowerRailCapacitorGateTests(unittest.TestCase):
         self.assertEqual(shorttrace_gate_hits(result), [], result.stdout)
 
 
+class SourceSelectionTests(unittest.TestCase):
+    def test_copy_of_the_script_is_not_scanned(self) -> None:
+        own = SCRIPT.read_text(encoding="utf-8")
+        result = run_gates({"scripts/grep_gates.py": own, "rail.py": DECOUPLED})
+        self.assertNotIn("scripts/grep_gates.py", result.stdout)
+        self.assertIn("hard-fail hits: 0", result.stdout)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_hidden_and_site_packages_dirs_are_not_scanned(self) -> None:
+        result = run_gates(
+            {
+                ".venv/lib/site-packages/pkg/mod.py": UNDECOUPLED,
+                "vendor/site-packages/mod.py": UNDECOUPLED,
+                "rail.py": DECOUPLED,
+            }
+        )
+        self.assertEqual(shorttrace_gate_hits(result), [], result.stdout)
+
+    def test_project_source_is_still_scanned(self) -> None:
+        result = run_gates({"pkg/rail.py": UNDECOUPLED})
+        self.assertEqual(len(shorttrace_gate_hits(result)), 1, result.stdout)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

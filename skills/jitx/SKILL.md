@@ -7,7 +7,23 @@ description: "Base skill for JITX Python PCB design: install, the jitx CLI, auth
 
 Run this skill's setup before any sub-skill: they assume a working runtime.
 
-> **Supported version line.** This bundle targets **jitx 4.6.x** (`jitx >= 4.6, < 4.7`). Sibling skills don't restate the range; their "verified on 4.4.0" notes are evidence for those claims on that release. Where the installed package differs from these pages, follow the package and verify every import with `pyright`.
+## Supported versions
+
+Bundle 1.8.1 targets JITX 4.6. This table is the only place the skills name supported versions; the install commands below apply them, and the other skills assume them.
+
+| Package | Release | Install with |
+|---|---|---|
+| `jitx` (framework and CLI) | 4.6.0 | `"jitx>=4.6,<4.7"` (Step 1) |
+| JITX runtime | 4.6.0 | `jitx runtime install` (Step 4); its major.minor must match `jitx` |
+| `jitxlib-standard` | 4.6.0 | `jitxlib-standard` (Step 1); it requires `jitx>=4.6,<4.7` |
+| `jitxlib-parts` | 2.0.0 | `"jitxlib-parts>=2,<3"` (Step 1) |
+| `jitxlib-jlcpcb`, JLCPCB boards only | 4.0.0 | `"jitxlib-jlcpcb>=4,<5"` (`jitx-jlcpcb`, once the user chooses JLCPCB) |
+| `jitxexamples` | 2.0.0 | `--no-deps "jitxexamples>=2.0,<2.1"` (Step 1) |
+| `jitxlib-mechanical`, mechanical CAD only | 0.2.0 | `pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple "jitxlib-mechanical==0.2.0"` |
+
+- Every name the skills tell you to import resolves on these package releases, and every docs.jitx.com URL they give returned a page when checked for this bundle.
+- Observed results in the skills (measured values, messages, what a build realized or rejected) come from pre-release builds or earlier releases and were not re-run on these releases, so your install can behave differently.
+- Where the installed package differs from these pages, follow the package and verify every import with `pyright`.
 
 Commands are bash. In Windows PowerShell: use `python` for `python3`, activate with `.\.venv\Scripts\Activate.ps1`, write the `[ ... ] ||` guards as `if (-not (Test-Path ...))` and `grep -q` as `Select-String -Quiet`, and clear a `$env:VAR=` setting with `Remove-Item Env:VAR` when it should apply to one command. On Windows, in PowerShell or Git Bash, the `&`, `pkill` and `pgrep` steps have no verified form: ask the user to run long-lived commands in their own terminal and to close viewers themselves.
 
@@ -21,11 +37,13 @@ In an existing project, activate its venv, read `jitx --version`, and ask before
 [ -d .venv ] || python3 -m venv .venv
 source .venv/bin/activate          # Git Bash on Windows: .venv/Scripts/activate
 python -c 'import sys; assert sys.version_info >= (3, 12), sys.version'
-pip install "jitx>=4.6,<4.7" jitxlib-standard jitxlib-parts ruff pyright
+pip install "jitx>=4.6,<4.7" jitxlib-standard "jitxlib-parts>=2,<3" ruff pyright
+pip install --no-deps --upgrade "jitxexamples>=2.0,<2.1"
+pip install "eseries>=1.2.1,<2"   # the one jitxexamples requirement the lines above don't bring
 jitx --version
 ```
 
-`jitx` brings the framework and CLI but no `jitxlib`: `jitxlib-standard` gives `jitxlib.landpatterns`, `.symbols`, `.protocols`, `.bundles`, `.via_structures` and `.physics`; `jitxlib-parts` the `Resistor`/`Capacitor`/`Inductor` queries; `jitxlib-jlcpcb`, only once the user chooses JLCPCB (`jitx-jlcpcb`), its substrates and parts.
+`jitx` brings the framework and CLI but no `jitxlib`: `jitxlib-standard` gives `jitxlib.landpatterns`, `.symbols`, `.protocols`, `.bundles`, `.via_structures` and `.physics`; `jitxlib-parts` the `Resistor`/`Capacitor`/`Inductor` queries; `jitxlib-jlcpcb`, only once the user chooses JLCPCB (`jitx-jlcpcb`), its substrates and parts. `jitxexamples` holds the worked patterns, example components and example parts CSV the other skills point at; `--no-deps` keeps its own pins off the project's `jitx` and `jitxlib-parts`. It is a project dependency only when the design imports it (`jitx-layout-constraints`).
 
 If the assertion fails, recreate `.venv` with Python 3.12 or newer.
 
@@ -33,7 +51,7 @@ If the assertion fails, recreate `.venv` with Python 3.12 or newer.
 
 ```bash
 [ -f pyproject.toml ] && grep -q jitx pyproject.toml || jitx project layout init   # ask first if files other than .venv exist
-pip install -e . "jitx>=4.6,<4.7" jitxlib-standard jitxlib-parts
+pip install -e . "jitx>=4.6,<4.7" jitxlib-standard "jitxlib-parts>=2,<3"
 python -c "import jitxlib.landpatterns, jitxlib.parts"
 ```
 
@@ -94,15 +112,15 @@ jitx runtime status | grep -q reachable || jitx runtime start --background
 
 ## Running designs
 
-`jitx build` prints `status: ok` or a traceback and `status: error`. Results land in `designs/<module.path.DesignClass>/`: `cache/netlist.json`, `cache/design-explorer.json` (the hierarchy), and `design-info/` (interactive placements). Never delete `designs/<design>` casually. A cryptic `No field with key '$_...'` after a version change means `design-info/` is unreadable by the new pairing: restore it from git and restart the runtime.
+`jitx build` prints `status: ok` or a traceback and `status: error`. Results land in `designs/<module.path.DesignClass>/`: `cache/design-explorer.json` (the module tree, nets kept per module: check connectivity with tests, `jitx-circuit-builder` "Asserting connectivity in tests", not by parsing it), and `design-info/` (interactive placements). Never delete `designs/<design>` casually. A cryptic `No field with key '$_...'` after a version change means `design-info/` is unreadable by the new pairing: restore it from git and restart the runtime.
 
 - **`--dry` is not a build.** With no runtime, `jitx build` exits 1 and offers `--dry`, which then reports `status: ok`. It misses failures such as `Public name already in use`, and never satisfies a step that asks for a build.
-- **Dependency check.** Do not run the `jitx project dependencies upgrade` a build suggests: it can leave the supported line.
+- **Dependency check.** Do not run the `jitx project dependencies upgrade` a build suggests: it can leave the supported versions.
 - **Parameterized designs.** `jitx find` lists a `Design` whose `__init__` takes required arguments, but building it fails with `Design is parameterized but no parameters were provided`. Add a thin module-scope subclass with concrete values and build that.
 - **Rebuild prompts.** Some rebuilds ask `[Y/n]` before deleting stale instances; headless, the build ends `EOF when reading a line`. The answer is the user's: end your build, tell them what it printed, and rebuild once they answer in the JITX UI or their own terminal. Pipe `yes |` only when the user says to; PowerShell has no verified equivalent.
 - **Stalled build.** Run long builds with `PYTHONUNBUFFERED=1`. If a build shows no output and little CPU for a minute, check `jitx runtime status` in every other open JITX project, `pgrep -fl interactive-client` for accumulated clients, and what `jitx runtime cleanup` reports. Ask before stopping anything.
 - **`status: ok` is not routed copper.** Realization is silent: verify geometry from Python (Introspection, `jitx-code-layout`).
-- **Exports.** The `legacy-*` plugins are fab and CAD handoffs, not verification. Other packages (such as `jitxlib-ansys`) add plugins.
+- **Exports.** Exported files are fab and CAD handoffs, not verification. Other packages (such as `jitxlib-ansys`) add plugins.
 
 ### Build safety: don't parallelize same-design work
 

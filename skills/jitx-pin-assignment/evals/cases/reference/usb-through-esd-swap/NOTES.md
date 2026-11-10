@@ -130,3 +130,20 @@ PASS variant=unrouted: no path host.usb.p -> conn.usb.p; no path host.usb.n -> c
 The same numbers came back on an earlier run the same day. `jitx design issues`
 exits 0 whatever it reports, so the check reads the report text and exits 1 on
 any miss.
+
+## Placement and a via in the ESD part's pad
+
+Three more variants; the first five report as above.
+
+| Variant | Design | Report |
+|---|---|---|
+| `CircuitPlaced` | straight routes; `EsdProtection(place_part=False).at(0, 0)`, so the circuit is placed and the ESD part is not | `Missing Connection on Path: host.usb.p, prot.esd.ch_in[0]` (and `.n`, `ch_in[1]`); `Routing: 4 issues: Unable to find path for requested route`; nothing measured |
+| `ViaInPadAttached` | straight; each host-side leg is a `THVia` in the host pad (`Net([host_pin, via])`), one layer-1 `Route` to a `THVia` in the ESD in pad, `PortAttachment(ch_in[k], via)` | a Time line on each leg, Skew satisfied, `Routing: Satisfied`; placeholder-model lines for the model-less `THVia` |
+| `ViaInPadBoth` | the same, with each ESD-pad via also in `Net([ch_in[k], via])` | the build fails: `jitx.error.UserCodeException: Encountered THVia both in a net and port attached`; `jitx design issues` exits 1 and the check expects that |
+
+- A circuit's `.at()` sets only its frame: with only `EsdProtection` placed, the
+  ESD part is left to the placer and the routes to it are not made.
+- The ESD-pad via joined only by `Net([ch_in[k], via])` (no attachment)
+  measures in this fixture, with and without the connector-side routes and on
+  the swapped channels, so the check has no variant for it. The skill states
+  only the attached form, which `ViaInPadAttached` checks.

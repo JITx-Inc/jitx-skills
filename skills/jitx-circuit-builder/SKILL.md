@@ -76,7 +76,7 @@ class EthernetPort(Circuit):
         self.MDI = self.phy.mdi + self.jack.mdi
 ```
 
-A parent wires its children's boundary ports to each other and to its own. It never nets into a child's components, and a child never reaches up: a pin the parent needs is a boundary port of the child. SI constraint ends, a verification design's placement and its proof routes may still name a child's pads (`jitx-interconnect-constraints`, "Choosing the ends").
+A parent wires its children's boundary ports to each other and to its own. It never nets into a child's components, and a child never reaches up: a pin the parent needs is a boundary port of the child. SI constraint ends, a verification design's placement and its proof routes may still name a child's pads (`jitx-interconnect-constraints`, "Choosing the ends"), and so may a `ShortTrace` whose end would be a child's boundary port spanning several pads: it names one of the child's pads (below).
 
 ## Placement
 
@@ -86,7 +86,7 @@ self.jack = RJ45().at(0, 0, on=Side.Bottom)  # Side from jitx.layerindex
 self.phy = PhyCircuit().at(floating=True)  # Circuit only: placed interactively
 ```
 
-A sub-circuit without `.at` sits at its parent's origin on top. Until a placement is stored, a floating circuit sits off the board: routes stay unrealized and pours `Empty()` while the build reports `status: ok`. That trap, relative placement (`Circuit.place`) and code-placed vias are `jitx-code-layout`.
+A sub-circuit without `.at` sits at its parent's origin on top. A circuit's `.at` places only its frame: a component inside it with no `.at` of its own is left to the placer. Until a placement is stored, a floating circuit sits off the board: routes stay unrealized and pours `Empty()` while the build reports `status: ok`. That trap, relative placement (`Circuit.place`) and code-placed vias are `jitx-code-layout`.
 
 ## Nets
 
@@ -103,8 +103,6 @@ self.GND = Net([self.reg.vout.Vn], symbol=GroundSymbol())
 ```
 
 The rail exports as `P3V3` and `GND`, with a symbol at each part on it; the bundle's field name (`VSYS`) does not export. With the symbol net stored after the bundle, its field names the whole rail, so a bundle in `self.P3V3` with its symbol net in `self.P3V3_SYM` exports `P3V3_SYM`.
-
-Measured on jitx 4.6.0rc10.
 
 `+=` takes a port or a `Net`, never a bare list:
 
@@ -126,6 +124,8 @@ self.assertEqual(len(list(circuit.GND)), 30)
 ```
 
 A bundle net lists its bundles. Assert that, then that each child's boundary member reaches the component pin.
+
+Assert each net's exact members (`assertCountEqual` over `list(net)`), not only `assertIn`: an extra port, such as a regulator's input shorted onto its output rail, passes every `assertIn`. Where a short would be quiet, assert it away (`assertNotIn(self.reg.vin, list(self.VSYS))`).
 
 ## Passives
 
@@ -152,7 +152,7 @@ A part's `query=` object or a `with` block replaces the whole default; its keywo
 
 ## Decouple against the pins
 
-A power-rail capacitor is its own attribute on `self`, its supply-side pad joins the pin it serves through `ShortTrace(self.c_x.p1, <the IC power pin port>)` and its other pad joins the return net. `jitx.net.ShortTrace(p1, p2)` takes two ports, each a component pin or a boundary port: never a net (pyright rejects one) or a net's `.port` (pyright passes; translation fails).
+A power-rail capacitor is its own attribute on `self`, its supply-side pad joins the pin it serves through `ShortTrace(self.c_x.p1, <the IC power pin port>)` and its other pad joins the return net. `jitx.net.ShortTrace(p1, p2)` takes two ports, each a component pin or a boundary port: never a net (pyright rejects one) or a net's `.port` (pyright passes; translation fails). A port joined to several pads, such as a FET's two drain pads, names no single pad, yet a `ShortTrace` to it builds with no warning: end the `ShortTrace` on a component port mapped to one pad, the larger one when the component model says which (`fet.mosfet.D[1]`, the tab), and never add a port to name that pad. Where the model gives no pad a port of its own, end it on the shared port and list that as an open item.
 
 This covers decoupling, bulk (to the supply pin it serves nearest) and output-filter capacitors (to the regulator output pin); a `PolarizedCapacitor` uses `.a`. A bootstrap capacitor takes a `ShortTrace` to its BOOT pin, other pad to SW per the datasheet; a crystal load capacitor takes one to its crystal pin, other pad to the return net. AC-coupling, RC timing, compensation and RF matching capacitors aren't power-rail; say so for each.
 

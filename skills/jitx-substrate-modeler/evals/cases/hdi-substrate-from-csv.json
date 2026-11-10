@@ -24,7 +24,7 @@
       "cmd": "python3 -m pyright --pythonpath \"$(command -v python3)\" <output>/board.py"
     },
     {
-      "text": "board.py matches the report CSV row for row: stackup, materials and names, vias with drill direction and each via's tenting per its VIAS Tented cell (TH-1 tented on the top only), capped vias filled, no via models declared, fab rules, routing structures with uncoupled regions and reference planes, each neck region on a structure beside its target's (regions with the same neck geometry may share one), no NeckDown or neck_down in board.py, and no structure for the uncontrolled row",
+      "text": "board.py matches the report CSV row for row: stackup, materials and names, vias with spans top to bottom and each via's tenting per its VIAS Tented cell (TH-1 tented on the top only), capped vias filled, no via models declared, fab rules, routing structures with uncoupled regions and reference planes, each neck region on a structure beside its target's (regions with the same neck geometry may share one), no NeckDown or neck_down in board.py, and no structure for the uncontrolled row",
       "check": "judge"
     },
     {
@@ -41,11 +41,16 @@
       "cmd": "python3 skills/jitx-substrate-modeler/scripts/check_labels.py <output>/board.py"
     },
     {
+      "text": "every via in board.py runs top to bottom: Via layer indexes are absolute and do not flip, so a bottom-side via drilled from the bottom still has its start_layer above its stop_layer",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-substrate-modeler/scripts/via_order.py --layers 12 <output>/board.py"
+    },
+    {
       "text": "no invented numbers: every value in board.py that no report row backs (the reference-plane widths, and anything else) carries a skill-default label on the same line at its call site, naming the rule it follows. A neck structure's impedance taken from one of its rows' Neck_modeled_Z_ohm values is report-backed when labeled with that source; its velocity and loss, which the report quotes for no neck, are the parent row's figures as a labeled default; neither is invented",
       "check": "judge"
     },
     {
-      "text": "the completion summary contains the filled Substrate completeness check block, every row with its evidence, and its Verdict follows from those rows: a Checks row showing a check (check.py, check_labels.py, the source-driven tests or the build) with a nonzero exit, failed, skipped or not run under \"Verdict: complete\" fails this assertion, and so does a Verdict \"open items: <list>\" whose list leaves out a check that the Checks row shows with a nonzero exit, failed, skipped or not run",
+      "text": "the completion summary contains the filled Substrate completeness check block, every row with its evidence, and its Verdict follows from those rows: a Checks row showing a check (check.py, check_labels.py, via_order.py, the source-driven tests or the build) with a nonzero exit, failed, skipped or not run under \"Verdict: complete\" fails this assertion, and so does a Verdict \"open items: <list>\" whose list leaves out a check that the Checks row shows with a nonzero exit, failed, skipped or not run",
       "check": "judge"
     }
   ],
