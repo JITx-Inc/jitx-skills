@@ -115,7 +115,7 @@ Passives resolve from the project's parts chain, and its first member reads `par
 
 Once the user chose JLCPCB, the chain and this list follow `jitx-jlcpcb`.
 
-With no list from the user, copy the example CSV that ships in `jitxexamples` as a stand-in. The base `jitx` skill's setup installs `jitxexamples` (Step 1); it is not added to the project's dependencies:
+With no list from the user, copy the example CSV that ships in `jitxexamples` as a stand-in. The base `jitx` skill's setup installs `jitxexamples` (Step 1); copying the CSV does not make it a project dependency:
 
 ```bash
 mkdir -p parts

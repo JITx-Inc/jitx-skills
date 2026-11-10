@@ -9,7 +9,7 @@ A layout in code is fixed: every build puts its control points and vias where th
 
 ## Environment
 
-Invoke the base `jitx` skill first. Worked patterns are `jitxexamples` modules, which the base skill's Step 1 installs. If a named module is missing, the installed copy predates it: say so, and work from the rules here.
+Invoke the base `jitx` skill first. Worked patterns are `jitxexamples` modules, which the base skill's Step 1 installs. If a named module is missing, the installed copy predates it: rerun that step's `jitxexamples` line, which upgrades it to the supported release, and if the module is still missing, say so and work from the rules here.
 
 ## Code or designer
 

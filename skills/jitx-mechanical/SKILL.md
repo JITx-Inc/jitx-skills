@@ -103,7 +103,7 @@ jitx-mechanical import board.emn --output <ns>/board.py --report <ns>/board.repo
 | `--report PATH` | Output report path, `.md` or `.json`. Defaults beside output module. |
 | `--class-name NAME` | Generated `Board` class name. Default: `ImportedBoard`. |
 | `--hole-policy cutout\|component` | Cutouts for all holes, or components for plated/unknown holes with NPTH kept as cutouts. Ask the user first. |
-| `--unit mm|in|mil|cm|m` | Force DXF units. |
+| `--unit mm\|in\|mil\|cm\|m` | Force DXF units. |
 | `--layer-map LAYER=ROLE ...` | Map DXF layers to roles. |
 | `--no-recenter` | Preserve source coordinates instead of recentering. |
 | `--precision N` | Coordinate precision. Default: `4`. |

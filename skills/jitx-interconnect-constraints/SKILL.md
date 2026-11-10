@@ -1,6 +1,6 @@
 ---
 name: jitx-interconnect-constraints
-description: "Use when the user asks about timing constraints, skew matching, insertion loss limits, pin models (bridging, terminating, via models), proving that an SI constraint applied, or debugging a constraint that does not measure in the design issues report. Also covers differential pairs, DiffPair bundles, skew across a bundle or against a clock, protocol constraints for PCIe, USB, DisplayPort, RGMII, Ethernet, DDR, reference planes, length matching, impedance-controlled routing, SignalConstraint definitions, and daisy-chain or flyby topologies built with the double-greater-than operator. Covers Topology, Constrain, ConstrainDiffPair, ConstrainReferenceDifference, DiffPairConstraint, BridgingPinModel, TerminatingPinModel, ReferencePlanes, and protocol-specific constraint patterns. Trace width and clearance rules belong to jitx-layout-constraints. Pin muxing and lane or polarity swappability belong to jitx-pin-assignment. Stackups and routing structures belong to jitx-substrate-modeler."
+description: "Use when the user asks about timing constraints, skew matching, insertion loss limits, pin models (bridging, terminating, via models), proving that an SI constraint applied, or debugging a constraint that does not measure in the design issues report. Also covers differential pairs, DiffPair bundles, skew across a bundle or against a clock, protocol constraints for PCIe, USB, DisplayPort, RGMII, Ethernet, DDR, reference planes, length matching, impedance-controlled routing, SignalConstraint definitions, and daisy-chain or flyby topologies built with the double-greater-than operator. Covers Topology, Constrain, ConstrainDiffPair, ConstrainReferenceDifference, DiffPairConstraint, BridgingPinModel, TerminatingPinModel, ReferencePlanes, and protocol-specific constraint patterns. Trace width and clearance rules belong to jitx-layout-constraints. Pin muxing and lane or polarity swappability belong to jitx-pin-assignment. Stackups and routing-structure definitions belong to jitx-substrate-modeler."
 ---
 
 # JITX Interconnect Constraints
@@ -11,7 +11,7 @@ SI constraints (timing, insertion loss, intra-pair skew, skew to a reference): `
 
 Environment setup is handled by the base `jitx` skill. Ensure it has been invoked first.
 
-The worked patterns this skill points at are modules in the `jitxexamples` package, which the base `jitx` skill's Step 1 installs. If `import jitxexamples` raises `ModuleNotFoundError`, it is not installed: run that step's `jitxexamples` and `eseries` lines. If `jitxexamples` imports but a pointed-at module does not, the installed `jitxexamples` predates these patterns: say so, and work from the rules here.
+The worked patterns this skill points at are modules in the `jitxexamples` package, which the base `jitx` skill's Step 1 installs. If `import jitxexamples` raises `ModuleNotFoundError`, it is not installed: run that step's `jitxexamples` and `eseries` lines. If `jitxexamples` imports but a pointed-at module does not, the installed `jitxexamples` predates these patterns: rerun that step's `jitxexamples` line, which upgrades it to the supported release, and if the module is still missing, say so and work from the rules here.
 
 ## Package Architecture
 

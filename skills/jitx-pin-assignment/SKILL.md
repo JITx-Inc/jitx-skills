@@ -11,7 +11,7 @@ Model flexible pin mappings between circuit-level interfaces and component pins.
 
 Environment setup is handled by the base `jitx` skill. Ensure it has been invoked first.
 
-The worked patterns this skill points at are modules in the `jitxexamples` package, which the base `jitx` skill's Step 1 installs. If `import jitxexamples` raises `ModuleNotFoundError`, it is not installed: run that step's `jitxexamples` and `eseries` lines. If `jitxexamples` imports but a pointed-at module does not, the installed `jitxexamples` predates these patterns: say so, and work from the rules here.
+The worked patterns this skill points at are modules in the `jitxexamples` package, which the base `jitx` skill's Step 1 installs. If `import jitxexamples` raises `ModuleNotFoundError`, it is not installed: run that step's `jitxexamples` and `eseries` lines. If `jitxexamples` imports but a pointed-at module does not, the installed `jitxexamples` predates these patterns: rerun that step's `jitxexamples` line, which upgrades it to the supported release, and if the module is still missing, say so and work from the rules here.
 
 ## Package Architecture
 
