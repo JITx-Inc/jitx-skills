@@ -45,8 +45,6 @@ Codex skills can be invoked explicitly with `$jitx`, `$jitx-component-modeler`, 
 
 ## Updating
 
-From 1.8.x to 2.0.0: `jitx-physical-layout` is now `jitx-code-layout`, so invoke it by the new name in Claude Code and Codex. 2.0.0 also adds `jitx-interactive-layout` and `jitx-jlcpcb`. Projects that install `jitxexamples` move to 2.1.x (see Requirements).
-
 Claude Code:
 
 ```text
