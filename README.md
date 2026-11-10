@@ -45,6 +45,8 @@ Codex skills can be invoked explicitly with `$jitx`, `$jitx-component-modeler`, 
 
 ## Updating
 
+From 1.8.x to 2.0.0: `jitx-physical-layout` is now `jitx-code-layout`, so invoke it by the new name in Claude Code and Codex. 2.0.0 also adds `jitx-interactive-layout` and `jitx-jlcpcb`. Projects that install `jitxexamples` move to 2.1.x (see Requirements).
+
 Claude Code:
 
 ```text
@@ -244,7 +246,7 @@ jitx-skills/
 ## Requirements
 
 - A JITX Python project with `pyproject.toml` containing a JITX dependency
-- JITX 4.6 (`jitx>=4.6,<4.7`) and the JITX 4.6 runtime, with `jitxlib-standard` 4.6, `jitxlib-parts` 2.x, `jitxexamples` 2.0.x and, for JLCPCB boards, `jitxlib-jlcpcb` 4.x. This release targets JITX 4.6 only. The previous release, 1.7.0, documents the JITX 4.2 API, and no release targets 4.4, so move a 4.4 project to 4.6 before using these skills. The released versions the skills were checked against are in the Supported versions table in `skills/jitx/SKILL.md`.
+- JITX 4.6 (`jitx>=4.6,<4.7`) and the JITX 4.6 runtime, with `jitxlib-standard` 4.6, `jitxlib-parts` 2.x, `jitxexamples` 2.1.x and, for JLCPCB boards, `jitxlib-jlcpcb` 4.x. This release targets JITX 4.6 only, as 1.8.1 did. Release 1.7.0 documents the JITX 4.2 API, and no release targets 4.4, so move a 4.4 project to 4.6 before using these skills. The released versions the skills were checked against are in the Supported versions table in `skills/jitx/SKILL.md`.
 - Python 3.12+
 - For datasheet processing: `pip install pymupdf`
 

@@ -9,7 +9,7 @@ Run this skill's setup before any sub-skill: they assume a working runtime.
 
 ## Supported versions
 
-Bundle 1.8.1 targets JITX 4.6. This table is the only place the skills name supported versions; the install commands below apply them, and the other skills assume them.
+Bundle 2.0.0 targets JITX 4.6. This table is the only place the skills name supported versions; the install commands below apply them, and the other skills assume them.
 
 | Package | Release | Install with |
 |---|---|---|
@@ -18,8 +18,8 @@ Bundle 1.8.1 targets JITX 4.6. This table is the only place the skills name supp
 | `jitxlib-standard` | 4.6.0 | `jitxlib-standard` (Step 1); it requires `jitx>=4.6,<4.7` |
 | `jitxlib-parts` | 2.0.0 | `"jitxlib-parts>=2,<3"` (Step 1) |
 | `jitxlib-jlcpcb`, JLCPCB boards only | 4.0.0 | `"jitxlib-jlcpcb>=4,<5"` (`jitx-jlcpcb`, once the user chooses JLCPCB) |
-| `jitxexamples` | 2.0.0 | `--no-deps "jitxexamples>=2.0,<2.1"` (Step 1) |
-| `jitxlib-mechanical`, mechanical CAD only | 0.2.0 | `pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple "jitxlib-mechanical==0.2.0"` |
+| `jitxexamples` | 2.1.0 | `--no-deps "jitxexamples>=2.1,<2.2"` (Step 1) |
+| `jitxlib-mechanical`, mechanical CAD only | 0.1.0 | `pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple "jitxlib-mechanical==0.1.0"` |
 
 - Every name the skills tell you to import resolves on these package releases, and every docs.jitx.com URL they give returned a page when checked for this bundle.
 - Observed results in the skills (measured values, messages, what a build realized or rejected) come from pre-release builds or earlier releases and were not re-run on these releases, so your install can behave differently.
@@ -38,7 +38,7 @@ In an existing project, activate its venv, read `jitx --version`, and ask before
 source .venv/bin/activate          # Git Bash on Windows: .venv/Scripts/activate
 python -c 'import sys; assert sys.version_info >= (3, 12), sys.version'
 pip install "jitx>=4.6,<4.7" jitxlib-standard "jitxlib-parts>=2,<3" ruff pyright
-pip install --no-deps --upgrade "jitxexamples>=2.0,<2.1"
+pip install --no-deps --upgrade "jitxexamples>=2.1,<2.2"
 pip install "eseries>=1.2.1,<2"   # the one jitxexamples requirement the lines above don't bring
 jitx --version
 ```
