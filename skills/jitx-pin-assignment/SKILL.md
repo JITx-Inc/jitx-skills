@@ -110,12 +110,12 @@ Worked example, end to end (RP2040 SPI and I2C muxing, a shipping design with no
 A required bundle has no field of its own. It takes its name from the first stored `Net` (a `>>` topology does not count), in the order the circuit assigns its fields, that holds any of its signals, and constraint paths that start on it read as members of that net (`RESET_n.ch[0].ca[0]`). Name it by storing a net of the whole bundle before any net of its signals:
 
 ```python
-bus = self.fpga.require(VersalLPDDR4X)
-self.lpddr4x = Net([bus])  # stored first: paths read lpddr4x.ch[0].ca[0]
+bus = self.fpga.require(VersalLPDDR4)
+self.lpddr4 = Net([bus])  # stored first: paths read lpddr4.ch[0].ca[0]
 self.RESET_n = bus.reset_n + self.memory.memory.RESET_n
 ```
 
-Worked pattern: `jitxexamples.jumpstart_kits.js4_si_constraints.main`.
+Worked pattern: `jitxexamples.jumpstart_kits.js4_fpga_lpddr4.base`.
 
 ## Hierarchical Provider Composition
 
@@ -164,9 +164,9 @@ Offer PCIe lane reversal, polarity inversion or a narrower link width only where
 Where the controller allows bytes to move between byte slots and bits within a byte, model both as two levels of `provide`, never `one_of` over bit permutations (8! = 40,320 options per byte):
 
 - Bit swap: per byte slot, a single-pin bundle type of its own (`Slot0Bit`, `Slot1Bit`, ...), offered `all_of` over the slot's eight DQ pins. Per slot because `require()` matches an offer by bundle type: one shared type would let a byte's bits resolve onto another slot's pins.
-- Byte swap: the bus bundle offered `one_of`, one option per allowed byte-to-slot order. In the options callback, `self.require(SlotBit, count=8)` once per slot; each option maps the fixed pins, the slot's DQS and DM, and the byte's eight DQ ports to that slot's eight bits.
+- Byte swap: the bus bundle offered `one_of`, one option per allowed byte-to-slot order. In the options callback, `self.require(SlotBit, count=8)` once per slot; each option maps the fixed pins, the slot's DQS and DMI, and the byte's eight DQ ports to that slot's eight bits.
 
-DQS and DM move with their byte; address, command and CK (polarity included) are fixed wiring. Match each DQ to its strobe with `ConstrainReferenceDifference` (rule 5). Worked example: `jitxexamples.jumpstart_kits.vp1002_lpddr4x` (LPDDR4X on a Versal VP1002: the pin layout in `pinout`, the two-level offer in `circuit` with the protocol's shared-CKE controller bundle in `bundles`, legal and illegal proof routes in `proof`; `jumpstart_kits.js4_si_constraints` holds each DQ to its strobe on that offer with `LPDDR4Constraint`).
+DQS and DMI move with their byte; address, command and CK (polarity included) are fixed wiring. Match each DQ to its strobe with `ConstrainReferenceDifference` (rule 5). Worked example: `jitxexamples.jumpstart_kits.vp1002_lpddr4` (LPDDR4 on a Versal VP1002: the pin layout in `pinout`, the two-level offer in `circuit` with the protocol's shared-CKE controller bundle in `bundles`). `jumpstart_kits.js4_fpga_lpddr4.constraint` holds each DQ to its strobe on that offer with `VersalLPDDR4Constraint`, which builds on `jitxexamples.protocols.memory.lpddr4.LPDDR4Constraint` for the per-DQ `ConstrainReferenceDifference`, and `js4_fpga_lpddr4.part3_si_constraints` applies it. `js4_fpga_lpddr4.part4_routing` is a reference layout whose routes resolve the offer to a byte swap within channel B.
 
 ## Common Mistakes
 
