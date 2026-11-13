@@ -492,8 +492,8 @@ For each item: pass | fail with details | not run (with reason)
 
 If any row is `not run`, give the reason. Common reasons:
 
-- **JITX UI not available** (CI / headless / no display). When this applies, use the build-output checks: run the connectivity tests (`jitx-circuit-builder`, "Asserting connectivity in tests") for orphan nets, parse `design-info/stable.design` for placement, the build log for DRC complaints, and `python -m <ns>.designs.check_si_main` for SI. Note in the row: `not run: headless; checked via connectivity tests (no orphans), build log, and the SI check script (SI groups dispositioned)`.
-- **Tool not installed.** Reason should name what's missing and a follow-up to install.
+- **JITX UI not available** (CI / headless / no display). Then use the build-output checks: run connectivity tests (`jitx-circuit-builder`, "Asserting connectivity in tests") for orphan nets, quote their output in the row, parse `design-info/stable.design` for placement, the build log for DRC complaints, and `python -m <ns>.designs.check_si_main` for SI. Note in the row: `not run: headless; connectivity tests: "OK" (no orphans), build log, and the SI check script (SI groups dispositioned)`.
+- **Tool not installed.** Name what's missing and a follow-up to install.
 
 A row that is `not run` without a reason fails the gate.
 
@@ -540,10 +540,10 @@ Rules:
   verdict. Without that item the verdict is `not-yet`.
 - The Physical realization row is blocking. Absence, `not run`, or a nonzero
   exit makes the verdict `not-yet`; a clean build does not substitute for it.
-- A `not run` row also requires fallback artifacts: if the JITX UI isn't available, name the build-output files used to substitute for it. Conventional fallbacks:
+- A `not run` row also requires fallback artifacts: if the JITX UI isn't available, name the build-output evidence used to substitute for it. Conventional fallbacks:
     - **Schematic / Issues List → `build log`** (cite path; flag any errors/warnings)
     - **Board placement / overlap → `<design-folder>/design-info/stable.design`** (machine-readable; can be inspected for overlap)
-    - **Connectivity / orphan nets → the connectivity tests** (`jitx-circuit-builder`, "Asserting connectivity in tests"); `cache/design-explorer.json` keeps nets per module, so it is no netlist
+    - **Connectivity / orphan nets → quoted test output** (`jitx-circuit-builder`, "Asserting connectivity in tests"); `cache/design-explorer.json` keeps nets per module, so it is no netlist
     - **DRC → `build log`** (DRC complaints surface in the build output)
     - **SI → `python -m <ns>.designs.check_si_main`** (measured and unresolved SI groups)
   A `not run: headless` row with no fallback artifact named is rejected.

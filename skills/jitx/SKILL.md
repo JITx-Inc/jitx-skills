@@ -135,11 +135,11 @@ Concurrent builds of one design share cache and output: sequence them. Different
 These hold for every JITX skill.
 
 - **Annotate every function's parameters and return type**, including test methods (`-> None`). No `# type: ignore` and no `# pyright:` comments: narrow, assert or annotate instead.
-- **Run pyright inside the project's environment.** Against an interpreter without `jitx`, pyright reports `Import "jitx" could not be resolved`: that's the interpreter, not the code, so never "fix" the imports. A tool launched from outside the venv points at it with `[tool.pyright] venvPath`/`venv` or `pyright --pythonpath`.
-- **Commit a ruff config and run ruff from the project root.** Config discovery walks up from the working directory. Set `line-length` explicitly if anything in the project emits Python. `RUF012` flags class-body port arrays (`GND = [Port() for _ in range(n)]`), which are the declaration model: silence it per file in `[tool.ruff.lint.per-file-ignores]` with a comment. Moving the ports into `__init__` breaks the component.
+- **Run pyright inside the project's environment.** Without `jitx` in the interpreter, pyright reports `Import "jitx" could not be resolved`: never "fix" the imports. From outside the venv, point pyright at it with `[tool.pyright] venvPath`/`venv` or `pyright --pythonpath`.
+- **Commit a ruff config and run ruff from the project root.** Set `line-length` explicitly if the project emits Python. `RUF012` flags class-body port arrays (`GND = [Port() for _ in range(n)]`): silence it per file in `[tool.ruff.lint.per-file-ignores]` with a comment. Moving the ports into `__init__` breaks the component.
 - **Copy `scripts/check.py` and `scripts/grep_gates.py` from this skill into the project's `scripts/`** and run `python scripts/check.py <ns>/` before calling work done. It runs ruff, ruff format, pyright, the grep gates and, with `--build`, a build. How to disposition a gate hit: `jitx-project-builder` [`references/completion-blocks.md`](../jitx-project-builder/references/completion-blocks.md).
-- **Test with `jitx.test.TestCase`** and `python -m unittest discover -s tests`. Take expected values from their source (datasheet, fab report, standard, requirement, independent formula), never copied from the tested code: a copy can't tell regressions from fixes. Test designs set `parts_lock = Lock(mode=LockMode.OFF)` (`references/parts-lock.md`).
-- **Run `jitx-code-review`** as a self-critique before declaring a task complete.
+- **Run `jitx-code-review`** before declaring a task complete.
+- **Tests are scaffolding.** Test freely in `jitx.test.TestCase` (`python -m unittest discover -s tests`), with expected values from a datasheet, report, standard, requirement or formula, never the code; test designs set `parts_lock = Lock(mode=LockMode.OFF)`. Finally, delete your scaffolding tests and report what they checked and that they passed. User-requested or pre-existing tests and `TestDesign` harnesses stay. The checks that stay are `check.py`, every design build (`jitx build-all`) and a generator's `--check`.
 
 ### Don'ts
 

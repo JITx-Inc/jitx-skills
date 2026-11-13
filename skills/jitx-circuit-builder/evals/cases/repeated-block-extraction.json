@@ -5,6 +5,7 @@
     "notes": "The request describes a repeated block in so many words. This case tests whether that becomes one parameterized subcircuit instantiated three times, or three copies that will drift.",
     "environment": "A project whose `[tool.jitx.parts] chain` resolves passive queries."
   },
+  "notes": "For whoever reads the judges' output, not for the runner. The judges get the run's transcript.jsonl as --artifact alongside the output. The base jitx skill has the runner delete the tests it wrote to check its own work before it finishes, so the contract's test dimensions are judged from the transcript: the tool calls that wrote the tests and the run that passed them.",
   "expected_output": "One Circuit subclass taking the output voltage (or the divider values) as a parameter, instantiated three times at the level above, with the shared input rail and the three output rails wired at that level.",
   "assertions": [
     {
@@ -39,6 +40,11 @@
     {
       "text": "no parallel model of the three stages is maintained alongside the JITX objects — no dict keyed by rail-name strings, no list of net-name strings, where the framework's own objects already carry the same facts",
       "check": "judge"
+    },
+    {
+      "text": "no test file the runner wrote is left in <output>: the base jitx skill has it delete its own tests before it finishes, so a test module still there means the run skipped that step",
+      "check": "deterministic",
+      "cmd": "cd <output> || exit 2; L=$(find . -type f -name '*.py' -not -path '*/.*' -not -path '*/site-packages/*' -exec grep -l -E 'TestCase\\)|def test_' {} +); if [ -n \"$L\" ]; then echo \"test files left in the output: $L\"; exit 1; fi"
     }
   ]
 }
