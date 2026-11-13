@@ -40,6 +40,11 @@
     {
       "text": "no parallel model of the three stages is maintained alongside the JITX objects — no dict keyed by rail-name strings, no list of net-name strings, where the framework's own objects already carry the same facts",
       "check": "judge"
+    },
+    {
+      "text": "no test file the runner wrote is left in <output>: the base jitx skill has it delete its own tests before it finishes, so a test module still there means the run skipped that step",
+      "check": "deterministic",
+      "cmd": "cd <output> || exit 2; L=$(find . -type f -name '*.py' -not -path '*/.*' -not -path '*/site-packages/*' -exec grep -l -E 'TestCase\\)|def test_' {} +); if [ -n \"$L\" ]; then echo \"test files left in the output: $L\"; exit 1; fi"
     }
   ]
 }
