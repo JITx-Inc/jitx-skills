@@ -16,7 +16,7 @@
     {
       "text": "the candidate's own tests pass, and they subclass jitx.test.TestCase rather than plain unittest.TestCase — outside the JITX instantiation context a design reads as empty and the suite goes green having compared nothing",
       "check": "deterministic",
-      "cmd": "cd <output> && T=$(find . -name '*test*.py' -not -path '*/.*' -not -path '*/site-packages/*') && [ -n \"$T\" ] && grep -qE 'jitx\\.test\\.TestCase|from jitx\\.test import TestCase' $T && ! grep -qE 'class .*\\(unittest\\.TestCase\\)' $T"
+      "cmd": "cd <output> && [ -n \"$(find . -name '*test*.py' -not -path '*/.*' -not -path '*/site-packages/*')\" ] && [ -n \"$(find . -name '*test*.py' -not -path '*/.*' -not -path '*/site-packages/*' -exec grep -lE 'jitx\\.test\\.TestCase|from jitx\\.test import TestCase' {} +)\" ] && [ -z \"$(find . -name '*test*.py' -not -path '*/.*' -not -path '*/site-packages/*' -exec grep -lE 'class .*\\(unittest\\.TestCase\\)' {} +)\" ]"
     },
     {
       "text": "no bare list is passed to `+=` anywhere in the output. pyright reports it only on a net built from ports; onto an empty `Net(name=...)`, where pyright is silent, the list is stored as one member, so an offline TestCase passes and the build fails with `TypeError: unhashable type: 'list'`; onto a net that holds ports it raises `Incompatible ports on Net: Port and list` at instantiation. Neither message names the call or the fix",

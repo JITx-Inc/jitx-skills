@@ -55,10 +55,10 @@ For a pin file, emit no component code until the parse reconciles and the user a
 
 After code exists, in order:
 
-1. Tests that construct components subclass `jitx.test.TestCase`; pure helper tests may use `unittest.TestCase`. Every package variant gets a pad-count check by `jitx.inspect.visit(lp, Pad)`; until it runs, verification stops. The snippet and other assertions: [component-guide.md](references/component-guide.md#testing-and-build).
+1. Tests that construct components subclass `jitx.test.TestCase`; pure helper tests may use `unittest.TestCase`. Every package variant gets a pad-count check by `jitx.inspect.visit(lp, Pad)`; until it runs, verification stops. Snippet and assertions: [component-guide.md](references/component-guide.md#testing-and-build).
 2. Run the test suite, and `pyright` on every Python file. Tests assert metadata, pin and pad counts, `.value` unset, and each relied-on default or imported footprint entry against the source.
 3. Run `jitx find`, take its build target verbatim, then build in the available virtual environment.
-4. Remove [scaffolding](../jitx/SKILL.md#writing-good-code) tests, then write the task acceptance block from `jitx-project-builder`, with the complete `Component check` below embedded under `Checks run`, into `COMPLETION.md` or the project's existing equivalent.
+4. After review fixes, remove [scaffolding](../jitx/SKILL.md#writing-good-code) tests, then write the task acceptance block from `jitx-project-builder`, with the complete `Component check` below embedded under `Checks run`, into `COMPLETION.md` or the project's existing equivalent.
 
 **Halt:** no filled block, no "done". Any non-clean type check, failing test, failed build, unrun available check, missing source, or unresolved row forces `Verdict: open items`. `Verdict: complete` is invalid until every row closes.
 

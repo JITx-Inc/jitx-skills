@@ -15,7 +15,7 @@
       "The outline dimensions no lead span: the terminals end at the body edge. The span has to be derived (from the body width, the terminal length, and the example board layout) and the derivation recorded, not taken from a generator default or a remembered 3 mm SON."
     ]
   },
-  "notes": "For whoever reads the judges' output, not for the runner. The judges get the run's transcript.jsonl as --artifact alongside the output. The base jitx skill has the runner delete the tests it wrote to check its own work before it finishes, so the contract's test dimensions are judged from the transcript: the tool calls that wrote the tests and the run that passed them. Judges score the runner's tests from the tool calls in the transcript that wrote and ran them, as well as what is in <output>; runner_artifacts, which the runner reads, names only <output>.",
+  "notes": "For whoever reads the judges' output, not for the runner. The judges get the run's transcript.jsonl as --artifact alongside the output. The base jitx skill has the runner delete the tests it wrote to check its own work before it finishes, so the contract's test dimensions are judged from the transcript: the tool calls that wrote the tests and the run that passed them. Judges also read what is in <output>; runner_artifacts, which the runner reads, names only <output>.",
   "reference": {
     "notes": "No committed reference solution. Every pin number and dimension the judges need is in inputs.notes and the assertions, with its page. Judges score the candidate against the datasheet only."
   },
