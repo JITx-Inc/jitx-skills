@@ -238,8 +238,8 @@ Everything in [component-guide.md](component-guide.md#testing-and-build) applies
 - **The generator's pure functions** against a small synthetic fixture.
 - **Regeneration**: run `--check` with the vendor file present and confirm it exits 0.
 
-Delete these tests and the fixture once they pass ([base `jitx` skill, Writing good
-code](../../jitx/SKILL.md#writing-good-code)); the generator and its `--check` stay.
+Delete these tests and the fixture once they pass, unless the user asked for them ([base `jitx`
+skill, Writing good code](../../jitx/SKILL.md#writing-good-code)); the generator and its `--check` stay.
 
 **Share one cached instantiation for assertions against the same design.** This is a
 structural requirement at this scale: instantiation at four-figure pin counts can dominate

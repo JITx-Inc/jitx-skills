@@ -5,22 +5,17 @@
     "notes": "A wide repeated-name rail is the first thing written against a large part, and it is where the net API's shape bites: Net(...) takes an iterable, += takes a port or a Net and never a bare list. The reference part is a stand-in with 24 GND, 6 RSVDGND and 8 VCCINT ports — the shape of the tie is what is under test, not the part.",
     "environment": "Offline. jitx.test.TestCase activates the instantiation context with no runtime and no parts database, so nothing here needs auth or a network."
   },
-  "notes": "For whoever reads the judges' output, not for the runner. The judge gets the run's transcript.jsonl as --artifact alongside the output. The base jitx skill has the runner delete the tests it wrote before it finishes, so every assertion about the tests (what they assert, what they subclass, that they pass) is judged from the transcript: the tool calls that wrote the tests and the run that passed them. A test file left in <output> fails the leftover check.",
   "reference": {
     "file": "evals/cases/reference/rail-tie/design.py",
     "check": "evals/cases/reference/rail-tie/check.py",
     "notes": "The reference's self-test, not scored against the run's output: check.py runs the connectivity checks offline and pyright over design.py and check.py. Run it with `python3 skills/jitx-circuit-builder/evals/cases/reference/rail-tie/check.py`."
   },
-  "expected_output": "A Circuit that ties both ground rails in one Net(...) call and the core rail plus the scalar pin into a second net, with tests subclassing jitx.test.TestCase that assert port counts and per-port membership over list(net) rather than with `in`, run to a pass the transcript shows and deleted before the run ends.",
+  "expected_output": "A Circuit that ties both ground rails in one Net(...) call and the core rail plus the scalar pin into a second net, with a test module subclassing jitx.test.TestCase that asserts port counts and per-port membership over list(net) rather than with `in`, and a check entry point that exits nonzero on failure.",
   "assertions": [
     {
-      "text": "the transcript shows the runner's own tests run and passing: a tool call that ran them returned a result, not an error, showing them pass after the last change to the code they test. The tests themselves are read from the tool calls that wrote them, since a run that follows the skill deletes them before it ends. They subclass jitx.test.TestCase rather than plain unittest.TestCase: outside the JITX instantiation context a design reads as empty and the suite goes green having compared nothing",
-      "check": "judge"
-    },
-    {
-      "text": "no test file the runner wrote is left in <output>: the base jitx skill has it delete its own tests before it finishes, so a test module still there means the run skipped that step",
+      "text": "the candidate's own tests pass, and they subclass jitx.test.TestCase rather than plain unittest.TestCase — outside the JITX instantiation context a design reads as empty and the suite goes green having compared nothing",
       "check": "deterministic",
-      "cmd": "cd <output> && L=$(find . -type f -name '*.py' \\( -name '*test*.py' -o -path '*/tests/*' \\) -not -path '*/.*' -not -path '*/site-packages/*') && if [ -n \"$L\" ]; then echo \"test files left in the output: $L\"; exit 1; fi"
+      "cmd": "grep -q 'jitx.test.TestCase' <output>/*test*.py && ! grep -qE 'class .*\\(unittest\\.TestCase\\)' <output>/*test*.py"
     },
     {
       "text": "no bare list is passed to `+=` anywhere in the output. pyright reports it only on a net built from ports; onto an empty `Net(name=...)`, where pyright is silent, the list is stored as one member, so an offline TestCase passes and the build fails with `TypeError: unhashable type: 'list'`; onto a net that holds ports it raises `Incompatible ports on Net: Port and list` at instantiation. Neither message names the call or the fix",
