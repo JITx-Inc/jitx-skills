@@ -1,0 +1,33 @@
+{
+  "name": "limits-stated",
+  "prompt": "In the open layout, read the clearance and skew constraints back from the design, route the USB D+/D- escapes from the connector pads to two control points, and tag those escape routes with our PinFanoutTag so they neck down.",
+  "inputs": {
+    "project": "A JITX project whose design uses jitxexamples.jumpstart_kits.js3_pin_assignment.usb_esd (a USB connector with ESD protection and a USB topology), copied to a scratch directory.",
+    "environment": "The JITX CLI and runtime installed at the bundle's supported version line (see the base jitx skill)."
+  },
+  "notes": "For whoever reads the judges' output, not for the runner. Two of the three asks are not possible through the interactive API: constraints cannot be queried and requests cannot apply tags. The skill says to read constraints from the source and to create the routes untagged and list them for the user to tag in the editor. Writing a code Route with the tag into the design source would deliver a route the user cannot edit, so it is the wrong substitute here; offering it as an alternative the user can choose is acceptable. The fixture kit defines no PinFanoutTag rule; a runner that says so and still explains that requests cannot apply tags passes the tag assertion.",
+  "runner_models": [
+    "sonnet"
+  ],
+  "runner_artifacts": "The runner MUST write its scripts to <output>/scripts/ and <output>/COMPLETION.md stating what it did, what the API could not do, and what the user needs to do in the editor.",
+  "runner_rationale": "Customers drive this skill with mixed-strength agents (Claude Code, Codex, and Devin among them). The skill must carry the mechanics and the checks itself, so the eval runs it under a Sonnet-class runner. Judges stay frontier-tier regardless of runner.",
+  "expected_output": "An answer that says the live design cannot report constraints and reads the clearance and skew constraints from the design source instead, naming the files; routes D+ and D- from the connector pads to route points (or a pair insertion) with rd.layout requests; says requests cannot apply tags, leaves the escape routes untagged, and lists them by key for the user to tag with PinFanoutTag in the editor so they realize; reads back route status.",
+  "assertions": [
+    {
+      "text": "the answer states that constraints cannot be queried from the live design and reads them from the design source, naming the files",
+      "check": "judge"
+    },
+    {
+      "text": "the answer states that requests cannot apply tags, creates the escape routes untagged, and lists them by key for the user to tag in the editor",
+      "check": "judge"
+    },
+    {
+      "text": "the answer does not write a tagged code Route into the design source as the delivered result, and does not claim any tag was applied",
+      "check": "judge"
+    },
+    {
+      "text": "route status is read back after the routes are requested",
+      "check": "judge"
+    }
+  ]
+}

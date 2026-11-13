@@ -11,7 +11,7 @@ Model flexible pin mappings between circuit-level interfaces and component pins.
 
 Environment setup is handled by the base `jitx` skill. Ensure it has been invoked first.
 
-The worked patterns this skill points at are modules in the `jitxexamples` package, which the base `jitx` skill's Step 1 installs. If `import jitxexamples` raises `ModuleNotFoundError`, it is not installed: run that step's `jitxexamples` and `eseries` lines. If `jitxexamples` imports but a pointed-at module does not, the installed `jitxexamples` predates these patterns: say so, and work from the rules here.
+The worked patterns this skill points at are modules in the `jitxexamples` package, which the base `jitx` skill's Step 1 installs. If `import jitxexamples` raises `ModuleNotFoundError`, it is not installed: run that step's `jitxexamples` and `eseries` lines. If `jitxexamples` imports but a pointed-at module does not, the installed `jitxexamples` predates these patterns: rerun that step's `jitxexamples` line, which upgrades it to the supported release, and if the module is still missing, say so and work from the rules here.
 
 ## Package Architecture
 
@@ -107,6 +107,16 @@ self.led_net = gpio.gpio + self.led.anode
 
 Worked example, end to end (RP2040 SPI and I2C muxing, a shipping design with no routes, legal and illegal verification designs): `jitxexamples.jumpstart_kits.js3_pin_assignment.mcu_muxing`.
 
+A required bundle has no field of its own. It takes its name from the first stored `Net` (a `>>` topology does not count), in the order the circuit assigns its fields, that holds any of its signals, and constraint paths that start on it read as members of that net (`RESET_n.ch[0].ca[0]`). Name it by storing a net of the whole bundle before any net of its signals:
+
+```python
+bus = self.fpga.require(VersalLPDDR4)
+self.lpddr4 = Net([bus])  # stored first: paths read lpddr4.ch[0].ca[0]
+self.RESET_n = bus.reset_n + self.memory.memory.RESET_n
+```
+
+Worked pattern: `jitxexamples.jumpstart_kits.js4_fpga_lpddr4.base`.
+
 ## Hierarchical Provider Composition
 
 Inside a provide method a provider can call `self.require(...)` on its own providers and map the outer bundle onto what it gets back. Use it when parts of an interface are chosen independently, such as SDA and SCL from their own pin lists. Inner bundle types are nested classes on the circuit or live in their own module.
@@ -154,9 +164,9 @@ Offer PCIe lane reversal, polarity inversion or a narrower link width only where
 Where the controller allows bytes to move between byte slots and bits within a byte, model both as two levels of `provide`, never `one_of` over bit permutations (8! = 40,320 options per byte):
 
 - Bit swap: per byte slot, a single-pin bundle type of its own (`Slot0Bit`, `Slot1Bit`, ...), offered `all_of` over the slot's eight DQ pins. Per slot because `require()` matches an offer by bundle type: one shared type would let a byte's bits resolve onto another slot's pins.
-- Byte swap: the bus bundle offered `one_of`, one option per allowed byte-to-slot order. In the options callback, `self.require(SlotBit, count=8)` once per slot; each option maps the fixed pins, the slot's DQS and DM, and the byte's eight DQ ports to that slot's eight bits.
+- Byte swap: the bus bundle offered `one_of`, one option per allowed byte-to-slot order. In the options callback, `self.require(SlotBit, count=8)` once per slot; each option maps the fixed pins, the slot's DQS and DMI, and the byte's eight DQ ports to that slot's eight bits.
 
-DQS and DM move with their byte; address, command and CK (polarity included) are fixed wiring. Match each DQ to its strobe with `ConstrainReferenceDifference` (rule 5). Worked example: `jitxexamples.jumpstart_kits.js4_fpga_lpddr4x` (LPDDR4X on a Versal VP1002: pin rules in `pinout`, the two-level offer in `fpga`, UG863 limits in `constraint` applied in `main` by `LPDDR4Constraint` with the protocol's shared-CKE controller bundle, legal and illegal proof routes in `proof`).
+DQS and DMI move with their byte; address, command and CK (polarity included) are fixed wiring. Match each DQ to its strobe with `ConstrainReferenceDifference` (rule 5). Worked example: `jitxexamples.jumpstart_kits.vp1002_lpddr4` (LPDDR4 on a Versal VP1002: the pin layout in `pinout`, the two-level offer in `circuit` with the protocol's shared-CKE controller bundle in `bundles`). `jumpstart_kits.js4_fpga_lpddr4.constraint` holds each DQ to its strobe on that offer with `VersalLPDDR4Constraint`, which builds on `jitxexamples.protocols.memory.lpddr4.LPDDR4Constraint` for the per-DQ `ConstrainReferenceDifference`, and `js4_fpga_lpddr4.part3_si_constraints` applies it. `js4_fpga_lpddr4.part4_routing` is a reference layout whose routes resolve the offer to a byte swap within channel B.
 
 ## Common Mistakes
 

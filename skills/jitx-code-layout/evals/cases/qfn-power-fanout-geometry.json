@@ -1,0 +1,46 @@
+{
+  "name": "qfn-power-fanout-geometry",
+  "prompt": "fixture_qfn_power_fanout_geometry.py has a KSZ9031RNX with its 1V2 plane on L3. Fan the six DVDDL pins out to that plane: from each pin, a code route on L1 to a through via outside the package, 0.40 mm wide for the current, necked to 0.25 mm where it leaves the pin's pad so the copper on the pad stays narrower than the pad. I will move the vias around in the board view later.",
+  "inputs": {
+    "pyproject.toml": "evals/cases/fixtures/common/pyproject.toml",
+    "cl_substrate.py": "evals/cases/fixtures/common/cl_substrate.py",
+    "cl_parts.py": "evals/cases/fixtures/common/cl_parts.py",
+    "pellingham_cl_fab_sheet.md": "evals/cases/fixtures/common/pellingham_cl_fab_sheet.md",
+    "cl_phy_board.py": "evals/cases/fixtures/common/cl_phy_board.py",
+    "fixture_qfn_power_fanout_geometry.py": "evals/cases/fixtures/qfn-power-fanout-geometry/fixture_qfn_power_fanout_geometry.py"
+  },
+  "notes": "The fixtures import jitxexamples parts from py-components e6bf1cb (the installed package in the eval venv, 2.0.1.dev74+ge6bf1cbc2) and import no jitxexamples.patterns module; the fictional parts in cl_parts.py need no parts database. The fixture module is fixture_qfn_power_fanout_geometry.py, Design QfnPowerFanoutGeometryDesign. DVDDL is pins 14, 18, 23, 26, 30 and 39 (part docstring), 0.30 x 0.85 contact pads at 0.50 pitch; no two are adjacent. The neck can be a RoutePoint split with Route.Config widths per route, or a tag with a width rule on the short route; the check reads the copper either way. The check decides only what geometry decides cleanly: the copper over each pad stays narrower than the pad on cuts every 0.005 across the pad's long axis and at both ends, and every route ending at the fanout via, and every other route in the fanout's copper that does not touch the pad, is drawn 0.40. A route whose round end reaches back over the pad (its start less than half its width past the edge) touches the pad and is not width-checked here, so a neck built from two 0.25 routes fails when its split point lies 0.125 or more past the edge (accepted by Duncan), and a narrow run route that starts closer than half its width to the pad is left to the judge; the 0.25 neck width and its length are judged. Control points a designer would move (fanout vias, bends) belong to the interactive process (Duncan, 2026-11-04); hard-coding them is judged, not a hard fail. The neck RoutePoint is not one of them: its offset follows from the stated widths (at least half the 0.40 run width past the pad edge), which SKILL.md's sort table classes as fixed by geometry, so the second assertion accepts it marked either way. The fourth assertion's upper bound, 1.0 past the edge, is where qfn_thermal_and_power_fanout, the pattern SKILL.md cites, puts its escape RoutePoint. A 0.40 route straight onto the 0.30 pad fills the pad's width, and the check fails it. A 0.40 run whose RoutePoint sits less than about 0.13 past the pad edge has a round end (0.20 radius) that spans the pad's full width, and the check fails it; between about 0.13 and 0.20 past the edge the end reaches over the pad but stays narrower than it, and the check passes it; below about 0.16 past the edge that end is more than 0.25 across the pad, which the judge reads from the code. A Route.Target taper has no drawn width, so it fails the check's run test at the via: tapers fail deterministically (default, Duncan to confirm). Single-run provenance: a 0.40 route from pad to via with source_target=Route.Target.rectangle(0.85, 0.25) realized with no drawn width, spanned 0.30 across the 0.30 pad, and was about 0.40 at its widest. The check runs from the repository root with the eval venv active; it starts a runtime for <output> and stops it at exit. Duncan's ruling (2026-11-06, verbatim): \"if a via is placed in code, it can't be dragged relative to anything else that was also placed in teh same circuit/not floating. if it was done with the interactive layout (being develolped, it can be dragged\". So a code-placed via cannot be dragged relative to anything else placed in its circuit; it moves only when a floating circuit containing it is moved; a via made through the interactive layout API, which is under development, can be dragged. The second assertion also accepts a claim about moving vias that matches this ruling.",
+  "runner_models": [
+    "sonnet"
+  ],
+  "runner_rationale": "Customers drive this skill with mixed-strength agents, so the eval runs the skill under a Sonnet-class runner; judges stay frontier-tier.",
+  "runner_artifacts": "The input files are the starting design. Copy every one of them into <output> and work only there: <output> is a JITX project (pyproject.toml) whose modules import each other by file name. Write the layout in the fixture module, fixture_qfn_power_fanout_geometry.py, or in a module it imports, and keep its Design class name, QfnPowerFanoutGeometryDesign. Do not move or remove the fixture's parts, nets, pours or vias, do not change the KSZ9031RNX's land pattern, and do not change the substrate. Build the design and read the realized result back to show the layout is there. Write a completion summary to <output>/COMPLETION.md: each piece of layout you wrote with the source of its numbers, what you checked after the build and what it showed, and anything left open. Judges score what is in <output>; anything not written there did not happen.",
+  "expected_output": "Six fanouts, each a 0.25 route from the DVDDL pad to a RoutePoint at least 0.20 and at most 1.0 past the pad edge (at least half the run width, so the run's round end stays off the pad) and a 0.40 route on to a ThVia on 1V2 outside the body; a build that reads each trace width and the via's place in the L3 pour; COMPLETION.md that marks the via positions and any bends as placeholders for the interactive process, marks the neck RoutePoint as a placeholder or as fixed by geometry from the stated widths, and says about moving them only what was measured or what Duncan ruled for vias.",
+  "assertions": [
+    {
+      "text": "every DVDDL pad carries routed copper that is narrower than the pad (0.30) on cuts every 0.005 across the pad's long axis and at both ends, its fanout reaches its own code-placed via outside the body inside the realized L3 1V2 pour, every route ending at that via and every other route in that copper off the pad is drawn 0.40 wide (so a taper, with no drawn width, fails), every route realized on layer 0, and no copper is drawn in code",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-code-layout/evals/checks/check_qfn_power_fanout_geometry.py <output>"
+    },
+    {
+      "text": "COMPLETION.md leaves the fanout via positions to the designer and says so, and marks any bend placed in code as a placeholder; it marks the neck RoutePoint either as a placeholder or as fixed by geometry, since its offset follows from the stated widths; if it says anything about moving such a point it says only what is measured or ruled: the layout API that backs the view (rd.layout.update_control) refuses a code-placed control point, and a drag was not tried; a via placed in code cannot be dragged relative to anything else placed in its circuit; it moves only when a floating circuit containing it is moved, while a via made through the interactive layout (still under development) can be dragged (Duncan's ruling); a designer would take over a placeholder via by deleting it and its routes from code and re-creating them in the interactive layout, a path not yet tried",
+      "check": "judge"
+    },
+    {
+      "text": "the routed copper over each DVDDL pad is no wider than 0.25 (the neck) on any cut across the pad, read from the code: a 0.40 run whose RoutePoint is less than about 0.16 past the pad edge puts its round end (radius 0.20) more than 0.25 across the pad",
+      "check": "judge"
+    },
+    {
+      "text": "the 0.25 section ends at least 0.20 past the pad edge (half the 0.40 run width) and no more than 1.0 past it, and the route is 0.40 from there to the via",
+      "check": "judge"
+    },
+    {
+      "text": "the neck width is checked against the pad width read from the land pattern, not assumed",
+      "check": "judge"
+    },
+    {
+      "text": "COMPLETION.md gives, for each piece of layout the prompt asked for, the electrical or fabrication need it holds: what goes wrong on this board without it, in a sentence.",
+      "check": "judge"
+    }
+  ]
+}

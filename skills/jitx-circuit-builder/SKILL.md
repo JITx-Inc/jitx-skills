@@ -1,6 +1,6 @@
 ---
 name: jitx-circuit-builder
-description: "Use when the user asks to \"wire up\", \"connect\", \"build a circuit\", create an \"application circuit\", declare a circuit's typed ports or bundles (Power, I2C, RGMII), compose sub-circuits into a hierarchy and connect them port to port, \"place components\" or sub-circuits (fixed or floating), add passives (resistors, capacitors, inductors) or decoupling, or set up power connections. Covers the Circuit class, nets and the + operator, typed ports, hierarchy, placement, and jitxlib-parts passives. Drawing a pour or copper is jitx-physical-layout; pour rules are jitx-layout-constraints; provide/require pin assignment is jitx-pin-assignment."
+description: "Use when the user asks to \"wire up\", \"connect\", \"build a circuit\", create an \"application circuit\", declare a circuit's typed ports or bundles (Power, I2C, RGMII), compose sub-circuits into a hierarchy and connect them port to port, \"place components\" or sub-circuits (fixed or floating), add passives (resistors, capacitors, inductors) or decoupling, or set up power connections. Covers the Circuit class, nets and the + operator, typed ports, hierarchy, placement, and jitxlib-parts passives. Drawing a pour or copper is jitx-code-layout; pour rules are jitx-layout-constraints; provide/require pin assignment is jitx-pin-assignment."
 ---
 
 # JITX Circuit Builder
@@ -86,7 +86,7 @@ self.jack = RJ45().at(0, 0, on=Side.Bottom)  # Side from jitx.layerindex
 self.phy = PhyCircuit().at(floating=True)  # Circuit only: placed interactively
 ```
 
-A sub-circuit without `.at` sits at its parent's origin on top. A circuit's `.at` places only its frame: a component inside it with no `.at` of its own is left to the placer. Until a placement is stored, a floating circuit sits off the board: routes stay unrealized and pours `Empty()` while the build reports `status: ok`. That trap, relative placement (`Circuit.place`) and code-placed vias are `jitx-physical-layout`.
+A sub-circuit without `.at` sits at its parent's origin on top. A circuit's `.at` places only its frame: a component inside it with no `.at` of its own is left to the placer. Until a placement is stored, a floating circuit sits off the board: routes stay unrealized and pours `Empty()` while the build reports `status: ok`. That trap, relative placement (`Circuit.place`) and code-placed vias are `jitx-code-layout`.
 
 ## Nets
 

@@ -1,0 +1,9 @@
+[project]
+name = "lc-eval-fixture"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = ["jitx==4.6.0", "jitxlib-standard==4.6.0", "jitxlib-parts==2.0.0"]
+
+# Passive queries resolve through the chain each fixture's Design names in its
+# `parts` attribute (lc_fixture_util.LC_PARTS): the jitxexamples example
+# catalogue, then `ideal`. No parts database is needed.

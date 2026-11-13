@@ -113,17 +113,17 @@ Example triggers:
 
 ### jitx-substrate-modeler
 
-Model JITX substrates: stackups, materials, vias, routing structures, fabrication constraints, and fenced pour outlines.
+Model JITX substrates: stackups, materials, vias, routing structures, and fabrication constraints.
 
 Example triggers:
 
-- "Create a 4-layer JLCPCB substrate"
-- "Define a 14-layer RF stackup with via fencing"
+- "Model a substrate from our fab's stackup report"
+- "Define a 14-layer RF stackup"
 - "Set up 100-ohm differential routing structure"
 
-### jitx-physical-layout
+### jitx-code-layout
 
-Author PCB physical layout from code: copper, pours, custom shapes, pad features, explicit placement, vias, code-based routes, and layout-intent tags.
+Write a fixed layout in code: relative placement, code-placed vias, code routes through control points, narrowing a route, length matching, pours, keepouts, copper and overlappable copper, and reading the realized layout back from the capture. Also sorts which control points stay in code and which a designer moves interactively.
 
 Example triggers:
 
@@ -131,9 +131,19 @@ Example triggers:
 - "Create a net tie between AGND and DGND"
 - "Route the BGA escape lanes from code"
 
+### jitx-interactive-layout
+
+Place and route in the open board layout from scripts run through `jitx design session` and `jitx design exec`. Placements, routes, vias, pair insertions and hull pours made this way stay editable in the board editor. Reads the result back through route status, design issues and skew margins.
+
+Example triggers:
+
+- "Place and route the buck converter in the open layout"
+- "Fan out the BGA and route the DDR byte lanes interactively"
+- "How much skew margin is left on the DQS pairs?"
+
 ### jitx-layout-constraints
 
-Design rules for the layout: board-wide defaults, net classes with width and clearance rules, power routing width, decoupling placement, pour rules, tag-based fanout step-down into package pads, and after-build width and clearance checks.
+Design rules for the layout: board defaults, classes of nets by tag with their own width and clearance, pour rules (relief, sliver removal, heavy copper), via stitching and fencing, routing structures applied by tag, fanout step-down into package pads, and after-build checks that each rule applied.
 
 Example triggers:
 
@@ -181,6 +191,16 @@ Example triggers:
 - "Export my board to DXF for the ME team"
 - "Attach a STEP model to this connector"
 
+### jitx-jlcpcb
+
+The JLCPCB option, opt-in for a user who has chosen JLCPCB as fab and assembler: its predefined substrates, parts resolved to LCSC C-numbers with the basic, preferred and extended tiers, catalogue footprints, the `lcsc.lock.json` file, and the order packet (gerbers, BOM, pick-and-place, order sheet), all through `jitxlib-jlcpcb`. JITX names no default fab; a board with no fab named goes to jitx-project-builder, which asks.
+
+Example triggers:
+
+- "Create a 4-layer JLCPCB substrate"
+- "Use only JLCPCB basic parts for the passives"
+- "Make the JLCPCB order packet for this board"
+
 ## Project Structure
 
 ```text
@@ -208,12 +228,14 @@ jitx-skills/
 │   ├── jitx-component-modeler/
 │   ├── jitx-circuit-builder/
 │   ├── jitx-substrate-modeler/
-│   ├── jitx-physical-layout/
+│   ├── jitx-code-layout/
+│   ├── jitx-interactive-layout/
 │   ├── jitx-layout-constraints/
 │   ├── jitx-interconnect-constraints/
 │   ├── jitx-pin-assignment/
 │   ├── jitx-code-review/
-│   └── jitx-mechanical/
+│   ├── jitx-mechanical/
+│   └── jitx-jlcpcb/
 ├── scripts/
 │   └── validate_dual_plugin.py
 └── sample-project.md
@@ -222,7 +244,7 @@ jitx-skills/
 ## Requirements
 
 - A JITX Python project with `pyproject.toml` containing a JITX dependency
-- JITX 4.6 (`jitx>=4.6,<4.7`) and the JITX 4.6 runtime, with `jitxlib-standard` 4.6, `jitxlib-parts` 2.x, `jitxexamples` 2.0.x and, for JLCPCB boards, `jitxlib-jlcpcb` 4.x. This release targets JITX 4.6 only. The previous release, 1.7.0, documents the JITX 4.2 API, and no release targets 4.4, so move a 4.4 project to 4.6 before using these skills. The released versions the skills were checked against are in the Supported versions table in `skills/jitx/SKILL.md`.
+- JITX 4.6 (`jitx>=4.6,<4.7`) and the JITX 4.6 runtime, with `jitxlib-standard` 4.6, `jitxlib-parts` 2.x, `jitxexamples` 2.1.x and, for JLCPCB boards, `jitxlib-jlcpcb` 4.x. This release targets JITX 4.6 only, as 1.8.1 did. Release 1.7.0 documents the JITX 4.2 API, and no release targets 4.4, so move a 4.4 project to 4.6 before using these skills. The released versions the skills were checked against are in the Supported versions table in `skills/jitx/SKILL.md`.
 - Python 3.12+
 - For datasheet processing: `pip install pymupdf`
 

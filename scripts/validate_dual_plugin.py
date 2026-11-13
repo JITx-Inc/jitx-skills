@@ -15,12 +15,14 @@ SKILLS = [
     "jitx-component-modeler",
     "jitx-circuit-builder",
     "jitx-substrate-modeler",
-    "jitx-physical-layout",
+    "jitx-code-layout",
+    "jitx-interactive-layout",
     "jitx-layout-constraints",
     "jitx-interconnect-constraints",
     "jitx-pin-assignment",
     "jitx-code-review",
     "jitx-mechanical",
+    "jitx-jlcpcb",
 ]
 NAME_RE = re.compile(r"^[a-z0-9-]+$")
 FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---", re.DOTALL)

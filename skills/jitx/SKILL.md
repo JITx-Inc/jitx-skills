@@ -1,6 +1,6 @@
 ---
 name: jitx
-description: "Base skill for JITX Python PCB design: install, the jitx CLI, auth and the runtime, building designs, the viewers, exports, code quality (ruff, pyright, type annotations, check.py and grep gates), and design introspection (jitx.inspect, jitx.query, runtime submit). Use to set up JITX, start the runtime, build or find a design, open the viewer, fix a build or environment error, run ruff, pyright or static checks, or find things in a design from Python. Route a whole board from requirements to jitx-project-builder, self-review of written code to jitx-code-review, component modeling to jitx-component-modeler, wiring and passives to jitx-circuit-builder, stackups to jitx-substrate-modeler, layout geometry and realized-geometry checks to jitx-physical-layout, design rules to jitx-layout-constraints, SI constraints to jitx-interconnect-constraints, pin flexibility to jitx-pin-assignment, and mechanical CAD to jitx-mechanical."
+description: "Base skill for JITX Python PCB design: install, the jitx CLI, auth and the runtime, building designs, the viewers, exports, code quality (ruff, pyright, type annotations, check.py and grep gates), and design introspection (jitx.inspect, jitx.query, runtime submit). Use to set up JITX, start the runtime, build or find a design, open the viewer, fix a build or environment error, or find things in a design from Python. Route a whole board from requirements to jitx-project-builder, code self-review to jitx-code-review, component modeling to jitx-component-modeler, wiring and passives to jitx-circuit-builder, stackups to jitx-substrate-modeler, layout in code and realized-geometry checks to jitx-code-layout, open-layout place and route to jitx-interactive-layout, design rules, stitching, fencing and routing structures by tag to jitx-layout-constraints, SI constraints to jitx-interconnect-constraints, pin flexibility to jitx-pin-assignment, mechanical CAD to jitx-mechanical, and JLCPCB fab and parts to jitx-jlcpcb."
 ---
 
 # JITX
@@ -9,7 +9,7 @@ Run this skill's setup before any sub-skill: they assume a working runtime.
 
 ## Supported versions
 
-Bundle 1.8.1 targets JITX 4.6. This table is the only place the skills name supported versions; the install commands below apply them, and the other skills assume them.
+Bundle 2.0.0 targets JITX 4.6. This table is the only place the skills name supported versions; the install commands below apply them, and the other skills assume them.
 
 | Package | Release | Install with |
 |---|---|---|
@@ -17,8 +17,8 @@ Bundle 1.8.1 targets JITX 4.6. This table is the only place the skills name supp
 | JITX runtime | 4.6.0 | `jitx runtime install` (Step 4); its major.minor must match `jitx` |
 | `jitxlib-standard` | 4.6.0 | `jitxlib-standard` (Step 1); it requires `jitx>=4.6,<4.7` |
 | `jitxlib-parts` | 2.0.0 | `"jitxlib-parts>=2,<3"` (Step 1) |
-| `jitxlib-jlcpcb`, JLCPCB boards only | 4.0.0 | `"jitxlib-jlcpcb>=4,<5"` (Step 2) |
-| `jitxexamples` | 2.0.0 | `--no-deps "jitxexamples>=2.0,<2.1"` (Step 1) |
+| `jitxlib-jlcpcb`, JLCPCB boards only | 4.0.0 | `"jitxlib-jlcpcb>=4,<5"` (`jitx-jlcpcb`, once the user chooses JLCPCB) |
+| `jitxexamples` | 2.1.0 | `--no-deps "jitxexamples>=2.1,<2.2"` (Step 1) |
 | `jitxlib-mechanical`, mechanical CAD only | 0.2.0 | `pip install --extra-index-url https://pypi.jitx.com/jitx/main/+simple "jitxlib-mechanical==0.2.0"` |
 
 - Every name the skills tell you to import resolves on these package releases, and every docs.jitx.com URL they give returned a page when checked for this bundle.
@@ -38,12 +38,12 @@ In an existing project, activate its venv, read `jitx --version`, and ask before
 source .venv/bin/activate          # Git Bash on Windows: .venv/Scripts/activate
 python -c 'import sys; assert sys.version_info >= (3, 12), sys.version'
 pip install "jitx>=4.6,<4.7" jitxlib-standard "jitxlib-parts>=2,<3" ruff pyright
-pip install --no-deps --upgrade "jitxexamples>=2.0,<2.1"
+pip install --no-deps --upgrade "jitxexamples>=2.1,<2.2"
 pip install "eseries>=1.2.1,<2"   # the one jitxexamples requirement the lines above don't bring
 jitx --version
 ```
 
-`jitx` brings the framework and CLI but no `jitxlib`: `jitxlib-standard` gives `jitxlib.landpatterns`, `.symbols`, `.protocols`, `.bundles`, `.via_structures` and `.physics`; `jitxlib-parts` the `Resistor`/`Capacitor`/`Inductor` queries; `jitxlib-jlcpcb`, only for a confirmed JLCPCB fab, its substrates. `jitxexamples` holds the worked patterns, example components and example parts CSV the other skills point at; `--no-deps` keeps its own pins off the project's `jitx` and `jitxlib-parts`, and it is not a project dependency.
+`jitx` brings the framework and CLI but no `jitxlib`: `jitxlib-standard` gives `jitxlib.landpatterns`, `.symbols`, `.protocols`, `.bundles`, `.via_structures` and `.physics`; `jitxlib-parts` the `Resistor`/`Capacitor`/`Inductor` queries; `jitxlib-jlcpcb`, only once the user chooses JLCPCB (`jitx-jlcpcb`), its substrates and parts. `jitxexamples` holds the worked patterns, example components and example parts CSV the other skills point at; `--no-deps` keeps its own pins off the project's `jitx` and `jitxlib-parts`. It is a project dependency only when the design imports it (`jitx-layout-constraints`).
 
 If the assertion fails, recreate `.venv` with Python 3.12 or newer.
 
@@ -55,16 +55,16 @@ pip install -e . "jitx>=4.6,<4.7" jitxlib-standard "jitxlib-parts>=2,<3"
 python -c "import jitxlib.landpatterns, jitxlib.parts"
 ```
 
-`jitx project layout init` writes a flat `<ns>/` package (not `src/<ns>/`) and `pyproject.toml`. Change its `jitx>=4.4.0,<5` to `jitx>=4.6,<4.7`; add `jitxlib-parts>=2,<3` (and `jitxlib-jlcpcb>=4,<5` when used) to `dependencies`. Without `pip install -e .`, `jitx find` exits 0 listing no designs (`import failed: ModuleNotFoundError`).
+`jitx project layout init` writes a flat `<ns>/` package (not `src/<ns>/`) and `pyproject.toml`. Change its `jitx>=4.4.0,<5` to `jitx>=4.6,<4.7`; add `jitxlib-parts>=2,<3` to `dependencies`. Without `pip install -e .`, `jitx find` exits 0 listing no designs (`import failed: ModuleNotFoundError`).
 
-Passive queries need a provider chain in `pyproject.toml` (without one: `NoChainConfigured`). Commit `parts/approved-parts.csv` (user-approved parts only) and the build-written `parts.lock.json` (never hand-made). If the user has none, copy the example CSV `jitxexamples` ships there (`jitx-project-builder` Phase 0) and tell the user it is not an approval:
+Name a provider chain in `pyproject.toml`: without one, queries raise `NoChainConfigured`, unless an installed package publishes one (as `jitxlib-jlcpcb` does). Commit `parts/approved-parts.csv` (user-approved parts only) and the build-written `parts.lock.json` (never hand-made). If the user has none, copy in the example CSV from `jitxexamples` (`jitx-project-builder` Phase 0), telling them it is not an approval:
 
 ```toml
 [tool.jitx.parts]
 chain = ["csv:parts/approved-parts.csv", "ideal"]
 ```
 
-`ideal`, last, synthesizes unorderable `IDEAL-...` parts so the design builds before approval, silently answering most queries the CSV cannot. Before calling it done, pass `jitx build <design>` and `jitx design export parts-check <design> --fail all`, and check that no MPN starts with `IDEAL-`: the parts check passes an ideal part. Take an `IDEAL-` part to the user; change a value or rating only with their sign-off. On the stand-in, the user approves the final build's MPNs or supplies a list. Read parts and `IDEAL-` MPNs from the design, never from the lock: it never prunes, and other chains' entries survive a cleanup. Run [`prune_lock.py`](scripts/prune_lock.py), excluding test designs, after removing a component or running tests, and before committing or handing off the lock. Never delete the whole lock once parts are placed, routed or approved without the user's say-so. Cleanup, care, deliberate re-resolves: [`references/parts-lock.md`](references/parts-lock.md). CSV format, lockfile, the `IDEAL-` test, parts databases: https://docs.jitx.com/en/latest/essentials/design/parts.html
+`ideal`, last, synthesizes unorderable `IDEAL-...` parts so the design builds before approval, silently answering most queries the CSV cannot. Before calling it done, pass `jitx build <design>` and `jitx design export parts-check <design> --fail all`, and check that no MPN starts with `IDEAL-`: the parts check passes an ideal part. Take an `IDEAL-` part to the user; change a value or rating only with their sign-off. On the stand-in, the user approves the final build's MPNs or supplies a list. Read parts and `IDEAL-` MPNs from the design, never from the lock. Run [`prune_lock.py`](scripts/prune_lock.py), excluding test designs, after removing a component or running tests, and before committing the lock. Never delete the whole lock once parts are placed, routed or approved without the user's say-so. Lock care: [`references/parts-lock.md`](references/parts-lock.md). Docs: https://docs.jitx.com/en/latest/essentials/design/parts.html
 
 The scaffold skips `git init` (do it and say so). Its `.gitignore` keeps the built design directory tracked on purpose: do not broaden it.
 
@@ -119,7 +119,7 @@ jitx runtime status | grep -q reachable || jitx runtime start --background
 - **Parameterized designs.** `jitx find` lists a `Design` whose `__init__` takes required arguments, but building it fails with `Design is parameterized but no parameters were provided`. Add a thin module-scope subclass with concrete values and build that.
 - **Rebuild prompts.** Some rebuilds ask `[Y/n]` before deleting stale instances; headless, the build ends `EOF when reading a line`. The answer is the user's: end your build, tell them what it printed, and rebuild once they answer in the JITX UI or their own terminal. Pipe `yes |` only when the user says to; PowerShell has no verified equivalent.
 - **Stalled build.** Run long builds with `PYTHONUNBUFFERED=1`. If a build shows no output and little CPU for a minute, check `jitx runtime status` in every other open JITX project, `pgrep -fl interactive-client` for accumulated clients, and what `jitx runtime cleanup` reports. Ask before stopping anything.
-- **`status: ok` is not routed copper.** Realization is silent: verify geometry from Python (Introspection, `jitx-physical-layout`).
+- **`status: ok` is not routed copper.** Realization is silent: verify geometry from Python (Introspection, `jitx-code-layout`).
 - **Exports.** Exported files are fab and CAD handoffs, not verification. Other packages (such as `jitxlib-ansys`) add plugins.
 
 ### Build safety: don't parallelize same-design work
@@ -178,9 +178,9 @@ class Find(TestCase):
         top = [c for _, c in query(design, Copper, filter=lambda c: c.layer == 0)]
 ```
 
-- **`visit(root, types, through=None, *, opaque=None, refs=False, filter=None)`** yields each structural match with its `Trace` (`path`, `transform`). `extract` is `visit` without the trace. `decompose` stops at direct children, traversing lists and dicts.
-- **`jitx.query.query`** takes the same filters (`through` is keyword-only) and converts objects through registered transformers, such as `Pad -> Copper`, `Via -> Copper`, `Via -> Cutout` and `Route -> Copper`; a `Pour` is already `Copper`. Results are in the source's local frame: compose `trace.transform` yourself.
-- **What the runtime knows:** `with jitx.runtime as r: rd = r.submit(MyDesign)` gives `rd.root`, `rd.query(...)`, `rd.nets.find(element)` (the `Net` the runtime assigned, or `None`) and `rd.layers`. Realized routes and pours need `r.capture(...)`. Its semantics and the geometry-verification loop are in `jitx-physical-layout` `references/geometry-verification.md`.
+- **`visit`** yields each structural match with its `Trace` (`path`, `transform`). `extract` is `visit` without the trace. `decompose` stops at direct children, traversing lists and dicts.
+- **`jitx.query.query`** takes keyword-only `through`, `opaque`, `refs` and `filter` and converts objects through registered transformers, such as `Pad -> Copper`, `Via -> Copper`, `Via -> Cutout` and `Route -> Copper`; a `Pour` is already `Copper`. Results are in the source's local frame: compose `trace.transform`.
+- **What the runtime knows:** `with jitx.runtime as r: rd = r.submit(MyDesign)` gives `rd.root`, `rd.query(...)`, `rd.nets.find(element)` (the `Net` the runtime assigned, or `None`) and `rd.layers`. Realized routes and pours need `r.capture(...)`. Capture semantics, verification loop: `jitx-code-layout` "Verification".
 
 ## Sub-skills
 
@@ -192,12 +192,14 @@ Invoke it before writing that code.
 | A component from a datasheet, part number, pin file or footprint | `jitx-component-modeler` |
 | Wiring, nets, typed ports and bundles, hierarchy, placement, passives | `jitx-circuit-builder` |
 | Stackup, materials, vias, routing structures, fab rules | `jitx-substrate-modeler` |
-| Pours, copper, shapes, pad features, code-placed vias and routes, realized-geometry checks | `jitx-physical-layout` |
-| Design rules, clearances, net classes, power widths, decoupling placement, fanout step-down | `jitx-layout-constraints` |
+| Pours, copper, shapes, code placement, code-placed vias and routes, realized-geometry checks | `jitx-code-layout` |
+| Place and route in the open layout from scripts (session and exec), editable in the board editor; route status, issues and skew margins | `jitx-interactive-layout` |
+| Design rules, clearances, classes of nets by tag, power widths, pour and relief rules, stitching and fencing, routing structures applied by tag, fanout step-down | `jitx-layout-constraints` |
 | Topology, SI constraints, diff pairs, protocol constraints | `jitx-interconnect-constraints` |
 | provide/require, pin muxing, lane and polarity swapping | `jitx-pin-assignment` |
 | Self-review of JITX code against the rules above | `jitx-code-review` |
 | DXF/IDF/STEP import and export, board outlines, 3D models | `jitx-mechanical` |
+| JLCPCB substrates, parts and order packet, once chosen | `jitx-jlcpcb` |
 
 One artifact goes to its sub-skill; a buildable board, to `jitx-project-builder`.
 

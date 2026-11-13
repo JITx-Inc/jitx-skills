@@ -1,0 +1,136 @@
+"""Check for the serpentine-four-sections case.
+
+Usage: check_serpentine_four_sections.py <output-dir>
+
+Builds <output>/fixture_serpentine_four_sections.py, captures it, and checks
+each of the four pairs against the prompt:
+
+- every route realized on layer 0, and on each row (y 15, 5, -5, -15) one
+  coupled route (two traces) configured for length matching
+  (``envelope_overhead`` above 0): the section;
+- each section's copper spans no more than the pair's own copper (two 0.15
+  traces 0.20 apart, from ``DIFF_100``) plus the prompt's 2.0 mm across its
+  axis;
+- row 15: the meander's pitch is at least 3.0 mm. Pitch is read where each
+  trace's centre line crosses the row's axis: one trace sits on the inside of
+  each turn, so neighbouring gaps alternate short and long, and each
+  neighbouring two average to the pitch. Only the lower bound is scored;
+- rows 5 and -5: the deskew bumps, read as the arc radii one trace has and
+  the other does not, are at least the prompt's radius (0.4 and 0.6 mm):
+  ``deskew_bump_radius`` is a lower bound on the router's own radius, so a
+  radius above the asked one is the router's choice, not the runner's.
+  The largest bump radius on row 5 must stay below the smallest on row -5,
+  so the two rows still show two different settings.
+  Provenance: on this fixture 0.4 and 0.6 realized exactly, and 0.2 realized
+  0.275, the radius the bumps take on a row with no radius rule; what sets
+  that floor is not established, so the prompt asks only for radii above it;
+- row -15: the bumps (four arcs each, on one trace) sit 2.0 mm apart, the
+  ``min_bump_spacing`` the prompt asks for, measured along the other
+  trace's centre line from the centre of a bump's last arc to the next
+  bump's first. Scored as the gap itself, to 0.01: on this fixture 2.0 realizes a
+  2.0 gap, though the 4.6.0 docstring says minimum distance;
+- the issue report names no signal constraint: delay and skew are met;
+- no Copper or OverlappableCopper is drawn in code.
+
+Rows 5 to -15 start at the staggered chips, 2.0 mm out of skew, so their
+sections carry bumps. Other serpentine fields (``min_radius``,
+``max_bump_length``, ``skew_tolerance``, ``long_lookahead``) are not scored:
+spike C3 found the first two not held on jitx 4.6.0 and the others not
+established.
+"""
+
+import sys
+from itertools import pairwise
+from pathlib import Path
+from typing import Any
+
+from jitx.shapes.primitive import Arc
+from shapely.geometry import LineString, Point
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import cl_check as L  # noqa: E402
+
+ROWS = (15.0, 5.0, -5.0, -15.0)
+PAIR = 2 * 0.15 + 0.20
+ENVELOPE = 2.0
+MIN_PITCH = 3.0
+RADIUS = {5.0: 0.4, -5.0: 0.6}
+SPACING = 2.0
+
+
+def bump_arcs(traces: list[Any]) -> tuple[list[Arc], list[float], int]:
+    """Arcs of the one trace whose radii the other trace lacks, those radii,
+    and the index of that trace (-1 when not exactly one trace has them)."""
+    radii = [{round(a.radius, 3) for a in L.arcs(t)} for t in traces]
+    own = [radii[0] - radii[1], radii[1] - radii[0]]
+    bumped = [k for k in (0, 1) if own[k]]
+    if len(bumped) != 1:
+        return [], [], -1
+    k = bumped[0]
+    return [a for a in L.arcs(traces[k]) if round(a.radius, 3) in own[k]], sorted(own[k]), k
+
+
+out = L.output_dir()
+with L.built(out, "fixture_serpentine_four_sections", "SerpentineFourSectionsDesign") as rd:
+    routes = L.realized_routes(rd, layer=0)
+    bump_radii: dict[float, list[float]] = {}
+    sections = [
+        wr
+        for wr in routes
+        if wr.route.config is not None and (wr.route.config.envelope_overhead or 0) > 0 and len(wr.route.traces or []) == 2
+    ]
+    for y in ROWS:
+        here = [wr for wr in sections if abs(L.route_geom(wr).centroid.y - y) < 2.0]
+        if len(here) != 1:
+            L.fail(f"row {y}: {len(here)} coupled routes configured for length matching, not 1")
+            continue
+        path, sec = here[0].path, here[0].route
+        g = L.route_geom(here[0])
+        span = g.bounds[3] - g.bounds[1]
+        envelope = sec.config.envelope_overhead if sec.config is not None else None
+        print(f"row {y}: {path}, envelope {envelope}, copper spans {span:.3f} across its axis")
+        if span > PAIR + ENVELOPE + 1e-3:
+            L.fail(f"row {y}: section copper spans {span:.3f}, over {PAIR + ENVELOPE:.3f}")
+        if span <= PAIR + 1e-3:
+            L.fail(f"row {y}: section did not meander (spans {span:.3f})")
+        traces = L.world_traces(here[0])
+        if y == 15.0:
+            for k, t in enumerate(traces):
+                hits = L.centreline(t).intersection(LineString([(-100.0, y), (100.0, y)]))
+                xs = sorted(p.x for p in getattr(hits, "geoms", [hits]) if not p.is_empty)
+                gaps = [b - a for a, b in pairwise(xs)]
+                pitches = [(a + b) / 2 for a, b in pairwise(gaps)]
+                lo = min(pitches) if pitches else None
+                print(f"row {y} trace {k}: {len(xs)} axis crossings, least pitch {lo}")
+                if lo is None or lo < MIN_PITCH - 1e-3:
+                    L.fail(f"row {y} trace {k}: meander pitch {lo}, under {MIN_PITCH}")
+        else:
+            bumps, radii, k = bump_arcs(traces)
+            print(f"row {y}: bump radii {radii}, {len(bumps)} bump arcs")
+            if not bumps:
+                L.fail(f"row {y}: no deskew bumps on exactly one trace")
+                continue
+            if y in RADIUS:
+                bump_radii[y] = radii
+                if min(radii) < RADIUS[y] - 1e-3:
+                    L.fail(f"row {y}: bump radii {radii}, under {RADIUS[y]}")
+            if y == -15.0:
+                groups = [bumps[i : i + 4] for i in range(0, len(bumps), 4)]
+                axis = L.centreline(traces[1 - k])
+                gaps = [
+                    round(abs(axis.project(Point(n[0].center)) - axis.project(Point(p[-1].center))), 4)
+                    for p, n in pairwise(groups)
+                ]
+                print(f"row {y}: bump gaps {gaps}")
+                if len(bumps) % 4 or not gaps or any(abs(gp - SPACING) > 0.01 for gp in gaps):
+                    L.fail(f"row {y}: bumps {gaps} apart, not {SPACING}")
+    if len(bump_radii) == 2 and max(bump_radii[5.0]) >= min(bump_radii[-5.0]) - 1e-3:
+        L.fail(f"rows 5 and -5: bump radii {bump_radii[5.0]} and {bump_radii[-5.0]} do not show two settings")
+    text = L.issues_text(rd, wait=40)
+    bad = L.issue_kinds(text, "signal constraint", "UnmetTime", "UnsquiggledRoute")
+    print("issues:", text.strip().splitlines()[:4])
+    if bad:
+        L.fail(f"timing issues: {bad}")
+    L.no_authored_copper(rd, "configured sections and rules were asked for")
+L.finish()

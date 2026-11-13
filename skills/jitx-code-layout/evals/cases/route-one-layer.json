@@ -1,0 +1,38 @@
+{
+  "name": "route-one-layer",
+  "prompt": "fixture_route_one_layer.py is a 50 ohm test coupon: two Würth SMA end-launch jacks on opposite edges of the board. Connect their centre pins with a code route on L1 at the width of the substrate's MS_50 microstrip.",
+  "inputs": {
+    "pyproject.toml": "evals/cases/fixtures/common/pyproject.toml",
+    "cl_substrate.py": "evals/cases/fixtures/common/cl_substrate.py",
+    "cl_parts.py": "evals/cases/fixtures/common/cl_parts.py",
+    "pellingham_cl_fab_sheet.md": "evals/cases/fixtures/common/pellingham_cl_fab_sheet.md",
+    "cl_launch_board.py": "evals/cases/fixtures/common/cl_launch_board.py",
+    "fixture_route_one_layer.py": "evals/cases/fixtures/route-one-layer/fixture_route_one_layer.py"
+  },
+  "notes": "The fixtures import jitxexamples parts from py-components e6bf1cb (the installed package in the eval venv, 2.0.1.dev74+ge6bf1cbc2) and import no jitxexamples.patterns module; the fictional parts in cl_parts.py need no parts database. The fixture module is fixture_route_one_layer.py, Design RouteOneLayerDesign. The substrate defines MS_50 (0.30 wide, 0.20 clearance, layer 0) and applies it to nothing. A plain code route with no rule, structure or Route.Config comes out at min_copper_width (spike C4); on this substrate that is row 3's 0.100, so the check fails a plain route. Either applying MS_50 to the net (Constrain(...).structure or a routing_structure rule) or Route.Config(trace_width=0.30) passes the width check; the judge reads which and why. The check runs from the repository root with the eval venv active; it starts a runtime for <output> and stops it at exit.",
+  "runner_models": [
+    "sonnet"
+  ],
+  "runner_rationale": "Customers drive this skill with mixed-strength agents, so the eval runs the skill under a Sonnet-class runner; judges stay frontier-tier.",
+  "runner_artifacts": "The input files are the starting design. Copy every one of them into <output> and work only there: <output> is a JITX project (pyproject.toml) whose modules import each other by file name. Write the layout in the fixture module, fixture_route_one_layer.py, or in a module it imports, and keep its Design class name, RouteOneLayerDesign. Do not move or remove the fixture's parts, nets, vias or keepouts, and do not change the substrate or its structures; applying one of its structures to a net is fine. Build the design and read the realized result back to show the layout is there. Write a completion summary to <output>/COMPLETION.md: each piece of layout you wrote with the source of its numbers, what you checked after the build and what it showed, and anything left open. Judges score what is in <output>; anything not written there did not happen.",
+  "expected_output": "A Route(j1.sig, j2.sig, layer=0) with MS_50 applied to the RF net (or Route.Config(trace_width=0.30) with the source of 0.30 named), a build that reads the trace back at 0.30 on layer 0 touching both centre pads, and COMPLETION.md with the measured width and ends.",
+  "assertions": [
+    {
+      "text": "the RF line is realized on layer 0 as code routes, every trace 0.30 wide (MS_50), its copper joining both SMA centre pads, with no copper drawn in code",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-code-layout/evals/checks/check_route_one_layer.py <output>"
+    },
+    {
+      "text": "the runner takes the width from MS_50 and says how it is applied (the structure on the net, or a Route.Config with the structure named as the source), not a number typed without a source",
+      "check": "judge"
+    },
+    {
+      "text": "COMPLETION.md reports the realized trace width and layer read back from the captured route, not build success alone",
+      "check": "judge"
+    },
+    {
+      "text": "COMPLETION.md gives, for each piece of layout the prompt asked for, the electrical or fabrication need it holds: what goes wrong on this board without it, in a sentence.",
+      "check": "judge"
+    }
+  ]
+}

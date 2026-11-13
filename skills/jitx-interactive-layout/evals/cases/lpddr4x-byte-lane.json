@@ -1,0 +1,69 @@
+{
+  "name": "lpddr4x-byte-lane",
+  "prompt": "The LPDDR4x interface between the FPGA and the memory is constrained in the design. Only the FPGA is placed, nothing is routed and there are no pours yet. In the open layout, place the memory and the other parts, then do the power: the decoupling, the fanout vias for the power and ground balls, and the plane pours. Then route the whole interface. Leave it editable for me.",
+  "inputs": {
+    "project": "A JITX project whose design, js4eval.main.LpddrBoardDesign, is the JITX jumpstart kit's JS4 shipping design (jitxexamples.jumpstart_kits.js4_si_constraints.main.JS4Design) with every placement but the FPGA's removed, whose substrate gives every via a delay model for each pair of layers it joins, so a route through any via is measured: a Versal VP1002 FPGA and a Micron MT53E1G32D2FW LPDDR4X on jitxexamples.substrates.reference_18layer (18 copper layers, HDI vias, 80 x 80 mm), with the FPGA placed at the kit's spot and everything else unplaced (the memory, the ZQ, IO_VR and RREF calibration resistors, the decoupling), supplies, calibration resistors and decoupling netted (the FPGA rails' sets trimmed from a reference board's: no part of 100 uF or more, one bulk part per rail, smaller values halved; 71 FPGA capacitors), each capacitor tied by a ShortTrace to a ball of its rail; the session shows every unplaced part parked off the board, and nothing routed. The interface is constrained through provide/require pin pools (byte and bit swapping allowed per the design's pin-assignment code), topologies, synthetic package delay models on the FPGA pins, and UG863 limits: +/-2 ps on each DQS pair, DQ and DMI within +/-100 ps of their DQS, and the 3600 mil trace length rule as a delay limit. Copy the project to a scratch directory; never run against the user's own checkout. The project's `[tool.jitx.parts] chain` is `[\"csv:parts/example-passives.csv\", \"ideal\"]`, with the kit catalogue in `parts/`.",
+    "environment": "The JITX CLI and runtime installed at the bundle's supported version line (see the base jitx skill); the runner starts its own runtime and session for the copy. The project's substrate, jitxexamples.substrates.reference_18layer, is in no released or published jitxexamples build; it lives only on an unmerged jitxexamples development branch. On the supported versions the project does not build, so this case does not run until a jitxexamples release ships that substrate or the project moves to a released stackup."
+  },
+  "notes": "For whoever reads the judges' output, not for the runner. The fixture places only the FPGA: the runner places the memory (where and turned how sets which FPGA balls each group can reach without crossing), the calibration resistors and the decoupling, and floorplans the signal channels between the packages so the decoupling, its vias and the calibration parts stay out of them. The pin assignment is expected to iterate: a first solve against the memory's placement, then re-solves as fanout and routing show a group short of pins or channels. The design has no pours: the stackup has ground layers (L2, L4, L6, L8, L11, L13, L15, L17) and two power layers (L9_PWR1_2OZ, L10_PWR2_2OZ), so the runner makes the ground pours and divides the power layers among the rails. The interface is both channels, each its CK pair, CKE, CS, the CA bus and two byte lanes (each a DQS pair, DMI and eight DQ); the design constrains all of them (CAC and data on the 46 ohm single-ended structure, CK and DQS on the differential one). A full solve may not finish in one run; the case is judged on order and discipline as much as on the end state, and partial results reported honestly score above a claimed pass. The runner should read the swap rules, structures and bounds from the source; place all the decoupling and fan out every power and ground ball before signals; plan one pin assignment for the whole interface and revisit it as the layout firms up; put signal fanout vias in by a via plan; route on the fewest layers the channels hold (a channel's bytes on one layer, the command group on it too when it fits), never splitting a group; route CK and each DQS as coupled pairs; read margins with issues_all; get each group within about 5 ps of its bounds by assignment and path before adding envelope_overhead; and address P/N skew before group skew. Run L2 (2026-11-06, asked for byte lane 0 only) is the failure picture for the signals: its pin assignment took pins that cut off a better set, it routed one byte lane, it routed CK as two single routes, and it called the work done. The power-first scope is the user's request. Evidence: the judges read the final layout from the last layout_report.py and layout_checks.py outputs in the transcript, the archived project (its .jitx/interactive-layout/ files when present), the harness-project.diff the harness writes after the run (every change to the scratch project against its baseline), and the runner's scripts. A claim in COMPLETION.md counts only where that evidence backs it; a claim it contradicts is a false claim.",
+  "runner_models": [
+    "sonnet"
+  ],
+  "runner_rationale": "Customers drive this skill with mixed-strength agents (Claude Code, Codex, and Devin among them). The skill must carry the mechanics and the checks itself, so the eval runs it under a Sonnet-class runner. Judges stay frontier-tier regardless of runner.",
+  "runner_artifacts": "Put any scripts you write under <output>/scripts/. When you are done, write me a short note in <output>/COMPLETION.md: what you did and what is left.",
+  "expected_output": "The memory placed and turned so each group's FPGA balls face its memory balls without crossing, with the signal channels between the packages kept clear of decoupling, its vias and the calibration parts; the calibration resistors beside their balls; every decoupling capacitor placed (bottom side, under or beside its package, against the balls of its rail) and each capacitor's pads dropped to their planes by vias beside or in the pads; every power and ground ball of the FPGA and the memory fanned out to its plane by a via beside it or in its pad; ground pours on the ground layers and a pour per rail on the power layers, each one piece and reaching every via of its rail; then one pin assignment for the whole interface; a via plan for the signals with each via at its end pad; the fewest signal layers the channels hold, each group on one layer; CK and every DQS coupled; every constraint of both channels measured and satisfied, or each gap reported plainly; no claim of done while anything fails.",
+  "assertions": [
+    {
+      "text": "the memory is placed and oriented against the FPGA's interface balls so the groups route without crossing, and the floorplan keeps a channel between the packages sized for the interface's signals, with no capacitor, calibration resistor or plane via field placed in it; the ZQ, IO_VR and RREF resistors are placed beside the balls they serve",
+      "check": "judge"
+    },
+    {
+      "text": "power comes before signals: the decoupling is placed and fanned out, and the power and ground balls are fanned out, before any signal route of the interface",
+      "check": "judge"
+    },
+    {
+      "text": "every decoupling capacitor is placed on the board (none left parked off it), on the bottom side under or beside its package near a ball of its rail, with its pads facing the balls they serve; each capacitor drops to its planes through vias of its own beside or in its pads (in the pad where the via definition allows via-in-pad), not past its ends",
+      "check": "judge"
+    },
+    {
+      "text": "every power and ground ball of the FPGA and the memory that its rail uses reaches its plane through a fanout via beside the ball or in its pad (a ball may share a via with a neighbour on the same net only where the runner says why); no power or ground ball is left without a path to its plane, judged from connectivity on the final layout",
+      "check": "judge"
+    },
+    {
+      "text": "ground pours are made on the ground layers covering the area the interface and the decoupling use, and each rail that feeds the FPGA or the memory has a pour on a power layer reaching every via of that rail; every pour is one fill piece; a rail with no pour is named in COMPLETION.md with its reason",
+      "check": "judge"
+    },
+    {
+      "text": "one pin assignment is solved for the whole interface from a pool the runner built from the design's provide/require and swap rules, not from the nets the session capture assigned; no group's chosen pins cut another group off from pins or channels it needs, and each group's pins are chosen to equalize its delays and keep its routes from crossing; the assignment is revisited after the memory is placed and when fanout or routing shows a group short of pins or channels, not fixed once and routed around",
+      "check": "judge"
+    },
+    {
+      "text": "each signal's fanout vias sit next to its end pads, placed before signal routes pass their spots, with no mid-route via, and the same via transitions on every signal of a group; the vias check on the final layout is met or each failure is named",
+      "check": "judge"
+    },
+    {
+      "text": "every signal of both channels is routed: CK, CKE, CS, the CA bus and all four byte lanes (DQS pairs, DMI, DQ); a signal left unrouted fails unless COMPLETION.md names it, first, as left undone with what blocked it",
+      "check": "judge"
+    },
+    {
+      "text": "CK and each DQS of both channels are routed as coupled differential pairs on the design's differential structure (pair insertion near the pads, pair points or a pair route along the path), not as two single-ended routes; a pair whose coupling failed is reported as a failure",
+      "check": "judge"
+    },
+    {
+      "text": "the interface uses the fewest signal layers it can be routed on: before any split across layers the runner tried routings aimed at one layer's density (re-solved assignment, moved or turned the memory, moved fanout vias, other escape patterns), scored each with a fast routability surrogate (cut-line density against channel capacity, crossings in the pin ordering, or a coarse grid router) written to a plan file, and split only when the best attempt still overflowed; COMPLETION.md states the layer count, the attempts and the overflow that forced each split; every signal of a group (a byte lane with its DQS and DMI, a CA bus with CS and CKE against CK) is on one layer with the same via transitions; a split made without scored attempts, or a group split across layers, fails",
+      "check": "judge"
+    },
+    {
+      "text": "the final issues_all output measures every constraint of the interface and each is satisfied, or COMPLETION.md names each unmeasured or failing one with its margin; an unmeasured constraint is never treated as passing",
+      "check": "judge"
+    },
+    {
+      "text": "envelope_overhead length matching is added only after measured margins show a group close to its bounds, only on routes that need length, and each differential pair's P/N skew is handled before its skew against its group",
+      "check": "judge"
+    },
+    {
+      "text": "COMPLETION.md says what was done and what is left, shortfalls first; it claims nothing the final state contradicts, and it does not call the work done while any capacitor is unplaced, any power ball unfanned, any pour split, any signal unrouted, any pair uncoupled or any constraint unmeasured or failing",
+      "check": "judge"
+    }
+  ]
+}

@@ -64,7 +64,7 @@ Every transition above runs through `python scripts/plan_status.py <task-id> <st
 
 4. **Plan the power tree**: trace power from input through regulators to every load. Note voltage, current, and sequencing requirements.
 
-5. **Assess substrate needs**: based on interface speeds, routing density, and component package complexity (e.g., high-pin-count BGAs require more layers), determine layer count, material class, and via technology. **Ask the user which fab house they are targeting.** If they confirm JLCPCB and need standard 4-layer or 6-layer FR-4 with 50/90/100 ohm impedance, predefined substrates from `jitxlib.jlcpcb` (JLC04161H_1080, JLC04161H_7628, JLC06161H_7628) are available — no substrate *modeling* is needed, and sub-01 narrows to selection and verification rather than disappearing. Otherwise, create a custom substrate (the default path).
+5. **Assess substrate needs**: based on interface speeds, routing density, and component package complexity (e.g., high-pin-count BGAs require more layers), determine layer count, material class, and via technology. The fab house comes from the requirements lock; with none named, ask (`decomposition-guide.md` Step 0). If the user chose JLCPCB, its predefined substrates are in `jitx-jlcpcb`, and sub-01 narrows to selecting and verifying one rather than disappearing. Otherwise sub-01 selects or models one as `decomposition-guide.md` "Substrate" sets out.
 
 6. **Data source audit**: for every component, identify where its data will come from, and ask for the user's approved-parts list for passives. Present a table to the user for approval **before proceeding**. See the Data Source Audit section below.
 
@@ -101,7 +101,7 @@ Before decomposing into tasks, present the user with a data source plan for each
 Please confirm data sources or provide alternatives (datasheets, footprints, specs).
 ```
 
-**Channel evidence is required.** If the user has named a sourcing channel (LCSC/JLCPCB, Digi-Key/Mouser, internal PLM), the audit table must include channel-specific evidence for every named IC and connector before code is written. For LCSC/JLCPCB, that means the part's channel record (stock, lifecycle, datasheet URL, pin labels) saved to the project. See [Required-Sourcing Rule (named channel → channel-specific evidence)](parts-sourcing.md#required-sourcing-rule-named-channel--channel-specific-evidence) for the full ladder including non-LCSC channels.
+**Channel evidence is required.** If the user has named a sourcing channel (LCSC/JLCPCB, Digi-Key/Mouser, internal PLM), the audit table must include channel-specific evidence for every named IC and connector before code is written. For LCSC/JLCPCB, what to save is in `jitx-jlcpcb`. With no channel and no fab named, ask for the channel with the fab house (`decomposition-guide.md` Step 0) and do not propose one; with a user-named fab, the channel may follow from it as `assuming: X` in the assembly tier row. See [Required-Sourcing Rule (named channel → channel-specific evidence)](parts-sourcing.md#required-sourcing-rule-named-channel--channel-specific-evidence) for the full ladder including non-LCSC channels.
 
 **Rules:**
 - Always prefer user-provided data over automated lookups
@@ -113,7 +113,9 @@ Please confirm data sources or provide alternatives (datasheets, footprints, spe
 
 Passives resolve from the project's parts chain, and its first member reads `parts/approved-parts.csv` (base `jitx` skill, Step 2). Ask the user for their approved-parts list at the audit: a CSV whose header names `category`, `mpn`, `manufacturer`, then one column per attribute a query filters on (`capacitance`, `case`, `rated_voltage_dc`, ...), or an internal parts database a `jitxlib.parts.Provider` can serve. Save a CSV to `parts/approved-parts.csv`; a database goes into the chain in place of the `csv:` entry. Format and the provider route: https://docs.jitx.com/en/latest/essentials/design/parts.html
 
-With no list from the user, copy the example CSV that ships in `jitxexamples` as a stand-in. The base `jitx` skill's setup installs `jitxexamples` (Step 1); it is not added to the project's dependencies:
+Once the user chose JLCPCB, the chain and this list follow `jitx-jlcpcb`.
+
+With no list from the user, copy the example CSV that ships in `jitxexamples` as a stand-in. The base `jitx` skill's setup installs `jitxexamples` (Step 1); copying the CSV does not make it a project dependency:
 
 ```bash
 mkdir -p parts
@@ -143,7 +145,7 @@ When the user's list replaces the stand-in, tell the user every passive will be 
 - [ ] ARCHITECTURE.md exists with power tree and interface map
 - [ ] No duplicated facts remain; task statuses reconcile with unresolved questions and task inputs and dependencies, including transitive blockers — either discrepancy blocks advancement per `completion-blocks.md`
 - [ ] Data source audit completed and user approved
-- [ ] `parts/approved-parts.csv` holds the user's approved-parts list, or the example stand-in recorded as such in PLAN.md (or the chain names the user's parts database)
+- [ ] `parts/approved-parts.csv` holds the user's approved-parts list, or the example stand-in recorded as such in PLAN.md (or the chain names the user's parts database); once the user chose JLCPCB, the list and chain follow `jitx-jlcpcb`
 - [ ] All datasheets and reference materials identified and accessible (or user committed to providing them)
 - [ ] Dependencies are acyclic
 - [ ] No ambiguous requirements remain (ask user if unclear)
@@ -276,7 +278,7 @@ A single sub-agent assembles the top-level design. The orchestrator reviews its 
    not reach its acceptance verdict.
 9. Define board shape, mounting holes, and any keepout zones.
 10. **Set passive query defaults on the Design class** to match the design's manufacturing path and circuit role (see [Passive query defaults — match manufacturing and circuit role](#passive-query-defaults--match-manufacturing-and-circuit-role)). Without them, each passive takes the first approved row that matches its value, whatever its case.
-11. **Set default design rules on the Design class:** trace width, copper clearance, thermal relief, and wider traces for tagged power/ground rails. See [Default design rules (set on the Design class)](#default-design-rules-set-on-the-design-class). These are the production-friendly defaults every board should have; without them, the router uses the substrate's `FabricationConstraints` minimums, which are usually too narrow for power.
+11. **Set default design rules on the Design class:** the board defaults the design needs and the rules on each class of nets' tag, each value with its source. See [Default design rules (set on the Design class)](#default-design-rules-set-on-the-design-class). Where no rule matches, copper comes out at the substrate's `FabricationConstraints` floor.
 12. Build and verify `status: ok`.
 
 ### Passive query defaults — match manufacturing and circuit role
@@ -285,7 +287,7 @@ A query assigned in the Design class body is the default for every passive of it
 
 | Design class | Typical defaults | Why |
 |--------------|------------------|-----|
-| **SMT production / economy** (JLCPCB, full-machine assembly) | SMD-only, ceramic for caps, every case the assembler accepts from its smallest up (0402 to 1210 in the example); a case left off is excluded | Through-hole picks are wrong; a short list sends a large-value or high-voltage part to `IDEAL-` |
+| **SMT production / economy** (full-machine assembly, JLCPCB's for example) | SMD-only, ceramic for caps, every case the assembler accepts from its smallest up (0402 to 1210 in the example); a case left off is excluded | Through-hole picks are wrong; a short list sends a large-value or high-voltage part to `IDEAL-` |
 | **Hand-build / prototype** (hand-soldered, mixed assembly) | SMD or mixed, larger case (0603–1206) for ease, allow common through-hole on large parts | Hand-rework needs accessible sizes |
 | **Specialty** (high-voltage, RF-heavy, precision analog, high-current, automotive temp) | Per-circuit refinement of ratings and dielectric is the rule; design-level defaults stay broad | Circuit role dominates: bulk caps, film, RF passives and shunts each state their voltage, power or dielectric need |
 
@@ -331,15 +333,16 @@ A `with CapacitorQuery(...)` block replaces the design default for every capacit
 
 ### Default design rules (set on the Design class)
 
-Every Design declares four canonical rules on `self.rules` (default trace
-width, copper-to-copper clearance, thermal relief on pads, wider power and
-ground traces) so the router and DRC have production-friendly defaults above
-the fab floor. The rule shapes, the priority ladder, calibration to the
-substrate's floors, and the non-default net classes that go in the same list
-at `priority >= 2` are owned by the `jitx-layout-constraints` skill
-("Board-wide defaults" and "Net classes: tag, derive, express").
-Invoke it for Phase 3 assembly; the Phase 3 gate checks that the four rules
-are present.
+The Design's `self.rules` carries the board defaults the design needs and the
+rules on each class of nets' tag, each value with its fab-sheet, prompt or
+cited source. Where no rule matches, copper comes out at the fab floor, so the
+defaults are how a board gets widths and clearances above it. The rule shapes,
+the priority ladder and the floors are owned by the `jitx-layout-constraints`
+skill ([Defaults and classes](../../jitx-layout-constraints/SKILL.md#defaults-and-classes),
+[Priority](../../jitx-layout-constraints/SKILL.md#priority)).
+Invoke it for Phase 3 assembly. The Phase 3 gate checks that every value has
+its source, or that the acceptance block records "no board defaults" or "no
+classes of nets" with a reason.
 
 ### Plain nets carry SI constraints (CRITICAL)
 
@@ -395,7 +398,7 @@ A verification design:
 - instantiates every module on the interface's paths with the parts between them, and gives each component a proof route touches its own `.at(...)` (`jitx-circuit-builder`, "Placement");
 - applies the SI constraints the assembly will apply, with the same Topology ends and pin models;
 - code-routes every path of the interface between physical pads; for a pin-assigned port, the routes land on the provider's physical pins and fix one legal mapping;
-- is checked with its SI check script, `<ns>/designs/check_si_<iface>.py`, run as `python -m <ns>.designs.check_si_<iface>`: the Python check in `jitx-interconnect-constraints` "Verification" (`issues(satisfied=True, wait=30)`, a `report.complete` check, then each group's `satisfied` and text, all in `main()` behind the `__name__` guard) with the verification design imported. The assembly's script, `<ns>/designs/check_si_main.py`, belongs to the assembly task (`asm-01`).
+- is checked with its SI check script, `<ns>/designs/check_si_<iface>.py`, run as `python -m <ns>.designs.check_si_<iface>`: the Python check in `jitx-interconnect-constraints` "Verification" (`issues(satisfied=True, wait=30)`, a `report.complete` check, then each group's `satisfied` and text, all in `main()` behind the `__name__` guard) with the verification design imported. The assembly's script, `<ns>/designs/check_si_main.py`, belongs to the assembly task (`asm-01`), as does its layout realization check, `<ns>/designs/check_layout_main.py`.
 
 It passes when every constraint with a timing, loss or skew target shows a Time, Loss or Skew measurement from its intended begin pad to its intended end pad, and no group for it holds unresolved text. Unplaced parts give `Missing Connection on Path` and `Unable to find path for requested route` instead of a measurement.
 
@@ -466,7 +469,7 @@ These checks are cheap, and any extra signal during code review is worth turning
 - [ ] `ReferencePlanes(...)` context wraps all constraint applications
 - [ ] Board geometry defined (shape, mounting holes, pours)
 - [ ] Passive query defaults (`CapacitorQuery`, `ResistorQuery`, `InductorQuery`) set in the Design class body to match the design's manufacturing path and circuit role, filtering only on columns the approved-parts list has, with per-circuit overrides documented for any specialty parts (HV, RF, bulk, precision, hand-build). The gate is the resolved parts, not the source: check the resolved package of each passive against the declared assembly capability, because a design with no query at all also builds clean.
-- [ ] **Default design rules set on Design class**: the four canonical rules are present on `self.rules`, values calibrated to the substrate's fab floors (see [Default design rules (set on the Design class)](#default-design-rules-set-on-the-design-class) and the `jitx-layout-constraints` skill)
+- [ ] **Default design rules set on Design class**: the board defaults and the classes of nets on `self.rules`, each value with its source and at or above the substrate's fab floors, or "no board defaults" or "no classes of nets" with a reason (see [Default design rules (set on the Design class)](#default-design-rules-set-on-the-design-class) and the `jitx-layout-constraints` skill)
 - [ ] The `grep gates` summary line reports 0 hard-fail hits; review-required hits are dispositioned
 
 **Emit the `Gate: Phase 3 → Phase 3b` block** from `references/completion-blocks.md` before advancing.
@@ -562,25 +565,26 @@ Do not accept "noted for future refactoring" — if it's broken, fix it now.
 
 ### Phase 4 Process
 
-1. Run the parts gate first (base `jitx` skill, Step 2; https://docs.jitx.com/en/latest/essentials/design/parts.html): `jitx build <design>` and `jitx design export parts-check <design> --fail all` must pass, and no MPN the final build resolved (read as in Phase 0 "Approved passives") may start with `IDEAL-` (`ideal` stays in the chain, and the parts check passes an ideal part). When PLAN.md `Data Sources` records the example stand-in, the gate also lists each of those MPNs with the user's approval quoted, or the user's list has replaced the stand-in; otherwise it is a blocking item. Approved parts can change footprints, so every later check runs on the approved parts. An `IDEAL-` MPN or a `no part found` goes to the user, not to a fix sub-agent: ask for the approved part, and change a value or rating only with the user's sign-off and the affected circuit recomputed.
+1. Run the parts gate first (base `jitx` skill, Step 2; https://docs.jitx.com/en/latest/essentials/design/parts.html): `jitx build <design>` and `jitx design export parts-check <design> --fail all` must pass, and no MPN the final build resolved (read as in Phase 0 "Approved passives") may start with `IDEAL-` (`ideal` stays in the chain unless the user chose JLCPCB, whose chain rule is in `jitx-jlcpcb`, and the parts check passes an ideal part). When PLAN.md `Data Sources` records the example stand-in, the gate also lists each of those MPNs with the user's approval quoted, or the user's list has replaced the stand-in; otherwise it is a blocking item. Approved parts can change footprints, so every later check runs on the approved parts. An `IDEAL-` MPN or a `no part found` goes to the user, not to a fix sub-agent: ask for the approved part, and change a value or rating only with the user's sign-off and the affected circuit recomputed.
 2. Run the full verification command: `python scripts/check.py <ns>/ --build <ns>.main.Design`
 3. Check output for:
    - Every summary line reports `PASS`: proceed to verification
    - Any `FAIL` or `ERROR`: read the full tool output, dispatch a fix sub-agent, review its acceptance block, and re-run the command
 4. Run each verification design's SI check (`python -m <ns>.designs.check_si_<iface>`) and the assembly's (`python -m <ns>.designs.check_si_main`), and apply [SI verification designs (CRITICAL)](#si-verification-designs-critical): each verification design passes, and each assembly constraint meets the bar for its routing state with no blocking line. Read compliance from the assembly's own `group.satisfied`. A constraint whose path has no route on the assembly has no compliance measurement: its `SI constraints` row reads `not measured: unrouted`, and the block lists the Deferred item `SI compliance pending routing: rerun python -m <ns>.designs.check_si_main after routing`, which goes to the user. Rerun after any change to routing, a pin model or an SI constraint.
-5. Open the popout viewer (`jitx ui open --board --design <ns>.main.Design` and `jitx ui open --schematic --design <ns>.main.Design`) and verify:
+5. When the design has pours, stitching or code-placed copper, run the assembly's layout realization check (`python -m <ns>.designs.check_layout_main`, owned by the assembly task `asm-01`). Its command and exit code go in the `Physical realization` row; a nonzero exit dispatches a fix to the assembly task, then rerun this step. Rerun after any change to placement, routing, pours or layout rules.
+6. Open the popout viewer (`jitx ui open --board --design <ns>.main.Design` and `jitx ui open --schematic --design <ns>.main.Design`) and verify:
    - Schematic: all connections present, symbols readable
    - Board: components placed (or floating), no overlaps
    - Issues List: SI constraints satisfied or flagged
    - DRC: clean or flagged
-6. Iterate:
+7. Iterate:
    - Build errors → dispatch a code fix, review, and re-run the verification command
    - DRC violations → dispatch a clearance or routing-structure fix
    - SI constraint failures → dispatch parameter and routing-structure review
    - A verification design that does not pass, or an assembly constraint below the bar for its routing state: dispatch a fix to the owning `ver-` task, module or assembly, then rerun step 4
    - Missing connections → trace back to Phase 2/3 and dispatch the fix
 
-7. **Emit the Phase 4 Verification Block** from `references/completion-blocks.md`. The block requires the parts gate field and JITX UI / Issues List / DRC / SI / placement-overlap rows with explicit pass/fail status, or a `not run` reason for any row the environment can't run (e.g. headless CI). PLAN reconciliation, deferred items, and blocking items also belong in the block. **Blocking items must be empty for `Verdict: done`.**
+8. **Emit the Phase 4 Verification Block** from `references/completion-blocks.md`. The block requires the parts gate field and JITX UI / Issues List / DRC / SI / placement-overlap rows with explicit pass/fail status, or a `not run` reason for any row the environment can't run (e.g. headless CI). PLAN reconciliation, deferred items, and blocking items also belong in the block. **Blocking items must be empty for `Verdict: done`.**
 
 ### Completion Criteria
 

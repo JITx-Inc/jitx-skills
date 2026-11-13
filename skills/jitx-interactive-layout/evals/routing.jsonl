@@ -1,0 +1,23 @@
+// Positives: placing and routing in the open layout through session and exec, and reading it back.
+{"intent": "place and route the buck converter in the open layout so I can still edit it in the board editor", "expected_skill": "jitx-interactive-layout"}
+{"intent": "write a script that places the decoupling caps around the FPGA in the live layout with jitx design exec", "expected_skill": "jitx-interactive-layout", "ambiguous_with": ["jitx-circuit-builder"]}
+{"intent": "autoroute the remaining nets in the open board and tell me which routes are blocked", "expected_skill": "jitx-interactive-layout"}
+{"intent": "fan out the BGA in the board editor from a script, signal and ground vias first", "expected_skill": "jitx-interactive-layout", "ambiguous_with": ["jitx-code-layout"]}
+{"intent": "route the DDR byte lanes interactively and get the skew within the bounds", "expected_skill": "jitx-interactive-layout", "ambiguous_with": ["jitx-interconnect-constraints"]}
+{"intent": "how much skew margin is left on the DQS pairs in the current layout", "expected_skill": "jitx-interactive-layout", "ambiguous_with": ["jitx-interconnect-constraints"]}
+{"intent": "pour the switch node as a convex hull of its pads in the live layout", "expected_skill": "jitx-interactive-layout", "ambiguous_with": ["jitx-code-layout"]}
+{"intent": "drop pair insertions for the USB pair and route it to the connector with rd.layout", "expected_skill": "jitx-interactive-layout"}
+{"intent": "floorplan the board: place each circuit block around the signal flow using design session", "expected_skill": "jitx-interactive-layout"}
+{"intent": "add length-matching regions to the DQ routes that are still short", "expected_skill": "jitx-interactive-layout", "ambiguous_with": ["jitx-interconnect-constraints", "jitx-code-layout"]}
+{"intent": "my rd.layout.via request came back blocked, find a free spot and move it", "expected_skill": "jitx-interactive-layout"}
+// Negatives: near misses owned by siblings.
+{"intent": "write a code Route from the pin to a control point and tag it with PinFanoutTag in the design source", "expected_skill": "jitx-code-layout", "ambiguous_with": ["jitx-interactive-layout", "jitx-layout-constraints"]}
+{"intent": "draw a custom copper antenna shape with shapely", "expected_skill": "jitx-code-layout"}
+{"intent": "set a 0.2 mm clearance rule between the 12 V class and everything else", "expected_skill": "jitx-layout-constraints", "ambiguous_with": ["jitx-interactive-layout"]}
+{"intent": "build a DecouplingBank module that places the caps next to each power pin in code", "expected_skill": "jitx-circuit-builder", "ambiguous_with": ["jitx-interactive-layout"]}
+{"intent": "add a 5 ps skew constraint across the DQ byte lane", "expected_skill": "jitx-interconnect-constraints", "ambiguous_with": ["jitx-interactive-layout"]}
+{"intent": "allow DQ bit swapping within each byte in the pin assignment", "expected_skill": "jitx-pin-assignment", "ambiguous_with": ["jitx-interactive-layout"]}
+{"intent": "define the via types for an eight-layer HDI stackup", "expected_skill": "jitx-substrate-modeler"}
+{"intent": "route this board in KiCad's interactive router", "expected_skill": null}
+{"intent": "escape route the BGA and place the fanout vias", "expected_skill": "jitx-code-layout", "ambiguous_with": ["jitx", "jitx-interactive-layout"]}
+{"intent": "set up decoupling placement and short routes for the MCU", "expected_skill": "jitx-circuit-builder", "ambiguous_with": ["jitx"]}

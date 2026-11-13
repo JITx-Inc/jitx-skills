@@ -1,0 +1,38 @@
+{
+  "name": "stitch-pitch-too-small",
+  "prompt": "fixture_stitch_pitch_too_small.py is our 2.4 GHz feed board with ground pours on all four layers. Stitch the ground pours with the standard through via on a 0.4 mm square grid, with each via pad's edge 0.5 mm in from the pour edges. If Pellingham can't build that, use the closest pitch they can build and tell me why.",
+  "inputs": {
+    "pyproject.toml": "evals/cases/fixtures/common/pyproject.toml",
+    "lc_substrate.py": "evals/cases/fixtures/common/lc_substrate.py",
+    "lc_fixture_util.py": "evals/cases/fixtures/common/lc_fixture_util.py",
+    "pellingham_lc_fab_sheet.md": "evals/cases/fixtures/common/pellingham_lc_fab_sheet.md",
+    "lc_radio_board.py": "evals/cases/fixtures/common/lc_radio_board.py",
+    "fixture_stitch_pitch_too_small.py": "evals/cases/fixtures/stitch-pitch-too-small/fixture_stitch_pitch_too_small.py"
+  },
+  "notes": "The fixtures import jitxexamples parts from py-components origin/main 9c398d3 (the installed package in the eval venv); the build uses the lc-eval parts chain, the example catalogue then ideal parts, so no parts database is needed. The fixture module is fixture_stitch_pitch_too_small.py, Design StitchPitchTooSmallDesign. The via pad is 0.500 (fab row 11) and drill 0.250 (row 12); row 15 puts drill edges at least 0.250 apart, so centres need 0.500: 0.4 cannot be built. Measured on jitx 4.6: a stitch pitch below the via pad is thinned silently (pitch 0.4 under a 0.45 pad kept 231 of 650 sites, a checkerboard) and a 0.5 grid under a 0.45 pad placed drills 0.2 apart with no issue, so a build that succeeds says nothing. Pass: the runner computes the 0.500 floor, min_stitch_pitch in jitxexamples.patterns.layout_stitched_pour (the larger of one via pad, 0.500, row 11, and drill plus hole-to-hole, rows 12 and 15; clearance is not enforced between copper of the same net, as the sheet's header says, so row 4 does not bind between GND vias), sets a pitch from 0.500 to 0.550, and says why. Hard fail: a 0.4 rule called done, or a count below the derived count passed as done. The stitch rule's inset is measured from the via pad edge to the computed pour boundary, so the prompt's 0.5 is inset=0.5; the check fails any other inset and derives the required sites at inset 0.5 and the rule's pitch, as in stitch-ground-pours.",
+  "runner_models": [
+    "sonnet"
+  ],
+  "runner_rationale": "Customers drive this skill with mixed-strength agents, so the eval runs the skill under a Sonnet-class runner; judges stay frontier-tier.",
+  "runner_artifacts": "The input files are the starting design. Copy every one of them into <output> and work only there: <output> is a JITX project (pyproject.toml) whose modules import each other by file name. Add tags and design rules, in the fixture module, fixture_stitch_pitch_too_small.py, or in a module it imports, and keep its Design class name. Do not add, move or remove parts, nets, routes, vias or pours, and do not set Route.Config on a route; assigning a tag to an existing object is fine. Build the design and read the result back to show the rules applied. Write a completion summary to <output>/COMPLETION.md: each rule with the source of its numbers, what you checked after the build and what it showed, and anything left open. Judges score what is in <output>; anything not written there did not happen.",
+  "expected_output": "A tag on the four ground pours and a stitch_via rule with SquareViaStitchGrid(pitch from 0.5 to 0.55, inset 0.5), the 0.5 floor (rows 11, 12 and 15) derived from the fab rows in the code or summary, a statement that 0.4 cannot be built and that the runtime would have thinned it without reporting, and a measured count against the derived count.",
+  "assertions": [
+    {
+      "text": "every stitch rule sits at a buildable pitch from 0.500 to 0.550 and the built design has a via on every grid site the rule must fill",
+      "check": "deterministic",
+      "cmd": "python3 skills/jitx-layout-constraints/evals/checks/check_stitch_pitch_too_small.py <output>"
+    },
+    {
+      "text": "the runner shows why 0.4 mm cannot be built from the fab sheet rows (via pad, drill, hole-to-hole) with the arithmetic, and does not call a 0.4 mm grid done",
+      "check": "judge"
+    },
+    {
+      "text": "the runner says that a build succeeding at 0.4 mm would not have shown the problem (the runtime thins or crowds a too-small grid without an issue), or verifies the realized count against the derived count instead of relying on the build",
+      "check": "judge"
+    },
+    {
+      "text": "COMPLETION.md gives, for each rule, the need it holds: what goes wrong on this board without it, in a sentence.",
+      "check": "judge"
+    }
+  ]
+}
