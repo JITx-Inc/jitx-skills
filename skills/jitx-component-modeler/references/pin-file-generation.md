@@ -62,8 +62,7 @@ Standard-library only, no project imports. It must run before the component exis
 not break because the design's dependencies moved.
 
 - **A pure-function core** — `parse`, `decode_ball_reference`, `classify`, `emit_module`. Pure
-  functions are the part you can test against a small synthetic fixture without the real vendor file,
-  which matters because you cannot commit the real one.
+  functions are the part you can test against a small synthetic fixture without the real vendor file.
 - **`--report`** prints the inventory and the reconciliation line. This is what a human reviews at
   the gate, before any code is emitted.
 - **`--check`** regenerates and diffs against the committed module, exiting non-zero on any
@@ -236,9 +235,11 @@ Everything in [component-guide.md](component-guide.md#testing-and-build) applies
   asserted ball → coordinate → port → pad. Read these off the vendor file by eye; that is the point.
 - **Mapping bijectivity** — every port maps to exactly one pad and back.
 - **Symbol coverage** — every port in exactly one partition, no partition over the box ceiling.
-- **The generator's pure functions** against a small synthetic fixture committed alongside the tests.
-- **A regeneration-idempotency test** that runs `--check`, skipped when the vendor file is absent so
-  the suite still passes on a fresh clone. Make sure it is *not* skipping when you are relying on it.
+- **The generator's pure functions** against a small synthetic fixture.
+- **Regeneration**: run `--check` with the vendor file present and confirm it exits 0.
+
+Delete these tests and the fixture once they pass ([base `jitx` skill, Writing good
+code](../../jitx/SKILL.md#writing-good-code)); the generator and its `--check` stay.
 
 **Share one cached instantiation for assertions against the same design.** This is a
 structural requirement at this scale: instantiation at four-figure pin counts can dominate

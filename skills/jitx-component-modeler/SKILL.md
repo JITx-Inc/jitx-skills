@@ -56,7 +56,7 @@ For a pin file, emit no component code until the parse reconciles and the user a
 After code exists, in order:
 
 1. Tests that construct components subclass `jitx.test.TestCase`; pure helper tests may use `unittest.TestCase`. Every package variant gets a pad-count check by `jitx.inspect.visit(lp, Pad)`; until it runs, verification stops. The snippet and other assertions: [component-guide.md](references/component-guide.md#testing-and-build).
-2. Run the test suite, and `pyright` on every Python file left in the output. Tests assert metadata, pin and pad counts, `.value` unset, and each relied-on default or imported footprint entry against the source.
+2. Run the test suite, and `pyright` on every Python file left in the output. Tests assert metadata, pin and pad counts, `.value` unset, and each relied-on default or imported footprint entry against the source. Once they pass, delete them ([base `jitx` skill, Writing good code](../jitx/SKILL.md#writing-good-code)); the check below records their result.
 3. Run `jitx find`, take its printed build target verbatim, then build in the available virtual environment.
 4. Write the task acceptance block from `jitx-project-builder`, with the complete `Component check` below embedded under `Checks run`, into `COMPLETION.md` or the project's existing equivalent.
 
@@ -93,7 +93,7 @@ Library defaults: generator/table defaults relied on: <list | none> — each che
         publishes nothing to check against: <list per dimension | none>
         Density level: <A | B | C> — <what the source asks for, or "no preference stated">;
         installed default is <level> — <set explicitly | default already matches>
-Value / BOM: .value unset — pinned by a test asserting it is unset
+Value / BOM: .value unset — checked by a test asserting it is unset
 No-field walk: datasheet-stated facts with no JITX field, recorded in the docstring: <list>
 Provenance: values traceable to no datasheet page: NONE | <list + the labeled rule backing each>
 Checks: pyright <clean | N errors>; pytest <N passed | not run: <reason>>;

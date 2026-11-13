@@ -17,7 +17,7 @@ A test design built alone sees the board's entries as leftovers, so its queries 
 
 ## Cleanup
 
-Run it after a component is removed or a test design is run in the project, and before the lock is committed or handed off. From the project root, with the project's Python, name every board design:
+Run it after a component is removed or a test design is run in the project, and before the lock is committed or handed off. Delete the test modules you wrote first ([Writing good code](../SKILL.md#writing-good-code)): their designs' entries are then unclaimed, and the cleanup removes them. From the project root, with the project's Python, name every board design:
 
 ```bash
 python <path to this skill>/scripts/prune_lock.py <module.path.DesignClass> [<another design> ...]
