@@ -5,6 +5,7 @@
     "notes": "A wide repeated-name rail is the first thing written against a large part, and it is where the net API's shape bites: Net(...) takes an iterable, += takes a port or a Net and never a bare list. The reference part is a stand-in with 24 GND, 6 RSVDGND and 8 VCCINT ports — the shape of the tie is what is under test, not the part.",
     "environment": "Offline. jitx.test.TestCase activates the instantiation context with no runtime and no parts database, so nothing here needs auth or a network."
   },
+  "notes": "For whoever reads the judges' output, not for the runner. The judges get the run's transcript.jsonl as --artifact alongside the output. The request asks for tests, so the tests stay in <output>.",
   "reference": {
     "file": "evals/cases/reference/rail-tie/design.py",
     "check": "evals/cases/reference/rail-tie/check.py",

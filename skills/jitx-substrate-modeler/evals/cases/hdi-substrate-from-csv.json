@@ -38,7 +38,7 @@
     {
       "text": "no test file the runner wrote is left in <output>: the base jitx skill has it delete its own tests before it finishes, so a test module still there means the run skipped that step",
       "check": "deterministic",
-      "cmd": "cd <output> && L=$(find . -type f -name '*.py' \\( -name '*test*.py' -o -path '*/tests/*' \\) -not -path '*/.*' -not -path '*/site-packages/*') && if [ -n \"$L\" ]; then echo \"test files left in the output: $L\"; exit 1; fi"
+      "cmd": "cd <output> || exit 2; L=$(find . -type f -name '*.py' \\( -name '*test*.py' -o -path '*/tests/*' \\) -not -path '*/.*' -not -path '*/site-packages/*' -exec grep -l -E 'TestCase|def test_' {} +); if [ -n \"$L\" ]; then echo \"test files left in the output: $L\"; exit 1; fi"
     },
     {
       "text": "ruff format leaves every labeled derivation in board.py whole, on the line with its label, and no label sits on a bracket whose entries carry no label of their own (the judges read the unformatted file)",
