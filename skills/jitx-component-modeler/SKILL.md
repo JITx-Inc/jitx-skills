@@ -96,7 +96,7 @@ Library defaults: generator/table defaults relied on: <list | none> — each che
 Value / BOM: .value unset — checked by a test asserting it is unset
 No-field walk: datasheet-stated facts with no JITX field, recorded in the docstring: <list>
 Provenance: values traceable to no datasheet page: NONE | <list + the labeled rule backing each>
-Checks: pyright <clean | N errors>; pytest <N passed | not run: <reason>>;
+Checks: pyright <clean | N errors>; unittest <N passed | not run: <reason>>;
         build <status: ok via <command> | not run: <reason>>
 Verdict: complete | open items: <list>
         Derived from every row above; an unavailable environment is an open item.
