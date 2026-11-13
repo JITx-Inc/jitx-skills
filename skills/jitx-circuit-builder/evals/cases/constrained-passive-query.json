@@ -5,6 +5,7 @@
     "notes": "Every axis left unstated in a passive query is an axis the parts chain decides, and a constraint the approved CSV cannot meet (a key it has no column for, or a bound no row matches) falls through: the CSV declines it, and `ideal` answers with an unorderable part that keeps only value, case, tolerance and polarization. This case tests whether the runner constrains the axes that matter for a precision rail using only the CSV's vocabulary and rows, and says so where they run out.",
     "environment": "A project whose chain is `csv:parts/approved-parts.csv` then `ideal`, with the jitxexamples example CSV as the approved list. Its columns include `tolerance`, `case`, `rated_voltage_dc` and `temperature_coefficient_code`, and no resistor temperature-coefficient column."
   },
+  "notes": "For whoever reads the judges' output, not for the runner. The judges get the run's transcript.jsonl as --artifact alongside the output. The base jitx skill has the runner delete the tests it wrote to check its own work before it finishes, so the contract's test dimensions are judged from the transcript: the tool calls that wrote the tests and the run that passed them.",
   "expected_output": "Divider resistors with a stated tolerance bound, output capacitors with a stated dielectric and derated `rated_voltage_dc` floor, values in `jitx.units`, and a stated account of the resistor temperature coefficient the CSV cannot filter on.",
   "assertions": [
     {

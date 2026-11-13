@@ -5,6 +5,7 @@
     "notes": "The rail is wide enough that a bank at the regulator is not decoupling. This case tests whether the skill's per-pin rule survives contact with a part big enough to make the shortcut tempting.",
     "environment": "A project whose `[tool.jitx.parts] chain` resolves passive queries. If the chain has no approved source, the runner says so and states what it would have queried rather than inventing part numbers."
   },
+  "notes": "For whoever reads the judges' output, not for the runner. The judges get the run's transcript.jsonl as --artifact alongside the output. The base jitx skill has the runner delete the tests it wrote to check its own work before it finishes, so the contract's test dimensions are judged from the transcript: the tool calls that wrote the tests and the run that passed them.",
   "expected_output": "One HF capacitor per one-or-two core balls, each its own attribute on the circuit (singly or in a list), joined to its ball through `ShortTrace(cap.p1, ball)` with its other pad on the ground net; bulk per rail; and a stated count per rail with the reasoning behind it.",
   "assertions": [
     {
