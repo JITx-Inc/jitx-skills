@@ -212,7 +212,9 @@ sync(timeout=None) -> bool
 - A region's kind cannot change; delete it and create another.
 - `delete` removes runtime-made routes, vias, control points and regions.
   Routes attached to a deleted via or control point are removed or joined.
-  Sync before reading the tree after a delete.
+  Sync before reading the tree after a delete. It renumbers the keys
+  after it in its link container (`_Links__session.routes.<n>`): before
+  the next delete, read the report again or select by net and end pads.
 - Each update refuses a call that would change nothing.
 - `sync` waits until background routing and checks settle; False means it
   timed out.

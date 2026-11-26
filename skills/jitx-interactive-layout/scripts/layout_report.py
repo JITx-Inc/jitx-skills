@@ -15,11 +15,13 @@ the session was started in, and returns a short summary that ``exec`` prints.
 * ``via_definitions``: name, layers, diameter, hole, via-in-pad.
 * ``components``: key, part number, placement ``[x, y, rotation, side]`` or
   null, courtyard bounds on the board (null when unplaced), and
-  ``courtyard_size`` (width and height in the part's own frame, also for
-  unplaced parts, for planning around a footprint).
+  ``courtyard_size`` and ``courtyard_local`` (width and height, and the
+  bounds, in the part's own frame, also for unplaced parts, for planning
+  around a footprint).
 * ``pads``: key, ``placed`` (false when the pad's component is unplaced: its
   position and outline are then in the component's own frame, not on the
-  board), position, net name (null if unconnected), outline points.
+  board), position, net name (null if unconnected), outline points, and
+  ``through_hole`` (the pad has a hole, so its copper is on both sides).
 * ``routes``: key, layer, net, status, endpoint kinds and endpoint keys
   (``source_key``, ``destination_key``: the pad, via or control point the
   route ends at; null when the endpoint is none of these).
@@ -35,9 +37,17 @@ the session was started in, and returns a short summary that ``exec`` prints.
 Its summary lists components whose part number starts with ``IDEAL-`` (a
 placeholder the parts chain synthesized because no real part matched; its
 footprint is a guess), unplaced components, overlapping courtyards on the same
-side, courtyards not inside the board (a connector meant to overhang the
-edge appears here too), blocked routes, and pours whose fill is in more than
-one piece, has no copper, or has not come back yet.
+side, ``pad_overlaps``, courtyards not inside the board (a connector meant to
+overhang the edge appears here too), blocked routes, and pours whose fill is
+in more than one piece, has no copper, or has not come back yet.
+
+A part's keep-out is its courtyard and every one of its pads, since a land
+pattern can put pads past its courtyard. ``pad_overlaps`` lists the pairs of
+placed parts whose keep-outs overlap and whose courtyards do not, as
+``courtyard_overlaps`` does: the two keys and the area. A through-hole pad
+counts on both sides of the board, so a pair can be on opposite sides. Nets
+do not matter: two parts whose pads overlap collide on one net too. A pad
+with no outline in the state adds nothing to its part's keep-out.
 
 Changes since the last report
 -----------------------------
@@ -119,8 +129,8 @@ from jitx.circuit import Route
 from jitx.component import Component
 from jitx.controlpoint import ControlPoint
 from jitx.copper import Pour
-from jitx.feature import Courtyard
-from jitx.inspect import Trace
+from jitx.feature import Courtyard, Cutout
+from jitx.inspect import Trace, extract
 from jitx.issue import (
     CategoryStatus,
     DesignIssue,
@@ -137,9 +147,11 @@ from jitx.net import Port
 from jitx.proxy import typeof
 from jitx.shapes import Shape
 from jitx.shapes.primitive import Empty, PolygonSet
+from jitx.transform import IDENTITY, Transform
 from jitx.via import Via
 from shapely.geometry import Polygon as ShapelyPolygon
 from shapely.geometry.base import BaseGeometry
+from shapely.ops import unary_union
 
 OUT_DIR = Path(".jitx") / "interactive-layout"
 STATE = "state.json"
@@ -497,6 +509,170 @@ def _keep_previous() -> dict[str, Any] | None:
     return previous if isinstance(previous, dict) else None
 
 
+def _frame(trace: Trace, comp: Any) -> Transform:
+    """From a component's own frame to the frame its pads and courtyard are
+    traced in: the board's for a placed component, its circuit's for an
+    unplaced one."""
+    outer = trace.transform if trace.transform is not None else IDENTITY
+    return outer if comp.transform is None else outer * comp.transform
+
+
+def footprints(
+    rd: Any, key: Callable[[Trace], str], net_name: Callable[[object], str | None]
+) -> tuple[
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    dict[str, str],
+    dict[str, BaseGeometry],
+]:
+    """The ``components`` and ``pads`` sections of the state, then each placed
+    component's side and its courtyard on the board."""
+    components: list[dict[str, Any]] = []
+    side_of: dict[str, str] = {}
+    frames: dict[str, Transform] = {}
+    for trace, comp in rd.query(Component):
+        mpn = getattr(comp, "mpn", None)
+        entry: dict[str, Any] = {
+            "key": key(trace),
+            "mpn": None if mpn is None else str(mpn),
+            "placement": _placement(trace, comp),
+            "courtyard": None,
+        }
+        if entry["placement"] is not None:
+            side_of[entry["key"]] = entry["placement"][3]
+        frames[entry["key"]] = _frame(trace, comp)
+        components.append(entry)
+
+    courtyards: dict[str, BaseGeometry] = {}
+    local: dict[str, BaseGeometry] = {}
+    owners = sorted(frames, key=len, reverse=True)
+    for trace, court in rd.query(Courtyard):
+        k = key(trace)
+        owner = next((c for c in owners if k.startswith(c + ".")), None)
+        if owner is None:
+            continue
+        traced = trace.transform if trace.transform is not None else IDENTITY
+        own = ((frames[owner].inverse() * traced) * court.shape).to_shapely().g
+        local[owner] = own if owner not in local else local[owner].union(own)
+        if owner in side_of and trace.transform is not None:
+            geom = (trace.transform * court.shape).to_shapely().g
+            courtyards[owner] = (
+                geom if owner not in courtyards else courtyards[owner].union(geom)
+            )
+    for entry in components:
+        if entry["key"] in courtyards:
+            entry["courtyard"] = _xy(courtyards[entry["key"]].bounds)
+        if entry["key"] in local:
+            x0, y0, x1, y1 = local[entry["key"]].bounds
+            entry["courtyard_size"] = [round(x1 - x0, 4), round(y1 - y0, 4)]
+            entry["courtyard_local"] = _xy((x0, y0, x1, y1))
+
+    pads: list[dict[str, Any]] = []
+    for trace, pad in rd.query(Pad):
+        k = key(trace)
+        xf = (
+            trace.transform * pad.transform
+            if pad.transform is not None
+            else trace.transform
+        )
+        placed = any(k.startswith(c + ".") for c in side_of)
+        if not placed:
+            owner = next((c for c in owners if k.startswith(c + ".")), None)
+            if owner is not None:
+                xf = frames[owner].inverse() * xf
+        base = pad.shape.shape if isinstance(pad.shape, PadShape) else pad.shape
+        pads.append(
+            {
+                "key": k,
+                "placed": placed,
+                "pos": _xy(xf.translation),
+                "net": net_name(pad),
+                "outline": _outline((xf * base).to_shapely().g)
+                if isinstance(base, Shape)
+                else None,
+                "through_hole": bool(list(extract(pad, Cutout))),
+            }
+        )
+    return components, pads, side_of, courtyards
+
+
+def keepout_overlaps(
+    side_of: dict[str, str],
+    courtyards: dict[str, BaseGeometry],
+    copper: dict[str, list[tuple[BaseGeometry, bool]]],
+) -> tuple[list[tuple[str, str, float]], list[tuple[str, str, float]]]:
+    """Courtyard overlaps and pad overlaps between placed parts, each as the
+    two keys, sorted, and the unrounded area in mm2.
+
+    ``side_of`` gives each placed part's side, ``courtyards`` its courtyard
+    on the board, ``copper`` its pads on the board, each with whether it is
+    through-hole. On each side of the board a part keeps its courtyard and
+    pads when it is on that side, and its through-hole pads when it is on
+    the other. A pair whose courtyards overlap on one side is a courtyard
+    overlap; any other pair whose keep-outs overlap on either side is a pad
+    overlap, with the larger of the two areas. Shared with
+    ``layout_checks.py``'s ``sanity``."""
+    keep: dict[str, dict[str, BaseGeometry]] = {"top": {}, "bottom": {}}
+    for key, own_side in side_of.items():
+        for side, seen in keep.items():
+            shapes = [
+                g for g, through in copper.get(key, []) if side == own_side or through
+            ]
+            if side == own_side and key in courtyards:
+                shapes.append(courtyards[key])
+            if shapes:
+                seen[key] = unary_union(shapes)
+    courts: list[tuple[str, str, float]] = []
+    padded: list[tuple[str, str, float]] = []
+    placed = sorted(side_of)
+    for i, a in enumerate(placed):
+        for b in placed[i + 1 :]:
+            if side_of[a] == side_of[b] and a in courtyards and b in courtyards:
+                area = courtyards[a].intersection(courtyards[b]).area
+                if area > 1e-6:
+                    courts.append((a, b, area))
+                    continue
+            area = max(
+                (
+                    seen[a].intersection(seen[b]).area
+                    for seen in keep.values()
+                    if a in seen and b in seen
+                ),
+                default=0.0,
+            )
+            if area > 1e-6:
+                padded.append((a, b, area))
+    return courts, padded
+
+
+def overlaps(
+    components: list[dict[str, Any]],
+    pads: list[dict[str, Any]],
+    courtyards: dict[str, BaseGeometry],
+) -> tuple[list[list[Any]], list[list[Any]]]:
+    """The summary's ``courtyard_overlaps`` and ``pad_overlaps``, from the
+    state's components and pads and ``footprints``' courtyards, through
+    ``keepout_overlaps``: each pair of placed parts, the two keys and the
+    area. A pad with no outline is left out of its part's keep-out."""
+    side_of = {
+        c["key"]: c["placement"][3] for c in components if c["placement"] is not None
+    }
+    owners = sorted(side_of, key=len, reverse=True)
+    copper: dict[str, list[tuple[BaseGeometry, bool]]] = {}
+    for pad in pads:
+        owner = next((c for c in owners if pad["key"].startswith(c + ".")), None)
+        outline = pad.get("outline")
+        if owner is None or not pad.get("placed") or not outline or len(outline) < 4:
+            continue
+        geom = ShapelyPolygon(outline)
+        copper.setdefault(owner, []).append((geom, bool(pad.get("through_hole"))))
+    courts, padded = keepout_overlaps(side_of, courtyards, copper)
+    return (
+        [[a, b, round(area, 4)] for a, b, area in courts],
+        [[a, b, round(area, 4)] for a, b, area in padded],
+    )
+
+
 def main(rd: Any) -> dict[str, Any]:
     """Write state.json and return the layout summary."""
     root = rd.root
@@ -540,61 +716,9 @@ def main(rd: Any) -> dict[str, Any]:
                 }
             )
 
-    side_of: dict[str, str] = {}
-    for trace, comp in rd.query(Component):
-        mpn = getattr(comp, "mpn", None)
-        entry: dict[str, Any] = {
-            "key": key(trace),
-            "mpn": None if mpn is None else str(mpn),
-            "placement": None,
-            "courtyard": None,
-        }
-        entry["placement"] = _placement(trace, comp)
-        if entry["placement"] is not None:
-            side_of[entry["key"]] = entry["placement"][3]
-        state["components"].append(entry)
-
-    courtyards: dict[str, BaseGeometry] = {}
-    local: dict[str, BaseGeometry] = {}
-    owners = sorted((c["key"] for c in state["components"]), key=len, reverse=True)
-    for trace, court in rd.query(Courtyard):
-        k = key(trace)
-        owner = next((c for c in owners if k.startswith(c + ".")), None)
-        if owner is None:
-            continue
-        own = court.shape.to_shapely().g
-        local[owner] = own if owner not in local else local[owner].union(own)
-        if owner in side_of and trace.transform is not None:
-            geom = (trace.transform * court.shape).to_shapely().g
-            courtyards[owner] = (
-                geom if owner not in courtyards else courtyards[owner].union(geom)
-            )
-    for entry in state["components"]:
-        if entry["key"] in courtyards:
-            entry["courtyard"] = _xy(courtyards[entry["key"]].bounds)
-        if entry["key"] in local:
-            x0, y0, x1, y1 = local[entry["key"]].bounds
-            entry["courtyard_size"] = [round(x1 - x0, 4), round(y1 - y0, 4)]
-
-    for trace, pad in rd.query(Pad):
-        k = key(trace)
-        xf = (
-            trace.transform * pad.transform
-            if pad.transform is not None
-            else trace.transform
-        )
-        base = pad.shape.shape if isinstance(pad.shape, PadShape) else pad.shape
-        state["pads"].append(
-            {
-                "key": k,
-                "placed": any(k.startswith(c + ".") for c in side_of),
-                "pos": _xy(xf.translation),
-                "net": net_name(pad),
-                "outline": _outline((xf * base).to_shapely().g)
-                if isinstance(base, Shape)
-                else None,
-            }
-        )
+    state["components"], state["pads"], side_of, courtyards = footprints(
+        rd, key, net_name
+    )
 
     known = key.known(rd)
     for trace, route in rd.query(Route):
@@ -667,14 +791,10 @@ def main(rd: Any) -> dict[str, Any]:
             }
         )
 
-    overlaps: list[list[Any]] = []
+    court_overlaps, pad_overlaps = overlaps(
+        state["components"], state["pads"], courtyards
+    )
     placed = sorted(courtyards)
-    for i, a in enumerate(placed):
-        for b in placed[i + 1 :]:
-            if side_of[a] == side_of[b]:
-                area = courtyards[a].intersection(courtyards[b]).area
-                if area > 1e-6:
-                    overlaps.append([a, b, round(area, 4)])
     inside = board.buffer(1e-6)
 
     changed = _changes(_keep_previous(), state)
@@ -695,7 +815,8 @@ def main(rd: Any) -> dict[str, Any]:
             if (c["mpn"] or "").startswith(IDEAL_PREFIX)
         ][:LIST_LIMIT],
         "unplaced": unplaced[:LIST_LIMIT],
-        "courtyard_overlaps": overlaps[:LIST_LIMIT],
+        "courtyard_overlaps": court_overlaps[:LIST_LIMIT],
+        "pad_overlaps": pad_overlaps[:LIST_LIMIT],
         "off_board": [k for k in placed if not inside.contains(courtyards[k])][
             :LIST_LIMIT
         ],
