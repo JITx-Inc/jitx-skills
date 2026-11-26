@@ -1,20 +1,14 @@
 # ARCHITECTURE.md Template
 
-Copy this into the project root alongside PLAN.md. Maintain it as the single owner of design facts needed across tasks.
+ARCHITECTURE.md owns the design facts tasks share. Copy the fenced block into the project root; nothing above it goes in the file.
 
-- Keep it around 60 lines for a board of roughly 8–15 components. Denser boards need more; when over budget, cut something before adding something.
-- Use tables, not prose. Never write a section that restates a table already in the file.
-- Delete every heading with no content for this board. A heading over `N/A` or the template's own placeholder rows is a defect.
-- Never restate a fact owned by PLAN.md.
-- **If a sentence would read identically for any board, delete it.** Banned forms, naming prohibitions and design rules are owned by `jitx/SKILL.md` and `jitx/references/architectural-patterns.md`, and every sub-agent already has them. Record the commitment this design made, never the rule behind it.
-- Name the routing structure rather than the ohms wherever the substrate owns one: a predefined class already defines what `DRS_90` and `RS_50` mean, so a repeated number is a second copy. Leave the cell `—` on rows with no structure; a routing structure on a plain GPIO row is noise.
-- Put a level-shift boundary, enable/PGOOD dependency, real regulator thermal budget, or shared-clock/jitter constraint in Design Notes only when its table row cannot express it.
-- **A Design Note is a settled constraint, never an open question.** If the fact is still unresolved it belongs in PLAN.md `Open Questions`, with an owner and a resolution path, and it appears nowhere else. Affected tasks record their blocking question in `Status` per `plan-template.md`.
-- `Object-Hierarchy Decisions` is for parametric or generator subsystems only (BGA ballout, deskew geometry, antipad fence, N-lane fanout, per-layer table, repeating-block scene graph): commit to the object shape before sub-agents write code, 3 to 5 lines each. A subsystem that is not parametric (one MCU, one buck regulator, one ground pour) gets no entry at all, because a collection matters only when N > 1 and the things are siblings. Record the commitment, never the prohibition behind it: `jitx/SKILL.md` Don'ts and `jitx/references/architectural-patterns.md` own the banned forms.
-- Omit `Object-Hierarchy Decisions` and `Design Notes` entirely when the design has nothing for them. One bullet per Design Notes constraint.
-- Everything above the fenced block is guidance for filling it and belongs in none of it. The block carries headings, table skeletons and placeholders only.
-
----
+- Keep it near 60 lines for 8 to 15 components; over budget, cut before adding.
+- Tables, not prose. Never restate a table, or a fact PLAN.md owns.
+- Delete every heading this board has nothing for; a heading over `N/A` or placeholder rows is a defect.
+- If a sentence would read identically for any board, delete it: record the commitment, never the rule behind it.
+- Name the routing structure rather than the ohms wherever the substrate defines one (`DRS_90`, `RS_50`); `—` on rows with no structure.
+- Design Notes hold settled constraints a table row cannot express (a level-shift boundary, an enable or PGOOD dependency, a real thermal budget, a shared-clock jitter limit), one bullet each. An unresolved fact is a PLAN.md Open Questions row instead.
+- `Object-Hierarchy Decisions` covers parametric or generator subsystems only, 3 to 5 lines each, written before code. A collection matters only when N > 1 and the things are siblings, so one MCU, one buck or one pour gets no entry.
 
 ```markdown
 # Architecture: [Project Name]
@@ -33,8 +27,9 @@ Copy this into the project root alongside PLAN.md. Maintain it as the single own
 
 ## Board
 
-- **Dimensions:** [width × height mm, or source drawing]
+- **Dimensions:** [width × height mm or source drawing when the size is fixed; "at most width × height mm" when the figure is a limit; "set at place and route" when the user gave none. Place and route sets the size in those two cases]
 - **Layer count:** [count]
+- **Layer plan:** [what each layer carries: planes with their nets, routing layers. With nothing fixing it, a four-layer board has a ground plane on each inner layer and signals and power on the outer layers (`jitx-interactive-layout` `general-pnr.md` "Via plan")]
 - **Material:** [material \| open: OQ-n]
 - **Fab house:** [fab house \| open: OQ-n]
 - **Substrate class:** [predefined class or custom class \| open: OQ-n]
