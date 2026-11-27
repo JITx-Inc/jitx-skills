@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # grep_gates.py — JITX skill grep-gate enforcement (cross-platform: bash + PowerShell)
 #
-# Runs the pattern set defined in jitx-project-builder/references/completion-blocks.md.
+# The patterns are defined in this file; jitx-project-builder/references/completion-blocks.md says what to do with each hit.
 # Reports hard-fail and review-required hits in the project's Python source.
 #
 # Pure stdlib (io/os/re/sys/tokenize), so one file runs from bash AND PowerShell on every OS, with
@@ -18,7 +18,7 @@
 #   1  — at least one hard-fail hit
 #   2  — usage or environment error (including an incomplete source scan)
 #
-# Output format mirrors completion-blocks.md "Grep gates" reporting:
+# Output format:
 #   ok    no hits: <label>
 #   HIT N <label>
 #       <file:line:match>
@@ -144,6 +144,12 @@ def report(label, hits, severity, quiet):
         hard_fail += count
     else:
         review += count
+
+
+def is_top_level_module(path: str) -> bool:
+    """Whether the file is a `main.py`, where a single-design project keeps its
+    top-level design: net symbols belong there as they do under TOP_LEVEL_PATH."""
+    return os.path.basename(path) == "main.py"
 
 
 def run_check(
@@ -303,7 +309,7 @@ def main():
         skip=is_si_definition_site,
     )
 
-    # Net symbols outside designs/
+    # Net symbols outside designs/ and main.py
     run_check(
         f"Net symbols (GroundSymbol/PowerSymbol) outside {TOP_LEVEL_PATH}/",
         r"\b(GroundSymbol|PowerSymbol)\s*\(",
@@ -312,6 +318,7 @@ def main():
         src_dir,
         source_files,
         quiet,
+        skip=is_top_level_module,
     )
 
     # setattr/getattr on self anywhere — JITX convention violation
@@ -329,8 +336,8 @@ def main():
         print()
         print("=== review-required patterns ===")
 
-    # Module-scope for-loops — anti-string-hacking theme 9. Module-import-time
-    # logic populating global tables is the named failure mode.
+    # Module-scope for-loops. Module-import-time logic populating global
+    # tables is the named failure mode.
     run_check(
         "Module-scope for-loop — review for module-import-time logic",
         r"^for\s+\w+\s+in\s+",
@@ -341,9 +348,9 @@ def main():
         quiet,
     )
 
-    # Pour(..., isolate=...) — legacy parameter, Pass 3 deprecates in favor of design_constraint with Tags
+    # Pour(..., isolate=...): legacy parameter; design_constraint with Tags replaces it
     run_check(
-        "Pour(..., isolate=...) — legacy parameter (see Pass 3 deprecation)",
+        "Pour(..., isolate=...) — legacy parameter",
         r"\bPour\s*\([^)]*\bisolate\s*=",
         False,
         "review",
@@ -375,7 +382,7 @@ def main():
         quiet,
     )
 
-    # Tag-like f-string construction — anti-string-hacking theme 1. f-strings
+    # Tag-like f-string construction. f-strings
     # starting with an uppercase letter and building names with a brace
     # substitution (f"TX_b{i}", f"L{n}_via") are the canonical failure mode.
     run_check(

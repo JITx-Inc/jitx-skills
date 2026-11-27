@@ -1,35 +1,23 @@
 # External Connector / Hot-Plug Interface
 
-Apply for any connector or interface that exposes the board to the outside world: USB (any flavor), Ethernet, audio jacks, power input (barrel, terminal, USB-PD, PoE), debug headers if user-accessible, expansion connectors, antenna connectors (U.FL, SMA, board-edge contacts). PCB antenna geometry itself belongs to the substrate / RF net-class rules — not this checklist.
+For every connector to the outside: USB, Ethernet, audio, power input (barrel, terminal, USB-PD, PoE), user-reachable debug headers, expansion connectors, antenna connectors (U.FL, SMA, edge contacts). PCB antenna geometry is not covered here.
 
-### Per-Connector Decision
+### Per connector
+- [ ] Pin map matches the orientation (USB-C mirrors CC1/CC2; USB-A/B does not).
+- [ ] Shield to chassis by a chosen method (short trace, ferrite, capacitor, hard tie), stated.
+- [ ] Ampacity above the worst-case load with margin.
+- [ ] Reverse voltage, surge and inrush handled for the source class (USB-PD, barrel jack and PoE differ).
+- [ ] Mechanical retention matched to use (through-hole tabs, screws, latch, none).
 
-- [ ] **Connector orientation / pin mirroring**: USB-C is symmetric (CC1/CC2 mirror); standard USB-A/B is not. Verify pin map matches the chosen orientation.
-- [ ] **Shield / chassis strategy**: connected to chassis ground via short trace, ferrite bead, capacitor, or hard-tied — picked deliberately, not by default.
-- [ ] **Current rating**: connector ampacity exceeds the worst-case load with margin.
-- [ ] **Polarity / hot-plug protection**: reverse-voltage, surge, inrush handled per the source class (USB-PD differs from barrel jack differs from PoE).
-- [ ] **Mechanical retention**: through-hole tabs, screw mount, locking mechanism, or none — matched to expected use.
+### ESD or justification
+Every user-reachable conductor (connector pins, switch contacts, jumpers, buttons, test points, edge fingers, castellations) states one of:
+- [ ] a TVS or ESD diode with capacitance the signal rate allows;
+- [ ] internal only (board-to-board, sealed enclosure, controlled fixture);
+- [ ] omitted by design, with the reason (RF budget, prototype cost), confirmed by the user.
 
-### ESD-or-Justification
-
-For every external or user-accessible signal pin — not only connector pins, but also exposed switch contacts, jumpers, push-button terminals, exposed test points, edge-card fingers, exposed castellations, and any other user-touchable conductor — the row must say one of:
-
-- **TVS / ESD diode** specified, with capacitance compatible with the signaling speed (low-cap TVS for high-speed; standard for low-speed).
-- **Internal-only**: not user-accessible (board-to-board internal link, sealed enclosure, controlled environment).
-- **Omitted by design**: explicit reason (e.g., RF impedance budget, cost-constrained prototype, EMC-controlled fixture). User confirms.
-
-### Protocol-Specific Sub-Checklists (load only when applicable)
-
-These are examples, not required coverage. Pick the ones that apply to the design.
-
-**USB-C / USB-PD**: CC1/CC2 pull-down or PD configuration resistors per the role (sink/source/DRP); CC capacitance limits; VBUS protection rated for negotiated voltages (5V/9V/15V/20V); D+/D- ESD low-cap; configuration-trap pins per the controller datasheet.
-
-**Ethernet (RJ45)**: magnetics/transformer or LAN module; MDI/MDIX termination; Bob Smith terminations; shield bond strategy; chassis-to-circuit-ground bond per EMC plan.
-
-**Audio (3.5mm TRS / TRRS)**: switching contacts on TRS detect insertion; AC coupling on signal lines (or DC-coupled with explicit reason); ESD on tip/ring; ground-loop strategy for line-out.
-
-**Antenna connector / feed (U.FL, SMA, board-edge contact)**: 50Ω routing structure to the connector; return-plane keepout under the feed (see [Net Class Taxonomy](../net-classes.md)); connector type matched to frequency and connector-mate strategy.
-
-**Debug headers (if user-accessible)**: ESD on signals; protection if user can short pins; pin keying or marking to prevent reverse insertion. (Internal-only debug headers in sealed enclosures may justify omitting ESD — note explicitly.)
-
----
+### By connector type, where present
+- [ ] USB-C / USB-PD: CC pull-downs or PD resistors for the role (sink, source, DRP); CC capacitance limit; VBUS protection rated for the negotiated voltages (5, 9, 15, 20 V); low-capacitance ESD on D+/D-; the controller's configuration pins.
+- [ ] Ethernet (RJ45): magnetics or LAN module, MDI/MDIX and Bob Smith terminations, shield bond and the chassis-to-ground bond per the EMC plan.
+- [ ] Audio (TRS, TRRS): insertion-detect contacts, AC coupling (or DC with the reason), ESD on tip and ring, a ground-loop plan for line out.
+- [ ] Antenna feed: 50 Ω structure to the connector, return-plane keepout under the feed ([Defaults and classes](../../../jitx-layout-constraints/SKILL.md#defaults-and-classes)), connector suited to the frequency.
+- [ ] Debug header: ESD, short protection, keying or marking against reverse insertion; a sealed internal header may omit ESD, noted.

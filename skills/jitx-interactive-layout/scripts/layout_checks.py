@@ -20,7 +20,10 @@ component (``reg.buck``). Every config key is optional:
       "max_drop_mv": 50,
       "max_l_nh": 5.0,
       "power_paths": [{"net": "VIN", "from": "j_pwr.j", "to": "reg.buck",
-                       "require_pour": true, "current_a": 1.5}],
+                       "current_a": 1.5},
+                      {"net": "VBIAS", "from": "reg.ldo", "to": "u_adc",
+                       "require_pour": false, "max_drop_mv": 20}],
+      "power_branches": {"VIN": {"d_pwr": "indicator LED, 2 mA"}},
       "grid_mm": 0.05,
       "window_mm": 3.0,
       "max_cells": 1000000,
@@ -43,16 +46,30 @@ has pads on one net. ``current_a``, ``max_drop_mv``, ``max_l_nh``,
 ``grid_mm`` and ``window_mm`` can also be set on one path.
 ``loop_target_mm2`` is the target for loops that give none.
 
-Decoupling vias (``decap_vias``). For every capacitor (a component with a
-``capacitance``) whose two pads each
-have a plane via of their own net, in the pad or one route away (within
-``decap_via_reach_mm``; a power or ground route that comes back as polygon
-copper counts by its via's centre distance), where each via sits against its pad:
-``in_pad``, ``side``, ``end`` (past the pad's outer end) or ``between``
-(towards the other pad), and ``via_gap``, the distance between the nearest
-via of each pad. A via past the end moves the two vias apart by the
-capacitor's length and adds loop inductance. ``met`` is true when no via is
-at an end or between and the nearest pair are on the same side.
+Decoupling vias (``decap_vias``). Every capacitor (a component with a
+``capacitance``) with two pads on two nets is listed when a pad needs a
+plane via, or when both pads have a via. A pad needs one when a pour of
+its net on a plane layer (``plane_layers``, or the layers pours half
+cover) lies within ``decap_via_reach_mm`` of the pad's centre, on a layer
+the pad is not on: on a board with ground planes, every such capacitor
+with a surface-mount ground pad is listed. A through-hole pad is on every
+layer and needs none. A capacitor with other than two pads, or modelled
+as its own component with no ``capacitance``, is not listed. A pad's vias
+are those of its net in the pad or one route away (within the reach; a
+power or ground route that comes back as polygon copper counts by its
+via's centre distance); a pad that needs a via and has none of those
+takes the nearest via in reach in a pour that touches it on its own
+layer, one that reaches the plane before one that does not. A pad that
+needs a via and has none touching a plane fill of its net on a layer the
+pad is not on is ``missing``, and the capacitor fails. For each via,
+where it sits against its pad: ``in_pad``, ``side``, ``end`` (past the
+pad's outer end) or ``between`` (towards the other pad), and, when both
+pads have one, ``via_gap``, the distance between the nearest via of each
+pad. A via past the end moves the two vias apart by the capacitor's
+length and adds loop inductance. ``met`` is true when no pad is missing
+its via, no via is at an end or between, and the nearest pair are on the
+same side. A pad whose net has no plane (a rail fed by a pour on the
+capacitor's own layer) needs no via and is not judged for one.
 
 ``scope`` lists component keys. When it is set, circuitousness,
 ``narrower_than_rule``, ``loops``, ``decap_vias``, ``vias``,
@@ -88,18 +105,44 @@ with three or more) is measured like any other.
 
 Power width, per net named in ``power``: ``narrower_than_rule`` lists
 every trace narrower than the rule, with its layer, and ``met`` is false
-when any of them is not a step-down (``step_down``: no longer than
+when any of them is neither a step-down (``step_down``: no longer than
 ``neck_down_mm``, with an end in a pad whose narrow side is under the
-rule, or in a via in such a pad). The list holds traces only, so a pour's
-thermal spokes never enter it. Route copper that comes back as a polygon
-is not width-checked; it is listed by net under ``cannot_measure``.
+rule, or in a via in such a pad) nor a branch. The list holds traces
+only, so a pour's thermal spokes never enter it. Route copper that comes
+back as a polygon is not width-checked; it is listed by net under
+``cannot_measure``.
+
+Branches. ``power_branches`` names, per net in ``power``, the parts a
+low-current leg serves (a sense divider, a pull-up, an indicator), each
+with its reason; a name is one component's key or one pad's key. A narrow
+trace that is not a step-down is a branch (``branch``: the parts it
+feeds) when it feeds named parts only: past one of its ends, narrow
+traces reach nothing but pads of named parts and bare vias or control
+points, with no pour. Pads a trace at the rule's width joins count
+together, and so do pads joined by route copper that came back as a
+polygon, which is not a pour. A trace that carries on from a named
+part's pad to any other part is not one, nor is the trace before it. A
+named part tied by two narrow traces to one pour has both excused; a
+narrow trace between two pads the pour already joins feeds nothing and
+still fails. ``power.branches`` lists each named part with its reason and
+the count, length and narrowest width of the traces that feed it. A name
+with no reason, with no pad on the net, that covers more than one
+component, or under a net not in ``power`` is an error
+(``power.errors``) and excuses nothing; so is a ``power_branches`` not
+written as in the config above.
 
 Power paths. Each ``power_paths`` entry finds the shortest copper path
 from a source pad to a load pad, through traces, vias, overlapping copper
 and pours. ``trace_hops`` and ``trace_length`` count its trace legs,
 polygon route copper included (its length is the straight distance
-between its ends). A step-down leg, as above, is not counted. With
-``require_pour`` any counted leg fails the path.
+between its ends). A step-down leg, as above, is not counted; that needs
+the path's net in ``power``, since the rule's width decides which pads
+are narrow. Any counted leg fails the path: a power path is a pour or a
+plane for its whole length, and a branch named in ``power_branches``
+does not excuse a leg of one. An entry with ``require_pour`` false is a
+low-current path meant to be a trace that still takes a budget; its legs
+are counted and do not fail it. An entry that does not set
+``require_pour`` is held to it.
 
 IR drop and inductance, estimates. For each path, the DC resistance and
 the inductance from all the ``from`` pads (held at one potential) to all
@@ -172,9 +215,12 @@ within 4% of the 0.05 mm figures. A window over ``max_cells`` copper
 cells (default 1,000,000) is refused with an error that says how to
 change it.
 
-``met`` is false when ``require_pour`` fails or a budget given
-(``max_drop_mv``, ``max_l_nh``) is exceeded, true when every check asked
-for passes, and null when none was asked or one is unknown.
+``met`` is false when the path has a counted trace leg (unless
+``require_pour`` is false) or a budget given (``max_drop_mv``,
+``max_l_nh``) is exceeded, true when every check made passes, and null
+when one is unknown, or when ``require_pour`` is false and no budget is
+given. With no budget, true says only that the path has no counted trace
+leg. Each path reports the ``require_pour`` it was held to.
 
 Hot loop, for an input or decoupling capacitor straight across two pins of
 one IC, the pins on the capacitor's two nets: the area enclosed by the
@@ -236,6 +282,12 @@ board outline, with the area outside; a component named in ``overhang``
 (component key to the reason the user or the design gives) is listed with
 its reason and does not fail. ``courtyard_overlaps`` lists placed
 components on the same side whose courtyards overlap, with the area.
+``pad_overlaps`` lists, in the same shape, the pairs whose courtyards do not
+overlap but whose keep-outs do: a part's keep-out is its courtyard and every
+one of its pads, since a land pattern can put pads past its courtyard. A
+through-hole pad counts on both sides of the board, so the pair can be on
+opposite sides. Nets do not matter: two parts whose pads overlap collide on
+one net too.
 ``vias_outside_board`` lists vias whose copper is not inside the outline.
 ``met`` is true when nothing fails.
 
@@ -288,6 +340,7 @@ from layout_report import (  # noqa: E402, RUF100
     _owner,
     _pieces,
     _write,
+    keepout_overlaps,
 )
 
 CONFIG = "checks-config.json"
@@ -1446,42 +1499,171 @@ def _path_net(m: _Model, spec: dict[str, Any]) -> tuple[int | None, str]:
     return None, f"from has pads on {len(nets)} nets: name the net"
 
 
+def _branches(
+    m: _Model, net: int, thin: set[int], parts: list[str]
+) -> dict[int, list[str]]:
+    """The traces in ``thin`` (edges of ``net`` under its rule width that
+    are not step-downs) that feed named parts only, each with those parts.
+
+    Copper joined without a thin trace is one body: nodes that touch, a
+    piece of a pour or of polygon route copper with the nodes on it, a
+    trace not in ``thin`` with its two ends. A branch body has no pour
+    (polygon route copper is not one) and no pad of a part outside
+    ``parts``.
+    A thin trace is a branch when thin traces past one of its ends reach
+    branch bodies only, or when past both ends they reach branch bodies and
+    then one and the same other body (a part tied twice to one pour)."""
+    named = {i: part for part in reversed(parts) for i in m.find(part, net)}
+    root: dict[int, int] = {}
+
+    def body(x: int) -> int:
+        while root.setdefault(x, x) != x:
+            x = root[x]
+        return x
+
+    for x, others in m.contacts.items():
+        if net in m.nodes[x].nets:
+            for c in others:
+                if net in m.nodes[c].nets:
+                    root[body(x)] = body(c)
+    pieces = [p for p in m.pieces if p.net == net and p.nodes]
+    for p in pieces:
+        for x in p.nodes[1:]:
+            root[body(x)] = body(p.nodes[0])
+    for i, e in enumerate(m.edges):
+        if e.net == net and i not in thin:
+            root[body(e.a)] = body(e.b)
+    other = {body(p.nodes[0]) for p in pieces if not p.route}
+    other |= {
+        body(x)
+        for x, n in enumerate(m.nodes)
+        if n.kind == "pad" and net in n.nets and x not in named
+    }
+    served: dict[int, set[str]] = {}
+    for x, part in named.items():
+        served.setdefault(body(x), set()).add(part)
+    links: dict[int, list[int]] = {}
+    for i in thin:
+        for x in (m.edges[i].a, m.edges[i].b):
+            links.setdefault(body(x), []).append(i)
+
+    def past(start: int, cut: int) -> tuple[set[int], set[int]]:
+        """The branch bodies thin traces reach from ``start`` with trace
+        ``cut`` gone, and the other bodies they end on."""
+        if start in other:
+            return set(), {start}
+        seen = {start}
+        ends: set[int] = set()
+        todo = [start]
+        while todo:
+            for i in links.get(todo.pop(), []):
+                if i == cut:
+                    continue
+                for x in (m.edges[i].a, m.edges[i].b):
+                    if body(x) in other:
+                        ends.add(body(x))
+                    elif body(x) not in seen:
+                        seen.add(body(x))
+                        todo.append(body(x))
+        return seen, ends
+
+    found: dict[int, list[str]] = {}
+    for i in thin:
+        sides = [past(body(x), i) for x in (m.edges[i].a, m.edges[i].b)]
+        dead = [seen for seen, ends in sides if not ends]
+        if not dead and len(sides[0][1] | sides[1][1]) == 1:
+            dead = [seen for seen, _ in sides]
+        fed = {part for seen in dead for b in seen for part in served.get(b, ())}
+        if fed:
+            found[i] = sorted(fed, key=parts.index)
+    return found
+
+
 def _power(
     m: _Model, config: dict[str, Any], ring: float, scoped: set[int] | None
 ) -> dict[str, Any]:
     rules: dict[str, float] = config.get("power", {})
+    named: dict[str, dict[str, str]] = config.get("power_branches", {})
     planes = _planes(m, config) if config.get("power_paths") else []
-    out: dict[str, Any] = {"nets": {}, "paths": [], "errors": [], "planes": planes}
+    out: dict[str, Any] = {
+        "nets": {},
+        "paths": [],
+        "branches": [],
+        "errors": [],
+        "planes": planes,
+    }
+    if not (
+        isinstance(named, dict) and all(isinstance(v, dict) for v in named.values())
+    ):
+        out["errors"].append(
+            'power_branches: write {"<net>": {"<component or pad key>": "<reason>"}}'
+        )
+        named = {}
+    out["errors"] += [
+        f"power_branches: {name} is not in power" for name in named if name not in rules
+    ]
     for name, rule in rules.items():
         net = m.net_named(name)
         if net is None:
             out["errors"].append(f"no net named {name}")
             continue
+        # A branch needs a reason, a pad on the net and one component;
+        # without them it excuses nothing. A module's key would name every
+        # part under it.
+        parts = []
+        for part, why in named.get(name, {}).items():
+            if not (isinstance(why, str) and why.strip()):
+                out["errors"].append(f"power_branches: {name} {part} has no reason")
+            elif not m.find(part, net):
+                out["errors"].append(f"power_branches: {part} has no pad on {name}")
+            elif len({m.nodes[i].owner for i in m.find(part, None)}) > 1:
+                out["errors"].append(
+                    f"power_branches: {part} covers more than one component"
+                )
+            else:
+                parts.append(part)
         traces = [e for e in m.edges if e.net == net]
-        # With a scope, only the traces of connections in it are listed.
-        listed = [
-            e
-            for i, e in enumerate(m.edges)
-            if e.net == net and (scoped is None or i in scoped)
+        under = [
+            i for i, e in enumerate(m.edges) if e.net == net and e.width < rule - 1e-6
         ]
+        step = {
+            i
+            for i in under
+            if m.edges[i].length <= ring
+            and any(_narrow_pad(m, n, rule) for n in (m.edges[i].a, m.edges[i].b))
+        }
+        branch = _branches(m, net, set(under) - step, parts)
+        for part in parts:
+            legs = [m.edges[i] for i, fed in branch.items() if part in fed]
+            out["branches"].append(
+                {
+                    "net": name,
+                    "part": part,
+                    "why": named[name][part],
+                    "traces": len(legs),
+                    "length": _r(sum(e.length for e in legs)),
+                    "narrowest": _r(min(e.width for e in legs)) if legs else None,
+                }
+            )
+        # With a scope, only the traces of connections in it are listed.
         narrow = [
             {
-                "route": e.route,
-                "layer": e.layer,
-                "width": _r(e.width),
-                "length": _r(e.length),
-                "ends": [m.nodes[e.a].key, m.nodes[e.b].key],
-                "step_down": e.length <= ring
-                and any(_narrow_pad(m, n, rule) for n in (e.a, e.b)),
+                "route": m.edges[i].route,
+                "layer": m.edges[i].layer,
+                "width": _r(m.edges[i].width),
+                "length": _r(m.edges[i].length),
+                "ends": [m.nodes[m.edges[i].a].key, m.nodes[m.edges[i].b].key],
+                "step_down": i in step,
+                "branch": branch.get(i, []),
             }
-            for e in listed
-            if e.width < rule - 1e-6
+            for i in under
+            if scoped is None or i in scoped
         ]
         out["nets"][name] = {
             "rule": rule,
             "traces": len(traces),
             "narrowest": _r(min(e.width for e in traces)) if traces else None,
-            "met": all(t["step_down"] for t in narrow),
+            "met": all(t["step_down"] or t["branch"] for t in narrow),
             "narrower_than_rule": narrow,
             "polygon_routes": sorted(
                 {p.route for p in m.pieces if p.net == net and p.route}
@@ -1552,8 +1734,10 @@ def _power(
             entry["ir"] = _ir(m, net, src, dst, hops, config, spec, planes)
         except ValueError as err:
             entry["ir"] = {"error": str(err)}
+        # A power path is a pour or a plane unless its entry says otherwise.
+        entry["require_pour"] = bool(spec.get("require_pour", True))
         checks = []
-        if spec.get("require_pour"):
+        if entry["require_pour"]:
             checks.append(not traced)
         for key, budget in (
             ("within_budget", "max_drop_mv"),
@@ -1668,17 +1852,63 @@ def _decap_vias(
 ) -> list[dict[str, Any]]:
     """Where each capacitor's plane vias sit against its pads.
 
-    A capacitor counts when each of its two pads, on two nets, has a via of
-    its own net in it, or joined to it by one route (a trace no longer than
-    ``decap_via_reach_mm``, or route copper that came back as a polygon,
-    with the via centre within that distance of the pad centre). Per via: ``along`` is how far it lies past the
-    pad's centre away from the other pad, ``lateral`` how far to one side,
-    both in mm. ``placement`` is ``in_pad``, ``end`` (further past the pad's
-    outer edge than past its side), ``side`` or ``between`` (towards the
-    other pad). ``met`` is true when every via is in its pad or beside it
-    and the nearest power and ground vias are on the same side."""
+    A capacitor with two pads on two nets counts when a pad needs a plane
+    via, or when each pad has a via. A pad needs one when a pour of its net
+    on a plane layer the pad is not on lies within ``decap_via_reach_mm``
+    of the pad's centre. A pad's vias are those of its own net in it, or
+    joined to it by one route (a trace no longer than that reach, or route
+    copper that came back as a polygon, with the via centre within the
+    reach of the pad centre). A pad that needs a via and has none of those
+    takes the nearest via within the reach in a pour that touches the pad
+    on the pad's own layer, one that reaches the plane before one that
+    does not. A pad that needs a via and has none touching a plane fill of
+    its net on a layer the pad is not on is ``missing``. Per via: ``along`` is how far it lies
+    past the pad's centre away from the other pad, ``lateral`` how far to
+    one side, both in mm. ``placement`` is ``in_pad``, ``end`` (further
+    past the pad's outer edge than past its side), ``side`` or ``between``
+    (towards the other pad). ``met`` is true when no pad is missing its
+    via, every via is in its pad or beside it, and the nearest power and
+    ground vias are on the same side."""
     reach = float(config.get("decap_via_reach_mm", 2.0))
     caps = _capacitors(m)
+    planes = set(_planes(m, config))
+    fills = [p for p in m.pieces if not p.route and p.layer in planes]
+
+    def reaches(i: int, v: int) -> bool:
+        """Via v touches a plane fill of pad i's net on a layer the pad is
+        not on. A fill on the pad's own layer is not the plane it needs."""
+        n = m.nodes[i]
+        return any(
+            p.net in n.nets and p.layer not in n.layers and v in p.nodes for p in fills
+        )
+
+    def needs(i: int) -> bool:
+        """A plane of the pad's net is in reach, on a layer the pad is not on."""
+        n = m.nodes[i]
+        here = ShapelyPoint(n.pos)
+        return any(
+            p.net in n.nets
+            and p.layer not in n.layers
+            and p.geom.distance(here) <= reach
+            for p in fills
+        )
+
+    def through_pour(i: int) -> list[tuple[int, str]]:
+        """The nearest via in reach that a pour on the pad's layer joins to
+        it: the nearest that reaches the plane, or with none, the nearest."""
+        n = m.nodes[i]
+        near = [
+            (_dist(n.pos, m.nodes[v].pos), v)
+            for p in m.pieces
+            if not p.route and i in p.nodes
+            for v in p.nodes
+            if m.nodes[v].kind == "via"
+        ]
+        near = [f for f in near if f[0] <= reach]
+        if not near:
+            return []
+        return [(min([f for f in near if reaches(i, f[1])] or near)[1], "")]
+
     pads: dict[str, list[int]] = {}
     for i, n in enumerate(m.nodes):
         if n.kind == "pad" and n.owner in caps:
@@ -1709,14 +1939,17 @@ def _decap_vias(
         if m.nodes[a].nets == m.nodes[b].nets:
             continue
         found: dict[int, list[tuple[int, str]]] = {}
+        need = {p: needs(p) for p in (a, b)}
         for p in (a, b):
             got = [
                 (v, "in_pad") for v in m.contacts.get(p, []) if m.nodes[v].kind == "via"
             ]
             got += [(v, "") for v, length in links.get(p, []) if length <= reach]
+            if need[p] and not got:
+                got = through_pour(p)
             seen: set[int] = set()
             found[p] = [(v, k) for v, k in got if not (v in seen or seen.add(v))]
-        if not found[a] or not found[b]:
+        if not (need[a] or need[b]) and not (found[a] and found[b]):
             continue
         pa, pb = m.nodes[a].pos, m.nodes[b].pos
         pitch = _dist(pa, pb)
@@ -1757,25 +1990,28 @@ def _decap_vias(
                         "lateral": _r(lateral),
                     }
                 )
-            entry["pads"].append(
-                {
-                    "pad": m.nodes[p].key,
-                    "net": m.label(next(iter(m.nodes[p].nets))),
-                    "vias": vias,
-                }
-            )
+            pad: dict[str, Any] = {
+                "pad": m.nodes[p].key,
+                "net": m.label(next(iter(m.nodes[p].nets))),
+                "vias": vias,
+            }
+            if need[p] and not any(reaches(p, v) for v, _ in found[p]):
+                pad["missing"] = True
+                ok = False
+            entry["pads"].append(pad)
         pairs = [
             (_dist(m.nodes[v].pos, m.nodes[w].pos), v, w)
             for v, _ in found[a]
             for w, _ in found[b]
         ]
-        gap, v, w = min(pairs)
-        entry["via_gap"] = _r(gap)
-        sa = {x: s_ for s_, x in sides.get(a, [])}
-        sb = {x: s_ for s_, x in sides.get(b, [])}
-        if v in sa and w in sb and sa[v] != sb[w]:
-            entry["opposite_sides"] = True
-            ok = False
+        if pairs:
+            gap, v, w = min(pairs)
+            entry["via_gap"] = _r(gap)
+            sa = {x: s_ for s_, x in sides.get(a, [])}
+            sb = {x: s_ for s_, x in sides.get(b, [])}
+            if v in sa and w in sb and sa[v] != sb[w]:
+                entry["opposite_sides"] = True
+                ok = False
         entry["met"] = ok
         out.append(entry)
     return out
@@ -2076,7 +2312,8 @@ def _sanity(
     m: _Model, chains: list[_Chain], overhang: dict[str, str], scope: list[str]
 ) -> dict[str, Any]:
     """Components whose courtyard leaves the board, courtyards that overlap
-    on one side, and vias whose copper leaves the board. An off-board
+    on one side, keep-outs (courtyard and pads) that overlap where the
+    courtyards do not, and vias whose copper leaves the board. An off-board
     component named in ``overhang`` is listed with its reason and passes."""
     board = m.rd.root.board.shape.to_shapely().g
     inside = board.buffer(1e-6)
@@ -2091,16 +2328,21 @@ def _sanity(
         if k in overhang:
             entry["overhang"] = overhang[k]
         off.append(entry)
-    overlaps = []
-    every = sorted(courts)
-    for i, a in enumerate(every):
-        for b in every[i + 1 :]:
-            if scope and not (_in_scope(a, scope) or _in_scope(b, scope)):
-                continue
-            if side_of[a] == side_of[b]:
-                area = courts[a].intersection(courts[b]).area
-                if area > 1e-6:
-                    overlaps.append({"components": [a, b], "area_mm2": _r(area)})
+    copper: dict[str, list[tuple[BaseGeometry, bool]]] = {}
+    for n in m.nodes:
+        if n.kind == "pad" and n.owner in side_of:
+            copper.setdefault(n.owner, []).append((n.shape, n.hole is not None))
+    court_pairs, pad_pairs = keepout_overlaps(side_of, courts, copper)
+
+    def listed(pairs: list[tuple[str, str, float]]) -> list[dict[str, Any]]:
+        return [
+            {"components": [a, b], "area_mm2": _r(area)}
+            for a, b, area in pairs
+            if not scope or _in_scope(a, scope) or _in_scope(b, scope)
+        ]
+
+    overlaps = listed(court_pairs)
+    pad_overlaps = listed(pad_pairs)
     scoped = _scoped_vias(m, chains, scope)
     vias = [
         {"via": n.key, "pos": [_r(n.pos[0]), _r(n.pos[1])]}
@@ -2113,8 +2355,9 @@ def _sanity(
     return {
         "off_board": off,
         "courtyard_overlaps": overlaps,
+        "pad_overlaps": pad_overlaps,
         "vias_outside_board": vias,
-        "met": not (failing_off or overlaps or vias),
+        "met": not (failing_off or overlaps or pad_overlaps or vias),
     }
 
 
@@ -2137,8 +2380,11 @@ def run(rd: Any, config: dict[str, Any]) -> dict[str, Any]:
     sanity = _sanity(m, chains, dict(config.get("overhang") or {}), scope)
     cannot = [
         (
-            "decoupling vias joined to their pad through a pour or a control "
-            "point, not a single trace"
+            "decoupling vias of a capacitor modelled as its own component "
+            "(no `capacitance`) or with other than two pads, and vias "
+            "joined to their pad through a control point; through a pour, "
+            "only one via of a pad that needs a plane via and has none in "
+            "it or one trace away"
         ),
         (
             "via plan: connections that end at a plane via, a branch, a control "
@@ -2249,6 +2495,7 @@ def run(rd: Any, config: dict[str, Any]) -> dict[str, Any]:
                         "from",
                         "to",
                         "met",
+                        "require_pour",
                         "trace_hops",
                         "trace_length",
                         "ir",
@@ -2263,6 +2510,7 @@ def run(rd: Any, config: dict[str, Any]) -> dict[str, Any]:
                 }
                 for p in power["paths"]
             ],
+            "branches": power["branches"][:LIST_LIMIT],
             "errors": power["errors"],
         },
         "loops": [
@@ -2279,7 +2527,8 @@ def run(rd: Any, config: dict[str, Any]) -> dict[str, Any]:
             "not_met": [
                 {
                     "cap": d["cap"],
-                    "via_gap": d["via_gap"],
+                    "missing": [p["pad"] for p in d["pads"] if p.get("missing")],
+                    "via_gap": d.get("via_gap"),
                     "pad_pitch": d["pad_pitch"],
                     "placements": [
                         v["placement"] for p in d["pads"] for v in p["vias"]
@@ -2335,7 +2584,12 @@ def run(rd: Any, config: dict[str, Any]) -> dict[str, Any]:
             "met": sanity["met"],
             **{
                 k: sanity[k][:LIST_LIMIT]
-                for k in ("off_board", "courtyard_overlaps", "vias_outside_board")
+                for k in (
+                    "off_board",
+                    "courtyard_overlaps",
+                    "pad_overlaps",
+                    "vias_outside_board",
+                )
             },
         },
         "cannot_measure": cannot,

@@ -120,6 +120,32 @@ class Rail(Circuit):
 """
 
 
+NET_SYMBOL_LABEL = "Net symbols (GroundSymbol/PowerSymbol)"
+
+SYMBOL_ON_GROUND = """\
+from jitx.net import Net
+from jitxlib.symbols.net_symbols import GroundSymbol
+
+
+class Top(Circuit):
+    def __init__(self) -> None:
+        self.GND = Net([self.reg.gnd], symbol=GroundSymbol())
+"""
+
+
+class NetSymbolGateTests(unittest.TestCase):
+    def test_net_symbol_in_main_py_is_not_a_hit(self) -> None:
+        result = run_gates({"main.py": SYMBOL_ON_GROUND})
+        self.assertIn(f"ok    no hits: {NET_SYMBOL_LABEL}", result.stdout)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_net_symbol_in_a_subcircuit_is_a_hard_fail(self) -> None:
+        result = run_gates({"circuits/ldo.py": SYMBOL_ON_GROUND})
+        self.assertIn(f"HIT 1 {NET_SYMBOL_LABEL}", result.stdout)
+        self.assertIn(f"{Path('circuits') / 'ldo.py'}:", result.stdout)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+
+
 class PowerRailCapacitorGateTests(unittest.TestCase):
     def test_capacitor_without_shorttrace_is_review_hit(self) -> None:
         result = run_gates({"rail.py": UNDECOUPLED})

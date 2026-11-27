@@ -1,56 +1,33 @@
 # Interface Circuit
 
-### Port Design
-- [ ] Circuit exposes **bundle-typed ports** (I2S, I2C, SPI, USB2, GPIO, DiffPair, Power) — not individual signal ports
-- [ ] If wrapping a component with individual pins, bundle wiring happens inside the circuit
-- [ ] Bundle port types match what the MCU/FPGA wrapper provides via require()
+### Ports
+- [ ] Bundle ports (I2S, I2C, SPI, USB2, GPIO, DiffPair, Power), wired to individual pins inside the circuit, matching the bundles the MCU or FPGA wrapper provides.
 
-### Signal Integrity
-- [ ] Termination scheme matches the protocol standard:
-      - Series termination at source for point-to-point
-      - Parallel termination at receiver for transmission lines
-      - AC coupling caps for DC-blocking (check value for frequency range)
-- [ ] Impedance targets documented for constrained signals
-- [ ] Routing structure assigned matches impedance target
-- [ ] Constrained signal paths wired with plain `+` nets (no `>>` needed for a constraint to bind), and every part with a path through it (AC cap, series resistor, an ESD channel whose datasheet gives an in-to-out path) has a `BridgingPinModel`; a flow-through package whose opposite pin is n.c. has none, and its channel pin and the pin opposite are one net
-- [ ] **SI constraints (Constrain, ConstrainDiffPair, ReferencePlanes) are NOT applied here**: they go at the top-level design where the full path is visible. The circuit only wires the path and models the parts on its path that need a pin model.
+### Signal integrity
+- [ ] Termination per the protocol: series at the source for point to point, parallel at the receiver for transmission lines, AC coupling sized for the frequency range.
+- [ ] Each constrained signal's impedance target recorded, with the routing structure that meets it.
+- [ ] Constrained paths wired as `jitx-interconnect-constraints` "Plain nets by default" requires, a pin model on every part a path crosses; no SI constraint applied here.
 
-### Level Translation
-- [ ] Voltage domains of connected ICs compared — level shifter needed if they differ
-- [ ] Level shifter direction correct (unidirectional vs bidirectional)
-- [ ] Level shifter OE pin handled (not floating)
-- [ ] Open-collector/open-drain outputs: pull-up voltage compatible with the receiving IC's input voltage range (e.g., a 5V-tolerant OC output pulled up to 5V must not drive a 3.3V-only input)
+### Levels
+- [ ] Voltage domains of connected ICs compared; a level shifter where they differ, its direction right and its OE pin driven.
+- [ ] An open-drain output's pull-up rail within the receiver's input range (a 5 V pull-up never reaches a 3.3 V-only input).
 
-### Control Signal Handling
-- [ ] I2C lines: open-drain with pull-ups to VDDIO (value per bus speed: 4.7k for 100kHz, 2.2k for 400kHz)
-- [ ] SPI chip select: pull-up to deselect when inactive
-- [ ] UART: TX-to-RX crossover verified (not TX-to-TX)
-- [ ] Reset pins: RC filter for noise immunity, ESD protection if board edge
-- [ ] Interrupt pins: pull-up or pull-down matching active polarity
+### Control signals
+- [ ] I2C open-drain with pull-ups to VDDIO sized for the bus speed (4.7 kΩ at 100 kHz, 2.2 kΩ at 400 kHz).
+- [ ] SPI chip selects pulled up to deselect, one per device; CPOL and CPHA match each device.
+- [ ] UART TX to RX, never TX to TX.
+- [ ] Reset with an RC filter, and ESD where it reaches the board edge; interrupt pull matches its active polarity.
 
-### Unused Pin Handling
-- [ ] Unused inputs on active devices terminated (not floating) — tie to VCC or GND per datasheet
-- [ ] Unused outputs left unconnected or noted as NC
-- [ ] Unused op-amp sections: non-inverting input to mid-rail, output left open
+### Unused pins
+- [ ] Unused inputs tied per the datasheet; unused outputs NC; an unused op-amp section has its non-inverting input at mid-rail and output open.
 
-### Decoupling — CRITICAL (commonly missed)
-- [ ] Decoupling per the datasheet and any PDN requirement where they specify values and placement; otherwise the fewest, largest MLCCs in the smallest package rated at least 2x the rail, one per group of power pins, connected with the lowest loop inductance (Bogatin). No per-pin 10uF / 1uF / 100nF stack unless the datasheet asks for it
-- [ ] **Every power-rail cap is on a `ShortTrace`**: decoupling, bypass, bulk, output filter. Each is its own attribute on `self`, its supply-side pad joins the pin it serves through `ShortTrace(self.c_x.p1, <the IC power pin port>)` (`self.c_x.a` on a `PolarizedCapacitor`) and its other pad joins the return net. AC coupling, RC timing, compensation and RF matching caps are dispositioned in the task acceptance block as not power-rail. A crystal's load caps take a `ShortTrace` to the crystal pin they serve, and a bootstrap cap takes a `ShortTrace` to its BOOT pin with its other pad on SW; neither is an exception. The grep gate counts capacitor call sites against `ShortTrace(` call sites per file. Gated at Phase 2 → 3.
-- [ ] Ferrite bead or filter on analog supply pins if mixed-signal
+### Decoupling
+- [ ] Decoupling follows the datasheet and any PDN requirement. Without a recommendation: one 100 nF per supply pin and one bulk capacitor per rail at the IC, not a per-pin stack of three values.
+- [ ] Ferrite bead or filter on analog supply pins of a mixed-signal part.
 
-### Protocol-Specific Checks
-Apply the relevant protocol check:
-
-**USB**: differential impedance 90 ohm, AC coupling caps if required by standard, VBUS decoupling, ESD on connector pins, ID pin handling (OTG)
-
-**Ethernet (RGMII/SGMII)**: TX/RX clock routing, 50 ohm / 100 ohm impedance, magnetics/transformer, MDI termination
-
-**DDR (DDR3/DDR4/DDR5)**: per-byte-lane DQ-to-DQS matching, CK differential, command/address timing, ODT values, VREF decoupling, ZQ calibration resistor
-
-**LPDDR (LPDDR4/LPDDR5)**: differential read/write strobes per byte lane (different signaling than standard DDR), per-lane DQ-to-DQS matching, CK differential, CA bus timing, VREF decoupling, termination values differ from DDR — consult the specific LPDDR spec
-
-**PCIe**: AC coupling on TX (required by spec for different ground references between endpoints — but verify for your specific link configuration), 100 ohm differential, REFCLK distribution to all endpoints on same clock domain, PERST# handling, WAKE# pull-up
-
-**SPI**: clock polarity (CPOL) and phase (CPHA) mode verified, chip select unique per device
-
----
+### Protocols
+- [ ] USB: 90 Ω differential; AC coupling where the standard needs it; VBUS decoupling; ESD on the connector pins; ID pin for OTG.
+- [ ] Ethernet (RGMII, SGMII): TX and RX clocking, 50 Ω and 100 Ω impedance, magnetics, MDI termination.
+- [ ] DDR3/4/5: DQ to DQS matching per byte lane, differential CK, command and address timing, ODT, VREF decoupling, ZQ resistor.
+- [ ] LPDDR4/5: differential read and write strobes per byte lane, DQ to DQS matching, differential CK, CA timing, VREF decoupling, termination from the LPDDR specification, not DDR's.
+- [ ] PCIe: TX AC coupling (confirmed for the link), 100 Ω differential, REFCLK to every endpoint of the clock domain, PERST#, a WAKE# pull-up.

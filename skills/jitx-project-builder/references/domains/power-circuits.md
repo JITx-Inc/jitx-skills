@@ -1,61 +1,35 @@
 # Power Circuit
 
-### Electrical Correctness
-- [ ] Input voltage range of regulator covers the actual source voltage (with tolerance)
-- [ ] Output voltage matches the load requirement
-- [ ] Output current rating sufficient with margin (>20% headroom recommended)
-- [ ] Efficiency acceptable at expected load (check datasheet curves)
-- [ ] Output noise/ripple within load IC requirements (especially for analog, RF, PLL supplies)
-- [ ] Transient load response adequate for the load profile (check datasheet load transient plots)
+### Ratings
+- [ ] Input range covers the actual source with its tolerance; output voltage matches the load.
+- [ ] Output current with at least 20% headroom; efficiency acceptable at the expected load (datasheet curves).
+- [ ] Ripple and noise within the load's limit (analog, RF and PLL supplies especially); transient response fits the load profile.
+- [ ] Dissipation within the package rating at the expected ambient; thermal pad on ground copper.
 
-### Enable Pin — CRITICAL (commonly missed)
-- [ ] Enable pin is NOT left floating
-- [ ] If always-on: tied to input voltage through resistor or direct (check datasheet for max voltage)
-- [ ] If controlled: connected to control signal at correct logic level
-- [ ] If open-drain/open-collector: has pull-up to appropriate rail
-- [ ] UVLO threshold appropriate for input source (EN pin voltage divider if needed)
+### Enable
+- [ ] EN never floating: tied to the input (direct or through a resistor, within its maximum voltage), or driven at the right logic level; an open-drain driver has a pull-up.
+- [ ] UVLO threshold suits the source (an EN divider where needed).
 
-### Feedback Network
-- [ ] Fixed output: verify FB/VOUT pin wiring matches datasheet (some go to output, some to a divider)
-- [ ] Adjustable output: voltage divider from output to FB pin to GND
-- [ ] Reference voltage (Vref) matches datasheet exactly (0.6V, 0.8V, 1.0V, etc.)
-- [ ] Divider values on a named E-series; VOUT recomputed from Vref; rounding error, each resistor's tolerance times (1 - Vref/Vout), and the datasheet's Vref accuracy together within the rail's tolerance requirement
+### Feedback
+- [ ] A fixed-output part's FB or VOUT pin wired as the datasheet shows.
+- [ ] Adjustable: divider from output to FB to GND, Vref exactly the datasheet's; values on a named E-series with VOUT recomputed, and rounding error, each resistor's tolerance times (1 - Vref/Vout) and the datasheet's Vref accuracy together within the rail's tolerance.
 
-### Soft-Start and Sequencing
-- [ ] Soft-start capacitor included if pin is available (prevents inrush)
-- [ ] Power sequencing requirements documented if multiple rails
-- [ ] Sequencing order correct: core supplies before IO supplies, analog before digital where required
-- [ ] Sequencing implementation identified: PGOOD chaining, enable sequencing, or dedicated sequencer IC
+### Soft-start and sequencing
+- [ ] Soft-start capacitor where the pin exists.
+- [ ] With several rails: the order documented and correct (core before IO, analog before digital where required), and its mechanism named (PGOOD chain, enable sequencing, a sequencer IC).
 
-### Switching Regulator Specifics (skip for LDOs)
-- [ ] Inductor selected: saturation current > peak current, DCR acceptable for efficiency, core material appropriate for frequency
-- [ ] Bootstrap capacitor present if required (buck converters with high-side FET)
-- [ ] Compensation network matches datasheet recommendation (Type II/III, values from datasheet or calculator)
-- [ ] Input capacitance meets datasheet minimum (low-ESR ceramic + bulk), voltage rating exceeds max input
-- [ ] Output capacitance meets datasheet minimum for stability AND transient response
-- [ ] Boost capacitor present if required (e.g., charge pump pin on some converters)
-- [ ] Frequency-setting resistor correct if oscillator frequency is configurable
-- [ ] Current sense resistor value correct (if external current sensing)
-- [ ] Layout-sensitive components identified (input cap, bootstrap cap, inductor — must be close to IC)
+### Capacitors (every regulator)
+- [ ] Input decoupling and output capacitance per the datasheet (value, type, ESR), output at its minimum for stability and transient response, each rated above the maximum voltage it sees.
 
-### Output Stage
-- [ ] Output capacitance meets datasheet minimum
-- [ ] Output capacitor ESR within stability range (check datasheet — some LDOs require minimum ESR)
-- [ ] Output decoupling: at minimum 100nF ceramic + bulk cap per datasheet
+### Switching regulators
+- [ ] Inductor saturation current above peak current; DCR and core material suit the frequency.
+- [ ] Bootstrap or boost capacitor where required; compensation per the datasheet (Type II/III).
+- [ ] Frequency-setting and current-sense resistors correct where present.
+- [ ] Layout-sensitive parts (input cap, bootstrap cap, inductor) named for placement.
 
-### Input Stage
-- [ ] Input decoupling per datasheet recommendations (value, type, ESR)
-- [ ] Input capacitor voltage rating exceeds maximum input voltage
+### Linear regulators
+- [ ] Output capacitor ESR inside the stability range, minimum ESR included where the LDO needs one.
 
-### Power-Good and Fault — CRITICAL (commonly missed)
-- [ ] PGOOD pin type identified: open-drain or push-pull (check datasheet)
-- [ ] If open-drain: pull-up resistor to appropriate voltage rail (1k-100k typical)
-- [ ] If push-pull: direct connection, no pull-up needed
-- [ ] PGOOD connected to monitoring input or indicator LED
-- [ ] Fault pins (OVP, OCP, THERMAL_SHUTDOWN) handled if present
-
-### Thermal
-- [ ] Thermal/exposed pad connected to ground copper (not left floating)
-- [ ] Power dissipation within component ratings for expected ambient temperature
-
----
+### Power-good and faults
+- [ ] PGOOD output type from the datasheet: open-drain takes a pull-up to the right rail (1 kΩ to 100 kΩ), push-pull none; PGOOD goes to a monitor input or an indicator.
+- [ ] Fault pins (OVP, OCP, thermal shutdown) handled.

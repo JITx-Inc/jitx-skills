@@ -221,9 +221,7 @@ jitx-skills/
 │   ├── jitx-project-builder/
 │   │   ├── SKILL.md
 │   │   ├── references/
-│   │   │   ├── domain-checklists.md  # Checklist index
-│   │   │   ├── domains/              # Focused checklist files
-│   │   │   └── net-classes.md        # Cross-domain net taxonomy
+│   │   │   └── domains/              # Focused checklist files
 │   │   └── scripts/                  # plan_status.py
 │   ├── jitx-component-modeler/
 │   ├── jitx-circuit-builder/

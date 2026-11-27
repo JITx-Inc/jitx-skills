@@ -74,6 +74,10 @@ jitx design session --stop my_pkg.main.MyDesign
 ```
 
 - Needs `jitx runtime start --background`. One session per design.
+- With a user watching, have the board view open before the first batch,
+  so they can follow the layout: `jitx ui open --board --design <design> &`
+  (base `jitx` skill, Visualizers), unless you or the caller that
+  delegated the layout already opened one. Leave it open when you finish.
 - `exec` fails with `message could not be delivered` until the session is
   up: retry for a minute, then read `.jitx/session.log`.
 - Place the circuit before its parts. A component inside a circuit with
@@ -121,15 +125,16 @@ blocked, and later copper can push earlier routes into blocked.
 jitx design exec my_pkg.main.MyDesign <skill>/scripts/layout_report.py              # state.json
 jitx design exec my_pkg.main.MyDesign <skill>/scripts/layout_report.py -f issues_all
 jitx design exec my_pkg.main.MyDesign <skill>/scripts/layout_checks.py              # checks.json
+python <skill>/scripts/layout_placement.py audit   # no session: placement from state.json
 ```
 
 | Read | Tells you |
 |---|---|
-| report summary | ideal and unplaced parts, courtyard overlaps, parts off the board, blocked routes, split, empty and `fill_unknown` pours (sync and rerun), issue counts, tightest skew and loss margins; a pending category means rerun |
+| report summary | ideal and unplaced parts, overlapping parts, parts off the board, blocked routes, split, empty and `fill_unknown` pours (sync and rerun), issue counts, tightest skew and loss margins; a pending category means rerun |
 | report `changed` | what moved, appeared or went away since the previous report, the user's editor changes included |
 | `connectivity` | nets whose pads are not all joined by routes, vias and pour fills; `rd.issues()` does not report an unrouted plain net |
 | `vias` | per pad-to-pad connection, its vias: one its ends did not need (`redundant`), or one farther than `via_reach_mm` from the end it serves (`far_from_end`); every via joined on fewer than two layers (`dangling`), and every via in a pad whose definition does not allow it (`via_in_pad`) |
-| `sanity` | parts past the board edge (except those named in `overhang`), courtyard overlaps, vias outside the board |
+| `sanity` | parts past the board edge (except those named in `overhang`), overlapping parts, vias outside the board |
 | `circuitousness`, `loops`, `decap_vias`, `power`, `power_paths` | placement and routing quality (`references/general-pnr.md`) |
 | `issues_all` | every constraint result with its margin; SI passes or fails here, never on your own estimates (`references/si-pnr.md`) |
 
@@ -156,7 +161,7 @@ and run it every batch.
 4. Block by block: place, route its tight connections and plane vias, then
    its pours and local routes; check the block (`scope` in the checks
    config) before the next.
-5. Between blocks, then the bulk, to the via plan.
+5. Placement review, then between blocks, then bulk (`general-pnr.md`, Routing).
 6. Sanity pass, below.
 
 ## Edit
@@ -196,7 +201,7 @@ Python, and `jitx-code-layout` covers reading it. Answer each:
 - `issues_all`: no error-severity issue and every category complete; for
   SI designs every skew, delay and loss check met with margins, and every
   differential pair coupled on its structure.
-- No courtyard overlap; each pour one piece.
+- No overlapping parts; each pour one piece.
 - Report shortfalls first. Do not say done while anything the user asked
   for is unrouted, unmeasured or failing; say what is left and what blocks
   it. Then: the rules planned against with their files, requests that set a
