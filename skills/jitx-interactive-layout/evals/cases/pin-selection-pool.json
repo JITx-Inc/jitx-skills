@@ -1,0 +1,43 @@
+{
+  "name": "pin-selection-pool",
+  "prompt": "The RP2040 board's parts are placed and nothing is routed. In the open layout, route the SPI flash and the I2C accelerometer to the RP2040. The MCU pins for both buses are open, so pick them.",
+  "inputs": {
+    "project": "A JITX project whose design uses jitxexamples.jumpstart_kits.js3_pin_assignment.mcu_muxing (an RP2040 that takes an SPI bus with chip select and an I2C bus with require, a W25Q128JV flash, a LIS3DH accelerometer and two pull-ups). Copied to a scratch directory, built, with every part placed and nothing routed.",
+    "environment": "A jitx whose rd.layout has the constraints, tags, tag and route_ends calls, with its runtime. A session for the design is already running in the project; the runner uses it, does not rebuild the design, and neither starts nor stops a runtime or a session. Where the skill calls for a session restart, the runner says so in COMPLETION.md and leaves the restart to the user."
+  },
+  "notes": "For whoever reads the judges' output, not for the runner. Six signals draw from the RP2040's SPI and I2C pin options, and the pin one signal takes is gone for the others. A route to a far pin can be perfectly straight, so the detour ratio of each route says nothing about whether the pins were well chosen: the selection has to be made for the whole pool, from the possible ends read before any of the six is routed, and compared with the least-total selection. The four SPI signals come from one SPI instance, so the least-total selection over the per-signal answers can mix two instances, and the I2C nets hold pull-up pads that the live design answers beside the MCU's pads. A selection that differs from the least-total one for a stated reason (one instance, a crossing, a blocked channel) is a pass when the reason is recorded. The net labels read from Python are the capture's and do not follow a signal to a newly chosen pin, so after routing, a connectivity reading taken from those labels shows the pool's nets as split until the session restarts. The runner cannot restart the session here: a correct run reports each signal's realized end from the copper, names the stale labels, and says connectivity needs the restart. A run that reports connectivity met without it, or rips up good routes because of the stale reading, has not read the result back.",
+  "runner_models": [
+    "sonnet"
+  ],
+  "runner_artifacts": "The runner MUST write its scripts to <output>/scripts/, copy the project's .jitx/interactive-layout/checks-config.json, pin-ends.json and checks.json to <output>/, and write <output>/COMPLETION.md naming the pad each signal was routed to, how the pads were chosen, and the last layout_checks.py summary verbatim with its command line. Before the run, the harness makes the scratch project a git repository with every file committed. After the run, the runner MUST write <output>/project.diff from `git add -A && git diff --cached` in the scratch project, so judges see every changed and new file, and can check that the design source fixes no pin.",
+  "runner_rationale": "Customers drive this skill with mixed-strength agents (Claude Code, Codex, and Devin among them). The skill must carry the mechanics and the checks itself, so the eval runs it under a Sonnet-class runner. Judges stay frontier-tier regardless of runner.",
+  "expected_output": "An answer that names the six pooled signals from the design source, reads every signal's possible ends from the live design before routing any of them, chooses one MCU pad per signal for the whole pool (the least-total selection, or another with its reason), routes each signal to its chosen pad with rd.layout requests, and reports the pin_selection check as met, with route status and connectivity read back.",
+  "assertions": [
+    {
+      "text": "the possible ends were saved before routing: pin-ends.json holds a complete reading for the pool",
+      "check": "deterministic",
+      "cmd": "python3 -c \"import json,sys; g=json.load(open(sys.argv[1]))['groups']; sys.exit(0 if g and all(v.get('complete') is True for v in g.values()) else 1)\" <output>/pin-ends.json"
+    },
+    {
+      "text": "the checks report pin_selection as met",
+      "check": "deterministic",
+      "cmd": "python3 -c \"import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if d['pin_selection']['met'] is True else 1)\" <output>/checks.json"
+    },
+    {
+      "text": "the possible ends of all six pooled signals are read from the live design before any of them is routed, not one signal at a time as each is routed",
+      "check": "judge"
+    },
+    {
+      "text": "the pads are chosen for the whole pool against the least-total selection, and a selection that differs from it carries a stated reason",
+      "check": "judge"
+    },
+    {
+      "text": "the pin assignment is not taken from the nets the session capture assigned, and no pin is fixed in the design source to deliver it",
+      "check": "judge"
+    },
+    {
+      "text": "route status and each signal's realized end are read back after routing and the answer names the pad each signal ended on; connectivity is reported from a reading that can be trusted, or named as waiting on a session restart where the net labels are stale",
+      "check": "judge"
+    }
+  ]
+}
