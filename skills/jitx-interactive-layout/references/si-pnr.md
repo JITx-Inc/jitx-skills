@@ -37,6 +37,9 @@ no measurement is unmeasured, not passing.
   than route around it. Where the far end is not placed yet, place it
   for the assignment: its position and rotation decide which balls face
   each other.
+  [Pin selection](general-pnr.md#pin-selection) gives where the
+  candidates come from (`route_ends`) and how the selection is checked
+  (`pin_selection`).
 - Fewest layers. Every layer a signal uses brings its own velocity, loss
   and via transitions into the matching, and every via down to it blocks
   channels on the layers it passes. So the interface goes on as few signal

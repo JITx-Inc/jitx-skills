@@ -1,0 +1,43 @@
+{
+  "name": "tags-constraints-live",
+  "prompt": "In the open layout, read the clearance and skew constraints back from the design, route the USB D+/D- escapes from the connector pads to two control points, and tag those escape routes with our PinFanoutTag so they neck down.",
+  "inputs": {
+    "project": "A JITX project whose design uses jitxexamples.jumpstart_kits.js3_pin_assignment.usb_esd (a USB connector with ESD protection and a USB topology) and also declares, in its own package, a `PinFanoutTag` (a `jitx.constraints.Tag` subclass) with a rule in the design's `rules` that gives routes carrying it the substrate's neck routing structure (`HDISubstrate.Neck_SE`) at a priority above the pair's own 100 ohm structure. Copied to a scratch directory, built, with its parts placed and the connector's D+/D- pads facing open board, and nothing routed.",
+    "environment": "A jitx whose rd.layout has the constraints, tags, tag and route_ends calls, with its runtime. A session for the design is already running in the project; the runner uses it, does not rebuild the design, and neither starts nor stops a runtime or a session."
+  },
+  "notes": "For whoever reads the judges' output, not for the runner. This is the limits-stated request on a jitx where the live design can answer: rd.layout.constraints gives the rule that applies to an object and the width or clearance in force, and rd.layout.tag applies a tag the design declares. The skew bound is a constraint on the signals in the design's code and is still read from the source. On this fixture the pair's 100 ohm structure asks for more clearance than the connector's 0.5 mm pitch pads leave, so an untagged escape from a D+ or D- pad reads blocked; the neck structure fits. A route that was blocked before it was tagged stays blocked until a modify makes it retry, so a run that tags the routes and reports the neck without reading route status back has not shown it. Writing a code Route with the tag into the design source would deliver a route the user cannot edit.",
+  "runner_models": [
+    "sonnet"
+  ],
+  "runner_artifacts": "The runner MUST write its scripts to <output>/scripts/ and <output>/COMPLETION.md stating what it did, each value it read from the live design with the call that returned it, each value it read from the source with its file, and what is left for the user. Before the run, the harness makes the scratch project a git repository with every file committed. After the run, the runner MUST write <output>/project.diff from `git add -A && git diff --cached` in the scratch project, so judges can check that the design source gained no route and no tag assignment.",
+  "runner_rationale": "Customers drive this skill with mixed-strength agents (Claude Code, Codex, and Devin among them). The skill must carry the mechanics and the checks itself, so the eval runs it under a Sonnet-class runner. Judges stay frontier-tier regardless of runner.",
+  "expected_output": "An answer that reads the clearance in force from the live design with rd.layout.constraints and the skew bound from the design source, naming the file; routes D+ and D- from the connector pads to route points with rd.layout requests; applies PinFanoutTag to the escape routes with rd.layout.tag from a script, then reads rd.layout.tags and rd.layout.constraints back and reports the rule that now applies with the width and clearance in force; and reads back route status, with both escapes routed or the blocked one named.",
+  "assertions": [
+    {
+      "text": "a script of the run calls the layout's constraints read",
+      "check": "deterministic",
+      "cmd": "grep -rqE '\\.constraints\\(' <output>/scripts"
+    },
+    {
+      "text": "a script of the run calls the layout's tag request",
+      "check": "deterministic",
+      "cmd": "grep -rqE '\\.tag\\(' <output>/scripts"
+    },
+    {
+      "text": "the clearance is reported from rd.layout.constraints with the value the call returned, and the skew bound is read from the design source with its file named",
+      "check": "judge"
+    },
+    {
+      "text": "the escape routes are tagged from a script with rd.layout.tag, and the answer reports the tags and the rule that applies read back after tagging, with the width or clearance in force",
+      "check": "judge"
+    },
+    {
+      "text": "the answer does not write a tagged code Route or a tag assignment into the design source as the delivered result, and claims nothing about the tag that a script did not read back",
+      "check": "judge"
+    },
+    {
+      "text": "route status is read back after the routes are tagged, and the answer says for each escape whether it is routed; a blocked escape is named, not reported as done",
+      "check": "judge"
+    }
+  ]
+}

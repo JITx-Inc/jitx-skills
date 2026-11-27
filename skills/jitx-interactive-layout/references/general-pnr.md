@@ -55,6 +55,45 @@ every circuit. Work block by block inside a floorplan.
   `scope` set to the block). A later block does not move an earlier
   block's parts; resize the floorplan and rerun instead.
 
+## Pin selection
+
+For signals taken with `require`, choose the whole pool's pins at once,
+after both ends are placed, before routing any of it. A route's detour
+ratio (`circuitousness`) cannot see a wrong pin (a straight route to
+a far pin has a ratio of 1), and a pin one signal takes is gone for the
+rest.
+
+1. Name each pool in the checks config `pin_selection`: `starts`, each
+   signal's load-end pad, and `ends`, the component or pad keys
+   whose pins are the pool: `route_ends` also answers the net's other
+   pads (a pull-up).
+2. Run `layout_checks.py -f pin_ends`. It saves each signal's possible
+   ends (`pin-ends.json`) and returns the least-total selection.
+3. Check it against what a straight line ignores (courtyards, via sites,
+   the layer plan, crossings): each costs a via or a detour.
+4. Route each signal to its chosen pad, then read `pin_selection`. A
+   selection other than the least-total one needs its reason in `accept`.
+   If the summary lists `stale_labels`, restart the session and rerun the
+   checks before reading `connectivity`.
+
+A bundle's pins (an SPI bus) can be tied to one peripheral instance:
+routing one signal narrows what the rest answer, so the least
+total over the unrouted reading may mix instances and is a lower bound.
+List one instance's pads (the component's `provide` in the source) in
+`ends` to read its own least total (no new reading), route the instance
+with the least, and leave its list in `ends` as the declared pool; or
+keep the wider `ends` and name the instance in `accept`. An `ends`
+narrowed to one bundle still lists the pads the group's other bundles may
+take, or their starts have no candidate.
+
+On a routed board, delete the whole pool's routes and `sync` before
+reading again: a signal lifted alone gets back only pads no other route
+holds. On an Edit, do that only when the user asked to reconsider the
+pins.
+
+Without `route_ends`, derive the pool from the source and choose the same
+way; the check reports `pin_selection` as not measurable.
+
 ## Via plan
 
 Before routing, give every connection a layer and its vias, and write the

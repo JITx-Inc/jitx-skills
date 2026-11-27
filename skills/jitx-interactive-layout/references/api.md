@@ -50,9 +50,10 @@ file under `.jitx/`.
 ## Requests
 
 Every request exists on `rd.layout` (sent at once) and on a batch from
-`rd.layout.batch()` (sent together at the end of the `with` block). Direct
-`rd.layout.route` and `rd.layout.via` take `wait=True` by default and return
-after the runtime has routed them. Points
+`rd.layout.batch()` (sent together at the end of the `with` block), except
+`route_ends`, `tags` and `constraints`: reads on `rd.layout` only (a batch
+has `tag` and `untag`). Direct `rd.layout.route` and `rd.layout.via` take
+`wait=True` by default and return after the runtime has routed them. Points
 are `(x, y)` board-absolute millimetres. `layer` counts copper layers from
 the top; negative counts from the bottom.
 
@@ -188,6 +189,35 @@ region(feature, *, origin=None, net=None)
 
 Returns `PendingRegion`: `.key`, `.region` once reported.
 
+### route_ends
+
+```python
+route_ends(start) -> Sequence[Pad | Via | ControlPoint]
+```
+
+The ends a route from `start` can take under the current pin assignment.
+A routed start answers `[]`. A `require`d signal answers its pool's pads
+that no other route holds, so a pool reads whole only while none of it is
+routed; other pads on the start's net (a pull-up) are answered too. The
+objects are those `rd.query(Pad)` yields; match them by `id(obj)`.
+
+### Tags
+
+```python
+tag(objects, *tags)
+untag(objects, *tags)
+```
+
+- `tag` takes routes, vias, pads, control points, pours and keepouts;
+  rules select on its tags with no rebuild. `sync` after.
+- Pass instances (`MyTag()`) of a class the design declares (used in a
+  rule or assigned in code), imported from the design's package.
+- `untag` removes only tags applied with `tag`.
+- A blocked route does not retry when a tag applies, nor on `reset`
+  alone: `modify` it with a width the new rule allows, then reset.
+- `TypeError` for a class or a builtin tag; `ValueError` for an
+  undeclared tag or an object the runtime does not know.
+
 ### Changing and removing
 
 ```python
@@ -202,7 +232,8 @@ delete(*objects)
 sync(timeout=None) -> bool
 ```
 
-- `modify` reroutes as needed. `reset` returns settings to the constraints.
+- `modify` reroutes as needed. `reset` returns settings to the constraints:
+  `reset=[RouteSetting.Width]` hands a requested width back to the rule.
   A route created in code can be modified except for what its code sets;
   a width set by `modify` lasts until code sets that `Route.Config` field.
 - `update_via`, `update_control` and `update_region` act only on objects the
@@ -240,6 +271,47 @@ index into the batch's operations, which are not its calls: consecutive
 placements merge into one operation, a `delete` splits into one operation per
 kind of object, and `sync` counts as one. Read `message` to identify the
 refused request.
+
+## Reading tags and constraints
+
+```python
+tags(obj, layer) -> Sequence[Tag]
+constraints(*queries) -> Sequence[ResolvedConstraints]  # one per query
+ConstraintQuery(obj, layer, other=None, effects=())
+```
+
+- `tags`: what rules see, net, code, applied and builtin tags included.
+- `trace_width` and `clearance` are filled only when `effects` is empty
+  or names them (`effects=[TraceWidth]`), and `clearance` only with
+  `other=` (a route and a pad, or two pads).
+- `ResolvedConstraints`: `applied` (one `AppliedConstraint` per effect
+  kind, with `rule`, `kind`, `effect`), `trace_width` (None for a pair),
+  `clearance` (None for one object).
+- `rule.name` is None without `name=`: tell rules apart by
+  `rule.priority` and `effect`.
+- `trace_width` and `clearance` are the values in force. `applied` can
+  list a rule whose value is not (a tag's `TraceWidth` on a net under a
+  routing structure, or under a width the route requested) and can be
+  empty when a routing structure sets the value. Report `trace_width` and
+  `clearance`, not a rule's number.
+
+```python
+from jitx.constraints import TraceWidth
+from jitx.run import ConstraintQuery
+from my_pkg.designs.top import MyTag
+
+def main(rd) -> dict:
+    taps = [r for _, r in rd.query(Route)
+            if (n := rd.nets.find(r.source)) is not None and n.name == "VSENSE"]
+    rd.layout.tag(taps, MyTag())
+    rd.layout.sync(timeout=20)
+    qs = [ConstraintQuery(r, r.layer, effects=[TraceWidth]) for r in taps]
+    return {"routes": [
+        {"tags": [repr(t) for t in rd.layout.tags(r, r.layer)],
+         "priority": [a.rule.priority for a in res.applied],
+         "width": res.trace_width}
+        for r, res in zip(taps, rd.layout.constraints(*qs))]}
+```
 
 ## Reading the tree
 

@@ -39,17 +39,14 @@ refused call's signature with `help(jitx.run.layout.SyncLayout)`.
 
 Work around these and say where they affected the result.
 
-- No query for a route's possible ends. The capture's pin assignment is
-  often poor. Derive the eligible pads from the source's `provide`/`require`
-  and route to the ones you choose.
-- No query for constraints. Read rules, net classes, routing structures,
-  topologies and bounds from the source.
-- No tags. Route without the tag and list the route for the user to tag.
+- `route_ends`, `tag`, `untag`, `tags` and `constraints` are not in every
+  `jitx`: test `hasattr(rd.layout, "route_ends")`. Otherwise take pads
+  from `provide`/`require`, rules from the source, and list routes to tag.
 - Net labels lag a pin assignment change: after the assignment moves, the
   nets read from Python (`rd.nets`, a pad's or control point's net) can
-  still show the old assignment until a fresh capture. Check connectivity
-  after a re-solve from the copper and the pads you chose, or from a fresh
-  capture (restart the session), not from those labels.
+  still show the old assignment until a fresh capture (the checks'
+  `stale_labels`). After a re-solve, check connectivity from the copper
+  and your chosen pads, or after restarting, not from those labels.
 - One copy of a thing loaded at a time: a second load breaks the
   session's Python state. If `exec` starts failing unexplained, restart the
   session.
@@ -106,6 +103,8 @@ Board-absolute mm and degrees CCW; layer 0 is top, `-1` is bottom.
 | `pair_insertion((p, n), (x, y), rot, layer)`, `drop_pair_insertion`, `pair_point` | Diff-pair merge point and coupled continuation |
 | `region(Pour(ConvexHull([...], expand=), layer, rank=), net=)` | Pour, keepout, cutout |
 | `modify`, `update_via`, `update_control`, `update_region`, `delete` | Change or remove |
+| `route_ends(start)` | Pads `start` can route to; `[]` once routed |
+| `tag(objs, MyTag())`, `untag`, `tags(obj, layer)`; `constraints(ConstraintQuery(obj, layer, other=))` | Tags; rules; width, clearance in force |
 | `sync(timeout)` | Wait for routing and checks to settle |
 
 - Endpoints: a pad, a single-pad port, a via, a control point.
@@ -125,6 +124,7 @@ blocked, and later copper can push earlier routes into blocked.
 jitx design exec my_pkg.main.MyDesign <skill>/scripts/layout_report.py              # state.json
 jitx design exec my_pkg.main.MyDesign <skill>/scripts/layout_report.py -f issues_all
 jitx design exec my_pkg.main.MyDesign <skill>/scripts/layout_checks.py              # checks.json
+jitx design exec my_pkg.main.MyDesign <skill>/scripts/layout_checks.py -f pin_ends
 python <skill>/scripts/layout_placement.py audit   # no session: placement from state.json
 ```
 
@@ -135,6 +135,7 @@ python <skill>/scripts/layout_placement.py audit   # no session: placement from 
 | `connectivity` | nets whose pads are not all joined by routes, vias and pour fills; `rd.issues()` does not report an unrouted plain net |
 | `vias` | per pad-to-pad connection, its vias: one its ends did not need (`redundant`), or one farther than `via_reach_mm` from the end it serves (`far_from_end`); every via joined on fewer than two layers (`dangling`), and every via in a pad whose definition does not allow it (`via_in_pad`) |
 | `sanity` | parts past the board edge (except those named in `overhang`), overlapping parts, vias outside the board |
+| `pin_selection` | routed pins against the least-total selection |
 | `circuitousness`, `loops`, `decap_vias`, `power`, `power_paths` | placement and routing quality (`references/general-pnr.md`) |
 | `issues_all` | every constraint result with its margin; SI passes or fails here, never on your own estimates (`references/si-pnr.md`) |
 
@@ -144,23 +145,26 @@ and run it every batch.
 
 ## Build
 
-1. Read the constraints from the source. Write down what you plan against
-   (widths, clearances, power nets, `ShortTrace` pairs, routing structures,
-   bounds, vias, stackup), each with its source file. If the constraints a
-   task needs are missing, hand off to `jitx-layout-constraints` or
+1. Write down what you plan against, each with its source: widths,
+   clearances, routing structures, `ShortTrace` pairs, topologies, bounds,
+   vias, stackup, power nets. With `constraints`, check it against
+   the width and clearance in force on each class's first requested route
+   (blocked or not). If the constraints a task needs are missing, hand
+   off to `jitx-layout-constraints` or
    `jitx-interconnect-constraints`. `ideal_parts` in the report: tell the
    user and place around them only if they agree. A plane pour the stackup
    leaves open is the user's call; if you cannot ask, add one and say so.
 2. Floorplan by blocks, connectors on their edges facing out
    (`general-pnr.md`, Floorplan by blocks). Place each block's circuit at
    its region's origin (Session, above).
-3. Via plan: every connection's layer and its 0, 1 or 2 vias, each at
-   the end pad it serves (`general-pnr.md`, Via plan). For an interface
+3. Via plan: each non-pool connection's layer and its 0, 1 or 2 vias,
+   each at the end pad it serves (`general-pnr.md`, Via plan). For an interface
    under SI constraints, one pin assignment for the whole interface first
    (`si-pnr.md`).
-4. Block by block: place, route its tight connections and plane vias, then
-   its pours and local routes; check the block (`scope` in the checks
-   config) before the next.
+4. Block by block: place; once a pool's ends are placed, select its pins
+   (`general-pnr.md`) and plan its vias, before routing any of it; route
+   tight connections and plane vias, then pours and local routes; check
+   the block (`scope` in the checks config) before the next.
 5. Placement review, then between blocks, then bulk (`general-pnr.md`, Routing).
 6. Sanity pass, below.
 
@@ -197,7 +201,9 @@ Python, and `jitx-code-layout` covers reading it. Answer each:
 
 ## Done
 
-- `connectivity`, `vias` and `sanity` met; no blocked route.
+- `connectivity`, `vias` and `sanity` met; `pin_selection` met for each
+  routed pool, unmeasurable only without `route_ends`; `stale_labels`
+  empty; no blocked route.
 - `issues_all`: no error-severity issue and every category complete; for
   SI designs every skew, delay and loss check met with margins, and every
   differential pair coupled on its structure.
@@ -206,7 +212,9 @@ Python, and `jitx-code-layout` covers reading it. Answer each:
   for is unrouted, unmeasured or failing; say what is left and what blocks
   it. Then: the rules planned against with their files, requests that set a
   width or space, pads that share a via, what each pour joins and why,
-  ideal parts the user accepted, routes left for tags, limitations that
-  applied, and what you checked and what you did not.
+  ideal parts the user accepted, routes tagged or left to tag, tag
+  rules, limitations that applied, and what you
+  checked and what you did not.
 
-Do not write rules or tags in the source from here.
+Write rules and `Tag` classes through `jitx-layout-constraints`, not
+from here; tag layout objects here.
