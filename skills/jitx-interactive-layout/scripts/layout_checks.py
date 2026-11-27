@@ -35,7 +35,12 @@ component (``reg.buck``). Every config key is optional:
                  "target_mm2": 2.0}],
       "decap_via_reach_mm": 2.0,
       "via_reach_mm": 2.0,
-      "overhang": {"j_pwr.j": "edge connector, overhangs by design"}
+      "overhang": {"j_pwr.j": "edge connector, overhangs by design"},
+      "pin_selection": {
+        "amp_bus": {"starts": ["u_amp.landpattern.p.6", "r_sda.landpattern.p.2"],
+                    "ends": ["u_mcu"],
+                    "accept": "least-length selection crosses the clock over SDA"}
+      }
     }
 
 ``si_nets`` names the nets under a skew or length-matching constraint, read
@@ -277,6 +282,68 @@ pads is ``unchecked``. A net with a pour whose fill has not come back is
 ``unknown``, with no verdict. ``met`` is true when every checked net is
 one group.
 
+Pin selection (``pin_selection``). A group is one pool of signals the
+source takes with ``require``. ``starts`` are pad keys, one per signal:
+the pad at the load end, where a route to the pool starts. ``ends`` is
+required: component or pad keys whose pins are the pool. An answered end
+is a candidate only when its key is an entry or starts with one followed
+by a dot, because the runtime also answers a net's other pads (a pull-up).
+``accept`` is optional: the reason a selection other than the least-total
+one is right.
+Run ``-f pin_ends`` before any signal of the pool is routed: it asks
+``rd.layout.route_ends`` for every start and writes ``pin-ends.json``, per
+group ``complete`` (every start answered at least one end) and the keys of
+each start's possible ends as the runtime gave them, unfiltered, so
+changing ``ends`` needs no new reading; positions are not saved. A
+complete reading replaces the saved one; one that is not complete (a
+routed start answers nothing) leaves a saved complete reading of the same
+starts in place, and is saved only when there is none. Groups no longer in
+the config are dropped. It returns, per group, the starts that answered
+nothing and, when complete, the least-total selection over the candidates,
+its total and its crossings. A start that names no pad, or that
+``route_ends`` refuses, is an error of its group and leaves the reading
+not complete. It fails when the config names no group, a group has no
+``ends``, or the installed jitx has no ``route_ends``.
+The check reads the saved file. Per group: ``read`` (``complete``,
+``partial``, ``none``, or ``unavailable`` when there is no saved complete
+reading and the installed jitx has no ``route_ends``); ``ends`` and, per
+start, how many candidates it has; per start its realized end, the pad under
+``ends`` that routed routes reach from it, walked by endpoint identity through
+vias, control points and pads ``ends`` does not admit and stopping at each pad
+it admits (``open`` when none is reached). A pair's P and N legs are walked
+apart: the ``p`` and ``n`` halves of a control point's ends are two nodes, a
+route between two coupled ends joins P to P and N to N, and one between a
+coupled end and a single end is not crossed. Besides routed routes, the walk
+joins a via to a pad, and two vias, whose copper overlaps or lies within the
+end tolerance on a layer both are on, whatever their net labels (a via in a
+pad has no route to it); pad to pad is not joined. A pour is not crossed: a
+start joined to its end only through a pour reads ``open``, and the summary
+says so under ``cannot_measure``. The walk needs no reading, and neither do
+``realized_mm`` and the realized crossings. A realized end whose net label is
+not the start's is listed in the top-level ``stale_labels``: the label is the
+capture's and does not follow a pin change, so connectivity reads that net
+split until the session restarts. The least-total selection is the one-to-one
+choice of a candidate for every start with the least sum of straight-line
+distances between pad centres at today's positions. The group reports
+``realized_mm``, ``least_mm`` and ``excess_mm`` (the last two only with a
+complete reading) and per selection its crossings, the pairs of start-to-end
+segments that cross at a point that is an end of neither. A candidate on an
+unplaced part is left out and listed, and a start on one is an error. The
+unrouted reading answers the pins of every peripheral instance a signal could
+use, so the least total can mix instances the design cannot assign together:
+it is a lower bound. ``met`` for a group: the reading is complete, every start
+has one realized end, and ``realized_mm`` is no more than ``least_mm`` at the
+script's rounding or ``accept`` gives a reason, the excess still reported
+beside it. Errors make the group not met and excuse nothing: a start that
+names no placed pad or is listed twice, ``starts`` or ``ends`` not a non-empty
+list of keys, a start with possible ends and no candidate, ``accept`` not a
+string, a start routed to more than one pad under ``ends``, a realized end the
+saved reading does not list for its start, two starts on one end, and a
+complete reading with no one-to-one selection. An ``unavailable`` group with
+no error has ``met`` null, and the summary lists it under ``cannot_measure``.
+``pin_selection.met`` is false when any group is not met, null when the config
+names none or a group is unavailable, and true otherwise. It is not scoped.
+
 Sanity. ``off_board`` lists components whose courtyard is not inside the
 board outline, with the area outside; a component named in ``overhang``
 (component key to the reason the user or the design gives) is listed with
@@ -307,9 +374,10 @@ import statistics
 import sys
 import time
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import shapely
@@ -322,6 +390,7 @@ from jitx.inspect import decompose, extract
 from jitx.landpattern import Pad, PadShape
 from jitx.layerindex import Side
 from jitx.proxy import typeof
+from jitx.run.layout import RequestRejected
 from jitx.shapes.primitive import Arc, ArcPolyline, Polyline, discretize
 from jitx.stackup import Conductor, Material
 from jitx.via import Via
@@ -331,10 +400,12 @@ from shapely.geometry import Polygon as ShapelyPolygon
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import polygonize, unary_union
 from shapely.prepared import prep
+from shapely.strtree import STRtree
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from layout_report import (  # noqa: E402, RUF100
     LIST_LIMIT,
+    _CONTROL_ENDS,
     OUT_DIR,
     _Keys,
     _owner,
@@ -344,6 +415,7 @@ from layout_report import (  # noqa: E402, RUF100
 )
 
 CONFIG = "checks-config.json"
+PIN_ENDS = "pin-ends.json"
 DEFAULTS: dict[str, Any] = {
     "ratio_limit": 1.5,
     "neck_down_mm": 1.0,
@@ -2205,6 +2277,42 @@ def _unplaced_pads(m: _Model) -> dict[int, list[str]]:
     return out
 
 
+def _copper_links(m: _Model) -> dict[int, list[tuple[int, int]]]:
+    """Per net, the node pairs realized copper joins: route traces,
+    overlapping copper, and each pour fill or polygon route piece, which
+    joins every node it touches."""
+    links: dict[int, list[tuple[int, int]]] = {}
+    for e in m.edges:
+        links.setdefault(e.net, []).append((e.a, e.b))
+    for a, others in m.contacts.items():
+        for b in others:
+            if a < b:
+                for net in m.nodes[a].nets & m.nodes[b].nets:
+                    links.setdefault(net, []).append((a, b))
+    for pc in m.pieces:
+        if pc.nodes:
+            first = pc.nodes[0]
+            links.setdefault(pc.net, []).extend((first, b) for b in pc.nodes[1:])
+    return links
+
+
+def _roots(links: list[tuple[int, int]]) -> Callable[[int], int]:
+    """Union-find over ``links``: each node's group representative."""
+    parent: dict[int, int] = {}
+
+    def find(i: int) -> int:
+        while parent.get(i, i) != i:
+            parent[i] = parent.get(parent[i], parent[i])
+            i = parent[i]
+        return i
+
+    for a, b in links:
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[rb] = ra
+    return find
+
+
 def _connectivity(m: _Model, scope: list[str]) -> dict[str, Any]:
     """Per net with two or more pads, how many groups its placed pads fall
     into when joined by realized copper: route traces, overlapping copper,
@@ -2222,10 +2330,7 @@ def _connectivity(m: _Model, scope: list[str]) -> dict[str, Any]:
         net = m.net(pour)
         if net is not None and _pieces(pour.shape) is None:
             unknown.add(net)
-    by_net: dict[int, list[_Edge]] = {}
-    for e in m.edges:
-        by_net.setdefault(e.net, []).append(e)
-    touching = [(a, b) for a, others in m.contacts.items() for b in others if a < b]
+    links = _copper_links(m)
     nets: dict[str, Any] = {}
     for net in sorted(set(pads) | set(unplaced), key=m.label):
         mine = pads.get(net, [])
@@ -2244,25 +2349,7 @@ def _connectivity(m: _Model, scope: list[str]) -> dict[str, Any]:
         elif len(mine) < 2:
             entry["status"] = "unchecked"
         else:
-            links = [(e.a, e.b) for e in by_net.get(net, [])]
-            links += [
-                (a, b) for a, b in touching if net in m.nodes[a].nets & m.nodes[b].nets
-            ]
-            for pc in m.pieces:
-                if pc.net == net:
-                    links += [(pc.nodes[0], b) for b in pc.nodes[1:]]
-            parent: dict[int, int] = {}
-
-            def find(i: int, parent: dict[int, int] = parent) -> int:
-                while parent.get(i, i) != i:
-                    parent[i] = parent.get(parent[i], parent[i])
-                    i = parent[i]
-                return i
-
-            for a, b in links:
-                ra, rb = find(a), find(b)
-                if ra != rb:
-                    parent[rb] = ra
+            find = _roots(links.get(net, []))
             groups: dict[int, list[str]] = {}
             for i in mine:
                 groups.setdefault(find(i), []).append(m.nodes[i].key)
@@ -2361,6 +2448,548 @@ def _sanity(
     }
 
 
+def _least_total(cost: list[list[float]]) -> list[int] | None:
+    """The one-to-one choice of a column for every row with the least sum
+    of ``cost``, as each row's column; ``math.inf`` marks a column the row
+    may not take. None when no such choice exists. Shortest augmenting
+    paths with row and column potentials (the Hungarian method), in
+    O(rows^2 columns)."""
+    rows = len(cost)
+    cols = len(cost[0]) if rows else 0
+    if rows > cols:
+        return None
+    u = [0.0] * (rows + 1)
+    v = [0.0] * (cols + 1)
+    # owner[j] is the 1-based row holding column j (0 for none); column 0
+    # stands for the row being added.
+    owner = [0] * (cols + 1)
+    way = [0] * (cols + 1)
+    for i in range(1, rows + 1):
+        owner[0] = i
+        j0 = 0
+        reach = [math.inf] * (cols + 1)
+        used = [False] * (cols + 1)
+        while True:
+            used[j0] = True
+            i0 = owner[j0]
+            delta, j1 = math.inf, 0
+            for j in range(1, cols + 1):
+                if used[j]:
+                    continue
+                cur = cost[i0 - 1][j - 1] - u[i0] - v[j]
+                if cur < reach[j]:
+                    reach[j], way[j] = cur, j0
+                if reach[j] < delta:
+                    delta, j1 = reach[j], j
+            if delta == math.inf:
+                return None
+            for j in range(cols + 1):
+                if used[j]:
+                    u[owner[j]] += delta
+                    v[j] -= delta
+                else:
+                    reach[j] -= delta
+            j0 = j1
+            if owner[j0] == 0:
+                break
+        while j0:
+            j1 = way[j0]
+            owner[j0] = owner[j1]
+            j0 = j1
+    chosen = [0] * rows
+    for j in range(1, cols + 1):
+        if owner[j]:
+            chosen[owner[j] - 1] = j - 1
+    return chosen
+
+
+def _crossings(segments: list[tuple[XY, XY]]) -> int:
+    """Pairs of segments that cross at a point that is an end of neither."""
+
+    def side(a: XY, b: XY, c: XY) -> int:
+        turn = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+        return 0 if abs(turn) <= 1e-9 else (1 if turn > 0 else -1)
+
+    return sum(
+        1
+        for (a, b), (c, d) in itertools.combinations(segments, 2)
+        if side(a, b, c) * side(a, b, d) < 0 and side(c, d, a) * side(c, d, b) < 0
+    )
+
+
+def _measured(pairs: list[tuple[str, str]], pos: dict[str, XY]) -> dict[str, Any]:
+    """A selection of an end for each start: each pair's straight-line
+    length, the total and the crossings."""
+    return {
+        "selection": [
+            {"start": s, "end": e, "mm": _r(_dist(pos[s], pos[e]))} for s, e in pairs
+        ],
+        "total_mm": _r(sum(_dist(pos[s], pos[e]) for s, e in pairs)),
+        "crossings": _crossings([(pos[s], pos[e]) for s, e in pairs]),
+    }
+
+
+def _least(
+    starts: list[str], ends: dict[str, list[str]], pos: dict[str, XY]
+) -> dict[str, Any] | None:
+    """The least-total selection: each start takes one of its own ends, no
+    end taken twice, with the least sum of straight-line distances between
+    pad centres. Ends with no position are left out. None when a start has
+    no position or no one-to-one selection exists."""
+    if any(s not in pos for s in starts):
+        return None
+    columns = sorted({e for s in starts for e in ends.get(s, []) if e in pos})
+    index = {e: j for j, e in enumerate(columns)}
+    cost = [[math.inf] * len(columns) for _ in starts]
+    for i, s in enumerate(starts):
+        for e in ends.get(s, []):
+            if e in index:
+                cost[i][index[e]] = _dist(pos[s], pos[e])
+    chosen = _least_total(cost)
+    if chosen is None:
+        return None
+    return _measured([(s, columns[j]) for s, j in zip(starts, chosen)], pos)
+
+
+@dataclass
+class _Group:
+    """A ``pin_selection`` group as written in the config."""
+
+    starts: list[str]
+    ends: list[str]
+    accept: str
+    errors: list[str]
+    ends_error: bool = False
+
+    def admits(self, key: str) -> bool:
+        """Whether a pad is in the pool: its key is an ``ends`` entry or
+        starts with one followed by a dot."""
+        return any(key == e or key.startswith(e + ".") for e in self.ends)
+
+
+def _keys(value: Any) -> list[str] | None:
+    """A non-empty JSON list of strings, else None."""
+    if not isinstance(value, list):
+        return None
+    items = cast(list[Any], value)
+    if not items or not all(isinstance(s, str) for s in items):
+        return None
+    return [str(s) for s in items]
+
+
+def _pool(name: str, spec: Any) -> _Group:
+    """A ``pin_selection`` group's starts, the ``ends`` its candidates must
+    fall under, its accept reason (empty when it gives none) and the errors
+    in how it is written."""
+    if not isinstance(spec, dict):
+        shape = '{"starts": [pad keys], "ends": [component or pad keys]}'
+        return _Group([], [], "", [f"{name}: write {shape}"], ends_error=True)
+    group = cast(dict[str, Any], spec)
+    out = _Group([], [], "", [])
+    starts = _keys(group.get("starts"))
+    if starts is None:
+        out.errors.append(f"{name}: starts is not a list of pad keys")
+    else:
+        out.starts = starts
+        twice = sorted({s for s in starts if starts.count(s) > 1})
+        if twice:
+            out.errors.append(f"{name}: starts lists {', '.join(twice)} more than once")
+    ends = _keys(group.get("ends"))
+    if ends is None:
+        out.errors.append(
+            f"{name}: ends is not a list of the component or pad keys whose "
+            "pins are the pool"
+        )
+        out.ends_error = True
+    else:
+        out.ends = ends
+    accept = group.get("accept", "")
+    if not isinstance(accept, str):
+        out.errors.append(f"{name}: accept is not a string")
+        accept = ""
+    out.accept = accept.strip()
+    return out
+
+
+def _filtered(
+    pool: _Group, ends: dict[str, list[str]], pos: dict[str, XY], errors: list[str]
+) -> dict[str, list[str]]:
+    """Each start's candidates: its answered ends that ``ends`` admits and
+    that have a position. A start that answered ends and has no candidate
+    among them is an error."""
+    out: dict[str, list[str]] = {}
+    for start in pool.starts:
+        found = ends.get(start, [])
+        out[start] = [e for e in found if pool.admits(e) and e in pos]
+        if found and not out[start]:
+            errors.append(f"{start}: no possible end is both under ends and placed")
+    return out
+
+
+def _saved_ends() -> tuple[dict[str, Any], list[str]]:
+    """The groups saved in pin-ends.json, and why it could not be read."""
+    path = Path.cwd() / OUT_DIR / PIN_ENDS
+    if not path.exists():
+        return {}, []
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, ValueError) as e:
+        return {}, [f"{PIN_ENDS} could not be read: {e}"]
+    groups = data.get("groups") if isinstance(data, dict) else None
+    if not isinstance(groups, dict):
+        return {}, [f"{PIN_ENDS} has no groups: run -f pin_ends again"]
+    return dict(cast(dict[str, Any], groups)), []
+
+
+def _saved_reading(entry: Any) -> tuple[bool, dict[str, list[str]]] | None:
+    """A saved group's ``complete`` and each start's possible ends; None
+    when the group is not saved in that shape."""
+    if not isinstance(entry, dict):
+        return None
+    group = cast(dict[str, Any], entry)
+    ends = group.get("ends")
+    if not isinstance(ends, dict):
+        return None
+    out: dict[str, list[str]] = {}
+    for start, found in cast(dict[str, Any], ends).items():
+        items = cast(list[Any], found) if isinstance(found, list) else []
+        out[str(start)] = [e for e in items if isinstance(e, str)]
+    return group.get("complete") is True, out
+
+
+def _positions(m: _Model) -> dict[str, XY]:
+    """Board-absolute centre of each placed pad, via and control point, by
+    key."""
+    pos = {n.key: n.pos for n in m.nodes if n.kind in ("via", "control")}
+    pos.update({n.key: n.pos for n in m.nodes if n.kind == "pad"})
+    return pos
+
+
+def _unplaced(starts: list[str], pos: dict[str, XY], errors: list[str]) -> None:
+    for start in starts:
+        if start not in pos:
+            errors.append(f"{start} names no placed pad")
+
+
+def pin_ends(rd: Any) -> dict[str, Any]:
+    """Ask ``rd.layout.route_ends`` for every start named in the checks
+    config's ``pin_selection``, merge the possible ends into pin-ends.json
+    and return each pool's reading and least-total selection. Run it before
+    any signal of a pool is routed."""
+    path = Path.cwd() / OUT_DIR / CONFIG
+    config = json.loads(path.read_text()) if path.exists() else {}
+    groups = config.get("pin_selection") if isinstance(config, dict) else None
+    if not isinstance(groups, dict) or not groups:
+        raise ValueError(
+            f'pin_ends: {path} names no pool under "pin_selection": add each '
+            "pool's starts there, one load-end pad key per signal"
+        )
+    if not hasattr(rd.layout, "route_ends"):
+        raise RuntimeError("pin_ends: this jitx has no rd.layout.route_ends")
+    pools = {
+        str(name): _pool(str(name), spec)
+        for name, spec in cast(dict[Any, Any], groups).items()
+    }
+    bad = [e for p in pools.values() if p.ends_error for e in p.errors]
+    if bad:
+        raise ValueError("pin_ends: " + "; ".join(bad))
+    m = _Model(rd)
+    # route_ends answers with the objects rd.query yields: resolve by id.
+    known = m.key.known(rd)
+    pads = {m.key(trace): pad for trace, pad in rd.query(Pad)}
+    saved, _ = _saved_ends()
+    pos = _positions(m)
+    keep: dict[str, Any] = {}
+    out: dict[str, Any] = {}
+    for name, pool in pools.items():
+        starts, errors = pool.starts, list(pool.errors)
+        if not starts:
+            if name in saved:
+                keep[name] = saved[name]
+            out[name] = {"complete": False, "errors": errors}
+            continue
+        ends: dict[str, list[str]] = {}
+        refused: list[str] = []
+        for start in starts:
+            ends[start] = []
+            if start not in pads:
+                errors.append(f"{start} names no pad")
+                refused.append(start)
+                continue
+            try:
+                found = rd.layout.route_ends(pads[start])
+            except RequestRejected as e:
+                errors.append(f"{start}: route_ends refused it: {e.message}")
+                refused.append(start)
+                continue
+            ends[start] = [
+                known.get(id(e), f"unkeyed {typeof(e).__name__}") for e in found
+            ]
+        nothing = [s for s in starts if not ends[s] and s not in refused]
+        complete = not nothing and not refused
+        reading = {"complete": complete, "ends": ends}
+        before = _saved_reading(saved.get(name))
+        if complete:
+            keep[name], note = reading, "saved"
+        elif before is not None and before[0] and set(before[1]) == set(starts):
+            keep[name] = saved[name]
+            note = "not complete: the complete reading saved before is kept"
+        else:
+            keep[name], note = reading, "saved as not complete"
+        candidates = _filtered(pool, ends, pos, errors)
+        entry: dict[str, Any] = {
+            "complete": complete,
+            "answered_nothing": nothing,
+            "candidates": {s: len(c) for s, c in candidates.items()},
+            "saved": note,
+        }
+        if complete:
+            _unplaced(starts, pos, errors)
+            least = _least(starts, candidates, pos)
+            if least is not None:
+                entry |= least
+            elif all(s in pos for s in starts):
+                errors.append("no one-to-one selection exists among the candidates")
+        if errors:
+            entry["errors"] = errors
+        out[name] = entry
+    written = _write(PIN_ENDS, {"groups": keep})
+    return {"written": written, "groups": out}
+
+
+@dataclass
+class _Routed:
+    """What the pin selection check reads from the live design: routed
+    routes, and each via joined to a pad or a via its copper touches, as a
+    graph of endpoint keys; and each pad by key."""
+
+    graph: dict[str, set[str]]
+    pads: dict[str, Any]
+    can_read: bool
+
+    def reached(self, start: str, pool: _Group) -> list[str]:
+        """The pool pads joined to ``start`` by routed routes and by vias
+        whose copper touches a pad or a via: walked by endpoint identity
+        through vias, control points and pads ``ends`` does not admit,
+        stopping at each pad it admits."""
+        seen, todo, hits = {start}, [start], set[str]()
+        while todo:
+            for nxt in self.graph.get(todo.pop(), ()):
+                if nxt in seen:
+                    continue
+                seen.add(nxt)
+                if nxt in self.pads and pool.admits(nxt):
+                    hits.add(nxt)
+                else:
+                    todo.append(nxt)
+        return sorted(hits)
+
+
+def _legs(rd: Any, known: dict[int, str]) -> tuple[dict[int, str], dict[int, str]]:
+    """Walk nodes by end object id, and the coupled ends by id. A pad, a
+    via and a single-ended control point end are one node, keyed as in
+    ``known``. The ``p`` and ``n`` halves of a control point's ends are
+    that point's P and N legs, two nodes, every end of the point on a leg
+    sharing it. A coupled end (``coupled``, ``front``, ``back``) is no node:
+    a route between two of them joins P to P and N to N."""
+    node = dict(known)
+    coupled: dict[int, str] = {}
+    for trace, cp in rd.query(ControlPoint):
+        key = known.get(id(cp))
+        if key is None:
+            continue
+        for name in _CONTROL_ENDS:
+            end = getattr(cp, name, None)
+            if end is None:
+                continue
+            halves = [getattr(end, h, None) for h in ("p", "n")]
+            if halves[0] is None or halves[1] is None:
+                continue
+            node.pop(id(end), None)
+            if name != "uncoupled":
+                coupled[id(end)] = key
+            for h, half in zip(("p", "n"), halves):
+                node[id(half)] = f"{key}:{h}"
+    return node, coupled
+
+
+def _touching(m: _Model) -> list[tuple[str, str]]:
+    """Via and pad, and via and via, whose copper overlaps or lies within
+    the end tolerance on a layer both are on, whatever their nets: the test
+    ``_Model._contacts`` makes, less its same-net condition, since a pad
+    whose pin was just chosen can carry a stale label or none. Pad to pad is
+    not joined, and a node with an empty shape joins nothing."""
+    nodes = [n for n in m.nodes if n.kind in ("pad", "via") and not n.shape.is_empty]
+    tree = STRtree([n.shape for n in nodes])
+    out: list[tuple[str, str]] = []
+    for i, a in enumerate(nodes):
+        if a.kind != "via":
+            continue
+        for j in tree.query(box(*a.shape.bounds).buffer(END_TOLERANCE)):
+            b = nodes[int(j)]
+            if int(j) == i or (b.kind == "via" and int(j) < i):
+                continue
+            if a.layers & b.layers and a.shape.distance(b.shape) <= END_TOLERANCE:
+                out.append((a.key, b.key))
+    return out
+
+
+def _routed(m: _Model) -> _Routed:
+    rd = m.rd
+    node, coupled = _legs(rd, m.key.known(rd))
+    graph: dict[str, set[str]] = {}
+
+    def join(a: str, b: str) -> None:
+        if a != b:
+            graph.setdefault(a, set()).add(b)
+            graph.setdefault(b, set()).add(a)
+
+    for _, route in rd.query(Route):
+        status = route.status
+        if status is None or not status.routed:
+            continue
+        src, dst = id(route.source), id(route.destination)
+        if src in coupled and dst in coupled:
+            for h in ("p", "n"):
+                join(f"{coupled[src]}:{h}", f"{coupled[dst]}:{h}")
+            continue
+        a, b = node.get(src), node.get(dst)
+        # A coupled end against a single one has no leg (no node): not crossed.
+        if a is not None and b is not None:
+            join(a, b)
+    for a, b in _touching(m):
+        join(a, b)
+    pads = {m.key(trace): pad for trace, pad in rd.query(Pad)}
+    return _Routed(graph, pads, hasattr(rd.layout, "route_ends"))
+
+
+def _pin_group(
+    m: _Model,
+    name: str,
+    spec: Any,
+    saved: Any,
+    pos: dict[str, XY],
+    live: _Routed,
+    stale: list[str],
+) -> dict[str, Any]:
+    """One ``pin_selection`` group: its realized ends from the routes, and
+    the least-total selection from its saved reading."""
+    pool = _pool(name, spec)
+    starts, accept, errors = pool.starts, pool.accept, list(pool.errors)
+    reading = _saved_reading(saved)
+    answered: dict[str, list[str]] = reading[1] if reading else {}
+    if reading is not None and reading[0] and set(answered) == set(starts):
+        read = "complete"
+    elif not live.can_read:
+        read = "unavailable"
+    else:
+        read = "none" if reading is None else "partial"
+    ends = _filtered(pool, answered, pos, errors)
+    _unplaced(starts, pos, errors)
+    rows: list[dict[str, Any]] = []
+    pairs: list[tuple[str, str]] = []
+    for start in starts:
+        row: dict[str, Any] = {"start": start, "end": None}
+        rows.append(row)
+        if start not in live.pads:
+            continue
+        hits = live.reached(start, pool)
+        if not hits:
+            row["end"] = "open"
+        elif len(hits) > 1:
+            errors.append(
+                f"{start} is routed to more than one pad under ends: " + ", ".join(hits)
+            )
+            row["joined"] = hits
+        else:
+            end = hits[0]
+            row["end"] = end
+            if answered.get(start) and end not in answered[start]:
+                errors.append(
+                    f"{start} is routed to {end}, which the saved reading does "
+                    "not list for it: rerun -f pin_ends with the pool unrouted"
+                )
+            if start in pos and end in pos:
+                row["mm"] = _r(_dist(pos[start], pos[end]))
+                pairs.append((start, end))
+            nets = m.rd.nets
+            if nets.find(live.pads[end]) is not nets.find(live.pads[start]):
+                stale.append(end)
+    taken = Counter(e for _, e in pairs)
+    for end, count in sorted(taken.items()):
+        if count > 1:
+            starts_on = [s for s, e in pairs if e == end]
+            errors.append(f"{', '.join(starts_on)} all end at {end}")
+    realized = _measured(pairs, pos) if starts and len(pairs) == len(starts) else None
+    least = _least(starts, ends, pos) if read == "complete" else None
+    if read == "complete" and least is None and all(s in pos for s in starts):
+        errors.append("the saved reading has no one-to-one selection")
+    entry: dict[str, Any] = {
+        "read": read,
+        "ends": pool.ends,
+        "candidates": {s: len(c) for s, c in ends.items()},
+        "starts": rows,
+        "realized_mm": realized["total_mm"] if realized else None,
+        "least_mm": least["total_mm"] if least else None,
+        "excess_mm": (
+            _r(realized["total_mm"] - least["total_mm"]) if realized and least else None
+        ),
+        "crossings": {
+            "realized": realized["crossings"] if realized else None,
+            "least": least["crossings"] if least else None,
+        },
+        "least": least["selection"] if least else None,
+    }
+    unplaced = {e for found in answered.values() for e in found if e not in pos}
+    if unplaced:
+        entry["unplaced_ends"] = sorted(unplaced)[:LIST_LIMIT]
+    entry["accept"] = accept or None
+    entry["errors"] = errors
+    if errors:
+        entry["met"] = False
+    elif read == "unavailable":
+        entry["met"] = None
+    else:
+        entry["met"] = bool(
+            read == "complete"
+            and realized
+            and least
+            and (realized["total_mm"] <= least["total_mm"] or accept)
+        )
+    return entry
+
+
+def _pin_selection(m: _Model, config: dict[str, Any]) -> dict[str, Any]:
+    """Each ``pin_selection`` group's realized selection against the
+    least-total one over the ends saved in pin-ends.json."""
+    groups = config.get("pin_selection")
+    none: dict[str, Any] = {"groups": {}, "stale_labels": [], "unavailable": []}
+    if not groups:
+        return none | {"errors": [], "met": None}
+    if not isinstance(groups, dict):
+        shape = '{"<pool>": {"starts": [pad keys], "ends": [keys]}}'
+        return none | {"errors": [f"pin_selection: write {shape}"], "met": False}
+    saved, errors = _saved_ends()
+    pos = _positions(m)
+    live = _routed(m)
+    stale: list[str] = []
+    out = {
+        str(name): _pin_group(
+            m, str(name), spec, saved.get(str(name)), pos, live, stale
+        )
+        for name, spec in cast(dict[Any, Any], groups).items()
+    }
+    verdicts = [g["met"] for g in out.values()]
+    met = False if errors or False in verdicts else (None if None in verdicts else True)
+    return {
+        "groups": out,
+        "stale_labels": sorted(set(stale)),
+        "unavailable": [n for n, g in out.items() if g["read"] == "unavailable"],
+        "errors": errors,
+        "met": met,
+    }
+
+
 def run(rd: Any, config: dict[str, Any]) -> dict[str, Any]:
     """Write checks.json for ``config`` and return its summary."""
     config = {**DEFAULTS, **config}
@@ -2378,6 +3007,7 @@ def run(rd: Any, config: dict[str, Any]) -> dict[str, Any]:
     vias = _via_plan(m, chains, float(config["via_reach_mm"]), scope)
     connectivity = _connectivity(m, scope)
     sanity = _sanity(m, chains, dict(config.get("overhang") or {}), scope)
+    pins = _pin_selection(m, config)
     cannot = [
         (
             "decoupling vias of a capacitor modelled as its own component "
@@ -2428,6 +3058,18 @@ def run(rd: Any, config: dict[str, Any]) -> dict[str, Any]:
         cannot.append("IR drop: no power_paths named")
     if not config.get("loops"):
         cannot.append("hot loops: none named in loops")
+    if not config.get("pin_selection"):
+        cannot.append("pin selection: no pools named in pin_selection")
+    if pins["groups"]:
+        cannot.append(
+            "pin selection: the walk does not cross pours, so a start joined "
+            "to its end only through a pour reads open"
+        )
+    if pins["unavailable"]:
+        cannot.append(
+            "pin selection: this jitx has no rd.layout.route_ends, so these "
+            "pools have no reading: " + ", ".join(pins["unavailable"])
+        )
     written = _write(
         "checks.json",
         {
@@ -2439,6 +3081,8 @@ def run(rd: Any, config: dict[str, Any]) -> dict[str, Any]:
             "vias": vias,
             "connectivity": connectivity,
             "sanity": sanity,
+            "pin_selection": pins,
+            "stale_labels": pins["stale_labels"],
         },
     )
     return {
@@ -2590,6 +3234,34 @@ def run(rd: Any, config: dict[str, Any]) -> dict[str, Any]:
                     "pad_overlaps",
                     "vias_outside_board",
                 )
+            },
+        },
+        "stale_labels": pins["stale_labels"][:LIST_LIMIT],
+        "pin_selection": {
+            "met": pins["met"],
+            "errors": pins["errors"],
+            "groups": {
+                name: {
+                    k: g[k]
+                    for k in (
+                        "met",
+                        "read",
+                        "ends",
+                        "candidates",
+                        "realized_mm",
+                        "least_mm",
+                        "excess_mm",
+                        "crossings",
+                        "accept",
+                        "errors",
+                    )
+                }
+                | {
+                    "open": [r["start"] for r in g["starts"] if r["end"] == "open"][
+                        :LIST_LIMIT
+                    ]
+                }
+                for name, g in pins["groups"].items()
             },
         },
         "cannot_measure": cannot,

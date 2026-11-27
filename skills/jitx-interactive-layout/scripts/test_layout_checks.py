@@ -14,13 +14,26 @@ The branch tests add pads on VDD, whose rule width is 1.0, and join them
 with 0.2 wide traces, each 3.0 long: `u1.p1` is the supply pin the traces
 leave from, `r_led.p1` the part a test names as a branch, `u2.p1` a load
 no test names.
+
+The pin selection tests run `pin_ends` with a stand-in for
+`rd.layout.route_ends` (each start's possible ends listed in the test), in
+a scratch directory, and read what it saves and what the check makes of it.
+Starts sit at x = 0 and their possible ends at x = 10 unless a test says
+otherwise; each route is a trace from a start to an end on the start's net.
 """
 
 from __future__ import annotations
 
+import itertools
+import json
+import math
+import os
+import tempfile
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
+from unittest.mock import patch
 
 try:
     import jitx  # noqa: F401
@@ -31,6 +44,8 @@ except ImportError:
     ) from None
 
 from shapely.geometry import Point, box
+from shapely.geometry import Polygon as ShapelyPolygon
+from shapely.geometry.base import BaseGeometry
 
 import layout_checks as lc
 
@@ -408,6 +423,672 @@ class PowerBranches(unittest.TestCase):
         self.assertEqual(out["branches"], [])
         self.assertEqual(len(out["errors"]), 1)
         self.assertIn("power_branches: write", out["errors"][0])
+
+
+class LiveModel:
+    """The model the checks read, with the session's own keys, for a run of
+    every check: no traces, pours or capacitors."""
+
+    find = lc._Model.find
+    net_named = lc._Model.net_named
+
+    def __init__(self, rd: Any) -> None:
+        self.rd = rd
+        self.key = lc._Keys(rd)
+        self.labels: dict[int, str] = {}
+        self.nodes: list[lc._Node] = []
+        self.edges: list[lc._Edge] = []
+        self.pieces: list[lc._Piece] = []
+        self.contacts: dict[int, list[int]] = {}
+        self.unmeasured: list[dict[str, Any]] = []
+        self.fill_unknown: list[str] = []
+
+    def label(self, net: int) -> str:
+        return self.labels.get(net, f"net {net}")
+
+
+class Live:
+    """A stand-in session: `rd.query`, `rd.nets.find` and
+    `rd.layout.route_ends` built from the pads, vias and routes a test
+    adds, and the model the checks would build from it (placed pads only)."""
+
+    def __init__(self, route_ends: bool = True) -> None:
+        self.found: dict[type, list[tuple[Any, Any]]] = {}
+        self.obj: dict[str, Any] = {}
+        self.labels: dict[int, Any] = {}
+        self.answers: dict[str, list[Any] | Exception] = {}
+        layout = SimpleNamespace(route_ends=self.route_ends) if route_ends else None
+        outline = SimpleNamespace(g=box(-50, -50, 50, 50))
+        self.rd = SimpleNamespace(
+            query=lambda kind: list(self.found.get(kind, [])),
+            nets=SimpleNamespace(find=lambda o: self.labels.get(id(o))),
+            layout=layout or SimpleNamespace(),
+            root=SimpleNamespace(
+                board=SimpleNamespace(shape=SimpleNamespace(to_shapely=lambda: outline))
+            ),
+        )
+        self.board = LiveModel(self.rd)
+
+    def _add(self, kind: type, key: str) -> Any:
+        obj = SimpleNamespace(name=key)
+        self.found.setdefault(kind, []).append(
+            (SimpleNamespace(path=key.split(".")), obj)
+        )
+        self.obj[key] = obj
+        return obj
+
+    def pad(
+        self,
+        key: str,
+        x: float,
+        y: float,
+        net: str | None = None,
+        placed: bool = True,
+        layers: frozenset[int] = frozenset({TOP}),
+        shape: BaseGeometry | None = None,
+    ) -> None:
+        """A pad at (x, y): a 0.5 mm square unless ``shape`` is given."""
+        obj = self._add(lc.Pad, key)
+        if net is not None:
+            self.labels[id(obj)] = self.net(net)
+        if placed:
+            if shape is None:
+                shape = box(x - 0.25, y - 0.25, x + 0.25, y + 0.25)
+            self.board.nodes.append(lc._Node(key, "pad", (x, y), set(), layers, shape))
+
+    def via(
+        self,
+        key: str,
+        x: float,
+        y: float,
+        layers: frozenset[int] = BOTH,
+        shape: BaseGeometry | None = None,
+    ) -> None:
+        """A via at (x, y): 0.3 mm across unless ``shape`` is given."""
+        self._add(lc.Via, key)
+        if shape is None:
+            shape = Point(x, y).buffer(0.15)
+        self.board.nodes.append(lc._Node(key, "via", (x, y), set(), layers, shape))
+
+    def net(self, name: str) -> Any:
+        nets = cast(dict[str, Any], self.__dict__.setdefault("_nets", {}))
+        return nets.setdefault(name, SimpleNamespace(name=name))
+
+    def control(self, key: str, **ends: Any) -> Any:
+        """A control point with the given end objects (`pad`, `coupled`,
+        `uncoupled`, `front`, `back`)."""
+        cp = SimpleNamespace(name=key, **ends)
+        self.found.setdefault(lc.ControlPoint, []).append(
+            (SimpleNamespace(path=key.split(".")), cp)
+        )
+        return cp
+
+    def route(self, a: str | Any, b: str | Any) -> None:
+        """A routed route between two keys, or two end objects."""
+        route = SimpleNamespace(
+            source=self.obj[a] if isinstance(a, str) else a,
+            destination=self.obj[b] if isinstance(b, str) else b,
+            status=SimpleNamespace(routed=True),
+        )
+        n = len(self.found.get(lc.Route, []))
+        self.found.setdefault(lc.Route, []).append(
+            (SimpleNamespace(path=["routes", str(n)]), route)
+        )
+
+    def unplace(self, key: str) -> None:
+        self.board.nodes = [n for n in self.board.nodes if n.key != key]
+
+    def route_ends(self, start: Any) -> list[Any]:
+        answer = self.answers[start.name]
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+    def answer(self, **ends: list[str]) -> None:
+        """Each start's possible ends, as the objects queried for them."""
+        self.answers = {s: [self.obj[e] for e in keys] for s, keys in ends.items()}
+
+    def _config(self, groups: dict[str, Any]) -> dict[str, Any]:
+        config = {"pin_selection": groups}
+        path = Path.cwd() / lc.OUT_DIR / lc.CONFIG
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(config))
+        return config
+
+    def read(self, groups: dict[str, Any]) -> dict[str, Any]:
+        self._config(groups)
+        with patch.object(lc, "_Model", lambda rd: self.board):
+            return lc.pin_ends(self.rd)["groups"]
+
+    def check(self, groups: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+        """The run's summary and its full checks.json."""
+        config = self._config(groups)
+        with patch.object(lc, "_Model", lambda rd: self.board):
+            summary = lc.run(self.rd, config)
+        full = json.loads((Path.cwd() / lc.OUT_DIR / "checks.json").read_text())
+        return summary, full
+
+    def group(self, groups: dict[str, Any], name: str = "bus") -> dict[str, Any]:
+        return self.check(groups)[1]["pin_selection"]["groups"][name]
+
+
+def saved() -> dict[str, Any]:
+    return json.loads((Path.cwd() / lc.OUT_DIR / lc.PIN_ENDS).read_text())["groups"]
+
+
+# The two possible ends most pin selection tests name as the pool.
+E12 = ["e1", "e2"]
+BUS: dict[str, Any] = {"bus": {"starts": ["s1", "s2"], "ends": E12}}
+
+
+def two_by_two(route_ends: bool = True) -> Live:
+    """Two signals and two pins: the straight selection is s1 to e1 and s2
+    to e2, 10 each; crossed over, each is sqrt(10^2 + 1^2) and the two
+    segments cross at (5, 0.5)."""
+    live = Live(route_ends)
+    live.pad("s1", 0.0, 0.0, "A")
+    live.pad("s2", 0.0, 1.0, "B")
+    live.pad("e1", 10.0, 0.0)
+    live.pad("e2", 10.0, 1.0)
+    live.answer(s1=E12, s2=E12)
+    return live
+
+
+class InScratch(unittest.TestCase):
+    def setUp(self) -> None:
+        self.home = os.getcwd()
+        self.scratch = tempfile.TemporaryDirectory()
+        os.chdir(self.scratch.name)
+
+    def tearDown(self) -> None:
+        os.chdir(self.home)
+        self.scratch.cleanup()
+
+
+class PinEnds(InScratch):
+    def test_the_selection_is_the_least_total_over_every_permutation(self) -> None:
+        # Five starts, six ends, each start limited to its own ends. Taking
+        # each start's nearest free end in order totals more than the least.
+        live = Live()
+        starts = {f"s{i}": (0.0, float(i)) for i in range(5)}
+        ends = {
+            "e0": (10.0, 0.0),
+            "e1": (10.0, 1.5),
+            "e2": (10.0, 3.0),
+            "e3": (10.0, 4.5),
+            "e4": (4.0, -3.0),
+            "e5": (12.0, 8.0),
+        }
+        allowed = {
+            "s0": ["e0", "e1", "e4"],
+            "s1": ["e0", "e1"],
+            "s2": ["e1", "e2", "e5"],
+            "s3": ["e2", "e3"],
+            "s4": ["e3", "e5", "e0"],
+        }
+        for key, (x, y) in {**starts, **ends}.items():
+            live.pad(key, x, y)
+        live.answer(**allowed)
+        group = live.read({"bus": {"starts": list(starts), "ends": list(ends)}})["bus"]
+
+        least = min(
+            sum(math.dist(starts[s], ends[e]) for s, e in zip(starts, pick))
+            for pick in itertools.permutations(ends, len(starts))
+            if all(e in allowed[s] for s, e in zip(starts, pick))
+        )
+        self.assertIs(group["complete"], True)
+        self.assertAlmostEqual(group["total_mm"], least, places=3)
+        chosen = {row["start"]: row["end"] for row in group["selection"]}
+        self.assertEqual(len(set(chosen.values())), len(starts))
+        self.assertTrue(all(chosen[s] in allowed[s] for s in starts))
+        # The answered objects come back as their keys, and no positions.
+        self.assertEqual(saved(), {"bus": {"complete": True, "ends": allowed}})
+
+    def test_an_answer_that_matches_no_queried_object_is_no_candidate(self) -> None:
+        live = two_by_two()
+        stranger = SimpleNamespace(name="stranger")
+        live.answers["s1"] = [live.obj["e1"], stranger, live.obj["e2"]]
+        group = live.read(BUS)["bus"]
+        kept = saved()["bus"]["ends"]["s1"]
+        self.assertEqual(len(kept), 3)
+        self.assertEqual([kept[0], kept[2]], ["e1", "e2"])
+        self.assertNotIn(kept[1], live.obj)
+        self.assertEqual(group["candidates"], {"s1": 2, "s2": 2})
+
+    def test_a_refused_start_is_a_group_error(self) -> None:
+        live = two_by_two()
+        live.answers["s2"] = lc.RequestRejected("unknown", "no such endpoint")
+        group = live.read(BUS)["bus"]
+        self.assertIs(group["complete"], False)
+        self.assertTrue(
+            any("s2" in e and "no such endpoint" in e for e in group["errors"])
+        )
+        self.assertEqual(saved()["bus"]["ends"]["s1"], E12)
+
+    def test_a_start_unplaced_at_reading_time_is_an_error_not_a_crash(
+        self,
+    ) -> None:
+        live = two_by_two()
+        live.unplace("s2")
+        live.pad("s3", 0.0, 5.0)
+        live.pad("e3", 10.0, 5.0)
+        live.answers["s3"] = [live.obj["e3"]]
+        groups = {**BUS, "other": {"starts": ["s3"], "ends": ["e3"]}}
+        read = live.read(groups)
+        self.assertTrue(
+            any("s2 names no placed pad" in e for e in read["bus"]["errors"])
+        )
+        self.assertNotIn("total_mm", read["bus"])
+        self.assertAlmostEqual(read["other"]["total_mm"], 10.0, places=3)
+
+    def test_a_later_reading_that_is_not_complete_keeps_the_complete_one(
+        self,
+    ) -> None:
+        live = two_by_two()
+        live.read(BUS)
+        first = saved()
+        # s1 is routed now, so it answers nothing.
+        live.answer(s1=[], s2=["e2"])
+        group = live.read(BUS)["bus"]
+        self.assertIs(group["complete"], False)
+        self.assertEqual(group["answered_nothing"], ["s1"])
+        self.assertEqual(saved(), first)
+        # A group gone from the config is dropped from the file.
+        live.read({"other": {"starts": ["s2"], "ends": E12}})
+        self.assertEqual(list(saved()), ["other"])
+
+    def test_a_reading_that_is_not_complete_is_saved_when_none_was(self) -> None:
+        live = two_by_two()
+        live.answer(s1=["e1"], s2=[])
+        live.read(BUS)
+        self.assertEqual(
+            saved(), {"bus": {"complete": False, "ends": {"s1": ["e1"], "s2": []}}}
+        )
+
+    def test_a_bad_accept_still_reads_the_pool(self) -> None:
+        live = two_by_two()
+        group = live.read({"bus": {**BUS["bus"], "accept": 3}})["bus"]
+        self.assertTrue(any("accept is not a string" in e for e in group["errors"]))
+        self.assertIs(saved()["bus"]["complete"], True)
+
+    def test_it_fails_with_no_pools_no_ends_or_no_route_ends(self) -> None:
+        config = Path.cwd() / lc.OUT_DIR / lc.CONFIG
+        config.parent.mkdir(parents=True)
+        config.write_text(json.dumps({"scope": ["u1"]}))
+        with self.assertRaisesRegex(ValueError, "pin_selection"):
+            lc.pin_ends(two_by_two().rd)
+        with self.assertRaisesRegex(ValueError, "ends is not a list"):
+            two_by_two().read({"bus": {"starts": ["s1"]}})
+        with self.assertRaises(RuntimeError) as caught:
+            two_by_two(route_ends=False).read(BUS)
+        self.assertIn("route_ends", str(caught.exception))
+        self.assertNotIn("\n", str(caught.exception))
+
+
+class PoolEnds(InScratch):
+    def test_a_plain_pad_on_the_net_is_not_a_pin_choice(self) -> None:
+        # s1's net also holds a pull-up pad 1 away, nearer than either pin
+        # of u1 (10 away). With ends naming u1 the least total is the two
+        # straight 10 routes, and the routed pull-up is not a realized end.
+        live = Live()
+        live.pad("s1", 0.0, 0.0)
+        live.pad("s2", 0.0, 1.0)
+        live.pad("r_pull.p.1", 1.0, 0.0)
+        live.pad("u1.p.1", 10.0, 0.0)
+        live.pad("u1.p.2", 10.0, 1.0)
+        live.answer(s1=["r_pull.p.1", "u1.p.1", "u1.p.2"], s2=["u1.p.1", "u1.p.2"])
+        groups = {"bus": {"starts": ["s1", "s2"], "ends": ["u1"]}}
+        self.assertAlmostEqual(live.read(groups)["bus"]["total_mm"], 20.0, places=3)
+        # The file keeps every answer as the runtime gave it.
+        self.assertEqual(
+            saved()["bus"]["ends"]["s1"], ["r_pull.p.1", "u1.p.1", "u1.p.2"]
+        )
+        live.route("s1", "r_pull.p.1")
+        live.route("s1", "u1.p.1")
+        live.route("s2", "u1.p.2")
+        group = live.group(groups)
+        self.assertEqual([r["end"] for r in group["starts"]], ["u1.p.1", "u1.p.2"])
+        self.assertIs(group["met"], True)
+
+    def test_an_entry_does_not_admit_a_key_that_only_shares_its_prefix(
+        self,
+    ) -> None:
+        # u1.p.12 is nearer s1 (5 away) than u1.p.1 (10 away), and only
+        # u1.p.1 is named.
+        live = Live()
+        live.pad("s1", 0.0, 0.0)
+        live.pad("s2", 0.0, 1.0)
+        live.pad("u1.p.12", 5.0, 0.0)
+        live.pad("u1.p.1", 10.0, 0.0)
+        live.answer(s1=["u1.p.12", "u1.p.1"], s2=["u1.p.12"])
+        groups = {
+            "one": {"starts": ["s1"], "ends": ["u1.p.1"]},
+            "two": {"starts": ["s1", "s2"], "ends": ["u1.p.1"]},
+        }
+        read = live.read(groups)
+        self.assertAlmostEqual(read["one"]["total_mm"], 10.0, places=3)
+        # In "two", s2's only answer is outside ends: it has no candidate.
+        self.assertTrue(any("s2: no possible end" in e for e in read["two"]["errors"]))
+        group = live.group(groups, "two")
+        self.assertTrue(any("s2: no possible end" in e for e in group["errors"]))
+        self.assertIs(group["met"], False)
+
+
+class PinSelection(InScratch):
+    def test_the_least_total_selection_is_met(self) -> None:
+        live = two_by_two()
+        live.read(BUS)
+        live.route("s1", "e1")
+        live.route("s2", "e2")
+        summary, full = live.check(BUS)
+        group = full["pin_selection"]["groups"]["bus"]
+        self.assertEqual(group["read"], "complete")
+        self.assertAlmostEqual(group["realized_mm"], 20.0, places=3)
+        self.assertAlmostEqual(group["least_mm"], 20.0, places=3)
+        self.assertEqual(group["crossings"], {"realized": 0, "least": 0})
+        self.assertIs(group["met"], True)
+        # The summary echoes the pool and how many candidates each start has.
+        brief = summary["pin_selection"]["groups"]["bus"]
+        self.assertEqual(brief["ends"], E12)
+        self.assertEqual(brief["candidates"], {"s1": 2, "s2": 2})
+        self.assertIs(summary["pin_selection"]["met"], True)
+
+    def test_a_longer_selection_fails_until_accept_gives_a_reason(self) -> None:
+        live = two_by_two()
+        live.read(BUS)
+        live.route("s1", "e2")
+        live.route("s2", "e1")
+        group = live.group(BUS)
+        crossed = 2 * math.hypot(10.0, 1.0)
+        self.assertEqual([r["end"] for r in group["starts"]], ["e2", "e1"])
+        self.assertAlmostEqual(group["realized_mm"], crossed, places=3)
+        self.assertAlmostEqual(group["excess_mm"], crossed - 20.0, places=3)
+        self.assertEqual(group["crossings"], {"realized": 1, "least": 0})
+        self.assertIs(group["met"], False)
+        blank = {"bus": {**BUS["bus"], "accept": "  "}}
+        self.assertIs(live.group(blank)["met"], False)
+        why = {"bus": {**BUS["bus"], "accept": "keeps SDA off the clock"}}
+        group = live.group(why)
+        self.assertIs(group["met"], True)
+        self.assertAlmostEqual(group["excess_mm"], crossed - 20.0, places=3)
+
+    def test_a_pool_routed_with_no_reading_fails_and_still_reads_routed(
+        self,
+    ) -> None:
+        # Routed one signal at a time, straight to the nearest pin, and the
+        # ends read only afterwards: routed starts answer nothing.
+        live = two_by_two()
+        live.route("s1", "e1")
+        live.route("s2", "e2")
+        summary, full = live.check(BUS)
+        group = full["pin_selection"]["groups"]["bus"]
+        self.assertEqual(group["read"], "none")
+        self.assertIs(group["met"], False)
+        self.assertAlmostEqual(group["realized_mm"], 20.0, places=3)
+        self.assertIsNone(group["least_mm"])
+        self.assertEqual(summary["pin_selection"]["groups"]["bus"]["open"], [])
+        live.answer(s1=[], s2=[])
+        self.assertEqual(live.read(BUS)["bus"]["answered_nothing"], ["s1", "s2"])
+        group = live.group(BUS)
+        self.assertEqual(group["read"], "partial")
+        self.assertIs(group["met"], False)
+
+    def test_each_error_fails_its_group(self) -> None:
+        live = two_by_two()
+        live.answer(s1=["e1"], s2=["e1"])
+        live.read({"one_pin": {"starts": ["s1", "s2"], "ends": E12}})
+        live.route("s1", "e1")
+        groups = {
+            "no_pad": {"starts": ["s1", "nope"], "ends": E12},
+            "not_a_list": {"starts": "s1", "ends": E12},
+            "accept_number": {"starts": ["s1"], "ends": E12, "accept": 3},
+            "one_pin": {"starts": ["s1", "s2"], "ends": E12},
+            "no_ends": {"starts": ["s1"]},
+            "ends_empty": {"starts": ["s1"], "ends": []},
+        }
+        out = live.check(groups)[1]["pin_selection"]
+        expected = {
+            "no_pad": "nope names no placed pad",
+            "not_a_list": "starts is not a list",
+            "accept_number": "accept is not a string",
+            "one_pin": "no one-to-one selection",
+            "no_ends": "ends is not a list",
+            "ends_empty": "ends is not a list",
+        }
+        for name, error in expected.items():
+            group = out["groups"][name]
+            self.assertIs(group["met"], False, name)
+            self.assertTrue(any(error in e for e in group["errors"]), name)
+        self.assertIs(out["met"], False)
+
+    def test_an_open_start_or_two_pins_or_a_shared_pin_fails(self) -> None:
+        live = two_by_two()
+        live.read(BUS)
+        live.route("s1", "e1")
+        group = live.group(BUS)
+        self.assertEqual([r["end"] for r in group["starts"]], ["e1", "open"])
+        self.assertIs(group["met"], False)
+        live.route("s1", "e2")
+        group = live.group(BUS)
+        self.assertTrue(any("more than one" in e for e in group["errors"]))
+        live.found[lc.Route].pop()
+        live.route("s2", "e1")
+        group = live.group(BUS)
+        self.assertTrue(any("all end at e1" in e for e in group["errors"]))
+        self.assertIs(group["met"], False)
+
+    def test_the_walk_passes_vias_and_plain_pads_and_stops_at_a_pool_pad(
+        self,
+    ) -> None:
+        live = Live()
+        live.pad("s1", 0.0, 0.0)
+        live.pad("s2", 0.0, 1.0)
+        live.via("v1", 5.0, 0.0)
+        live.pad("c1.p.1", 5.0, 1.0)
+        for n, y in ((1, 0.0), (2, 1.0), (3, 2.0)):
+            live.pad(f"u1.p.{n}", 10.0, y)
+        live.answer(s1=["u1.p.1", "u1.p.2"], s2=["u1.p.1", "u1.p.2"])
+        groups = {"bus": {"starts": ["s1", "s2"], "ends": ["u1"]}}
+        live.read(groups)
+        live.route("s1", "v1")
+        live.route("v1", "u1.p.1")
+        # The walk stops at u1.p.1: what is routed on from it is not s1's.
+        live.route("u1.p.1", "u1.p.3")
+        live.route("s2", "c1.p.1")
+        live.route("c1.p.1", "u1.p.2")
+        group = live.group(groups)
+        self.assertEqual([r["end"] for r in group["starts"]], ["u1.p.1", "u1.p.2"])
+        self.assertEqual(group["errors"], [])
+
+    def test_a_pair_walks_each_leg_to_its_own_pad(self) -> None:
+        # P1 and N1 into insertion A, A's coupled end to a pair point's
+        # back, its front to insertion B's coupled end, B out to P2 and N2.
+        live = Live()
+        live.pad("p1", 0.0, 0.0)
+        live.pad("n1", 0.0, 1.0)
+        live.pad("p2", 20.0, 0.0)
+        live.pad("n2", 20.0, 1.0)
+
+        def pair() -> Any:
+            return SimpleNamespace(p=SimpleNamespace(), n=SimpleNamespace())
+
+        a = live.control("ins_a", coupled=pair(), uncoupled=pair())
+        mid = live.control("pp", front=pair(), back=pair())
+        b = live.control("ins_b", coupled=pair(), uncoupled=pair())
+        live.answer(p1=["p2"], n1=["n2"])
+        groups = {"usb": {"starts": ["p1", "n1"], "ends": ["p2", "n2"]}}
+        live.read(groups)
+        live.route("p1", a.uncoupled.p)
+        live.route("n1", a.uncoupled.n)
+        live.route(a.coupled, mid.back)
+        live.route(mid.front, b.coupled)
+        live.route("p2", b.uncoupled.p)
+        live.route("n2", b.uncoupled.n)
+        group = live.group(groups, "usb")
+        self.assertEqual([r["end"] for r in group["starts"]], ["p2", "n2"])
+        self.assertEqual(group["errors"], [])
+        self.assertIs(group["met"], True)
+
+    def test_single_routes_walk_through_a_route_point(self) -> None:
+        live = two_by_two()
+        rp = live.control("rp", pad=SimpleNamespace())
+        live.read(BUS)
+        live.route("s1", rp.pad)
+        live.route(rp.pad, "e1")
+        live.route("s2", "e2")
+        group = live.group(BUS)
+        self.assertEqual([r["end"] for r in group["starts"]], ["e1", "e2"])
+        self.assertIs(group["met"], True)
+
+    def test_an_end_the_reading_does_not_list_fails_even_with_accept(
+        self,
+    ) -> None:
+        live = two_by_two()
+        live.answer(s1=["e1"], s2=["e2"])
+        live.read(BUS)
+        live.route("s1", "e2")
+        live.route("s2", "e1")
+        why = {"bus": {**BUS["bus"], "accept": "keeps SDA off the clock"}}
+        group = live.group(why)
+        self.assertTrue(
+            any("s1" in e and "e2" in e and "pin_ends" in e for e in group["errors"])
+        )
+        self.assertIs(group["met"], False)
+
+    def vias_in_pads(self, far_via_x: float, label: bool) -> Live:
+        """s1's pad holds via v1 with no route at the pad; v1 is routed to
+        v2 at (far_via_x, 0), and e1 is a 0.5 mm pad at (10, 0). s2 routes
+        straight to e2."""
+        live = two_by_two()
+        if label:
+            live.labels[id(live.obj["e1"])] = live.net("A")
+        live.labels[id(live.obj["e2"])] = live.net("B")
+        live.via("v1", 0.0, 0.0)
+        live.via("v2", far_via_x, 0.0)
+        live.read(BUS)
+        live.route("v1", "v2")
+        live.route("s2", "e2")
+        return live
+
+    def test_a_via_in_a_pad_joins_the_walk_to_it(self) -> None:
+        full = self.vias_in_pads(10.0, label=True).check(BUS)[1]
+        group = full["pin_selection"]["groups"]["bus"]
+        self.assertEqual([r["end"] for r in group["starts"]], ["e1", "e2"])
+        self.assertIs(group["met"], True)
+        self.assertEqual(full["stale_labels"], [])
+
+    def test_the_summary_says_the_walk_does_not_cross_pours(self) -> None:
+        cannot = two_by_two().check(BUS)[0]["cannot_measure"]
+        self.assertTrue(
+            any(c.startswith("pin selection") and "pour" in c for c in cannot)
+        )
+
+    def test_a_via_does_not_join_a_pad_on_a_layer_it_is_not_on(self) -> None:
+        # e1 is a bottom-side pad (on INNER only here); v2 is on TOP only,
+        # inside e1's outline.
+        live = Live()
+        live.pad("s1", 0.0, 0.0, "A")
+        live.pad("s2", 0.0, 1.0, "B")
+        live.pad("e1", 10.0, 0.0, "A", layers=frozenset({INNER}))
+        live.pad("e2", 10.0, 1.0, "B")
+        live.via("v1", 0.0, 0.0)
+        live.via("v2", 10.0, 0.0, layers=frozenset({TOP}))
+        live.answer(s1=E12, s2=E12)
+        live.read(BUS)
+        live.route("v1", "v2")
+        live.route("s2", "e2")
+        group = live.group(BUS)
+        self.assertEqual([r["end"] for r in group["starts"]], ["open", "e2"])
+
+    def test_two_stacked_vias_with_no_route_between_join(self) -> None:
+        # va's copper ends at x = 9.65, 0.1 short of e1 (from 9.75); vb at
+        # 9.75 overlaps va (centres 0.25 apart, radii 0.15) and e1.
+        live = two_by_two()
+        live.labels[id(live.obj["e1"])] = live.net("A")
+        live.labels[id(live.obj["e2"])] = live.net("B")
+        live.via("va", 9.5, 0.0)
+        live.via("vb", 9.75, 0.0)
+        live.read(BUS)
+        live.route("s1", "va")
+        live.route("s2", "e2")
+        group = live.group(BUS)
+        self.assertEqual([r["end"] for r in group["starts"]], ["e1", "e2"])
+
+    def test_a_via_joins_a_pad_within_the_end_tolerance_only(self) -> None:
+        # e1's copper ends at x = 10.25 and v2's radius is 0.15: a gap of
+        # 0.01 mm is within the 0.02 mm end tolerance, 0.03 mm is past it.
+        within = self.vias_in_pads(10.25 + 0.15 + 0.01, label=True).group(BUS)
+        self.assertEqual([r["end"] for r in within["starts"]], ["e1", "e2"])
+        past = self.vias_in_pads(10.25 + 0.15 + 0.03, label=True).group(BUS)
+        self.assertEqual([r["end"] for r in past["starts"]], ["open", "e2"])
+
+    def test_a_pad_or_via_with_no_shape_joins_nothing(self) -> None:
+        live = two_by_two()
+        live.pad("c9.p.1", 5.0, 0.0, shape=ShapelyPolygon())
+        live.via("v9", 5.0, 1.0, shape=ShapelyPolygon())
+        live.read(BUS)
+        live.route("s1", "e1")
+        live.route("s2", "e2")
+        group = live.group(BUS)
+        self.assertEqual([r["end"] for r in group["starts"]], ["e1", "e2"])
+
+    def test_a_via_in_an_unlabelled_pad_joins_it_and_lists_the_label(
+        self,
+    ) -> None:
+        full = self.vias_in_pads(10.0, label=False).check(BUS)[1]
+        group = full["pin_selection"]["groups"]["bus"]
+        self.assertEqual([r["end"] for r in group["starts"]], ["e1", "e2"])
+        self.assertEqual(full["stale_labels"], ["e1"])
+
+    def test_a_via_beside_a_pad_joins_nothing(self) -> None:
+        # e1's copper ends at x = 10.25; a 0.3 mm via at x = 10.6 ends at
+        # 10.45, 0.2 mm away, far past the end tolerance.
+        full = self.vias_in_pads(10.6, label=True).check(BUS)[1]
+        group = full["pin_selection"]["groups"]["bus"]
+        self.assertEqual([r["end"] for r in group["starts"]], ["open", "e2"])
+
+    def test_a_start_that_loses_its_position_fails_its_group_only(self) -> None:
+        live = two_by_two()
+        live.pad("s3", 0.0, 5.0)
+        live.pad("e3", 10.0, 5.0)
+        live.answers["s3"] = [live.obj["e3"]]
+        groups = {**BUS, "other": {"starts": ["s3"], "ends": ["e3"]}}
+        live.read(groups)
+        live.route("s3", "e3")
+        live.unplace("s1")
+        summary, full = live.check(groups)
+        bus = full["pin_selection"]["groups"]["bus"]
+        self.assertTrue(any("s1 names no placed pad" in e for e in bus["errors"]))
+        self.assertIs(bus["met"], False)
+        self.assertIs(full["pin_selection"]["groups"]["other"]["met"], True)
+        self.assertIn("connectivity", summary)
+
+    def test_a_realized_pad_whose_label_is_not_the_signal_net_is_listed(
+        self,
+    ) -> None:
+        # e1 carries no net label (the capture's), s1 carries A; e2 is
+        # labelled B, as s2 is.
+        live = two_by_two()
+        live.labels[id(live.obj["e2"])] = live.net("B")
+        live.read(BUS)
+        live.route("s1", "e1")
+        live.route("s2", "e2")
+        summary, full = live.check(BUS)
+        self.assertEqual(full["stale_labels"], ["e1"])
+        self.assertEqual(summary["stale_labels"], ["e1"])
+
+    def test_without_route_ends_the_pool_is_not_measurable(self) -> None:
+        live = two_by_two(route_ends=False)
+        live.route("s1", "e1")
+        live.route("s2", "e2")
+        summary, full = live.check(BUS)
+        group = full["pin_selection"]["groups"]["bus"]
+        self.assertEqual(group["read"], "unavailable")
+        self.assertIsNone(group["met"])
+        self.assertIsNone(summary["pin_selection"]["met"])
+        self.assertTrue(
+            any("pin selection" in c and "bus" in c for c in summary["cannot_measure"])
+        )
 
 
 if __name__ == "__main__":

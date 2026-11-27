@@ -124,7 +124,7 @@ A rule that builds is not a rule that applied. Build, `rd.capture()`, and read t
 - Derive expected values from the prompt, documents or geometry, never from the rule.
 - A route can realize as a widthless `Polygon`, or with no traces (a width override under a rule it already matches can do this): a width check fails on either, never skips it.
 - Every rule has witnessing copper or is reported unwitnessed. `Copper` placed from code is drawn as written whatever the rules say (routes other than an envelope section keep their clearance to it): check it.
-- Capture does not show which rule won; the board view does (select the route, press B).
+- Capture does not show which rule won; the board view does (select the route, press B), and so does `rd.layout.constraints` in a session where the installed `jitx` has it ([jitx-interactive-layout](../jitx-interactive-layout/SKILL.md) owns that call).
 - The check exits nonzero on failure; `status: ok` is not proof.
 - A rule that did not apply is usually unreachable, out-ranked (a heavy layer's floor too), the wrong arity, aimed at the wrong target, below a `min_copper_*` floor (not a `routing_structure` rule, whose width and pair gap override the floors), or keyed on a tag not on the `Pour`.
 
